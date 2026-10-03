@@ -28,6 +28,21 @@ function decide(text) {
   if (sent.length) noSecrets(cwd);
 }
 
+const WRAPPERS = new Set(["command", "env", "sudo", "exec", "nohup", "time", "nice", "stdbuf"]);
+
+/** The program and its arguments: leading VAR=value words and wrappers (command, env, sudo ...) dropped, the program reduced to its file name. */
+function program(words) {
+  let i = 0;
+  for (;;) {
+    while (i < words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[i])) i++;
+    if (!WRAPPERS.has(words[i])) break;
+    i++;
+    while (i < words.length && words[i].startsWith("-")) i++;
+  }
+  const rest = words.slice(i);
+  return rest.length ? [path.basename(rest[0]), ...rest.slice(1)] : [];
+}
+
 const DATA_FLAGS = /^(-f|-F|--field|--raw-field|--input|-d|--data.*|--json)$/;
 
 /** The HTTP method a gh api / curl call uses: an explicit one, else POST when it sends data, else GET. */
@@ -41,8 +56,7 @@ function httpMethod(rest) {
 
 /** AGENTS.md: the repo has no pull requests, and refs and files reach GitHub only by `git push` (guarded); the REST writers would bypass that. */
 function noPullRequest(words) {
-  while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words = words.slice(1); // FOO=1 gh ...
-  const [tool, ...rest] = words;
+  const [tool, ...rest] = program(words);
   if (tool === "gh" && rest[0] === "pr" && ["create", "new"].includes(rest[1])) denyPullRequest();
   const api = (tool === "gh" && rest[0] === "api") || tool === "curl";
   if (!api || ["GET", "HEAD"].includes(httpMethod(rest))) return;
@@ -136,9 +150,9 @@ function withoutRedirects(words) {
 function pushes(line) {
   const found = [];
   for (const raw of commands(line)) {
-    const words = withoutRedirects(raw);
-    let i = words.indexOf("git");
-    if (i < 0) continue;
+    const words = program(withoutRedirects(raw));
+    if (words[0] !== "git") continue;
+    let i = 0;
     // Skip git's own options (-C dir, -c k=v, --git-dir=...) up to the subcommand.
     for (i++; i < words.length && words[i].startsWith("-"); i++) if (["-C", "-c"].includes(words[i])) i++;
     if (words[i] !== "push") continue;
