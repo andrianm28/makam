@@ -15,7 +15,7 @@ import { composeIdentity } from "@/composition/identity";
 import { createAdapters } from "@/composition/adapters";
 import { createDatabase } from "@/db/client";
 import type { Actor } from "@/domain/identity";
-import { createLokasi, type Lokasi } from "@/domain/lokasi";
+import { createLokasi, type Lokasi, type TpuDki } from "@/domain/lokasi";
 import { appEnvironments, readRuntimeEnv } from "@/lib/env";
 import { wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
@@ -41,6 +41,17 @@ function bacaBerkas(folder: string, nama: string): ReturnType<typeof bacaCsv> | 
   return existsSync(path) ? bacaCsv(readFileSync(path, "utf8")) : null;
 }
 
+function samaDenganTpu(lama: TpuDki, baru: BarisTpu): boolean {
+  return (
+    lama.address === baru.address &&
+    lama.city === baru.city &&
+    lama.dataSource === baru.dataSource &&
+    lama.menerimaMakamBaru === baru.menerimaMakamBaru &&
+    lama.pin?.lat === baru.pin?.lat &&
+    lama.pin?.lng === baru.pin?.lng
+  );
+}
+
 async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: boolean): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "tpu-dki.csv");
@@ -54,7 +65,11 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
       continue;
     }
     const tpu: BarisTpu = parsed.data;
-    if (ada.has(tpu.name)) continue;
+    const lama = ada.get(tpu.name);
+    if (lama) {
+      if (samaDenganTpu(lama, tpu)) hasil.sama += 1;
+      continue;
+    }
     if (tulis) {
       const dibuat = await lokasi.createTpuDki(aktor, tpu);
       if (!dibuat.ok) {
