@@ -78,9 +78,9 @@ describe("the regenerated SQL against the branch's own migration", () => {
   });
 
   it("treats a statement the generator emitted twice as unexpected when the branch has it once", () => {
-    const result = compareMigrationSql(`${create}${bp}${create}`, create);
+    const result = compareMigrationSql(`${index}${bp}${index}`, index);
 
-    expect(result.unexpected).toEqual([create]);
+    expect(result.unexpected).toEqual([index]);
   });
 
   it("fails when the generator emitted a statement the branch does not have", () => {
