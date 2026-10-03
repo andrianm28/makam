@@ -140,13 +140,25 @@ describe("guard-git hook, the writers to main", () => {
     git(other, "config", "user.email", "t@example.com");
     git(other, "config", "user.name", "t");
     mkdirSync(path.join(other, "src"));
-    writeFileSync(path.join(other, "src/a.ts"), "x");
+    writeFileSync(path.join(other, "src/a.ts"), "export const code = 1;\n");
     git(other, "add", "-A");
     git(other, "commit", "-q", "-m", "merge thread code");
     git(other, "push", "-q", "origin", "main");
     git(dir, "fetch", "-q", "origin");
     commit("docs/agents/notes.md");
     expect(bash("git push origin main").status).toBe(0);
+  });
+
+  it("counts a file moved into docs/ as a change to the place it left", () => {
+    const { dir, bash, commit } = repo();
+    commit("src/move.ts", "export const m = 1;\n");
+    git(dir, "push", "-q", "origin", "main");
+    mark(dir, "docs");
+    git(dir, "mv", "src/move.ts", "docs/move.ts");
+    git(dir, "commit", "-q", "-m", "move");
+    const r = bash("git push origin main");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/src\/move\.ts/);
   });
 
   it("tells the coordinator to fetch when it has no origin/main to compare with", () => {
