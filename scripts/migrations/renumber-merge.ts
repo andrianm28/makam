@@ -10,7 +10,7 @@
  * regenerates the branch's schema change under the next free number.
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -59,8 +59,20 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
     // conflicts are expected; they are handled below
   }
 
-  for (const file of [...added, ...snapshots]) git(cwd, ["rm", "-q", "-f", "--", file]);
-  git(cwd, ["checkout", base, "--", "drizzle/meta/_journal.json"]);
+  // `git checkout <ref> -- <path>` on a path that is still unmerged does not restore it
+  // (the silent failure in the orchestration manual), so clear every unmerged drizzle path
+  // from the index first, then restore main's copies by name and verify them.
+  const unmerged = lines(git(cwd, ["diff", "--name-only", "--diff-filter=U", "--", "drizzle"]));
+  const dropped = [...new Set([...added, ...snapshots, ...unmerged])];
+  for (const file of dropped) {
+    git(cwd, ["rm", "-q", "-f", "--cached", "--ignore-unmatch", "--", file]);
+    rmSync(path.join(cwd, file), { force: true });
+  }
+  const inBase = new Set(lines(git(cwd, ["ls-tree", "-r", "--name-only", base, "--", "drizzle"])));
+  const restore = [...new Set([...dropped.filter((f) => inBase.has(f)), "drizzle/meta/_journal.json", ...[...inBase].filter((f) => f.endsWith("_snapshot.json"))])];
+  git(cwd, ["checkout", base, "--", ...restore]);
+  const stray = lines(git(cwd, ["diff", "--name-only", base, "--", ...restore]));
+  if (stray.length > 0) throw new Error(`could not restore ${base}'s copy of: ${stray.join(", ")}`);
   return { asideDir, setAside };
 }
 
