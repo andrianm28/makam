@@ -36,9 +36,11 @@ export function checkSnapshotChain(drizzleDir: string): SnapshotChain {
 export type SqlComparison = {
   /** Every statement matches, in order, with nothing added or missing. */
   identical: boolean;
+  /** The statements both sides have appear in the same relative order (a re-appended hand-written block may sit elsewhere). */
+  ordered: boolean;
   /** Statements only the branch has: hand-written blocks (ticket 39's backfill) to re-append. */
   handWritten: string[];
-  /** Statements only the generator produced: a sign the restore went wrong (two tickets in one file). */
+  /** Statements only the generator produced (or produced more often): a sign the restore went wrong (two tickets in one file). */
   unexpected: string[];
 };
 
@@ -50,13 +52,27 @@ function statements(sql: string): string[] {
     .filter(Boolean);
 }
 
+/** `from` minus one occurrence per element of `taken`, keeping order. */
+function without(from: string[], taken: string[]): string[] {
+  const left = [...taken];
+  return from.filter((s) => {
+    const at = left.indexOf(s);
+    if (at < 0) return true;
+    left.splice(at, 1);
+    return false;
+  });
+}
+
 export function compareMigrationSql(generated: string, branch: string): SqlComparison {
   const gen = statements(generated);
   const own = statements(branch);
-  const handWritten = own.filter((s) => !gen.includes(s));
-  const unexpected = gen.filter((s) => !own.includes(s));
-  const identical = handWritten.length === 0 && unexpected.length === 0 && gen.every((s, i) => s === own[i]);
-  return { identical, handWritten, unexpected };
+  const handWritten = without(own, gen);
+  const unexpected = without(gen, own);
+  const sharedGen = without(gen, unexpected);
+  const sharedOwn = without(own, handWritten);
+  const ordered = sharedGen.every((s, i) => s === sharedOwn[i]);
+  const identical = handWritten.length === 0 && unexpected.length === 0 && ordered && gen.every((s, i) => s === own[i]);
+  return { identical, ordered, handWritten, unexpected };
 }
 
 export type MergeProofsOptions = {
@@ -93,7 +109,7 @@ export function runMergeProofs(options: MergeProofsOptions): MergeProofsReport {
   }));
   const secondGenerateClean = NOTHING_TO_MIGRATE.test(options.generate());
   const chain = checkSnapshotChain(options.drizzleDir);
-  const sqlOk = options.newFiles.length === aside.length && sql.every((s) => s.comparison.unexpected.length === 0);
+  const sqlOk = options.newFiles.length === aside.length && sql.every((s) => s.comparison.unexpected.length === 0 && s.comparison.ordered);
   const destructive = options.newFiles.flatMap((file) => unmarkedDestructiveStatements(readFileSync(file, "utf8")).map((d) => ({ ...d, file })));
   const reappend = sql.flatMap((s) => s.comparison.handWritten);
   return { ok: sqlOk && reappend.length === 0 && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, reappend, sql, secondGenerateClean, chain, destructive };
