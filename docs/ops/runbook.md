@@ -1761,7 +1761,9 @@ and the blocks under `/opt/makam-v1/nginx/`.
    the host's backup folder `/opt/makam-v1/prod/backups/app-lama/` (the way the
    nightly backups are kept; S3 is v2, ticket 03, so nothing is uploaded),
    restores it into a throwaway Postgres (no network, removed again) and
-   compares every table's row count with the source. Only a proven archive prints the cleanup
+   compares every table's row count with the source. The counts are taken just after the dump,
+   so if the old app took a write between the two the proof fails: rerun the
+   archive. Only a proven archive prints the cleanup
    plan; it deletes nothing yet. Any failure exits non-zero: do not switch on
    an unproven archive.
 3. **Promotion.** Run `promote.yml` ("Promosikan ke produksi", owner only, the
