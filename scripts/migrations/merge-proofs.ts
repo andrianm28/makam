@@ -56,3 +56,37 @@ export function compareMigrationSql(generated: string, branch: string): SqlCompa
   const identical = handWritten.length === 0 && unexpected.length === 0 && gen.every((s, i) => s === own[i]);
   return { identical, handWritten, unexpected };
 }
+
+export type MergeProofsOptions = {
+  drizzleDir: string;
+  /** Where renumber-merge copied the branch's own SQL. */
+  asideDir: string;
+  /** The migration files the regenerate produced (not in the base). */
+  newFiles: string[];
+  /** Runs `npm run db:generate` and returns its output. */
+  generate: () => string;
+};
+
+export type MergeProofsReport = {
+  ok: boolean;
+  sql: { file: string; comparison: SqlComparison }[];
+  secondGenerateClean: boolean;
+  chain: SnapshotChain;
+};
+
+const NOTHING_TO_MIGRATE = /nothing to migrate|no schema changes/i;
+
+export function runMergeProofs(options: MergeProofsOptions): MergeProofsReport {
+  const aside = readdirSync(options.asideDir).filter((f) => f.endsWith(".sql")).sort();
+  const sql = [...options.newFiles].sort().map((file, i) => ({
+    file,
+    comparison: compareMigrationSql(
+      readFileSync(file, "utf8"),
+      aside[i] ? readFileSync(path.join(options.asideDir, aside[i]), "utf8") : "",
+    ),
+  }));
+  const secondGenerateClean = NOTHING_TO_MIGRATE.test(options.generate());
+  const chain = checkSnapshotChain(options.drizzleDir);
+  const sqlOk = options.newFiles.length === aside.length && sql.every((s) => s.comparison.unexpected.length === 0);
+  return { ok: sqlOk && secondGenerateClean && chain.unexpected.length === 0, sql, secondGenerateClean, chain };
+}
