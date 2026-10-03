@@ -181,3 +181,23 @@ describe("guard-git hook, failing closed", () => {
     expect(r.stderr).toMatch(/fail-closed/);
   });
 });
+
+describe("guard-git hook, text that only mentions a command", () => {
+  it("does not mistake quoted text or a heredoc body for a command", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      'git commit -m "docs: never run gh pr create, never git push origin main"',
+      "echo 'gh api repos/andrianm28/makam/pulls -f title=t'",
+      "cat > notes.md <<'EOF'\nrun gh pr create\ngit push origin main\nEOF",
+      "cat <<EOF\ngit push origin HEAD:main\nEOF\ngit status",
+    ]) {
+      expect(bash(command).status, command).toBe(0);
+    }
+  });
+
+  it("still sees a command after a heredoc or inside a chain", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    expect(bash("cat <<'EOF' > f\nhello\nEOF\ngh pr create --fill").status).toBe(2);
+    expect(bash("cd . && FOO=1 gh pr create").status).toBe(2);
+  });
+});
