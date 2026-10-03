@@ -93,13 +93,12 @@ export interface Wakaf {
   berkasUrl(wakif: Wakif, pengajuanId: string, berkasId: string): Promise<BerkasUrlResult>;
 }
 
-/** The Nazhir list alone (list, add, change, remove), for a caller that keeps the list without the rest of Wakaf: the launch data import. */
-export function createNazhirList(deps: NazhirDeps): Pick<Wakaf, "daftarNazhir" | "tambahNazhir" | "ubahNazhir" | "hapusNazhir"> {
+/** The Nazhir list alone (list, add, change), for a caller that keeps the list without the rest of Wakaf: the launch data import. */
+export function createNazhirList(deps: NazhirDeps): Pick<Wakaf, "daftarNazhir" | "tambahNazhir" | "ubahNazhir"> {
   return {
     daftarNazhir: (by) => daftarNazhir(deps, by),
     tambahNazhir: (by, input) => tambahNazhir(deps, by, input),
     ubahNazhir: (by, input) => ubahNazhir(deps, by, input),
-    hapusNazhir: (by, input) => hapusNazhir(deps, by, input),
   };
 }
 

@@ -2,11 +2,11 @@
 import { asc, eq } from "drizzle-orm";
 import { wakafResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { WakafDeps } from "./deps";
+import { wakafNazhir, type JenisNazhir } from "./schema";
+import { hapusNazhirSchema, nazhirInputSchema, ubahNazhirSchema } from "./skema";
 
 /** What the Nazhir list needs: no files, Field Work or Notifications, so a caller that only keeps the list composes only these. */
 export type NazhirDeps = Pick<WakafDeps, "db" | "clock" | "audit">;
-import { wakafNazhir, type JenisNazhir } from "./schema";
-import { hapusNazhirSchema, nazhirInputSchema, ubahNazhirSchema } from "./skema";
 
 export interface Nazhir {
   id: string;
