@@ -39,7 +39,14 @@ describe("the production block for makam.co.id and www", () => {
     expect(block.match(/include snippets\/makam-prod-proxy\.conf;/g)).toHaveLength(3);
     // The same proxy lines as staging, apart from the port.
     const lines = (text: string) => text.split("\n").filter((l) => l && !l.startsWith("#"));
-    expect(lines(proxy).join("\n").replace("3100", "3110")).toBe(lines(stagingProxy).join("\n"));
+    expect(lines(proxy).join("\n").replace("3100", "3110").replace("$makam_prod_connection_upgrade", "$makam_connection_upgrade")).toBe(lines(stagingProxy).join("\n"));
+  });
+
+  it("defines its own WebSocket upgrade map, so it installs without the staging block", () => {
+    expect(block).toMatch(/map \$http_upgrade \$makam_prod_connection_upgrade \{/);
+    expect(proxy).toContain("$makam_prod_connection_upgrade");
+    expect(proxy + block.replace(/map \$http_upgrade \$makam_prod_connection_upgrade/, "")).not.toMatch(/\$makam_connection_upgrade/);
+    expect(block).not.toMatch(/dev\.makam\.co\.id\.conf stays installed/);
   });
 
   it("keeps the staging block's body size and timeouts", () => {
