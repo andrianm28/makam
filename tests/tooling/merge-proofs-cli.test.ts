@@ -90,3 +90,14 @@ describe("the merge-proofs command line against main's snapshots", () => {
     expect(out).toContain("0000_snapshot.json: missing");
   });
 });
+
+describe("the merge-proofs command line's arguments", () => {
+  it("exits 64 with a usage line when no set-aside folder is given", () => {
+    const { cwd } = mergeWorktree(sql, sql);
+
+    const { code, err } = run(cwd, []);
+
+    expect(code).toBe(64);
+    expect(err).toMatch(/usage: .*merge-proofs\.ts <aside-dir>/);
+  });
+});
