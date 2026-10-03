@@ -58,6 +58,9 @@ function mergeInProgress(cwd: string): boolean {
 export function renumberForMerge(options: RenumberOptions): RenumberResult {
   const { cwd, branchRef } = options;
   const baseRef = options.baseRef ?? "HEAD";
+  if (git(cwd, ["status", "--porcelain"]).trim() !== "") {
+    throw new Error("the merge worktree has uncommitted changes; commit or stash them first (the helper deletes and restores drizzle paths)");
+  }
   const base = git(cwd, ["rev-parse", baseRef]).trim();
   const asideDir = options.asideDir ?? mkdtempSync(path.join(tmpdir(), "makam-mig-aside-"));
   mkdirSync(asideDir, { recursive: true });
