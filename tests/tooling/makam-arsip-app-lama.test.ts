@@ -19,8 +19,10 @@ const CONFIRM = "hapus-app-lama";
 function host() {
   const root = mkdtempSync(path.join(tmpdir(), "makam-arsip-"));
   const bin = path.join(root, "bin");
-  const oldApp = path.join(root, "home-ubuntu-makam-app");
-  const notify = path.join(root, "opt-makam-notify");
+  // The old app's directories live outside makam-v1's tree, as on the host.
+  const outside = mkdtempSync(path.join(tmpdir(), "makam-arsip-old-"));
+  const oldApp = path.join(outside, "home-ubuntu-makam-app");
+  const notify = path.join(outside, "opt-makam-notify");
   mkdirSync(bin);
   mkdirSync(path.join(root, "prod"), { recursive: true });
   mkdirSync(path.join(root, "nginx-backups"));

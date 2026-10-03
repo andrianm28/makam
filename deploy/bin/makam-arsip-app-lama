@@ -31,8 +31,8 @@ set -euo pipefail
 
 MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
 LOG_TAG=makam-arsip-app-lama
-OLD_APP_DIR=${MAKAM_OLD_APP_DIR:-/home/ubuntu/makam-app}
-OLD_NOTIFY_DIR=${MAKAM_OLD_NOTIFY_DIR:-/opt/makam-notify}
+OLD_APP_DIR=${MAKAM_OLD_APP_DIR-/home/ubuntu/makam-app}
+OLD_NOTIFY_DIR=${MAKAM_OLD_NOTIFY_DIR-/opt/makam-notify}
 CONFIRM_WORD=hapus-app-lama
 
 # shellcheck source=deploy/bin/makam-backup-lib
@@ -132,6 +132,18 @@ differ=$(awk -F= '
 [ -z "$differ" ] || { err "ERROR the restore of $BASE: row counts differ from the source: $(printf '%s' "$differ" | tr '\n' ' ')"; exit 1; }
 log "archive proven: $BASE restored into a throwaway Postgres, every table with its rows"
 
+# The two directories are deleted with rm -rf, and may be overridden from the
+# environment: refuse anything that is not a plain absolute path outside
+# makam-v1's own tree before anything is planned.
+for dir in "$OLD_APP_DIR" "$OLD_NOTIFY_DIR"; do
+  case "$dir" in
+    /|''|[!/]*|*/..|*/../*|*/./*|*/.) refuse "$dir is not a safe directory to delete" ;;
+  esac
+  case "$dir/" in
+    "$MAKAM_ROOT"/*|"${MAKAM_ROOT%/}"/*) refuse "$dir is inside $MAKAM_ROOT, which holds makam-v1" ;;
+  esac
+done
+
 # 3. The plan: objects by exact name, from prefixes only the old app uses.
 # `docker ps --filter name=` matches substrings, so the prefix is checked again
 # here; the makam-app image is matched on its repository, any tag.
@@ -143,7 +155,7 @@ IMAGES=()
 while IFS= read -r n; do case "$n" in makam-app:*) IMAGES+=("$n") ;; esac; done < <(docker images --format '{{.Repository}}:{{.Tag}}')
 BLOCKS=()
 if [ -d "$MAKAM_ROOT/nginx-backups" ]; then
-  while IFS= read -r f; do BLOCKS+=("$f"); done < <(grep -lE '127\.0\.0\.1:(3001|8081|8083)\b' "$MAKAM_ROOT"/nginx-backups/* 2> /dev/null || true)
+  while IFS= read -r f; do BLOCKS+=("$f"); done < <(grep -lE '127\.0\.0\.1:(3001|8081|8083)\b' "$MAKAM_ROOT"/nginx-backups/{,dev.}makam.co.id.conf.* 2> /dev/null || true)
 fi
 
 echo
