@@ -184,6 +184,7 @@ function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Reco
     encoding: "utf8",
     env: {
       PATH: `${w.bin}:/usr/bin:/bin`,
+      NODE_ENV: "test",
       MAKAM_ROOT: w.root,
       FAKE_LOG: path.join(w.root, "log"),
       ...extra,
