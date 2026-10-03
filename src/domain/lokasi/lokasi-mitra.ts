@@ -259,6 +259,7 @@ export async function updateProfile(
   by: Actor,
   lokasiId: string,
   input: LokasiProfileInput,
+  options: { reason?: string } = {},
 ): Promise<UpdateProfileResult> {
   const parsed = lokasiProfileSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "profil_tidak_valid" };
@@ -295,6 +296,7 @@ export async function updateProfile(
       facilities: { checked: row.facilities, note: row.facilitiesNote },
     },
     after: { ...profile },
+    reason: options.reason,
   }));
 }
 

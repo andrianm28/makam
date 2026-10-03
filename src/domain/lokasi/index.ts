@@ -283,7 +283,7 @@ export interface Lokasi {
   /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
   lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
   /** Admin Platform records the profile (name, pengelola, address, city, pin, facilities), audited. */
-  updateProfile(by: Actor, lokasiId: string, input: LokasiProfileInput): Promise<UpdateProfileResult>;
+  updateProfile(by: Actor, lokasiId: string, input: LokasiProfileInput, options?: { reason?: string }): Promise<UpdateProfileResult>;
   /**
    * Admin Platform marks a Lokasi Mitra as example data (with a reason), or clears
    * the mark, audited. A marked one can never be published or listed (ticket 86).
@@ -492,7 +492,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     createLokasiMitra: (by, input, options) => createLokasiMitra(deps, by, input, options),
     isTerverifikasi: (lokasiId) => isTerverifikasi(deps, lokasiId),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
-    updateProfile: (by, lokasiId, input) => updateProfile(deps, by, lokasiId, input),
+    updateProfile: (by, lokasiId, input, options) => updateProfile(deps, by, lokasiId, input, options),
     tandaiDataContoh: (by, lokasiId, input) => tandaiDataContoh(deps, by, lokasiId, input),
     setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),
     setPoliciesAndFlags: (by, lokasiId, input) => setPoliciesAndFlags(deps, by, lokasiId, input),
