@@ -184,4 +184,30 @@ describe("the three proofs as one run", () => {
     expect(report.baseSnapshotProblems).toEqual(["0000_snapshot.json: differs from main's"]);
     expect(report.ok).toBe(false);
   });
+
+  it("pairs each regenerated file with the branch's by migration number, whatever random names drizzle gave them", () => {
+    const dir = drizzleDir([
+      ["0000", "a", "00000000-0000-0000-0000-000000000000"],
+      ["0001", "b", "a"],
+      ["0002", "c", "b"],
+    ]);
+    const aside = mkdtempSync(path.join(tmpdir(), "makam-aside-"));
+    dirs.push(aside);
+    const first = 'CREATE TABLE "first" ("id" int);';
+    const second = 'CREATE TABLE "second" ("id" int);';
+    // lexically the later migration's name sorts first: "0002_apple" is after "0001_zebra" only because of the number
+    writeFileSync(path.join(dir, "0001_zebra.sql"), first);
+    writeFileSync(path.join(dir, "0002_apple.sql"), second);
+    writeFileSync(path.join(aside, "0001_one.sql"), first);
+    writeFileSync(path.join(aside, "0002_two.sql"), second);
+
+    const report = runMergeProofs({
+      drizzleDir: dir,
+      asideDir: aside,
+      newFiles: [path.join(dir, "0002_apple.sql"), path.join(dir, "0001_zebra.sql")],
+      generate: () => "nothing to migrate",
+    });
+
+    expect(report.ok).toBe(true);
+  });
 });

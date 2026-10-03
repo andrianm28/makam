@@ -2,7 +2,10 @@
  * The merge-time proofs for a renumbered migration (docs/agents/orchestration.md,
  * "Renumbering a ticket's migration at merge time" and "The third proof"):
  *
- *   npx tsx scripts/migrations/merge-proofs.ts <aside-dir>
+ *   npx tsx scripts/migrations/merge-proofs.ts <aside-dir> [base-ref]
+ *
+ * `<aside-dir>` is the folder renumber-merge.ts printed; `[base-ref]` (default HEAD) is the merge worktree's own commit.
+ * Exits 0 only when every proof holds; 1 on a failed proof or while a hand-written block is missing; 64 on bad arguments.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
