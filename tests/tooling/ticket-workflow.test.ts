@@ -81,7 +81,7 @@ const MARKER = "Two-axis review";
 const RATCHET_FROM = 43;
 
 /** The resolved tickets at or above RATCHET_FROM that predate this guard. */
-const GRACE = [60, 61, 63, 66, 67, 68, 70, 71, 73, 75, 76, 77, 78, 80, 82, 83, 85];
+const GRACE = [60, 61, 63, 66, 67, 68, 70, 73, 75, 76, 77, 78, 80, 82, 83, 85];
 
 /**
  * The tree the guard reads, or the reason it could not be read.
