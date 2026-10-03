@@ -433,6 +433,51 @@ check_webhook_forged() {
   esac
 }
 
+# One GitHub API call with the deploy token in a mode 0600 header file. Prints
+# the HTTP status; the response body goes to $BODY_FILE.
+gh_call() {
+  local method=$1 path=$2 data=${3:-} headers code
+  headers=$(mktemp)
+  chmod 600 "$headers"
+  printf 'Authorization: Bearer %s\n' "$(setting MAKAM_GITHUB_TOKEN)" > "$headers"
+  code=$(curl -sS -o "$BODY_FILE" -w '%{http_code}' --max-time 20 -X "$method" \
+    -H "@$headers" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' -H 'User-Agent: makam-preflight' \
+    ${data:+--data "$data"} "https://api.github.com$path" 2> /dev/null) || code="no answer"
+  rm -f "$headers"
+  printf '%s' "$code"
+}
+
+# Does makam-deploy-status work from this host? It creates a Deployment with
+# the image tag sha-<revision> as its ref; this probe does the same call (a
+# transient "preflight" environment), then marks it inactive and deletes it.
+check_github_deployments() {
+  local repo rev ref code id message="" tried_plain=0
+  repo=$(setting MAKAM_GITHUB_REPOSITORY)
+  repo=${repo:-andrianm28/makam}
+  if [ -z "$(setting MAKAM_GITHUB_TOKEN)" ]; then
+    fail "72" "github deployments" "MAKAM_GITHUB_TOKEN is not set in $ENV_FILE: makam-deploy-status then does nothing, so every deploy is invisible in GitHub (fine-grained token, Deployments: write, this repository only)"
+    return 0
+  fi
+  if [ "$PULLED" -ne 1 ]; then
+    skip "72" "github deployments" "needs the pulled image for its revision (ghcr pull above)"
+    return 0
+  fi
+  rev=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF" 2> /dev/null || true)
+  ref="sha-$rev"
+  BODY_FILE=$(mktemp)
+  code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$ref\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
+  id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
+  message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
+  if [ -n "$id" ] && [ "$code" = 201 ]; then
+    gh_call POST "/repos/$repo/deployments/$id/statuses" '{"state":"inactive"}' > /dev/null
+    gh_call DELETE "/repos/$repo/deployments/$id" > /dev/null
+    pass "72" "github deployments" "$repo accepted a Deployment with ref $ref and the probe was deleted again"
+  else
+    fail "72" "github deployments" "$repo refused the Deployment (HTTP $code${message:+, $message}): check the token's repository and Deployments: write"
+  fi
+  rm -f "$BODY_FILE"
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -446,6 +491,7 @@ check_smtp
 check_sumopod_key
 check_webhook_secret
 check_webhook_forged
+check_github_deployments
 check_s3
 check_backup_key
 check_backup_and_restore
