@@ -592,4 +592,13 @@ describe("makam-preflight", () => {
     expect(result.calls).toMatch(/makam-restore-test --env prod --dump \S+makam-20261003T000000Z\.dump\.enc/);
     expect(readdirSync(dir).sort()).toEqual(["makam-20261003T000100Z.counts.enc", "makam-20261003T000100Z.dump.enc"]);
   });
+
+  it("says in its header and in the runbook that the backup step also prunes Dumps older than 7 days, so it is not read-only", () => {
+    const header = readFileSync(preflightScript, "utf8").split("\n").slice(0, 40).join("\n");
+    expect(header).toMatch(/makam-backup-db[\s\S]*prunes[\s\S]*older than 7 days/);
+
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Staging is public"));
+    expect(section).toMatch(/makam-backup-db[\s\S]*prunes[\s\S]*older than 7 days/);
+  });
 });
