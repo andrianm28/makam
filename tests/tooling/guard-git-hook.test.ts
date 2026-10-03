@@ -435,5 +435,14 @@ describe("guard-git hook, the allowlist of main writers", () => {
     expect(r.stdout + r.stderr).toMatch(/CLAUDE_CODE_REMOTE_SESSION_ID is not set/);
     expect(r.stdout + r.stderr).toMatch(/self-declared/);
   });
+
+  it("lets the coordinator, listed as docs, edit the list itself, and nothing else under .claude/", () => {
+    const { dir, bash, commit } = repo();
+    listOnMain(dir, "01TESTSESSIONID docs the coordinator\n");
+    commit(".claude/main-writers", "01TESTSESSIONID docs the coordinator\n01NEWMERGETHREAD merge\n");
+    expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(0);
+    commit(".claude/settings.json", "{}");
+    expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(2);
+  });
 });
 
