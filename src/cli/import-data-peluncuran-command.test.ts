@@ -220,6 +220,31 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI
     expect(await hargaDki()).toBe(250_000);
     expect(await tarifMitraJasa()).toBe(180_000);
   });
+
+  it("changes nothing on a second run, and enters a new price version only for what changed", async () => {
+    const { hargaDki, tarifMitraJasa } = await katalog();
+    const sumber = folder({ "layanan-dki.csv": LAYANAN });
+    await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+
+    const ulang = await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+    expect(ulang.output).toContain("Layanan DKI: 1 baris dibaca, 0 dibuat, 0 diubah, 1 sama, 0 ditolak.");
+
+    const naik = folder({ "layanan-dki.csv": LAYANAN.replace("180000", "190000") });
+    const berubah = await importDataPeluncuranCommand(["--sumber", naik, "--tulis"], env(), { clock: clock() });
+    expect(berubah.output).toContain("Layanan DKI: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    expect(await hargaDki()).toBe(250_000);
+    expect(await tarifMitraJasa()).toBe(190_000);
+  });
+
+  it("refuses a variant the catalog does not have, naming the Layanan and the variant", async () => {
+    await katalog();
+    const salah = LAYANAN.replace("Reguler", "Platinum");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "layanan-dki.csv": salah }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain('layanan-dki.csv baris 2: varian "Platinum" dari Layanan "Pembersihan Makam" tidak ada di katalog Layanan');
+  });
 });
 
 describe("npm run import:data-peluncuran: which stack it may run on", () => {
