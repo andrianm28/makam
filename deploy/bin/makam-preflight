@@ -489,6 +489,12 @@ check_github_deployments() {
   rm -f "$BODY_FILE"
 }
 
+# What no script on this host can prove.
+check_manual_steps() {
+  skip "02" "uptime monitor" "manual: an external monitor outside the VPS must watch https://makam.co.id/api/health with an alert contact (runbook, \"Uptime alarm\"); record which service in ticket 02"
+  skip "72" "nginx switch" "manual, the owner's gated step: only after every line above is PASS, switch makam.co.id to v1 (runbook, \"Production (ticket 65)\")"
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -506,6 +512,7 @@ check_github_deployments
 check_s3
 check_backup_key
 check_backup_and_restore
+check_manual_steps
 #@CALLS
 
 echo
