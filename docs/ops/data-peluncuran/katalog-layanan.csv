@@ -1,2 +1,6 @@
 layanan,jenis,deskripsi,lead_time_hari,bisa_hari_h,ada_di_petak_kosong,teks_label,varian
-Pembersihan Makam,pembersihan,Membersihkan dan merapikan makam.,3,tidak,ya,,Standar | Menyeluruh
+Bunga Ziarah / Bunga Pemakaman,bunga,Karangan bunga atau bunga tabur untuk pemakaman dan ziarah.,1,ya,tidak,,Karangan Bunga Papan | Paket Bunga Tabur
+Batu Nisan,nisan,Pesan dan pasang batu nisan.,14,tidak,tidak,Tulisan pada nisan,Granit Hitam 60 x 80 cm | Granit Abu-abu 80 x 100 cm | Marmer Putih 60 x 80 cm | Marmer Krem 80 x 100 cm
+Pembersihan Makam,pembersihan,Membersihkan dan merapikan makam.,3,tidak,ya,,
+Perawatan Rumput & Taman,perawatan,Merawat rumput dan tanaman di sekitar makam.,,tidak,ya,,
+Laporan Foto/Video Kondisi Makam,laporan,Laporan foto dan video kondisi makam terkini.,,tidak,ya,,
