@@ -138,10 +138,11 @@ export const pengurusanTpu = pgTable(
     email: text("email"),
     /** The phone number as typed, a contact only: never verified, never a login. */
     phoneNumber: text("phone_number"),
-    almarhumName: text("almarhum_name").notNull(),
-    tanggalWafat: date("tanggal_wafat", { mode: "string" }).notNull(),
-    jenisPenguburan: text("jenis_penguburan", { enum: jenisPenguburanValues }).notNull(),
-    kelayakan: jsonb("kelayakan").$type<Kelayakan>().notNull(),
+    /** The burial's own data, required of a Saat Duka TPU and a Pengurusan IPTM order (domain rule); null for a Perpanjangan TPU, which is no burial. */
+    almarhumName: text("almarhum_name"),
+    tanggalWafat: date("tanggal_wafat", { mode: "string" }),
+    jenisPenguburan: text("jenis_penguburan", { enum: jenisPenguburanValues }),
+    kelayakan: jsonb("kelayakan").$type<Kelayakan>(),
     /** The grave a Tumpang is made in; null for a Baru. */
     kuburan: jsonb("kuburan").$type<KuburanTpu>(),
     /** The FileStore key of the IPTM photo of that grave; null for a Baru. */

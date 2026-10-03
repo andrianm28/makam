@@ -72,6 +72,8 @@ export type KonfirmasiSaatDukaTpuResult =
   | { ok: false; reason: "pengurusan_tidak_ditemukan" }
   /** The order is no longer waiting for a confirmation (Dikonfirmasi, Ditolak, Dibatalkan). */
   | { ok: false; reason: "pengurusan_sudah_dikonfirmasi" }
+  /** The order lacks the Almarhum a Saat Duka TPU order carries, so there is no burial to confirm. */
+  | { ok: false; reason: "status_tidak_sesuai" }
   /** The TPU is off the list, or has stopped taking new plots, since the family applied. */
   | { ok: false; reason: "tpu_tidak_ada" | "tpu_tidak_menerima_makam_baru" }
   /** The agreed burial is not inside the TPU window (06:00–18:00 WIB) or is in the past. */
@@ -132,6 +134,8 @@ export async function konfirmasiSaatDukaTpu(
   const [order] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, input.nomor));
   if (!order || order.kind !== "saat_duka_tpu") return { ok: false, reason: "pengurusan_tidak_ditemukan" };
   if (order.status !== "diajukan") return { ok: false, reason: "pengurusan_sudah_dikonfirmasi" };
+  const { almarhumName, tanggalWafat } = order;
+  if (almarhumName === null || tanggalWafat === null) return { ok: false, reason: "status_tidak_sesuai" };
 
   const tpu = await deps.lokasi.publicTpuDki(order.tpuId);
   if (!tpu) return { ok: false, reason: "tpu_tidak_ada" };
@@ -269,7 +273,7 @@ export async function konfirmasiSaatDukaTpu(
           tpu: { id: tpu.id, name: tpu.name, address: tpu.address },
           makam: {
             blokNomor: order.kuburan?.blokNomor ?? "Makam baru: petak ditentukan TPU pada hari pemakaman",
-            almarhumName: order.almarhumName,
+            almarhumName,
             keterangan: order.kuburan ? `Tumpang di makam ${order.kuburan.nama}` : null,
             // The IPTM photo is a permit, never a grave photo, and is not shown to a Mitra Jasa.
             fotoKeys: [],
@@ -324,7 +328,7 @@ export async function konfirmasiSaatDukaTpu(
     email: order.email,
     pemesanName: order.pemesanName,
     tpu: { name: order.tpuName, address: order.tpuAddress },
-    almarhum: { name: order.almarhumName, tanggalWafat: order.tanggalWafat },
+    almarhum: { name: almarhumName, tanggalWafat },
     pemakamanAt,
     adminPlatform: { name: by.email, phoneNumber: by.phoneNumber },
     kontakTpu: input.kontakTpu,

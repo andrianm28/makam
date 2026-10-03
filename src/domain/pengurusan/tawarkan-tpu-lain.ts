@@ -57,7 +57,9 @@ export type JawabTpuLainResult =
   /** No order of that Nomor Pemesanan, or it is not this Akun's. */
   | { ok: false; reason: "pengurusan_tidak_ditemukan" }
   /** Nothing has been offered, or the order has moved on: there is nothing to answer. */
-  | { ok: false; reason: "tidak_ada_tawaran" };
+  | { ok: false; reason: "tidak_ada_tawaran" }
+  /** The order lacks the burial data a Saat Duka TPU order carries, so its document set cannot be made. */
+  | { ok: false; reason: "status_tidak_sesuai" };
 
 /**
  * Records the TPU Admin Platform offers instead, on an order that has not
@@ -144,6 +146,7 @@ export async function jawabTpuLain(
   const tpu = await deps.lokasi.publicTpuDki(order.tpuDitawarkanId);
   if (!tpu || !tpu.newPlot) return { ok: false, reason: "tidak_ada_tawaran" };
 
+  if (order.jenisPenguburan === null || order.kelayakan === null) return { ok: false, reason: "status_tidak_sesuai" };
   const dokumen = daftarDokumen({ jenis: order.jenisPenguburan, kelayakan: order.kelayakan });
   await deps.db
     .update(pengurusanTpu)

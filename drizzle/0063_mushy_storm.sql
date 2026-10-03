@@ -1,0 +1,2 @@
+-- contract: partial, on `kunci IS NOT NULL` only. `kunci` was added by migration 0062 in the same release and nothing before this release writes it, so no existing row carries a value and the index cannot fail on a database still being written; it is the race-safe guard that one reminder of a subject opens one Telepon Pemesan row, open or closed (ticket 48 review).
+CREATE UNIQUE INDEX "notifications_telepon_pemesan_kunci_idx" ON "notifications_telepon_pemesan" USING btree ("subject_kind","subject_id","kunci") WHERE "notifications_telepon_pemesan"."kunci" is not null;

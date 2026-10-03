@@ -26,6 +26,7 @@ import { wibDateOf } from "@/lib/time/jakarta";
 import type { PengurusanDeps } from "./deps";
 import { hariKemudian, menerimaUnggahan, menungguPemeriksaan, STATUS_BOLEH_DIBATALKAN, STATUS_MENERIMA_UNGGAHAN, STATUS_SUDAH_DIMAKAMKAN } from "./aturan";
 import { periksaDokumenBerkas, type TagihanBerkas } from "./pengurusan-berkas";
+import { blokMakamOf } from "./reads";
 import { makamTpu, pengurusanTpu, type DokumenDiunggah } from "./schema";
 
 /** The filing documents are due this many days after the burial is recorded. */
@@ -182,19 +183,21 @@ export interface SuratKuasa {
   penerimaKuasa: { perusahaan: string; wakil: { name: string; phoneNumber: string | null } };
   pemberiKuasa: { name: string; phoneNumber: string | null; email: string | null };
   tpu: { name: string; address: string };
-  almarhum: { name: string; tanggalWafat: string };
-  /** The grave a Tumpang is made in, when it is one. */
+  /** Null for a Perpanjangan TPU, which has no burial. */
+  almarhum: { name: string; tanggalWafat: string } | null;
+  /** The grave a Tumpang is made in, or the Makam TPU a renewal is for. */
   blokNomor: string | null;
   /** WIB date the page was generated. */
   tanggal: string;
 }
 
-function bangunSuratKuasa(order: Row, now: Date): SuratKuasa | null {
+async function bangunSuratKuasa(deps: Pick<PengurusanDeps, "db">, order: Row, now: Date): Promise<SuratKuasa | null> {
   // A filing-only order or a Perpanjangan TPU has no confirming staff member: the authority goes to the company alone.
   const berkas = order.kind !== "saat_duka_tpu";
   if (!order.adminPlatformName && !berkas) return null;
   // A Saat Duka TPU order has none before its confirmation; a Perpanjangan TPU needs it from Diajukan, the signed copy being one of its documents.
   if ((order.status === "diajukan" && order.kind !== "perpanjangan_tpu") || order.status === "dibatalkan" || order.status === "ditolak") return null;
+  const blokMakam = await blokMakamOf(deps.db, order);
   return {
     nomor: order.nomor,
     penerimaKuasa: {
@@ -203,8 +206,8 @@ function bangunSuratKuasa(order: Row, now: Date): SuratKuasa | null {
     },
     pemberiKuasa: { name: order.pemegangHak.name, phoneNumber: order.pemegangHak.phoneNumber, email: order.pemegangHak.email },
     tpu: { name: order.tpuName, address: order.tpuAddress },
-    almarhum: { name: order.almarhumName, tanggalWafat: order.tanggalWafat },
-    blokNomor: order.kuburan?.blokNomor ?? null,
+    almarhum: order.almarhumName !== null && order.tanggalWafat !== null ? { name: order.almarhumName, tanggalWafat: order.tanggalWafat } : null,
+    blokNomor: blokMakam ?? order.kuburan?.blokNomor ?? null,
     tanggal: wibDateOf(now),
   };
 }
@@ -213,7 +216,7 @@ function bangunSuratKuasa(order: Row, now: Date): SuratKuasa | null {
 export async function suratKuasa(deps: PengurusanDeps, pemesan: { accountId: string }, nomor: string): Promise<SuratKuasa | null> {
   const order = await muat(deps, nomor);
   if (!order || order.pemesanAccountId !== pemesan.accountId) return null;
-  return bangunSuratKuasa(order, deps.clock.now());
+  return bangunSuratKuasa(deps, order, deps.clock.now());
 }
 
 /**
@@ -222,14 +225,14 @@ export async function suratKuasa(deps: PengurusanDeps, pemesan: { accountId: str
  */
 export async function suratKuasaUntukCetak(deps: PengurusanDeps, nomor: string): Promise<SuratKuasa | null> {
   const order = await muat(deps, nomor);
-  return order ? bangunSuratKuasa(order, deps.clock.now()) : null;
+  return order ? bangunSuratKuasa(deps, order, deps.clock.now()) : null;
 }
 
 /** The same page for Admin Platform (story 147). */
 export async function suratKuasaUntukStaf(deps: PengurusanDeps, by: Actor, nomor: string): Promise<SuratKuasa | null> {
   if (writeRefusal(by, "pengurusan.lihat_staf", pengurusanTpuResource())) return null;
   const order = await muat(deps, nomor);
-  return order ? bangunSuratKuasa(order, deps.clock.now()) : null;
+  return order ? bangunSuratKuasa(deps, order, deps.clock.now()) : null;
 }
 
 /**
@@ -241,7 +244,7 @@ export async function suratKuasaPdfUrl(deps: PengurusanDeps, pemesan: { accountI
   const order = await muat(deps, nomor);
   if (!order || order.pemesanAccountId !== pemesan.accountId) return null;
   const now = deps.clock.now();
-  if (!bangunSuratKuasa(order, now)) return null;
+  if (!(await bangunSuratKuasa(deps, order, now))) return null;
   const body = await deps.pdf.render({ url: deps.suratKuasaPageUrl(order.nomor, now) });
   const key = `pengurusan/${order.id}/surat-kuasa/${crypto.randomUUID()}.pdf`;
   await deps.files.put({ key, body, contentType: "application/pdf" });
@@ -397,7 +400,8 @@ export async function terbitkanIptm(deps: PengurusanDeps, by: Actor, rawInput: u
   if (order.status !== "iptm_diajukan") return { ok: false, reason: "status_tidak_sesuai" };
   const now = deps.clock.now();
   if (input.berlakuSampai <= wibDateOf(now)) return { ok: false, reason: "kedaluwarsa_di_masa_lalu" };
-  const blokNomor = input.blokNomor ?? order.kuburan?.blokNomor;
+  // A renewal is for a Makam TPU already on record: its Blok is that record's own.
+  const blokNomor = input.blokNomor ?? (await blokMakamOf(deps.db, order)) ?? order.kuburan?.blokNomor;
   if (!blokNomor) return { ok: false, reason: "blok_nomor_wajib" };
 
   const scanKey = `pengurusan/${order.id}/iptm/${crypto.randomUUID()}`;
@@ -414,7 +418,8 @@ export async function terbitkanIptm(deps: PengurusanDeps, by: Actor, rawInput: u
       if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
 
       const entri = { scanKey, berlakuSampai: input.berlakuSampai, diterbitkanPada: now.toISOString(), nomorPengurusan: order.nomor };
-      const almarhumBaru = { name: order.almarhumName, tanggalWafat: order.tanggalWafat };
+      // A Perpanjangan TPU buries no one: it adds no Almarhum to the record.
+      const almarhumBaru = order.almarhumName !== null && order.tanggalWafat !== null ? { name: order.almarhumName, tanggalWafat: order.tanggalWafat } : null;
       // A Tumpang names a grave that already holds someone: if no record of it exists yet, that person belongs in it too.
       const almarhumAwal = order.kuburan ? [{ name: order.kuburan.nama, tanggalWafat: "" }] : [];
 
@@ -427,11 +432,11 @@ export async function terbitkanIptm(deps: PengurusanDeps, by: Actor, rawInput: u
       let diperbarui: boolean;
       if (ditemukan[0]) {
         const ada = ditemukan[0];
-        const sudah = ada.almarhum.some((satu) => satu.name.trim().toLowerCase() === almarhumBaru.name.trim().toLowerCase());
+        const sudah = almarhumBaru === null || ada.almarhum.some((satu) => satu.name.trim().toLowerCase() === almarhumBaru.name.trim().toLowerCase());
         await tx
           .update(makamTpu)
           .set({
-            almarhum: sudah ? ada.almarhum : [...ada.almarhum, almarhumBaru],
+            almarhum: sudah || almarhumBaru === null ? ada.almarhum : [...ada.almarhum, almarhumBaru],
             pemegangHak: order.pemegangHak,
             pemegangAccountId: order.pemesanAccountId,
             iptmScanKey: scanKey,
@@ -450,7 +455,7 @@ export async function terbitkanIptm(deps: PengurusanDeps, by: Actor, rawInput: u
             tpuName: order.tpuName,
             blokNomor: blokNomor.trim(),
             blokNomorKunci: kunci,
-            almarhum: [...almarhumAwal, almarhumBaru],
+            almarhum: almarhumBaru ? [...almarhumAwal, almarhumBaru] : almarhumAwal,
             pemegangHak: order.pemegangHak,
             pemegangAccountId: order.pemesanAccountId,
             iptmScanKey: scanKey,
@@ -678,7 +683,7 @@ export interface PengajuanIptmTerbuka {
   id: string;
   nomor: string;
   tpuName: string;
-  almarhumName: string;
+  almarhumName: string | null;
   dokumenLengkapPada: Date;
   dueAt: Date;
 }

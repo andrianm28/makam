@@ -134,7 +134,8 @@ export const iptmTerbitSchema = z.object({
   /** The Pemesan's Email Terverifikasi; null for an order with none. */
   email: z.email().max(320).nullable(),
   tpu: z.object({ name: z.string().trim().min(1).max(200) }),
-  almarhumName: z.string().trim().min(1).max(200),
+  /** Null for a Perpanjangan TPU, which has no Almarhum. */
+  almarhumName: z.string().trim().min(1).max(200).nullable(),
   pemegangHak: z.object({ name: z.string().trim().min(1).max(200), email: z.email().max(320).nullable() }),
   berlakuSampai: z.iso.date(),
 });

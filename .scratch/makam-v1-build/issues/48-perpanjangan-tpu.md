@@ -125,3 +125,61 @@ Head: 6670c10 (before fix pass). Review entry: both Spec should-fix items from t
 - Open for the owner (not blocking): Q1 renewal stored as a `tumpang`-type order row (accept for v1; nullable columns in a later contract release?); Q2 the filing document list (IPTM scan, Surat Kuasa bermaterai, KTP, KK) against the PTSP's real list; Q3 the past-grace TPU check deadline of 1 working day; Q4 no Telepon Pemesan row when a reminder has no email. Also: the glossary entry "Perpanjangan Makam" still says "or a TPU permit", overlapping "Perpanjangan TPU". Browser check of the new screens owed.
 - 2026-10-02 — Main CI 359 red on the destructive-DDL check only (the partial UNIQUE index in 0061 lacked a `-- contract:` line); fixed in d3135c0 with the reason (no release before 48 writes a `perpanjangan_tpu` order, as 0023); main CI 360 green including E2E and signing.
 - 2026-10-03 — Owner decisions (grilling, options tool): Q1 fix now (burial columns nullable, not stored for a Perpanjangan TPU); Q2 document list confirmed; Q3 1 working day confirmed; Q4 Telepon Pemesan row when a reminder has no email; glossary: Perpanjangan Makam is the Lokasi Mitra Hak Pakai only (CONTEXT.md updated). Ticket reopened as ready-for-agent for the two Added items.
+
+### 2026-10-03 builder (ticket 48 Added, sonnet, claude.ai/code thread)
+
+Test-first (`test(red)` commit, then code). **Q1:** migration 0062 (expand-only: four `DROP NOT NULL` on `almarhum_name`, `tanggal_wafat`, `jenis_penguburan`, `kelayakan`, plus a nullable `kunci` column on the Telepon Pemesan table; checker: no unmarked destructive DDL). `placePerpanjanganTpu` stores none of the burial data and no `kuburan` either. `placeSaatDukaTpu`/`placePengurusanIptm` now refuse with `input_tidak_valid` when the date of death, burial type or eligibility is missing (Almarhum name was already `almarhum_kosong`), tested for both kinds. Readers: order read model returns `almarhum`/`jenisPenguburan`/`kelayakan` as null and a new `makamBlokNomor` for the kind; Surat Kuasa and IPTM Terbit take the Blok from the Makam TPU and add no Almarhum to it; the four Tier 3 Antrean rows and the IPTM Terbit email work without an Almarhum; the Pemesan order page, Akun Pesanan list, Admin Platform page and Surat Kuasa document hide the Almarhum and burial lines (Blok field no longer asked at IPTM Terbit for a renewal). **Q4:** `pengingatIptmBerakhir` with no email opens a Telepon Pemesan row (subject kind `makam_tpu`, reason `tanpa_email`, no Lokasi, so it shows in Admin Platform's Antrean Tier 2 row, which now lists that subject kind); the row carries the reminder key, so a closed row is not reopened for the same reminder, while the 1-month reminder is a reminder of its own; none once a Perpanjangan TPU is ordered; outside 08:00-20:00 nothing. Tick stays idempotent.
+
+Verification: lint 0 errors (old warnings only), typecheck clean, migration checker clean, full `npm test` read off a whole log: Test Files 332 passed (332), Tests 2994 passed | 1 skipped (2995), exit 0. Not exercised in a browser.
+
+### Spec gaps and decisions for the owner (2026-10-03)
+
+- The existing Perpanjangan TPU rows keep their old copied Almarhum/`tumpang`/`kelayakan` values (no data migration, expand-only); only new orders store none.
+- IPTM Terbit email for a renewal has no Almarhum, so its subject reads "IPTM terbit: makam di <TPU>".
+- The Telepon Pemesan row for a Makam TPU has no page of its own to open (it links to the Antrean), like other non-Tagihan subjects.
+
+HANDOFF: both items done and green; remaining: browser check of the renewal pages without Almarhum, owner to tick the two Added items.
+
+### Two-axis review (2026-10-03, reviewer thread)
+
+Fixed point `cd0bcc2` (merge-base with `origin/main`), head `380e311`; 27 source files plus migration 0062. Two sonnet sub-agents (Standards, Spec); the reviewer thread checked TDD order, the migration, module ownership and the null readers itself. Nothing was run except the migration checker (`check-destructive-ddl.ts drizzle/0062_*.sql`: "No unmarked destructive DDL"). Migration 0062 is expand-only (DROP NOT NULL ×4, nullable `kunci`).
+
+#### Process
+- **nit:** one `test(red)` commit (74d77bf) holds both behaviours (Q1: 3 tests + 2 refusal tests; Q4: 5 tests), then one code commit (2b4db6b). The two behaviours are independent, so no behaviour was left untested-red; but it is not "one behaviour at a time" and the code commit cannot be bisected per behaviour. Next time: two red/green pairs.
+
+#### Standards
+- No blocking. Ownership holds: only `notifications/telepon-pemesan.ts` and `schema.ts` touch `notificationsTeleponPemesan`; pengurusan reaches it through `notifikasi.pengingatIptmBerakhir`. No `new Date()`, Zod kept, no client-import breach.
+- **should-fix** `konfirmasi-saat-duka-tpu.ts:272,327`, `konfirmasi-tpu-terbuka.ts:51`, `tawarkan-tpu-lain.ts:147`: new `!` assertions on the nullable columns. Safe today (kind guard / query filter), but `tawarkan-tpu-lain.ts:147` checks no kind itself. Fix: return a refusal (`status_tidak_sesuai`) when `order.kind !== "saat_duka_tpu"` or a column is null.
+- **nit** `reads.ts:152`, `pengajuan-iptm.ts:~206,~403`: the Makam TPU Blok lookup is written three times, and `pesananSaya` adds a query per order. Fix: one helper, called only for `perpanjangan_tpu` rows.
+- **nit** `telepon-pemesan.ts:81-93`: `kunci` dedup is select-then-insert and `kunci` has no unique index. Open rows are protected by `notifications_telepon_pemesan_open_idx` (two concurrent ticks leave one open row), but a closed row is not: a tick racing a staff close could open a second row for the same reminder. Fix: partial unique index `(subject_kind, subject_id, kunci) WHERE kunci IS NOT NULL` (expand-only) with `onConflictDoNothing`.
+- Readers of the four columns (whole `src`): all handle null or are guarded by kind (`reads.ts`, Surat Kuasa page and PDF component, Pemesan and staff order pages, Akun pesanan, `tier3-iptm-row`, IPTM Terbit email template, `pengurusan-berkas`). The `almarhum.name` hits in pemesanan/Antrean Lokasi read another module.
+
+#### Spec
+- Q1 met: `perpanjangan-tpu.ts` stores none of the columns; the shared `tempatkan` in `saat-duka-tpu.ts` still refuses without them for Saat Duka TPU and Pengurusan IPTM, both tested.
+- Q4 met on the main path: no email for the Pemegang Hak nor the Akun opens one `makam_tpu` row; same reminder not reopened even after the call is logged; none once a Perpanjangan TPU is ordered; outside 08:00-20:00 none.
+- **should-fix** (spec gap) `perpanjangan-tpu.ts`: a row already open when the Perpanjangan TPU is then ordered stays open, so staff phone someone who has ordered. "None once ordered" is met only for new rows. Fix: close the open `makam_tpu` row via a Notifications public function in the order's flow, or the owner confirms it may stay; add a test.
+- **should-fix** missing test: a 3-month row still open when the 1-month reminder fires opens nothing new (the unique open index returns the open row; the 1-month reminder is then covered only after staff close it). Behaviour is acceptable; pin it with a test, and say it in the ticket.
+- **nit** `telepon-pemesan-row.test.ts` asserts only label and count; no concurrency test.
+- Sub-agent claim refuted by the reviewer: `staf/admin-platform/pengurusan/page.tsx:45` renders `almarhumName` from the Saat Duka TPU "Menunggu konfirmasi" list (`KonfirmasiTpu`, kind `saat_duka_tpu` only), so a renewal never appears there. No finding.
+
+Counts: Standards 3 (worst should-fix), Spec 2 should-fix + 1 nit (worst should-fix), process 1 nit. No blocking.
+
+### 2026-10-03 Fix pass (builder, sonnet, claude.ai/code thread)
+
+Items → commits (red → code): 1 `!` assertions replaced by a `status_tidak_sesuai` refusal in `jawabTpuLain` (accepting an offer) and `konfirmasiSaatDukaTpu`, and `konfirmasiTpuTerbuka` skips a row without an Almarhum (`tawarkanTpuLain` has no assertion and a kind guard) → red 4a465d3, code 83777eb. 2 ordering a Perpanjangan TPU closes the Makam TPU's open reminder row through the new Notifications function `tutupTeleponPemesanSubjek`, in the order's transaction (no call logged: `hasil` empty, `catatan` says why) → red 78078f8, code a93ad70. 3 pinned: a 3-month row still open when the 1-month reminder fires opens nothing new (the one open row per Makam TPU stays; the 1-month reminder is covered only once staff close it) → 825372a (green on arrival, test only). 4 partial unique index `notifications_telepon_pemesan_kunci_idx` (migration 0063, `-- contract:` line, checker clean), a conflict with a closed row of the same reminder returns that row → 025b16d; no deterministic red is possible for a race through public functions, so the concurrency test (six ticks at once, before and after the call is logged: one row in the history) was green before the index and guards it after. 5 one helper `blokMakamOf` (queried only for `perpanjangan_tpu`) → 8bc39fc.
+
+Verification: lint 0 errors, typecheck clean, full `npm test` read off a whole log: Test Files 332 passed (332), Tests 2998 passed | 1 skipped (2999), exit 0.
+
+HANDOFF: fix pass complete; remaining: browser check of the renewal pages without Almarhum.
+
+### Re-review (2026-10-03, reviewer thread, sonnet)
+
+Head 680c33c (local checkout was a stale 380e311; fast-forwarded to origin before reviewing). `git diff 711cbf0 HEAD`. `npx vitest run src/domain/pengurusan src/domain/notifications`, whole log: Test Files 23 passed (23), Tests 205 passed (205), exit 0.
+
+1. **Fixed.** `tawarkan-tpu-lain.ts:149` refuses `status_tidak_sesuai` before `daftarDokumen`; `konfirmasi-saat-duka-tpu.ts:137-138` refuses on null Almarhum/tanggal wafat and uses the narrowed locals (no `!` left); `konfirmasi-tpu-terbuka.ts:48-62` skips such rows. Tested in `tawarkan-tpu-lain.test.ts` (both refusals + empty list). TDD: red 4a465d3 then code 83777eb.
+2. **Fixed.** `perpanjangan-tpu.ts:133` calls `notifikasi.tutupTeleponPemesanSubjek("makam_tpu", makam.id, …, tx)` inside the order's `refusable` transaction; implemented in `notifications/telepon-pemesan.ts` (closes only rows with `ditutupPada` null) and exposed in `notifications/index.ts`. Pengurusan has no reference to `notifications_telepon_pemesan`. Test in `perpanjangan-tpu.test.ts`. TDD: red 78078f8, code a93ad70.
+3. **Fixed (pin).** `perpanjangan-tpu.test.ts` "leaves a 3-month row that is still open alone…", commit 825372a, green on arrival as stated. Behaviour is written only in the builder's Fix pass entry (ticket line ~169), not in the ACs/body. Minor: say it next to the Q4 AC.
+4. **Fixed.** Migration 0063: partial unique index on (subject_kind, subject_id, kunci) WHERE kunci IS NOT NULL, `-- contract:` reason is accurate (kunci added in 0062 same release); `check-destructive-ddl.ts` reports "No unmarked destructive DDL". Insert uses `.onConflictDoNothing()` (`telepon-pemesan.ts:109`); a closed-row conflict returns the existing row (`:123-138`). Test: six concurrent ticks, one history row. **Process finding:** 025b16d has no separate `test(red)` commit before it; the builder's reason (race has no deterministic red) is stated, test was green before the index.
+5. **Fixed.** `reads.ts` exports `blokMakamOf` (returns null without a query unless `kind === "perpanjangan_tpu"`); `pengajuan-iptm.ts` uses it in both places. Refactor, 8bc39fc. Nit: `reads.ts:150` now has two stacked doc comments; the older Tagihan comment is orphaned above the Blok helper.
+
+Broke nothing found. Blocking remaining: no.

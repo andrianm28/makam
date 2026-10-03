@@ -85,6 +85,34 @@ async function sampaiDiajukan(setup: PengajuanSetup, dasar: Dasar) {
   return tagihan;
 }
 
+describe("a Pengurusan IPTM order", () => {
+  it("still requires the Almarhum, the date of death, the burial type and both eligibility answers", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const admin = await siapkanOperatorPemesanan(setup as never);
+    setup.clock.set(wib("2026-10-01 10:00"));
+    for (const [key, amount] of [["biaya_pengurusan_berkas", 750_000], ["retribusi_pemda_iptm", 250_000], ["biaya_layanan_platform", 150_001]] as const)
+      await setup.tariffs.setGlobalTariff(admin, { key, amount, effectiveOn: "2026-10-01", reason: null });
+    const tpuDki = await tpu(setup);
+    const pemesan = (await pemesanDenganEmail(setup, "pemesan@contoh.id")).pemesan;
+    setup.clock.set(wib("2026-10-02 10:00"));
+    const lengkap = {
+      pemesan,
+      pemesanName: "Budi Santoso",
+      phoneNumber: "081234567890",
+      tpuId: tpuDki.id,
+      almarhumName: "Siti Aminah",
+      tanggalWafat: "2026-09-25",
+      jenis: "baru" as const,
+      kelayakan: { ktpDki: true, wafatDiJakarta: true },
+      pemegangHak: { mode: "pemesan" as const },
+    };
+    for (const lepas of [{ tanggalWafat: undefined }, { jenis: undefined }, { kelayakan: undefined }])
+      expect(await setup.pengurusan.placePengurusanIptm({ ...lengkap, ...lepas } as never)).toEqual({ ok: false, reason: "input_tidak_valid" });
+    expect(await setup.pengurusan.placePengurusanIptm({ ...lengkap, almarhumName: "" })).toEqual({ ok: false, reason: "almarhum_kosong" });
+    expect(await setup.pengurusan.placePengurusanIptm(lengkap)).toMatchObject({ ok: true });
+  });
+});
+
 describe("Pengurusan IPTM placed for a family that buried on its own", () => {
   it("starts at Dimakamkan with the documents due 7 days after the order and no Tagihan", async () => {
     const setup = pengajuanOnTestDatabase(db);

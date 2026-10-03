@@ -21,8 +21,13 @@ export function SuratKuasaDokumen({ surat }: { surat: SuratKuasa }) {
         {surat.penerimaKuasa.wakil.phoneNumber ? <Baris label="Telepon" value={surat.penerimaKuasa.wakil.phoneNumber} /> : null}
       </dl>
       <p>
-        untuk mengurus dan mengajukan Izin Penggunaan Tanah Makam (IPTM) atas makam almarhum/almarhumah{" "}
-        <strong>{surat.almarhum.name}</strong> (wafat {formatTanggal(surat.almarhum.tanggalWafat)}) di {surat.tpu.name}, {surat.tpu.address}
+        untuk mengurus dan mengajukan Izin Penggunaan Tanah Makam (IPTM) atas makam
+        {surat.almarhum ? (
+          <>
+            {" "}almarhum/almarhumah <strong>{surat.almarhum.name}</strong> (wafat {formatTanggal(surat.almarhum.tanggalWafat)})
+          </>
+        ) : null}{" "}
+        di {surat.tpu.name}, {surat.tpu.address}
         {surat.blokNomor ? `, ${surat.blokNomor}` : ""}, termasuk menyerahkan berkas dan menerima izin yang diterbitkan.
       </p>
       <p>Nomor Pemesanan {surat.nomor}.</p>

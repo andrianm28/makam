@@ -63,6 +63,8 @@ export interface BukaTeleponPemesan {
   perihal?: string | null;
   sebab: (typeof teleponSebab)[number];
   pesanId?: string | null;
+  /** The reminder behind the row: when a row of this subject already carries it, open or closed, nothing is opened. */
+  kunci?: string | null;
 }
 
 /**
@@ -76,6 +78,20 @@ export async function bukaTeleponPemesan(
   now: Date,
   input: BukaTeleponPemesan,
 ): Promise<{ id: string; baru: boolean }> {
+  if (input.kunci) {
+    const [sudah] = await tx
+      .select({ id: notificationsTeleponPemesan.id })
+      .from(notificationsTeleponPemesan)
+      .where(
+        and(
+          eq(notificationsTeleponPemesan.subjectKind, input.subjectKind),
+          eq(notificationsTeleponPemesan.subjectId, input.subjectId),
+          eq(notificationsTeleponPemesan.kunci, input.kunci),
+        ),
+      )
+      .limit(1);
+    if (sudah) return { id: sudah.id, baru: false };
+  }
   const inserted = await tx
     .insert(notificationsTeleponPemesan)
     .values({
@@ -87,6 +103,7 @@ export async function bukaTeleponPemesan(
       perihal: input.perihal ?? null,
       sebab: input.sebab,
       pesanId: input.pesanId ?? null,
+      kunci: input.kunci ?? null,
       dibukaPada: now,
     })
     .onConflictDoNothing()
@@ -103,8 +120,23 @@ export async function bukaTeleponPemesan(
       ),
     )
     .limit(1);
-  if (!open) throw new Error("a Telepon Pemesan row for an open subject just vanished");
-  return { id: open.id, baru: false };
+  if (open) return { id: open.id, baru: false };
+  // No open row, so the conflict was this reminder's own (closed) row, which a racing tick or a staff close left behind.
+  if (input.kunci) {
+    const [ini] = await tx
+      .select({ id: notificationsTeleponPemesan.id })
+      .from(notificationsTeleponPemesan)
+      .where(
+        and(
+          eq(notificationsTeleponPemesan.subjectKind, input.subjectKind),
+          eq(notificationsTeleponPemesan.subjectId, input.subjectId),
+          eq(notificationsTeleponPemesan.kunci, input.kunci),
+        ),
+      )
+      .limit(1);
+    if (ini) return { id: ini.id, baru: false };
+  }
+  throw new Error("a Telepon Pemesan row for an open subject just vanished");
 }
 
 /** One "Telepon Pemesan" row as a call log entry: open, or closed with what the staff member found. */
@@ -270,4 +302,22 @@ export function staffRoleOf(by: Actor): StaffRole {
   const role = staffRoles.find((held) => by.roles.includes(held));
   if (!role) throw new Error("a call is only ever logged by a staff member");
   return role;
+}
+
+/**
+ * Closes the open "Telepon Pemesan" row of one subject because what it asked for has happened (a Makam TPU's renewal was
+ * ordered, so nobody needs to phone the Pemegang Hak about it). No call is logged: `hasil` stays empty and `catatan` says
+ * why. Nothing to close is not an error; a closed row stays closed.
+ */
+export async function tutupTeleponPemesanSubjek(db: Database, now: Date, subjectKind: string, subjectId: string, catatan: string): Promise<void> {
+  await db
+    .update(notificationsTeleponPemesan)
+    .set({ ditutupPada: now, catatan })
+    .where(
+      and(
+        eq(notificationsTeleponPemesan.subjectKind, subjectKind),
+        eq(notificationsTeleponPemesan.subjectId, subjectId),
+        isNull(notificationsTeleponPemesan.ditutupPada),
+      ),
+    );
 }

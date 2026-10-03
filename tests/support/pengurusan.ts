@@ -45,6 +45,7 @@ function bangunPengurusan(db: Database) {
         return { ok: true };
       },
       tagihanTerbit: async () => ({ ok: true as const, diingatkan: 0 }),
+      tutupTeleponPemesanSubjek: (...args) => setup.notifications.tutupTeleponPemesanSubjek(...args),
       pengurusanDikonfirmasi: async (hasil) => {
         diumumkan.push(hasil);
         return { ok: true };

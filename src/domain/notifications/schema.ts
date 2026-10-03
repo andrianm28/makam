@@ -178,6 +178,8 @@ export const notificationsTeleponPemesan = pgTable(
     sebab: text("sebab", { enum: teleponSebab }).notNull(),
     /** The failed message, when `sebab` is `pesan_gagal`. */
     pesanId: uuid("pesan_id"),
+    /** Names the reminder that opened this row (a Makam TPU's IPTM expiry and stage), so a closed row is not opened again for the same reminder; null for any other subject. */
+    kunci: text("kunci"),
     dibukaPada: at("dibuka_pada").notNull(),
     ditutupPada: at("ditutup_pada"),
     hasil: text("hasil", { enum: teleponHasil }),
@@ -191,6 +193,10 @@ export const notificationsTeleponPemesan = pgTable(
     uniqueIndex("notifications_telepon_pemesan_open_idx")
       .on(table.subjectKind, table.subjectId)
       .where(sql`${table.ditutupPada} is null`),
+    // One row per reminder of a subject, open or closed: a tick racing a staff member's close cannot open a second one.
+    uniqueIndex("notifications_telepon_pemesan_kunci_idx")
+      .on(table.subjectKind, table.subjectId, table.kunci)
+      .where(sql`${table.kunci} is not null`),
   ],
 );
 

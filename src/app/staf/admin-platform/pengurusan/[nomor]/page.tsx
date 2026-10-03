@@ -92,7 +92,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
           <StatusBadge status={statusBadge(order.status)} />
           <dl className="grid gap-2 text-body sm:grid-cols-2">
             <Baris label="TPU" value={`${order.tpu.name} · ${order.tpu.address}`} />
-            <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} />
+            {order.almarhum ? <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} /> : null}
             <Baris
               label="Pemesan"
               value={`${order.pemesan.name}${order.pemesan.email ? ` · ${order.pemesan.email}` : ""}`}
@@ -161,7 +161,7 @@ export default async function PengurusanTpuPage({ params }: PageProps<"/staf/adm
             nomor={order.nomor}
             langkah={langkah}
             petugas={petugas}
-            perluBlokNomor={order.jenisPenguburan !== "tumpang"}
+            perluBlokNomor={order.kind !== "perpanjangan_tpu" && order.jenisPenguburan !== "tumpang"}
           />
           {order.status !== "dikonfirmasi" ? (
             <p className="text-small text-muted-foreground">

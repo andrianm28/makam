@@ -17,7 +17,7 @@
 import { desc, eq } from "drizzle-orm";
 import type { PengurusanDeps } from "./deps";
 import { dokumenPengajuanKurang } from "./pengajuan-iptm";
-import { pengurusanTpu, type HargaBaris, type KontakTpu, type PengurusanTpuKind, type PengurusanTpuStatus } from "./schema";
+import { makamTpu, pengurusanTpu, type HargaBaris, type KontakTpu, type PengurusanTpuKind, type PengurusanTpuStatus } from "./schema";
 import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan, KuburanTpu, PemegangHak } from "./skema-pengurusan";
 
 /** One Saat Duka TPU order, as its own Pemesan reads it. */
@@ -29,10 +29,11 @@ export interface PengurusanOrder {
   status: PengurusanTpuStatus;
   tpu: { id: string; name: string; address: string };
   pemesan: { name: string; email: string | null; phoneNumber: string | null };
-  almarhum: { name: string; tanggalWafat: string };
-  jenisPenguburan: JenisPenguburan;
+  /** The Almarhum, the burial type and the eligibility answers belong to a burial: null for a Perpanjangan TPU, which is none. */
+  almarhum: { name: string; tanggalWafat: string } | null;
+  jenisPenguburan: JenisPenguburan | null;
   /** The two eligibility answers the family gave; they decided the document set. */
-  kelayakan: Kelayakan;
+  kelayakan: Kelayakan | null;
   /** The grave a Tumpang is made in; null for a Baru. */
   kuburan: KuburanTpu | null;
   /** The Pemegang Hak for the IPTM, as named at submission. */
@@ -76,6 +77,8 @@ export interface PengurusanOrder {
   iptm: { berlakuSampai: string } | null;
   /** The Makam TPU this order created or updated; null until IPTM Terbit. */
   makamTpuId: string | null;
+  /** The Blok of that Makam TPU, for a Perpanjangan TPU (which carries no grave of its own); null otherwise. */
+  makamBlokNomor: string | null;
   /** A Perpanjangan TPU only: the expiry being renewed, and whether it came after the masa tenggang (the TPU is asked first). */
   perpanjangan: { iptmBerakhirPada: string; iptmTercatatBerakhirPada: string | null; lewatMasaTenggang: boolean; cekTpuSelesaiPada: Date | null } | null;
 }
@@ -114,7 +117,7 @@ export async function orderOf(
   const [row] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
   if (!row || row.pemesanAccountId !== pemesan.accountId) return null;
   const tagihan = row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null;
-  return toOrder(row, tagihan);
+  return toOrder(row, await blokMakamOf(deps.db, row), tagihan);
 }
 
 /**
@@ -129,7 +132,7 @@ export async function pesananSaya(deps: Pick<PengurusanDeps, "db" | "billing">, 
     .where(eq(pengurusanTpu.pemesanAccountId, pemesan.accountId))
     .orderBy(desc(pengurusanTpu.diajukanAt));
   return Promise.all(
-    rows.map(async (row) => toOrder(row, row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null)),
+    rows.map(async (row) => toOrder(row, await blokMakamOf(deps.db, row), row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null)),
   );
 }
 
@@ -141,11 +144,18 @@ export async function orderForStaff(
   const [row] = await deps.db.select().from(pengurusanTpu).where(eq(pengurusanTpu.nomor, nomor));
   if (!row) return null;
   const tagihan = row.tagihanId ? await deps.billing.tagihanBerlaku(row.tagihanId) : null;
-  return toOrder(row, tagihan);
+  return toOrder(row, await blokMakamOf(deps.db, row), tagihan);
 }
 
 /** `tagihan` is the one in force (a Harga Khusus may have reissued the one the order stored, ticket 93): its own id, number and link are what the family is shown. */
-function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; link: string } | null): PengurusanOrder {
+/** The Blok of the Makam TPU a Perpanjangan TPU row is for; null for any other kind, and no query is made for them. */
+export async function blokMakamOf(db: PengurusanDeps["db"], row: Pick<Row, "kind" | "makamTpuId">): Promise<string | null> {
+  if (row.kind !== "perpanjangan_tpu" || !row.makamTpuId) return null;
+  const [makam] = await db.select({ blokNomor: makamTpu.blokNomor }).from(makamTpu).where(eq(makamTpu.id, row.makamTpuId));
+  return makam?.blokNomor ?? null;
+}
+
+function toOrder(row: Row, makamBlokNomor: string | null, tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; link: string } | null): PengurusanOrder {
   return {
     id: row.id,
     nomor: row.nomor,
@@ -153,7 +163,7 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
     status: row.status,
     tpu: { id: row.tpuId, name: row.tpuName, address: row.tpuAddress },
     pemesan: { name: row.pemesanName, email: row.email, phoneNumber: row.phoneNumber },
-    almarhum: { name: row.almarhumName, tanggalWafat: row.tanggalWafat },
+    almarhum: row.almarhumName !== null && row.tanggalWafat !== null ? { name: row.almarhumName, tanggalWafat: row.tanggalWafat } : null,
     jenisPenguburan: row.jenisPenguburan,
     kelayakan: row.kelayakan,
     kuburan: row.kuburan,
@@ -187,6 +197,7 @@ function toOrder(row: Row, tagihan: { id: string; nomorTagihan: string; total: n
     },
     iptm: row.iptmBerlakuSampai && row.iptmTerbitPada ? { berlakuSampai: row.iptmBerlakuSampai } : null,
     makamTpuId: row.makamTpuId,
+    makamBlokNomor,
     perpanjangan:
       row.kind === "perpanjangan_tpu" && row.iptmBerakhirPada
         ? { iptmBerakhirPada: row.iptmBerakhirPada, iptmTercatatBerakhirPada: row.iptmTercatatBerakhirPada, lewatMasaTenggang: row.lewatMasaTenggang, cekTpuSelesaiPada: row.cekTpuSelesaiPada }

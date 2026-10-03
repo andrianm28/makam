@@ -4,8 +4,10 @@
  * Hak, once per reminder (the key), waiting for 08:00-20:00 WIB like every message that asks something.
  */
 import { z } from "zod";
+import { formatTanggal } from "@/lib/time/jakarta";
 import { tundaSampaiJamKirim } from "./acara";
 import { queueFamilyEmail, type PesanKeluargaDeps } from "./pesan-keluarga";
+import { bukaTeleponPemesan } from "./telepon-pemesan";
 import { iptmBerakhirEmail } from "./template";
 
 export const pengingatIptmBerakhirSchema = z.object({
@@ -15,7 +17,7 @@ export const pengingatIptmBerakhirSchema = z.object({
   tpuName: z.string().trim().min(1).max(200),
   blokNomor: z.string().trim().min(1).max(200),
   pemegangHakName: z.string().trim().min(1).max(200).nullable(),
-  /** The Pemegang Hak's email; null when none is known, and then nothing is sent. */
+  /** The Pemegang Hak's or the Akun's email; null when neither is known, and then a Telepon Pemesan row is opened instead. */
   email: z.email().max(320).nullable(),
   berlakuSampai: z.iso.date(),
   sisaBulan: z.union([z.literal(3), z.literal(1)]),
@@ -30,8 +32,18 @@ export async function pengingatIptmBerakhir(deps: PesanKeluargaDeps, input: Peng
   const parsed = pengingatIptmBerakhirSchema.safeParse(input);
   if (!parsed.success) return { ok: false, reason: "pengingat_tidak_valid" };
   const data = parsed.data;
-  if (!data.email) return { ok: true };
   const now = deps.clock.now();
+  if (!data.email) {
+    // One open row per Makam TPU; a reminder that already opened one (closed since) does not open another.
+    await bukaTeleponPemesan(deps.db, now, {
+      subjectKind: "makam_tpu",
+      subjectId: data.makamTpuId,
+      sebab: "tanpa_email",
+      kunci: data.kunci,
+      perihal: `IPTM makam ${data.blokNomor} di ${data.tpuName} berakhir ${formatTanggal(data.berlakuSampai)} dan tidak ada email tercatat: telepon Pemegang Hak${data.pemegangHakName ? ` (${data.pemegangHakName})` : ""}, ingatkan Perpanjangan TPU.`,
+    });
+    return { ok: true };
+  }
   const email = iptmBerakhirEmail(data);
   await queueFamilyEmail(deps.db, now, {
     template: "iptm_berakhir_pengingat",

@@ -766,7 +766,8 @@ export function wakafStatusEmail(input: WakafStatusEmailInput): { subject: strin
 export interface IptmTerbitEmailInput {
   nomor: string;
   tpu: { name: string };
-  almarhumName: string;
+  /** Null for a Perpanjangan TPU, which has no Almarhum. */
+  almarhumName: string | null;
   /** The holder the message is addressed to, as named on the order. */
   pemegangHakName: string;
   berlakuSampai: string;
@@ -783,11 +784,11 @@ export interface IptmTerbitEmailInput {
  */
 export function iptmTerbitEmail(input: IptmTerbitEmailInput): { subject: string; body: string } {
   return {
-    subject: `IPTM terbit: ${input.almarhumName} di ${input.tpu.name}`,
+    subject: input.almarhumName ? `IPTM terbit: ${input.almarhumName} di ${input.tpu.name}` : `IPTM terbit: makam di ${input.tpu.name}`,
     body: [
       input.untukPemegangHak ? `Yth. ${input.pemegangHakName},` : "Yth. Bapak/Ibu,",
       "",
-      `IPTM untuk makam ${input.almarhumName} di ${input.tpu.name} (pengurusan ${input.nomor}) sudah terbit.`,
+      `IPTM untuk makam${input.almarhumName ? ` ${input.almarhumName}` : ""} di ${input.tpu.name} (pengurusan ${input.nomor}) sudah terbit.`,
       `Berlaku sampai ${formatTanggal(input.berlakuSampai)}.`,
       "Scan IPTM tersimpan di tab Makam akun Anda dan bisa dibuka dari halaman pengurusan.",
       "",

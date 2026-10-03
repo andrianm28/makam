@@ -44,13 +44,20 @@ export async function konfirmasiTpuTerbuka(deps: { db: Database }): Promise<Konf
     .from(pengurusanTpu)
     .where(and(eq(pengurusanTpu.kind, "saat_duka_tpu"), eq(pengurusanTpu.status, "diajukan")))
     .orderBy(asc(pengurusanTpu.diajukanAt), asc(pengurusanTpu.nomor));
-  return rows.map((row) => ({
-    id: row.id,
-    nomor: row.nomor,
-    almarhumName: row.almarhumName,
-    tpuName: row.tpuName,
-    konfirmasiDueAt: row.konfirmasiDueAt,
-    tpuDitawarkan: row.tpuDitawarkanName ? { name: row.tpuDitawarkanName } : null,
-    diajukanAt: row.diajukanAt,
-  }));
+  // Placing a Saat Duka TPU order requires its Almarhum; a row without one is not a burial to confirm and is not listed.
+  return rows.flatMap((row) =>
+    row.almarhumName === null
+      ? []
+      : [
+          {
+            id: row.id,
+            nomor: row.nomor,
+            almarhumName: row.almarhumName,
+            tpuName: row.tpuName,
+            konfirmasiDueAt: row.konfirmasiDueAt,
+            tpuDitawarkan: row.tpuDitawarkanName ? { name: row.tpuDitawarkanName } : null,
+            diajukanAt: row.diajukanAt,
+          },
+        ],
+  );
 }

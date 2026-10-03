@@ -66,4 +66,29 @@ describe("Antrean: Tier 2 Telepon Pemesan", () => {
     expect(labels[0]).toBe(`${tanpaEmail.tagihan.nomorTagihan} · pesanan tanpa email`);
     expect(labels[1]).toContain("email gagal terkirim");
   });
+
+  it("shows a Makam TPU whose IPTM is ending with no email on record as one row naming what to tell the Pemegang Hak", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    setup.clock.set(wib("2026-11-15 10:00"));
+    const pengingat = {
+      makamTpuId: "5b0b4a54-7c33-4d9e-9a55-6a0f4d1b2c3d",
+      kunci: "2027-02-15:3",
+      tpuName: "TPU Karet Bivak",
+      blokNomor: "Blok B-12 No. 34",
+      pemegangHakName: "Budi Santoso",
+      email: null,
+      berlakuSampai: "2027-02-15",
+      sisaBulan: 3 as const,
+      tautan: "https://makam.test/perpanjang-iptm/x",
+    };
+    await setup.notifications.pengingatIptmBerakhir(pengingat);
+    await setup.notifications.pengingatIptmBerakhir(pengingat);
+
+    const rows = (await setup.queues.antrean(admin)).filter((row) => row.type === "telepon_pemesan");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ tier: 2, label: "Telepon Pemesan" });
+    expect(rows[0]?.subjectLabel).toContain("Blok B-12 No. 34");
+    expect(rows[0]?.subjectLabel).toContain("TPU Karet Bivak");
+  });
 });

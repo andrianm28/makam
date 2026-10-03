@@ -152,6 +152,7 @@ export function layananOnTestDatabase(db: Database, options: { notifikasiNyata?:
         return { ok: true };
       },
       iptmTerbit: async () => ({ ok: true }),
+      tutupTeleponPemesanSubjek: async () => undefined,
     },
     refunds,
     layanan,

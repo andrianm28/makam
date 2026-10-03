@@ -47,6 +47,7 @@ import {
   teleponPemesanRiwayat,
   teleponPemesanTercatat,
   teleponPemesanTerbuka,
+  tutupTeleponPemesanSubjek,
   type CatatPanggilanInput,
   type CatatPanggilanResult,
   type TeleponPemesan,
@@ -565,6 +566,11 @@ export interface Notifications {
    * opened.
    */
   teleponPemesanTercatat(subjectKind: string, subjectId: string): Promise<boolean>;
+  /**
+   * Closes the open "Telepon Pemesan" row of one subject because what it asked for has happened (no call is logged, the
+   * note says why); nothing open is not an error. Runs in the caller's transaction when given one.
+   */
+  tutupTeleponPemesanSubjek(subjectKind: string, subjectId: string, catatan: string, within?: Database): Promise<void>;
   /** An Admin Platform logs the call: the "Telepon Pemesan" row closes; audited. */
   catatPanggilan(by: Actor, input: CatatPanggilanInput): Promise<CatatPanggilanResult>;
   /**
@@ -1023,6 +1029,9 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return teleponPemesanRiwayat(db, subjectKind, subjectId);
     },
 
+    async tutupTeleponPemesanSubjek(subjectKind, subjectId, catatan, within) {
+      return tutupTeleponPemesanSubjek(within ?? db, deps.clock.now(), subjectKind, subjectId, catatan);
+    },
     async teleponPemesanTercatat(subjectKind, subjectId) {
       return teleponPemesanTercatat(db, subjectKind, subjectId);
     },

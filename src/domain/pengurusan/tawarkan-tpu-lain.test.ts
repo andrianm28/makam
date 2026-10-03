@@ -7,9 +7,11 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { KONFIRMASI_TPU_SAAT_DUKA_TYPE } from "@/domain/queues";
+import { pengurusanTpu } from "./schema";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
 import { orderSaatDukaTpu, saatDukaTpuFixture, tpu } from "../../../tests/support/pengurusan";
+import { signedInPetugasLapangan } from "../../../tests/support/publish";
 import { siapkanOperatorPemesanan } from "../../../tests/support/pemesanan";
 
 const { db, close } = testDatabase();
@@ -154,5 +156,26 @@ describe("offering another TPU for a Saat Duka TPU order", () => {
       ok: false,
       reason: "tidak_ada_tawaran",
     });
+  });
+});
+
+describe("a Saat Duka TPU order that lacks the burial data it must carry", () => {
+  it("is refused, not read through an assertion, when its confirmation or the family's accepted offer needs the data", async () => {
+    const setup = queuesOnTestDatabase(db);
+    const admin = await siapkanOperatorPemesanan(setup);
+    const petugas = await signedInPetugasLapangan(setup, admin, "petugas.pengantar@contoh.id");
+    const { fixture, lain } = await denganDuaTpu(setup);
+    await setup.pengurusan.tawarkanTpuLain(admin, { nomor: "MKM-2026-000001", tpuId: lain.id, alasan: "Penuh." });
+    await db.update(pengurusanTpu).set({ jenisPenguburan: null, kelayakan: null, almarhumName: null, tanggalWafat: null });
+
+    expect(await setup.pengurusan.jawabTpuLain(fixture.pemesan, { nomor: "MKM-2026-000001", diterima: true })).toEqual({ ok: false, reason: "status_tidak_sesuai" });
+    const konfirmasi = await setup.pengurusan.konfirmasiSaatDukaTpu(admin, {
+      nomor: "MKM-2026-000001",
+      pemakamanAt: "2026-10-02 09:00",
+      kontakTpu: { name: "Petugas TPU Kober", phoneNumber: "0218501234" },
+      petugasAccountId: petugas.accountId,
+    });
+    expect(konfirmasi).toEqual({ ok: false, reason: "status_tidak_sesuai" });
+    expect(await setup.pengurusan.konfirmasiTpuTerbuka()).toEqual([]);
   });
 });
