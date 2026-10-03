@@ -404,6 +404,18 @@ check_sumopod_key() {
   esac
 }
 
+check_webhook_secret() {
+  local secret
+  secret=$(setting SUMOPOD_WEBHOOK_SECRET)
+  if [ -z "$secret" ]; then
+    fail "04" "sumopod webhook secret" "SUMOPOD_WEBHOOK_SECRET is not set in $ENV_FILE: copy the Svix signing secret from the SumoPod dashboard"
+  elif [ "${secret#whsec_}" = "$secret" ]; then
+    fail "04" "sumopod webhook secret" "SUMOPOD_WEBHOOK_SECRET does not start with whsec_, so it is not a Svix signing secret"
+  else
+    pass "04" "sumopod webhook secret" "set, and a whsec_ Svix secret (value not shown)"
+  fi
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -415,6 +427,7 @@ check_signature
 check_env_schema
 check_smtp
 check_sumopod_key
+check_webhook_secret
 check_s3
 check_backup_key
 check_backup_and_restore
