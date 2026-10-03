@@ -67,7 +67,21 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
     const tpu: BarisTpu = parsed.data;
     const lama = ada.get(tpu.name);
     if (lama) {
-      if (samaDenganTpu(lama, tpu)) hasil.sama += 1;
+      if (samaDenganTpu(lama, tpu)) {
+        hasil.sama += 1;
+        continue;
+      }
+      if (tulis) {
+        const { menerimaMakamBaru, ...profil } = tpu;
+        const profilBerubah = lama.address !== tpu.address || lama.city !== tpu.city || lama.dataSource !== tpu.dataSource || lama.pin?.lat !== tpu.pin?.lat || lama.pin?.lng !== tpu.pin?.lng;
+        const diubah = profilBerubah ? await lokasi.updateTpuDki(aktor, lama.id, profil) : { ok: true as const };
+        const bendera = diubah.ok && lama.menerimaMakamBaru !== menerimaMakamBaru ? await lokasi.updateTpuDkiFlag(aktor, lama.id, { menerimaMakamBaru }) : diubah;
+        if (!bendera.ok) {
+          hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${bendera.reason}`);
+          continue;
+        }
+      }
+      hasil.diubah += 1;
       continue;
     }
     if (tulis) {
@@ -145,7 +159,7 @@ export async function importDataPeluncuranCommand(
         exitCode: 0,
         output: [
           tulis ? "[import-data-peluncuran] Ditulis." : "[import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.",
-          `TPU DKI: ${tpu.dibaca} baris dibaca, ${tpu.dibuat} ${tulis ? "dibuat" : "akan dibuat"}, ${tpu.diubah} diubah, ${tpu.sama} sama, ${tpu.ditolak.length} ditolak.`,
+          `TPU DKI: ${tpu.dibaca} baris dibaca, ${tpu.dibuat} ${tulis ? "dibuat" : "akan dibuat"}, ${tpu.diubah} ${tulis ? "diubah" : "akan diubah"}, ${tpu.sama} sama, ${tpu.ditolak.length} ditolak.`,
         ].join("\n"),
       };
     } finally {

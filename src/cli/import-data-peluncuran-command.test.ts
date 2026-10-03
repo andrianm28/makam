@@ -46,7 +46,7 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
 
     expect(hasil.exitCode).toBe(0);
     expect(hasil.output).toContain("Mode dry-run: tidak ada yang ditulis.");
-    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 1 akan dibuat, 0 diubah, 0 sama, 0 ditolak.");
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
     expect(await lokasi.tpuDkiList(admin)).toEqual([]);
   });
 
