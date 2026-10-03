@@ -50,7 +50,8 @@ const ENV_FILE = [
  */
 const INTERRUPT_AT = (step: string) =>
   [
-    `if [ "\${FAKE_INTERRUPT:-}" = ${step} ]; then`,
+    `if [ "\${FAKE_INTERRUPT:-}" = ${step} ] && [ ! -e "$FAKE_LOG.interrupted" ]; then`,
+    '  touch "$FAKE_LOG.interrupted"',
     "  p=$PPID",
     '  while ! grep -qa makam-preflight "/proc/$p/cmdline" 2> /dev/null; do p=$(ps -o ppid= -p "$p" | tr -d " "); [ -n "$p" ] || break; done',
     '  kill -TERM "$p"',
@@ -568,5 +569,12 @@ describe("makam-preflight", () => {
     expect(noStatus.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*deployment 42.*inactive.*500/));
     // The delete is still attempted after a failed status.
     expect(noStatus.calls).toMatch(/-X DELETE .*deployments\/42/);
+  });
+
+  it("deletes the probe Deployment when it is interrupted after creating it", () => {
+    const interrupted = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_INTERRUPT: "statuses" });
+    expect(interrupted.code).toBe(143);
+    expect(interrupted.calls).toMatch(/-X DELETE .*deployments\/42/);
+    expect(interrupted.leftovers).toEqual([]);
   });
 });
