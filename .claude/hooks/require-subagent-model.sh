@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # PreToolUse hook: every subagent call must name its model (AGENTS.md "Model tiering").
-# sonnet: building, first reviews, research, prototypes; haiku: re-reviews of a fix list,
-# doc sweeps, mechanical edits; opus: only hard security, money or concurrency code after sonnet failed.
+# sonnet: building, first reviews, re-reviews, research, prototypes; opus: reviews and re-reviews of
+# money code, and hard security, money or concurrency code after sonnet failed; haiku: doc sweeps and
+# mechanical edits only, never a review (owner, 2026-10-03).
 # Exit 2 blocks the call and shows stderr to the agent.
 node -e '
 let raw = "";
@@ -14,9 +15,9 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
   if (["builder", "reviewer"].includes(input.subagent_type)) process.exit(0);
   process.stderr.write(
     `Subagent call blocked: pass model ("sonnet" | "haiku" | "opus"), got ${JSON.stringify(model ?? null)}. ` +
-    "AGENTS.md model tiering: sonnet for building, first reviews, research and prototypes; " +
-    "haiku for re-reviews of a fix list, doc sweeps and mechanical edits; " +
-    "opus only for hard security, money or concurrency code when sonnet failed.\n"
+    "AGENTS.md model tiering: sonnet for building, first reviews, re-reviews, research and prototypes; " +
+    "opus for reviews and re-reviews of money code, and hard security, money or concurrency code when sonnet failed; " +
+    "haiku only for doc sweeps and mechanical edits, never a review.\n"
   );
   process.exit(2);
 });
