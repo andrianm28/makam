@@ -57,7 +57,7 @@ From the v1 spec (`.scratch/makam-v1/spec.md`, Implementation and Testing Decisi
 | Clean build output, test database, stack | `npm run clean` |
 | Build / worker and migrate bundles | `npm run build` / `npm run build:worker` |
 | Migrate / generate a migration | `DATABASE_URL=... npm run migrate` / `npm run db:generate` |
-| Catalog import (dry run unless `--tulis`; staging needs `--izinkan-staging`) | `npm run import:katalog-lama -- --sumber <f.json> [--tulis]` |
+| Catalog import (dry run unless `--tulis`; staging needs `--izinkan-staging`, production `--izinkan-produksi`) | `npm run import:katalog-lama -- --sumber <f.json> [--tulis]` |
 | Local stack / e2e against it | `npm run stack -- up --build -d` / `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3310 npm run e2e` |
 
 ## Working agreements (every agent)

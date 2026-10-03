@@ -12,6 +12,11 @@
 useDefault = true
 
 [[allowlists]]
+description = "src/cli/env-check-command.test.ts: the throwaway VAPID_PRIVATE_KEY of the complete-production-environment fixture, used only by Vitest and never set in any environment"
+regexTarget = "secret"
+regexes = ['''Dt1CLgQlkiaA-tmCkATyKZeoF1-Gtw1-gdEuWrspXhA''']
+
+[[allowlists]]
 description = "src/lib/env.ts: LOCAL_VAPID_PRIVATE_KEY, the fixed VAPID pair for development and test only, where the fake WebPush sends nothing; staging and production must set their own (env validation refuses the local one there)"
 regexTarget = "secret"
 regexes = ['''_ePH1MZPQEBgQ9idRe19cAhO6_v7NU8maCcgKgB1fOs''']

@@ -277,13 +277,13 @@ export interface LokasiModuleDeps {
 
 export interface Lokasi {
   /** Admin Platform starts a Lokasi Mitra's onboarding record (Belum Tayang), audited. */
-  createLokasiMitra(by: Actor, input: NewLokasiMitra): Promise<CreateLokasiMitraResult>;
+  createLokasiMitra(by: Actor, input: NewLokasiMitra, options?: { reason?: string }): Promise<CreateLokasiMitraResult>;
   /** Whether this Lokasi Mitra is Terverifikasi (listed); no actor, for public reads. False for an unknown id. */
   isTerverifikasi(lokasiId: string): Promise<boolean>;
   /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
   lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
   /** Admin Platform records the profile (name, pengelola, address, city, pin, facilities), audited. */
-  updateProfile(by: Actor, lokasiId: string, input: LokasiProfileInput): Promise<UpdateProfileResult>;
+  updateProfile(by: Actor, lokasiId: string, input: LokasiProfileInput, options?: { reason?: string }): Promise<UpdateProfileResult>;
   /**
    * Admin Platform marks a Lokasi Mitra as example data (with a reason), or clears
    * the mark, audited. A marked one can never be published or listed (ticket 86).
@@ -489,10 +489,10 @@ export interface Lokasi {
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
   return {
-    createLokasiMitra: (by, input) => createLokasiMitra(deps, by, input),
+    createLokasiMitra: (by, input, options) => createLokasiMitra(deps, by, input, options),
     isTerverifikasi: (lokasiId) => isTerverifikasi(deps, lokasiId),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
-    updateProfile: (by, lokasiId, input) => updateProfile(deps, by, lokasiId, input),
+    updateProfile: (by, lokasiId, input, options) => updateProfile(deps, by, lokasiId, input, options),
     tandaiDataContoh: (by, lokasiId, input) => tandaiDataContoh(deps, by, lokasiId, input),
     setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),
     setPoliciesAndFlags: (by, lokasiId, input) => setPoliciesAndFlags(deps, by, lokasiId, input),

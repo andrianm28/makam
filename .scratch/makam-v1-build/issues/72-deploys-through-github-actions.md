@@ -19,8 +19,14 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
 - [x] **Production safety in `makam-deploy --env prod`**: `pg_dump` snapshot before `migrate`, kept on the host with rotation and never copied off it (decided 2026-09-27, ticket 64: in v1 nothing goes off-host; off-host copies are v2, with the S3 work blocked by 03); failed `migrate` → nothing restarted; failed `up` or `/api/health` → automatic rollback to the previous digest and a failure status. Migrations are never rolled back automatically.
 - [ ] **Releases**: CI uploads source maps to GlitchTip for each image (release-scoped token as a GitHub secret) and each deploy creates a GlitchTip release for the commit. **Implemented, never run**: the build-time release and the `sourcemaps` block in `next.config.ts`, ci.yml's `sourcemaps` job (`scripts/ci/upload-sourcemaps.sh`) and `deploy/bin/makam-glitchtip-release` are all in and tested. Both still need a GlitchTip auth token that does not exist yet: the `GLITCHTIP_AUTH_TOKEN` secret plus the three `GLITCHTIP_*` variables for CI, and `MAKAM_GLITCHTIP_TOKEN` in each env file on the host (runbook, "Source maps and releases"). Without a token the job warns and the release is a logged no-op, so nothing about a deploy changes; until one is created, GlitchTip shows minified JavaScript.
 - [x] **Concurrency**: signing, promotion and rollback run in groups that are never cancelled mid-way.
-- [ ] **Rehearsal**: `makam-prod` deployed once through the promotion on 127.0.0.1:3100 with sandbox keys and no nginx change; a forced failing healthcheck shows the automatic rollback; an unsigned image is refused. **Not run**: the promotion and the signature check both need real cosign key pairs, which do not exist yet (see `## Comments`). Both behaviours are covered by `tests/tooling/makam-deploy.test.ts`, which drives the real scripts against fakes.
+- [ ] **Rehearsal**: first step, `makam-preflight --env prod` (see "Added (2026-10-03" below) is run and has no FAIL; then `makam-prod` deployed once through the promotion on 127.0.0.1:3100 with sandbox keys and no nginx change; a forced failing healthcheck shows the automatic rollback; an unsigned image is refused. **Not run**: the promotion and the signature check both need real cosign key pairs, which do not exist yet (see `## Comments`). Both behaviours are covered by `tests/tooling/makam-deploy.test.ts`, which drives the real scripts against fakes.
 - [x] Runbook: signing keys (where they live, how to rotate), approving a promotion, rolling back, pausing deploys, reading deploy results in GitHub and `deploy.log`.
+
+## Added (2026-10-03, owner decision: a production preflight before the rehearsal)
+
+- [ ] `deploy/bin/makam-preflight`, run on the VPS by the owner: read-only except for named probe objects it removes again; one line per check, PASS / FAIL / SKIP with the reason and the ticket item it proves (02, 03, 04, 72); exit non-zero on any FAIL; never prints a secret value.
+- [ ] Checks, reusing the existing `deploy/bin` scripts and CLIs rather than re-implementing them: the production env file is complete for `APP_ENV=production`, validated by the app's own env schema inside the image (not a hand-kept list); Docker and the compose plugin; free disk and memory (`makam-diskcheck`); DNS for `makam.co.id` and `www` and the certificate's expiry; a ghcr pull of a released digest with the read token, then `makam-verify-image`; S3: a probe object put, read and deleted in the files bucket with the app's key, and the bucket settings (public access blocked, versioning, encryption) where the CLI can read them; the backups bucket and the backup encryption key present; a backup followed by `makam-restore-test`; an SMTP send through `email-check` to an address the owner passes; SumoPod: the API key authenticates on a read-only call and the webhook secret is set, and the webhook URL answers 401 to a forged signature; GitHub Deployment reporting from the host works (today `gh api repos/andrianm28/makam/deployments` lists none, although the staging item above says each deploy step reports one: find out why and say so in `## Comments`); the external uptime monitor and the nginx switch listed as manual steps (SKIP with the instruction).
+- [ ] Tested like the other `deploy/bin` scripts, with fakes for the external commands; documented in `docs/ops/runbook.md` next to the rehearsal; the Rehearsal item above names it as its first step.
 
 ## Comments
 
@@ -131,3 +137,197 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
   - Verified green: lint, typecheck, `npm run build` (the static-HTML check above), and the full `npm run test:shared`.
 - 2026-09-27 — **Still open, honestly**: AC 8 is implemented and tested but has never run (no GlitchTip token; the CI step warns and the per-deploy release is a no-op, both by design), and AC 9 (the `makam-prod` rehearsal) has not been run at all, because the promotion and the signature check both need real cosign key pairs. AC 8 and AC 9 therefore stay unticked, and so does this ticket: merging waits for the owner's word.
 - 2026-10-02 — Orchestrator: removed conflict markers that a merge had left in the Acceptance criteria (both versions were on main). Kept the checked list; the Production-safety line takes the 2026-09-27 wording (backups stay on the host, never off-host in v1).
+
+- 2026-10-03 — **Builder: production preflight (`deploy/bin/makam-preflight`), built test-first on `ticket-72-preflight`.** One red/green pair per behaviour (about 25 commits). New: `deploy/bin/makam-preflight`, `src/cli/env-check*.ts` (`dist/env-check.mjs`, `npm run env-check -- production`, validates the process env with the app's own `readRuntimeEnv`, prints names only), `tests/tooling/makam-preflight.test.ts` (fakes for docker, curl, aws, openssl, getent, df, free, cosign, backup and restore scripts; the real `makam-diskcheck` and `makam-verify-image` run), `deploy/install-host.sh` installs it, runbook section "Production preflight". No migration, so `check-destructive-ddl` has nothing to check.
+
+  **Counts** (read off whole logs): `npx vitest run src/cli/env-check-command.test.ts tests/tooling/makam-preflight.test.ts tests/tooling/makam-deploy.test.ts tests/tooling/makam-diskcheck.test.ts tests/support/global-prune.test.ts` → 5 files, 66 tests passed, exit 0 (preflight alone: 22 tests, env-check: 2 tests). `npm run lint` exit 0 (0 errors, 6 existing warnings); `npm run typecheck` exit 0. Full suite not run (the orchestrator's).
+
+  **Why `gh api repos/andrianm28/makam/deployments` lists none (found from the code; not confirmed on the host).** `makam-deploy` calls `makam-deploy-status begin --tag "$TAG"` with `TAG=sha-<40 hex>` (the image tag), and `makam-deploy-status` sends it as the Deployment's `ref`. GitHub requires a branch, tag or commit SHA; `sha-<sha>` is none of them, so POST `/deployments` answers 422 "No ref found". The script is built never to fail a deploy, so it swallows the error: `id` stays empty and the only trace is "could not create the GitHub deployment; continuing without it" in `deploy.log`, and with no Deployment, every later `state` call also does nothing ("no deployment id for this run"). A missing or wrong `MAKAM_GITHUB_TOKEN` would give the same silence. The preflight tells the cases apart (missing token / token refused / 422 on the image tag but accepted with the plain SHA). **Not fixed here**, it changes staging's deploy path; the fix is one line (`ref` = the image revision label, kept in `deploy.log` on failure). Owner decision below. To confirm: `grep "deployment" /opt/makam-v1/staging/deploy.log | tail`.
+
+  **Spec gaps and decisions for the owner**
+  - **S3 in v1.** The app has no S3 adapter or `S3_*` settings (FileStore is the host disk, ticket 03 moved to v2 on 2026-09-26), yet the spec asks for S3 probe, bucket-setting and backups-bucket checks. Built as asked, driven by env-file keys I had to name: `S3_REGION`, `S3_BUCKET_FILES`, `S3_BUCKET_BACKUPS`, `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (app key), `S3_BACKUPS_ACCESS_KEY_ID`/`S3_BACKUPS_SECRET_ACCESS_KEY`, optional `S3_ENDPOINT`; needs the `aws` CLI on the host. A missing S3 setting is a **FAIL** (the prerequisite is missing); `--skip-s3` turns the S3 lines into SKIPs for a beta without S3. Say if the other default is wanted. Bucket settings the app key may not read (its IAM policy is object-level) are SKIP with the console instruction, not FAIL.
+  - **SumoPod read-only call.** The repo knows only `POST /api/v1/payments`. I used `GET /api/v1/payments/makam-preflight-no-such-payment` with the `X-Api-Key` (200 or 404 = key accepted, 401/403 = refused, anything else = FAIL "proves nothing"), base URL `SUMOPOD_BASE_URL` else the live host. Unverified against SumoPod; `MAKAM_PREFLIGHT_SUMOPOD_PATH` overrides the path once ticket 04 records a documented read call.
+  - **Webhook URL.** The app serves `/api/webhooks/pembayaran` (ticket 04 and the nginx config name `/api/webhooks/sumopod`). The forged-signature check posts to `$APP_BASE_URL/api/webhooks/pembayaran`; before the nginx switch `makam.co.id` still reaches the old app, so use `--webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran`.
+  - **ghcr read token.** No setting for it existed; `GHCR_READ_TOKEN` in `prod.env` is used in a throwaway Docker config when present, else the host's own `docker login`.
+  - **Backup check leaves no Dump but does write one.** `makam-backup-db` must run to be tested; the Dump and counts files this run created are removed again, earlier Dumps are never touched. It needs the `makam-prod` stack up, so it FAILs before the first production deploy; run the preflight again after the rehearsal's deploy.
+  - **Images built before this ticket have no `dist/env-check.mjs`**; the env-schema line FAILs saying so. Use a digest built from a `main` containing it.
+
+  HANDOFF: done, nothing left open on my side. Head is the last commit of `ticket-72-preflight`. Review focus: the SumoPod call and S3 defaults above (both guesses made explicit), and `check_backup_and_restore` (deletes only files that appeared during the run). Owner: decide the `makam-deploy-status` ref fix and the `--skip-s3` default; create `prod.env` with the keys listed in the runbook section before running it.
+
+### Review of the production preflight (2026-10-03, reviewer thread, sonnet; head 35a54e08, fixed point 4fab4b19 = merge-base with origin/main)
+
+Not money code, so sonnet. Tests re-run by the reviewer: `npx vitest run tests/tooling/makam-preflight.test.ts src/cli/env-check-command.test.ts` → exit 0, Test Files 2 passed (2), Tests 25 passed (25). Read-only review; the reviewer did not run the script against a host. Verified by hand: no `trap` anywhere in `makam-preflight`; the probe-Deployment inactive/delete calls discard their result (lines 472-473, 480-481); the restore step removes every new file in `backups/db` (line 356).
+
+## Standards
+
+No blocking finding. No secret value is printed on any path read: the env file is read with `sed` and never sourced, the SumoPod key and GitHub token go through 0600 header files, the S3 secret only through aws's environment, the ghcr token through `--password-stdin` into a throwaway `DOCKER_CONFIG`; no `set -x`/`curl -v`; Docker and curl output discarded or cut to 300 characters; `env-check` prints variable names only; tests assert no secret in output or fake-call logs. Fakes for every external command; no `docker prune`/`-a`; exit 1 on any FAIL, 64 on usage.
+
+- **should-fix** `makam-preflight:151,226-239,441-448,467-489`: no `trap`. An interrupt (Ctrl-C, SIGTERM) mid-run leaves the temp `DOCKER_CONFIG` (holds the ghcr token), the header files (SumoPod key, GitHub token), the S3 probe object and the GitHub probe Deployment. Add one `trap cleanup EXIT INT TERM` that removes the temp files and runs the S3 delete.
+- **should-fix** `:472-473,480-481`: the inactive-status and DELETE results are ignored, yet the PASS line says "the probe was deleted again"; a failed DELETE leaves an orphan Deployment and still PASSes. Check for 204, else FAIL/warn.
+- **should-fix** `:356`: removes every new file in `backups/db`, not only the Dump it made; a cron backup finishing in the same window is deleted. Remove only `$f` and its `.counts.enc`.
+- **should-fix** `:342`: `makam-backup-db` also prunes Dumps older than 7 days (`makam-backup-db:114-116`); the script header and runbook say "read-only" and should name this.
+- **should-fix (process, horizontal slicing)**: red tests `bffd583c` and `d5af1812` are two reds before the single green `c799fb44`. The rest alternate red/green.
+- nit `:465-466`: with no revision label `ref` becomes `sha-`, a confusing message.
+- nit `:214-215`: `"${endpoint[@]}"` on an empty array fails under `set -u` on bash < 4.4.
+- nit `:57`: the `sed` key pattern is not anchored against regex characters, and quoted values (`KEY="v"`) keep their quotes.
+- judgement (not counted): duplicated `openssl s_client` (`:125-126`) and Deployment create/status/delete (`:468-481`); unexplained `#@FUNCS`/`#@CALLS` markers; hard-coded IP and `andrianm28` (overridable); `MAKAM_PREFLIGHT_*` knobs nothing needs yet; `env-check` messages in English where the CLI uses Indonesian.
+
+Standards: 8 findings (0 blocking / 5 should-fix / 3 nit). Worst: no `trap`, so tokens and probe objects survive an interrupt.
+
+## Spec
+
+Every check the Added section names is implemented and reads real code, not a list: env schema inside the image through the app's own `readRuntimeEnv` (`dist/env-check.mjs`, shipped by `build-worker.mjs`); Docker and compose; disk and memory through `makam-diskcheck`; DNS (both hosts) and certificate `-checkend`; ghcr pull then the real `makam-verify-image`; S3 put/read-back/delete probe and bucket settings; backups bucket and key; backup then `makam-restore-test` on that very Dump; SMTP through `email-check`; SumoPod key, `whsec_` webhook secret and the forged-signature POST expecting 401; GitHub Deployment probe plus the live diagnosis that `makam-deploy-status:83` sends `ref: $TAG` (`sha-<hex>`, not a branch/tag/SHA → 422, swallowed; retried with the plain SHA); the manual SKIP items with instructions. Output is `PASS|FAIL|SKIP [ticket] name: reason` with next-step hints on FAIL; runbook flags (`--env --digest --email-to --skip-s3 --webhook-url`) match the script; install-host installs it; the Rehearsal item names it first. The builder's "why none are listed" finding is plausible and flagged as unconfirmed on the host; workflows only read Deployments, so nothing contradicts it.
+
+- **should-fix** "the API key authenticates on a read-only call": the check is `GET /api/v1/payments/<nonexistent>` and treats 200 *or* 404 as PASS. Only `POST /api/v1/payments` is known, so a wrong path or a router 404 before auth gives a vacuous PASS. Add a negative control (same call with a bad key must give 401) or make the PASS line say "path unverified".
+- **should-fix** "bucket settings … where the CLI can read them": public access, versioning and encryption are SKIP with the app key (object-level IAM only), so the owner will normally see three SKIPs and nothing proven. Honest, but the runbook should say these are a console check unless a read-capable key is given.
+- nit: `check_backup_key` runs under `--skip-s3` (fine, local backups need no S3).
+- nit: the webhook route in code is `/api/webhooks/pembayaran`, ticket 04 and nginx say `/api/webhooks/sumopod`; the default URL is `$APP_BASE_URL`, which before the nginx switch hits the OLD app, so the owner must pass `--webhook-url` (the runbook says so, the FAIL line says so).
+- nit: `GHCR_READ_TOKEN` and the S3 settings are new env names the spec did not give; documented, not scope creep.
+
+Spec: 5 findings (0 blocking / 2 should-fix / 3 nit). Worst: SumoPod key check can pass vacuously on a wrong path. No scope creep beyond the `env-check` CLI the spec requires.
+
+Combined, for the fix pass (builder): the five Standards should-fix and the two Spec should-fix. The ticket's tick boxes stay unticked.
+
+- 2026-10-03 — **Builder: fix pass for the preflight review (head 4f198062).** Each fix is its own red/green pair on `ticket-72-preflight` (no two reds before a green). Counts off a whole log: `npx vitest run` on env-check, preflight, `makam-deploy`, `makam-diskcheck`, global-prune → 5 files, 75 tests passed, exit 0 (preflight alone 31); `npm run lint` exit 0 (0 errors, 6 existing warnings); `npm run typecheck` exit 0.
+
+  - **Owner decision, S3 (instruction 3): done.** S3 lines are one SKIP by default ("ticket 03 moved to v2 on 2026-09-26 …"); `--met-s3` turns them on and then a missing setting is a FAIL. `--skip-s3` is gone; runbook and tests updated.
+  - Standards should-fix **trap**: fixed. One `trap cleanup EXIT` plus INT/TERM (exit 130/143) removes the throwaway Docker config, header files and probe bodies, deletes the S3 probe object and the probe Deployment. Tested by a fake that sends SIGTERM to the running script mid-pull, mid-read and mid-status (three tests).
+  - **Probe Deployment results**: fixed. Inactive-status and DELETE are checked (201 / 204); any other answer is a FAIL naming the orphan Deployment, never a PASS (also on the plain-SHA diagnostic path).
+  - **Backup removes only its own files**: fixed. The Dump is the one `makam-backup-db` names in its log line; only it and its counts file are removed; a Dump the nightly timer wrote meanwhile stays (tested). If no Dump is named, nothing is removed and the check FAILs.
+  - **Header and runbook name the 7-day pruning**: fixed; both now say the backup step is not read-only in that one respect.
+  - **Process (horizontal slicing, `bffd583c`/`d5af1812`)**: history left as instructed; every new pair alternates.
+  - Spec should-fix **SumoPod negative control**: fixed. After a 200/404 the same call is made with a deliberately wrong key; refused (401/403) → PASS, else SKIP "path unverified" with the codes (a 404 can come before authentication).
+  - Spec should-fix **bucket settings**: fixed in the runbook (console check unless a read-capable key is given, with the three IAM actions).
+  - Nit `ref sha-` with no revision label: fixed (FAIL says the image has no revision label; no probe is made).
+  - Nit empty `endpoint` array under `set -u` on bash < 4.4: fixed with `${endpoint[@]+…}`. Untestable here (bash 5), so no red test.
+  - Nit unanchored `sed` key and quoted values: **left**. `makam-deploy` and `makam-deploy-status` read the env file the same way, and `docker --env-file` keeps quotes literally, so a quoted value is already wrong for the stack; the keys are fixed names without regex characters.
+  - Judgement items: `#@FUNCS`/`#@CALLS` scaffolding markers removed. Left: the duplicated `openssl s_client` and Deployment calls (small, each reads straight), the hard-coded IP and `andrianm28` (overridable, same as the other `deploy/bin` scripts), the `MAKAM_PREFLIGHT_*` knobs (each is documented in the runbook table and costs one line), English `env-check` messages (its only reader is the preflight and the owner reading the runbook; `email-check` is Indonesian because Operators read it).
+  - Spec nits (backup key under S3 skip, webhook route name, new env names): no change; the review calls them fine and they are documented.
+
+  HANDOFF: all seven should-fix and the nits I agree with are done. Open for the owner, unchanged: the `makam-deploy-status` ref fix (above), and the SumoPod read call still unverified against SumoPod (now at least flagged by the negative control).
+
+### Re-review of the preflight fix pass (2026-10-03, reviewer thread, sonnet; head 59424069, fixed point 4f198062 = the reviewed head)
+
+Not money code, so sonnet. Two parallel sub-agents (Standards, Spec) on `git diff 4f198062...59424069` (4 files, 21 commits). Tests re-run by the reviewer, whole log kept: `npx vitest run tests/tooling/makam-preflight.test.ts src/cli/env-check-command.test.ts tests/tooling/makam-deploy.test.ts tests/tooling/makam-diskcheck.test.ts` → Test Files 4 passed (4), Tests 65 passed (65), exit 0. (The builder's 75 also counts the global-prune file, not re-run.) Read-only; the script was not run against a host. Hand-verified by the reviewer: `new_tmp` (`makam-preflight:66`) runs in a `$(...)` subshell when called from `sumopod_get` (`:432`) and `gh_call` (`:493`); the 7-day pruning note is in the runbook diff.
+
+**Items of the first review**
+- Standards, no `trap`: **PARTLY FIXED**. `trap cleanup EXIT` plus INT/TERM exist (`:71-89`); the ghcr config, S3 probe object and probe Deployment are covered and tested (SIGTERM mid-pull, mid-read, mid-status; EXIT runs once after exit 130/143). **NOT FIXED for the header files** holding the SumoPod key and GitHub token: see new finding 1.
+- Probe Deployment results: **FIXED** (`:496-512`, 201 / 204 required, else FAIL naming the orphan).
+- Backup removes only its own Dump: **FIXED** (`:386-396`; Dump name parsed from `makam-backup-db`'s log line, `##*/`, only it and its `.counts.enc`; none named → nothing removed, FAIL).
+- 7-day pruning named: **FIXED** (header `:19-21`, `:376`, runbook intro of the preflight section). Wrapping nit below.
+- Horizontal slicing: **left by instruction**; the 20 new commits alternate red/green. Exception: new finding 3.
+- Spec, SumoPod negative control: **FIXED** (`:449-453`; 401/403 PASS, else SKIP "path unverified" with codes).
+- Spec, bucket settings: **FIXED** (runbook "console check unless a read-capable key", three IAM actions).
+- Nits: `sha-` label **FIXED** (`:540`); empty `endpoint` array **FIXED** (`:248`, untestable on bash 5, reason accepted, but see finding 3); `sed` key/quoted values **left, reason accepted** (sibling scripts read the env file the same way, `docker --env-file` keeps quotes, keys are fixed names); judgement items left: reasons accepted except "English `env-check` messages" (weak, harmless).
+- Owner decision, S3: **applied correctly**. Default is one SKIP naming ticket 03 and its move to v2 (`:290-292`); `--met-s3` makes a missing setting a FAIL (`:294-298`); `--skip-s3` gone from script, runbook, tests and install-host (it survives only in the older Comments above, as history). Default run still checks the backup key (`:359`); the backups-bucket half is skipped with S3, as the decision intends.
+
+## Standards
+- **should-fix** `makam-preflight:432,493`: header files (SumoPod key, GitHub token, mode 0600) are created by `new_tmp` inside `$(...)`, so `TMP_PATHS+=` is lost and `cleanup` never removes them; SIGTERM during `curl` leaves a secret in `$TMPDIR`. The comment at `:61-64` ("removed on any way out") is false for them, and no test covers it (the three signal tests hit pull, get-object and statuses). Create the file in the caller or use one `mktemp -d` registered up front, and add a red test that signals during the SumoPod and Deployment curl.
+- **should-fix** `:436`: `curl -w '%{http_code}' … || printf 'no answer'` prints `000no answer` on a network failure (curl writes `000` then exits non-zero); the control call falls into the SKIP with the same garbage. Use `code=$(…) || code="no answer"` as the other sites do (`:482`, `:500`).
+- **should-fix (process, one behaviour per pair)** `c752e63e`: the green for "names a missing revision label" also adds the `${endpoint[@]+…}` guard (`:248`) with no red, and changes the fake's `FAKE_REVISION` default. Split it, or add a red for the empty-endpoint case.
+- nit `:20-21`: the pruning sentence is spliced into the middle of the next one; re-wrap.
+- nit `:413,434`: `sumopod_get` reads the global `SUMOPOD_URL`; pass it as an argument.
+- nit `:520-523`: `PENDING_DEPLOY_ID` is set after `gh_call POST` returns, so an interrupt during the create call itself leaves the Deployment unrecorded (small window).
+- nit: only SIGTERM (143) is tested, the `INT` → 130 path is not.
+- nit: runbook SumoPod table row (`:1786`) does not mention the negative control.
+- nit: `59424069` is labelled `docs(ticket-72)` but also removes the `#@FUNCS`/`#@CALLS` markers from the script.
+
+Standards: 9 new findings (0 blocking / 3 should-fix / 6 nit). Worst: header files holding the SumoPod key and GitHub token escape `cleanup` (the very leak the trap fix was meant to close).
+
+## Spec
+No requirement of the Added section is missing or narrowed; no scope creep (the only addition is the trap's 130/143 exit codes); nothing implemented wrongly beyond the Standards findings above. The ticket's older Comments still say `--skip-s3` as history (nit, not counted: left as written).
+
+Spec: 0 new findings. Worst: none.
+
+**Result**: first-review items 6 of 7 should-fix FIXED (trap only partly), 6 of 6 nits resolved or accepted; new 0 blocking / 3 should-fix / 6 nit; hard remaining: **no** (no blocking, but a second fix pass is needed for the three should-fix, the first two being secret/robustness issues on interrupt and network failure). Ticket boxes stay unticked.
+
+- 2026-10-03 — **Builder: second fix pass for the preflight (re-review head ad348079).** Counts off a whole log: `npx vitest run` on env-check, preflight, `makam-deploy`, `makam-diskcheck`, global-prune → 5 files, 80 tests passed, exit 0 (preflight alone 36); `npm run lint` exit 0 (0 errors, 6 existing warnings); `npm run typecheck` exit 0.
+
+  - **(a) Header files with the SumoPod key and the GitHub token: fixed.** One header file is made in the main shell at start (`HEADER_FILE`, registered for the trap) and emptied after each call; `sumopod_get` and `gh_call` no longer make files inside `$(...)`. **An honest correction to my own tests:** my first interrupt fake only killed the script, so the `$(...)` subshell finished its own `rm` and the leak could not show; and the red commit for the SumoPod file was recorded while Docker was down (vitest could not start), so it was not a real red. I restarted Docker, made the fake kill every subshell between itself and the script, as Ctrl-C does, and checked the SumoPod test against the script from before the fix (`git show 56a7617~1:deploy/bin/makam-preflight`): it fails there and passes with the fix. The Deployment tests (interrupt during the create call, and the earlier interrupt-during-statuses test) are genuinely red in `ec1a915` and green in `712e60c`.
+  - **(b) `000no answer`: fixed**, assignment form like the other call sites; test with a fake curl that prints 000 and exits 7.
+  - **(c) Empty-endpoint guard: red/green added.** No behaviour test can fail on bash >= 4.4 (here 5.2; `BASH_COMPAT` does not bring the old behaviour back), so to have a real red I put the unguarded expansion back (`refactor:` commit), wrote a test that reads the script and refuses an unguarded `"${endpoint[@]}"` (red), then re-added the guard (green). It is a source-reading test because there is no other way; say so if you would rather not keep it.
+  - Nits taken: header sentence re-wrapped; `sumopod_get` takes the URL as an argument; runbook SumoPod row names the negative control; SIGINT → 130 tested (`test:` commit, it passed at once: the `INT` trap already existed).
+  - Nits left: the interrupt window between `gh_call POST` returning and `PENDING_DEPLOY_ID` being set (the id is only known from the response, so it cannot be closed; a Deployment orphaned that way is a `preflight` environment on GitHub, deletable by hand); the `docs(ticket-72)` commit label of `59424069` (history stays); "English env-check messages" (as before).
+
+  HANDOFF: nothing open on my side. Owner items unchanged: the `makam-deploy-status` ref fix, and the SumoPod read call unverified against SumoPod.
+
+### Re-review 2 of the preflight (2026-10-03, reviewer thread, sonnet; head 05674e45, fixed point ad348079 = the first re-review's head)
+
+Not money code, so sonnet. Two parallel sub-agents (Standards, Spec) on `git diff ad348079..05674e45` (3 files besides this ticket, 12 commits). **Tests: NOT re-run by me.** `npm run deps` died on the host (`rmdir node_modules`) and a retry with `npm ci` was refused by the permission classifier, so there is no whole log of my own and I read no counts. The builder's 80 tests (preflight 36) are unverified by me; the Standards sub-agent ran single tests in a scratch copy with vitest 5 and a minimal config (not the repo's setup), which is evidence for the red/green findings below, not a suite run. The script was not run against a host.
+
+**Items of the first re-review**
+- Header files with the SumoPod key and GitHub token, removed on every way out: **FIXED**. One `HEADER_FILE` made by `new_tmp` in the main shell (`makam-preflight:93-95`), so it is on the trap's list; `cleanup` removes it last (`:79-86`) after `remove_probe_deployment`; EXIT/INT/TERM traps at `:89,96-97`; `new_tmp` is called in no subshell (`:81,93,191,267,269,322,548`); `sumopod_get` (`:438-444`) and `gh_call` (`:500-507`) only write to that path and truncate it (`: >`) after each call. Proven by signal tests during the SumoPod call and the Deployment create call (`makam-preflight.test.ts`, "leaves no header file ... when interrupted during ..."), whose fake now kills every subshell between itself and the script. Caveat: the SumoPod test is not red against its parent (see Standards 1).
+- `000no answer`: **FIXED**: `code=$(curl ...) || code="no answer"` at `:442` (also `:486-490`, `:502-505`); test with a curl fake that prints 000 and exits 7; red against the parent, green after.
+- Empty-endpoint array guard without a red: **FIXED in form** (`:256`, `${endpoint[@]+"${endpoint[@]}"}`), but the red is invalid (Standards 3).
+- Nits: pruning sentence re-wrapped **FIXED** (`:18-26`); `sumopod_get` takes the URL **FIXED** (`:438,446`); runbook names the negative control **FIXED** (`runbook.md:1786`); SIGINT → 130 tested **FIXED** (characterisation test, passes at once); `PENDING_DEPLOY_ID` window **LEFT, reason accepted** (id only known from the response; the orphan is a `preflight` environment, deletable by hand); `docs(ticket-72)` label **LEFT**, history; English env-check messages **LEFT**.
+
+## Standards
+1. **should-fix** `d9b35ef1` (SumoPod interrupt test): not a red. It passes against its parent script because the old fake killed only the top process; it is labelled `test:` and `56a76170` is a feat with no genuine red before it. The builder disclosed this; the pair is still not red/green.
+2. **should-fix (horizontal slicing)** `ec1a9157`: changes the shared fake (`INTERRUPT_AT`, `FAKE_SIGNAL`, `FAKE_NETWORK_DOWN`) and adds two tests in one commit; only the gh-create test is red (against `56a76170`), green in `712e60cc`.
+3. **should-fix** `f2fc0463` / `76c86e21` (endpoint array): the red test's negative regex also matches the guarded form, so it fails against the fixed script too (the Standards sub-agent ran it against `76c86e21`'s script); the feat commit had to rewrite the regex (`makam-preflight.test.ts:~655`). The red proves nothing about the guard.
+4. **should-fix** `makam-preflight.test.ts:~651-657`: the test reads the script source and greps it, which asserts text, not an outcome (AGENTS.md, Tests). The builder's reason (no bash < 4.4 to run) is stated; keep it only as a recorded exception, or run the script under a bash 4.3 stub/container, or drop the test and keep the comment.
+5. nit `21298d40`: characterisation test, passes against its parent; fine, but say so in the message.
+6. nit `ce39b292`: labelled `refactor` but also edits the runbook row; could be a `docs:` commit.
+Green pair confirmed: `25433325` → `a7a3d5e5` (`no answer`), and `712e60cc` for the Deployment header file.
+
+Standards: 6 findings (0 blocking / 4 should-fix / 2 nit). Worst: the endpoint-array red (`f2fc0463`) is not a valid red and the test reads source text.
+
+## Spec
+Nothing in the Added section is narrowed or over-built; the builder's claims (a), (b), (c) match the code; S3 default SKIP / `--met-s3` unchanged. 
+- nit: the builder's 80/36 test counts are not reproducible from the diff (nor re-run by me).
+- nit `makam-preflight:61-64`: the comment "removed on any way out" is now true; only SIGKILL leaves the already-emptied header file, which holds no secret.
+- nit: the `PENDING_DEPLOY_ID` window above, disclosed.
+
+Spec: 3 findings (0 blocking / 0 should-fix / 3 nit). Worst: unverified test counts.
+
+**Result**: first re-review items: 3 of 3 should-fix FIXED in behaviour (the empty-endpoint one only in form), 6 of 6 nits FIXED or accepted; new 0 blocking / 4 should-fix / 5 nit (all four should-fix are process or test-style, none about behaviour); hard remaining: **no**. A third pass would only repair test history and the source-reading test, so the owner may accept these instead. Ticket boxes stay unticked; my own test run is still owed (needs a working `node_modules`).
+
+- 2026-10-03 — **Builder: third fix pass (gitleaks on main, and re-review 2, head 73812699).** Counts off whole logs: `npx vitest run` on env-check, preflight, `makam-deploy`, `makam-diskcheck`, global-prune → 5 files, 80 tests passed, exit 0 (preflight alone 36); `npm run lint` exit 0 (0 errors, 6 existing warnings); `npm run typecheck` exit 0. I read these myself; the reviewer could not run tests, so the earlier 80/36 are now confirmed.
+
+  - **gitleaks (main red since run #377): fixed in `e6715313`, pushed first.** Red: the CI scan exactly as given (pinned `v8.30.1@sha256:c00b6bd0…`, `git . --config .gitleaks.toml --redact --no-banner`) → exit 1, "1389 commits scanned … leaks found: 1". Green: one `[[allowlists]]` entry right after `[extend]`, `regexTarget = "secret"`, `regexes` = the one fixture value of `VAPID_PRIVATE_KEY` in `src/cli/env-check-command.test.ts`, description says it is Vitest-only and never set in any environment; no `paths`. Same scan → exit 0, "no leaks found". Re-run on the final head after the later commits → exit 0, no leaks. `gl.log` deleted.
+  - Standards 3 and 4 (the endpoint-array red that also matched the fixed form, and the test that reads source text): **fixed by removing the cause.** The array is gone: the endpoint option is now `${endpoint:+--endpoint-url "$endpoint"}`, which has no bash-version problem at all. The source-reading test is deleted and replaced by an outcome test (S3_ENDPOINT set → aws gets `--endpoint-url <url>`; unset → no endpoint option). That test passes against its parent (it is a characterisation of existing behaviour, said so in its commit message, `0bae7ee6`), then the `refactor:` commit changes the code and the test stays green.
+  - Standards 1 and 2 (the SumoPod interrupt test not red against its parent; two behaviours in the commit that changed the interrupt fake): **left, history.** Nothing can be redone without rewriting pushed history, which the pass forbids. What stands is on record in the second fix-pass entry: the SumoPod test fails against the pre-fix script (`56a7617~1`) and passes after, and the Deployment tests are red in `ec1a915` and green in `712e60c`.
+  - Nits: characterisation commit `21298d40` and the `ce39b292` label (`refactor` that also touched a runbook row): **left, history**; the new characterisation commit above says in its message that it passes at once. Spec nits: counts now read (see above); the `PENDING_DEPLOY_ID` window stays as disclosed.
+
+  HANDOFF: nothing open on my side. Owner items unchanged: the `makam-deploy-status` ref fix, and the SumoPod read call unverified against SumoPod.
+
+### Re-review 3 of the preflight (2026-10-03, reviewer thread, sonnet; head 889b3a16, fixed point 4fab4b19 = merge-base with origin/main; delta since re-review 2: 73812699..889b3a16, 5 commits)
+
+Not money code, so sonnet. I reviewed the delta myself on both axes instead of spawning two sub-agents: it is 4 files (`.gitleaks.toml`, `makam-preflight`, its test, this ticket), about 25 changed lines of code. The clone was shallow; I ran `git fetch --unshallow` so the merge-base and the gitleaks scan cover full history.
+
+**Checks run by me, counts read off whole logs**
+- gitleaks (CI's pinned `v8.30.1@sha256:c00b6bd0…`, `git . --config .gitleaks.toml --redact --no-banner`, all fetched refs): 1444 commits scanned, "no leaks found", exit 0. `gl.log` deleted.
+- `npx vitest run tests/tooling src/cli`: 33 files passed, 360 passed | 1 skipped (361), exit 0. Preflight + env-check alone: 2 files, 39 tests, exit 0.
+- `npm run lint`: exit 0 (0 errors, 6 warnings). `npm run typecheck`: exit 0. The full suite was not run (the orchestrator's).
+- The new endpoint test run against the pre-refactor script (`0bae7ee6`'s version of `makam-preflight`, swapped in temporarily, then restored): 1 passed. So the builder's characterisation claim is true.
+- The script itself was not run against a host.
+
+**Gitleaks entry (`e6715313`)**: follows the file's header. One `[[allowlists]]` entry, the exact fixture value only (no wildcard), `regexTarget = "secret"`, the file named in the description (`src/cli/env-check-command.test.ts`), no `paths`, no directory or rule-wide entry. OK.
+
+## Standards
+- Red/green order of the fix-pass-3 commits: `e6715313` (gitleaks) is one behaviour; its red (CI's scan exit 1) is the real scan and green is exit 0 after the entry: OK. `0bae7ee6` (test) → `48f250ff` (refactor): the test passes against its parent by design (a characterisation, stated in its message) and stays green after the refactor, which changes no behaviour; that is a legitimate pair, not a wrong-reason red. `48f250ff` also deletes the source-reading test in the same commit: fine, since its replacement landed one commit earlier.
+- `${endpoint:+--endpoint-url "$endpoint"}` (`makam-preflight:253-256`): the quoted URL survives word splitting, there is no array, so no bash-version issue. The new test asserts the outcome (what aws received), not source text.
+- nit: `48f250ff` is one commit for a refactor plus a test deletion; harmless.
+
+Standards: 1 finding (0 blocking / 0 should-fix / 1 nit).
+
+## Spec
+Items of re-review 2, one by one:
+- Standards 1 (SumoPod interrupt test not red against its parent): **BELUM, accepted as history.** Fixing it needs a rewrite of pushed history; the builder recorded the evidence in the second fix-pass entry. Not a behaviour risk.
+- Standards 2 (shared fake and two tests in one commit, horizontal slicing): **BELUM, accepted as history**, same reason.
+- Standards 3 (endpoint-array red that also matched the fixed form): **OK**: the array and the red are gone.
+- Standards 4 (test that reads source text): **OK**: deleted, replaced by an outcome test (verified above).
+- Standards 5 (nit, `21298d40` message): **BELUM, accepted as history**; the new characterisation commit says it passes at once.
+- Standards 6 (nit, `ce39b292` label): **BELUM, accepted as history.**
+- Spec nit, counts not reproducible: **OK**: I read 39 / 360 myself, consistent with the builder's 80 over five files.
+- Spec nit, "removed on any way out" comment: **OK**, unchanged and true.
+- Spec nit, `PENDING_DEPLOY_ID` window: **BELUM, accepted** (disclosed, orphan is a deletable `preflight` environment).
+Fixed: 4 of 9 OK, 5 BELUM (all history or accepted, none behaviour).
+
+New: nothing narrowed or over-built; main-CI fix (gitleaks) is in and clean.
+
+Spec: 0 new findings.
+
+**Result**: new 0 blocking / 0 should-fix / 1 nit; gitleaks clean; tests, lint, typecheck green on the head. Hard remaining: **no**. The branch is clean to merge; the remaining BELUM items are history that cannot be changed without rewriting pushed commits. Ticket boxes stay unticked.
+
+- 2026-10-03 — Added (production preflight) merged to main by the merge thread (b78cdf5, clean after re-review 3), with the `.gitleaks.toml` entry for the test fixture in a445e1ec. Two-axis review complete (Standards + Spec). Status stays `in-progress`: the Added boxes stay unticked until the owner has run the preflight on the VPS. No migration.

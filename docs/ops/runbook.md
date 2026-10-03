@@ -32,6 +32,7 @@ secret files 0600). None of it is in the repo.
 |---|---|
 | `/opt/makam-v1/bin/makam-deploy` | deploy script (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-healthcheck` | local watchdog (from `deploy/bin/`) |
+| `/opt/makam-v1/bin/makam-preflight` | the production go-live preflight, run by hand (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-diskcheck` | the 85 % root-disk warning, run by the health timer (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-prune-images` | keeps at most 3 `ghcr.io/andrianm28/makam` versions per environment (from `deploy/bin/`) |
 | `/opt/makam-v1/bin/makam-glitchtip-release` | creates the GlitchTip release for the deployed commit (from `deploy/bin/`) |
@@ -142,9 +143,13 @@ facilities and pin, their Jenis Makam, and their tariffs. It takes any catalog
 export in the format below, so it does not care which catalog that is — but
 know that **the old app's own catalog is entirely example data** (research
 2026-09-27, §1.5, and the "Data contoh" line of its own report), so where the
-beta's real Lokasi come from is the owner's decision, not this tool's. It is
-**development and test only** — it refuses on staging and on production, is not
-in the runtime image, and never opens the old app's database: a
+beta's real Lokasi come from is the owner's decision, not this tool's. It runs
+on development and test freely; on **staging only with `--izinkan-staging`** and
+on **production only with `--izinkan-produksi`** (owner decision 2026-10-03: the
+old app's 10 example rows go to production as data contoh, Belum Tayang), each
+refused without its flag. It is bundled into the runtime image as
+`dist/import-katalog-lama.mjs`, so the VPS needs no Node toolchain. It never
+opens the old app's database: a
 `KATALOG_LAMA_DATABASE_URL` in the environment is refused, not used, so no
 credential for `makam_beta` is ever needed or stored.
 
@@ -248,7 +253,7 @@ drift apart, and a hand-written `"["parkir","musala"]"` fails the build.
 ### 2. Dry run, then write
 
 ```bash
-# Development, test, or staging with the named allowance. A dry run unless --tulis.
+# Development, test, or staging/production with the named allowance. A dry run unless --tulis.
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json
 # [import-katalog-lama] Mode dry-run: tidak ada yang ditulis.
 # Lokasi: 3 dibaca, 3 akan diimpor, 1 ditolak.
@@ -267,8 +272,22 @@ npm run import:katalog-lama -- --sumber ~/katalog-lama.json --tulis
 # default, and every write it makes says so in the Entri Audit reason.
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json --tulis --izinkan-staging
 # Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan).  # without it
-# Ditolak: import-katalog-lama tidak pernah jalan di production.                 # production, always
+# Ditolak: di production perlu allowance --izinkan-produksi (ditolak secara bawaan).  # production without its own
 ```
+
+On the VPS (no Node on the host) run the bundle in the running `web` container,
+feeding the export on stdin so no file has to be copied in (`$S` is the compose
+command of the runbook's other ops commands). Dry run first, then write; the
+rows stay data contoh and Belum Tayang, and every write's reason says
+`production, --izinkan-produksi`:
+
+```bash
+$S exec -T web node dist/import-katalog-lama.mjs --sumber /dev/stdin < ~/katalog-lama.json
+$S exec -T web node dist/import-katalog-lama.mjs --sumber /dev/stdin --tulis --izinkan-produksi < ~/katalog-lama.json
+```
+
+A re-run over the same export writes nothing (idempotent on the old app's own
+code). Never run this from a development machine against production's database.
 
 Against a worktree's local stack, `npm run stack -- up --build -d` first, then
 the same commands with `DATABASE_URL` pointing at that stack (or inside it,
@@ -278,8 +297,8 @@ Admin Platform, past TOTP, and every write it makes is audited under that Akun.
 Which Entri Audit entries that is, exactly:
 
 - `lokasi.buat` and `lokasi.ubah_profil` (creating the Lokasi Mitra and its
-  profile) take **no reason** — the Lokasi module's own signature has none, so
-  those two entries are the import only by their actor and their subject;
+  profile) take the import's reason, which the Lokasi module records when its
+  caller gives one;
 - `lokasi.tandai_data_contoh` (the example-data mark, see below) takes the
   import's reason plus what the source said;
 - `tarif.buat_jenis_makam` and `tarif.ubah_biaya_pemakaman` take the import's
@@ -288,8 +307,8 @@ Which Entri Audit entries that is, exactly:
   Mitra, with the same reason.
 
 On staging the reason is `impor katalog aplikasi lama (staging,
---izinkan-staging)`, so the Audit Log of every row an import created on the
-beta's own environment says so.
+--izinkan-staging)` and on production `impor katalog aplikasi lama (production,
+--izinkan-produksi)`, so the Audit Log of every row an import created there says so.
 
 ### 3. What the report is saying
 
@@ -1739,6 +1758,70 @@ with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then do the
 gated nginx switch.
 
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
+
+## Production preflight (`makam-preflight`)
+
+Run this on the VPS before the production rehearsal (ticket 72) and again
+before the nginx switch. It answers one question: which prerequisite of tickets
+02, 03, 04 and 72 is still missing? It is read-only, except for three things it
+names and removes again (an S3 object, a GitHub Deployment, and the Dump its own
+backup writes), and it never prints a secret value. One exception stays:
+`makam-backup-db` prunes Dumps older than 7 days on every run, so a preflight can
+age out the oldest night's Dump.
+
+```bash
+makam-preflight --env prod --digest sha256:<released digest> --email-to <your address>
+```
+
+- `--digest`: a released image (the digest the promotion printed). Without it
+  the script uses the one in `/opt/makam-v1/prod/deployed.env`, else the pull,
+  signature, env-schema, SMTP and GitHub checks cannot run (FAIL or SKIP).
+- `--email-to`: where the one real test email goes (SumoPod SMTP, through the
+  image's `email-check`). Without it the SMTP line is SKIP.
+- `--met-s3`: ticket 03 moved to v2 (2026-09-26): v1 goes live as a beta without
+  S3, so the S3 lines are a SKIP by default. Pass the flag once the buckets and
+  keys exist; then a missing S3 setting is a FAIL.
+- `--webhook-url`: where the forged-signature check posts; before the nginx
+  switch use `http://127.0.0.1:3100/api/webhooks/pembayaran`.
+
+One line per check: `PASS|FAIL|SKIP [tickets] name: reason`. Exit 0 if no line
+is FAIL, 1 otherwise. SKIP lines are yours to do by hand (the external uptime
+monitor, the nginx switch, a missing `--email-to`).
+
+What it checks, and what runs it:
+
+| Check | How | Ticket |
+|---|---|---|
+| env file present, mode 0600 | `stat` | 02, 72 |
+| env file complete for `APP_ENV=production` | `docker run` of the released image: `node dist/env-check.mjs production` (the app's own env schema; prints names only) | 02, 04, 72 |
+| Docker, compose plugin | `docker info`, `docker compose version` | 02 |
+| disk, memory | `makam-diskcheck /` (85 %), `free -m` (1024 MB available; `MAKAM_PREFLIGHT_MIN_MEM_MB`) | 02 |
+| DNS and certificate for `makam.co.id` and `www` | `getent ahostsv4` (103.92.214.243; `MAKAM_PREFLIGHT_EXPECTED_IP`), `openssl s_client` (14 days; `MAKAM_PREFLIGHT_CERT_DAYS`) | 02 |
+| ghcr pull of the digest | `docker pull`, with `GHCR_READ_TOKEN` from the env file in a throwaway Docker config, else the host's login | 02, 72 |
+| image signature | `makam-verify-image --env prod` | 72 |
+| S3 probe object, bucket settings | `aws s3api` with `S3_*` from the env file: put, read, delete in `S3_BUCKET_FILES` with the app key; public access block, versioning, encryption where that key may read them (AccessDenied is a SKIP: check in the console) | 03 |
+| backups bucket, backup encryption key | `head-bucket` with the `S3_BACKUPS_*` key; `/opt/makam-v1/prod/backup-passphrase` present, non-empty, 0600 | 03 |
+| backup, then restore test | `makam-backup-db --env prod` then `makam-restore-test --env prod --dump <that Dump>`; the Dump it made is removed again | 03, 72 |
+| SMTP | `email-check` in the image | 04 |
+| SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; then the same call with a wrong key must be refused, else the line is a SKIP "path unverified"; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
+| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (ref `sha-<revision>`), set inactive, deleted | 72 |
+| uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
+
+Public access, versioning and encryption of the buckets are a console check
+(AWS console, bucket, Permissions / Properties) unless `S3_ACCESS_KEY_ID` is a
+read-capable key (`s3:GetBucketPublicAccessBlock`, `s3:GetBucketVersioning`,
+`s3:GetEncryptionConfiguration`): the app's object-level key may not read them, and
+then those three lines are SKIP, not proof.
+
+The S3 settings are env-file keys (they are not read by the app in v1, which
+keeps its FileStore on the host disk): `S3_REGION` (`ap-southeast-3`),
+`S3_BUCKET_FILES`, `S3_BUCKET_BACKUPS`, `S3_ACCESS_KEY_ID`,
+`S3_SECRET_ACCESS_KEY` (the app's IAM user), `S3_BACKUPS_ACCESS_KEY_ID`,
+`S3_BACKUPS_SECRET_ACCESS_KEY` (the backups IAM user), and `S3_ENDPOINT` only
+for a non-AWS endpoint. The `aws` CLI must be installed.
+
+The images built before this preflight have no `dist/env-check.mjs`; the env
+schema line says so. Use a digest built from a `main` that has it.
 
 ## Staging is public (2026-09-25)
 

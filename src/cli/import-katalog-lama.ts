@@ -1,7 +1,7 @@
 /**
- * `npx tsx src/cli/import-katalog-lama.ts --sumber <berkas.json> [--tulis] [--izinkan-staging]`:
+ * `npx tsx src/cli/import-katalog-lama.ts --sumber <berkas.json> [--tulis] [--izinkan-staging | --izinkan-produksi]`:
  * imports a cemetery catalog export into a development or test stack, or into
- * staging under the named allowance (never production). A dry run unless
+ * staging under the named allowance or production under its own allowance. A dry run unless
  * `--tulis`. Never opens the source's database, only reads the export file.
  */
 import { cliFailure } from "./cli-failure";

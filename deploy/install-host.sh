@@ -52,7 +52,8 @@ install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-i
   "$REPO/deploy/bin/makam-prune-images" \
   "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-diskcheck" \
   "$REPO/deploy/bin/makam-backup-files" \
-  "$REPO/deploy/bin/makam-backup-db" "$REPO/deploy/bin/makam-restore-test" "$ROOT/bin/"
+  "$REPO/deploy/bin/makam-backup-db" "$REPO/deploy/bin/makam-restore-test" \
+  "$REPO/deploy/bin/makam-preflight" "$ROOT/bin/"
 # Sourced by the two backup scripts, never run: 0644, beside them in $ROOT/bin.
 install -m 0644 "$REPO/deploy/bin/makam-backup-lib" "$ROOT/bin/"
 install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
