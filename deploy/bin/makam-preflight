@@ -74,10 +74,32 @@ check_docker() {
   fi
 }
 
+# Free disk is makam-diskcheck's own verdict (85 % by default); memory is what
+# `free` calls available, against MAKAM_PREFLIGHT_MIN_MEM_MB (1024 by default).
+check_resources() {
+  local bin disk_out mem
+  bin="$MAKAM_ROOT/bin"
+  if disk_out=$("$bin/makam-diskcheck" / 2>&1); then
+    pass "02" "disk" "makam-diskcheck: the root filesystem is below its warning"
+  else
+    fail "02" "disk" "makam-diskcheck warns (${disk_out:-no output}); free space as in the runbook, \"What to do when it warns\" (threshold ${MAKAM_DISK_WARN_PERCENT:-85}%)"
+  fi
+  mem=$(free -m 2>/dev/null | awk '/^Mem:/ { print $7 }')
+  case "$mem" in
+    ''|*[!0-9]*) fail "02" "memory" "free -m gave no available figure"; return 0 ;;
+  esac
+  if [ "$mem" -ge "${MAKAM_PREFLIGHT_MIN_MEM_MB:-1024}" ]; then
+    pass "02" "memory" "${mem} MB available (minimum ${MAKAM_PREFLIGHT_MIN_MEM_MB:-1024})"
+  else
+    fail "02" "memory" "only ${mem} MB available, minimum ${MAKAM_PREFLIGHT_MIN_MEM_MB:-1024}: web, worker, Postgres and GlitchTip will not fit beside the other projects"
+  fi
+}
+
 #@FUNCS
 
 check_env_file || true
 check_docker
+check_resources
 #@CALLS
 
 echo
