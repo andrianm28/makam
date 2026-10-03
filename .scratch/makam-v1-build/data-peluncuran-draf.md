@@ -1,5 +1,18 @@
 # Draf data peluncuran (tiket 06): untuk dikonfirmasi owner
 
+## Putaran 2 (uang) dan status akhir
+
+Dry run akhir: **ok, 0 ditolak, keluar kode 0**. TPU 38 baris, Biaya Pengurusan 2, katalog Layanan 6, harga Layanan DKI 0, Nazhir 0.
+
+- **Biaya Pengurusan** (jawaban owner, 2026-10-03, disampaikan koordinator): pemakaman **Rp 500.000** dan berkas **Rp 300.000** (owner mengetik "500k" lalu "300k"). `berlaku_mulai` **kosong**, jadi berlaku sejak hari impor: owner tidak menyebut tanggal, mohon dikoreksi bila perlu.
+- **Harga varian Layanan**: belum diketahui. `layanan-dki.csv` hanya baris judul; katalog dan 11 variannya diimpor tanpa harga DKI dan tanpa tarif Mitra Jasa.
+- **Layar untuk mengisi harga itu ada**: Admin Platform > Layanan (`/staf/admin-platform/layanan`, `src/app/staf/admin-platform/layanan/`). Setiap varian punya form "Harga TPU DKI" (`HargaDkiForm`, aksi `simpanHargaDki` memanggil `tariffs.setHargaLayananDki`) dan form "Tarif Mitra Jasa" (aksi `simpanTarifMitraJasa` memanggil `tariffs.setTarifMitraJasa`), keduanya dengan tanggal berlaku. Jadi tidak ada celah fitur, tetapi **tidak ada Layanan yang bisa dijual di TPU DKI sebelum 11 harga DKI dan 11 tarif Mitra Jasa diisi** (22 jumlah uang, tugas owner/Admin Platform setelah impor). Saya tidak menjalankan layar itu; pemeriksaan hanya dari kode.
+- **Pertanyaan terbuka sisa:** harga DKI dan tarif Mitra Jasa 11 varian (22 jumlah) serta tanggal `berlaku_mulai` Biaya Pengurusan bila bukan hari impor. Pertanyaan 21 (Nazhir): lewat Admin Platform nanti.
+
+Putaran 1 dan putaran 0 di bawah; angka dan butir yang bertentangan dengan bagian ini sudah digantikan olehnya.
+
+---
+
 ## Putaran 1 diterapkan (2026-10-03, jawaban owner lewat koordinator)
 
 Dry run ulang (Postgres lokal, Admin Platform pertama dari `seed:admin`): **hanya baris uang yang ditolak** (13: 2 Biaya Pengurusan, 11 harga Layanan DKI, semua karena jumlah rupiah kosong). TPU 38 baris, 0 ditolak; katalog 6 baris, 0 ditolak; Nazhir 0 baris.
