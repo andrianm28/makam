@@ -63,3 +63,11 @@ Two axes, run as parallel reviewers (sonnet). Both reported "Hard: 0"; the orche
 2. AC4: a failed call leaves exactly one line in deploy.log (no `curl: (22)` line); a test asserts the line count.
 3. AC5: exercise makam-deploy's real status calls (for example run its `status` path, or the script with `--local` and stubs) instead of grepping its source. If that is not feasible without a large refactor, say why under "Spec gaps and decisions for the owner" rather than keeping the grep silently.
 4. The tests skip with a clear message, or fail with a clear message, when `jq` is missing.
+
+### Fix pass (2026-10-03)
+
+1. HARD, done: `makam-deploy-status begin` sends `ref` = the tag without its `sha-` prefix (the bare 40-hex commit), for staging and prod. Test (in `makam-deploy.test.ts`, running the real `makam-deploy` with the real `makam-deploy-status` and a fake curl): the Deployment body's `ref` is the bare SHA, never `sha-...`, and the statuses are in_progress then success on the same Deployment.
+2. Done: `call()` sends curl's stderr to /dev/null, so a failed call leaves exactly one `[deploy-status]` line. Tests assert the line count, both on the script and through a full deploy where GitHub answers 422 (exit 0, no `curl:` line).
+3. Done: the grep of makam-deploy's source is gone. The real script now runs on the stubs (healthy deploy, failed migrate records failure, unsigned image records no state).
+4. Done: a test fails with "install jq: makam-deploy-status needs it" when jq is missing.
+- Counts: `npx vitest run tests/tooling` 25 files, 343 tests passed (exit 0); lint 0; typecheck 0.

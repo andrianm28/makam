@@ -367,6 +367,84 @@ describe("makam-deploy", () => {
   });
 });
 
+describe("makam-deploy reports to GitHub through makam-deploy-status", () => {
+  const statusScript = path.join(repo, "deploy/bin/makam-deploy-status");
+  /** A fake curl that records the body of every GitHub call; FAKE_GITHUB_CODE=422 makes GitHub refuse. */
+  const githubCurl = [
+    "#!/usr/bin/env bash",
+    'case "$*" in',
+    "  *api.github.com*)",
+    '    body=$(cat); echo "$*" "$body" >> "$FAKE_DOCKER_LOG.github"',
+    '    if [ "${FAKE_GITHUB_CODE:-201}" != 201 ]; then echo "curl: (22) The requested URL returned error: ${FAKE_GITHUB_CODE}" >&2; exit 22; fi',
+    "    echo '{\"id\":4242}' ;;",
+    "  *) exit 0 ;;",
+    "esac",
+    "",
+  ].join("\n");
+
+  function staging() {
+    const world = host("staging", "MAKAM_GITHUB_TOKEN=ghp_fake\n");
+    writeFileSync(path.join(world.root, world.env, "cosign.pub"), "-----BEGIN PUBLIC KEY-----\nfake\n");
+    install(world.bin, "cosign", fakeCosign());
+    install(world.bin, "docker", fakeDocker());
+    install(world.bin, "curl", githubCurl);
+    copyFileSync(statusScript, path.join(world.bin, "makam-deploy-status"));
+    chmodSync(path.join(world.bin, "makam-deploy-status"), 0o755);
+    const sent = (): string[] => {
+      try {
+        return readFileSync(path.join(world.root, "calls.log.github"), "utf8").trim().split("\n");
+      } catch {
+        return [];
+      }
+    };
+    return { world, sent };
+  }
+
+  it("needs jq on the machine that runs these tests", () => {
+    expect(spawnSync("jq", ["--version"]).status, "install jq: makam-deploy-status needs it").toBe(0);
+  });
+
+  it("a healthy deploy leaves a Deployment on the bare commit SHA whose newest status is success", () => {
+    const { world, sent } = staging();
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, {});
+    expect(result.code).toBe(0);
+    const calls = sent();
+    expect(calls[0]).toContain("/deployments ");
+    expect(calls[0]).toContain(`"ref":"${TAG_ONE.slice(4)}"`);
+    expect(calls[0]).not.toContain('"ref":"sha-');
+    expect(calls[0]).toContain('"image_digest":"sha256:');
+    expect(calls.slice(1).map((c) => /"state":"(\w+)"/.exec(c)?.[1])).toEqual(["in_progress", "success"]);
+    expect(calls.slice(1).every((c) => c.includes("/deployments/4242/statuses"))).toBe(true);
+    expect(calls[2]).toContain("healthy");
+    expect(result.deployLog()).not.toMatch(/usage|unknown argument/i);
+  });
+
+  it("a failed migrate records failure on the same Deployment", () => {
+    const { world, sent } = staging();
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_MIGRATE_OK: "0" });
+    expect(result.code).not.toBe(0);
+    const states = sent().slice(1).map((c) => /"state":"(\w+)"/.exec(c)?.[1]);
+    expect(states).toEqual(["in_progress", "failure"]);
+    expect(sent()[2]).toContain("migrate failed");
+  });
+
+  it("GitHub refusing the Deployment changes neither the deploy's exit code nor leaves more than one reporting line", () => {
+    const { world } = staging();
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_GITHUB_CODE: "422" });
+    expect(result.code).toBe(0);
+    const lines = result.deployLog().split("\n").filter((l) => /deploy-status|curl:|usage/i.test(l));
+    expect(lines.filter((l) => l.includes("curl:"))).toEqual([]);
+    expect(lines.filter((l) => l.includes("could not create the GitHub deployment"))).toHaveLength(1);
+  });
+
+  it("an unsigned image records no GitHub state, because there is no Deployment yet", () => {
+    const { world, sent } = staging();
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_COSIGN_SIGNED: "0" });
+    expect(result.code).toBe(77);
+    expect(sent()).toEqual([]);
+  });
+});
+
 describe("makam-glitchtip-release", () => {
   /** A host with a GlitchTip token in the env file and a fake curl. */
   function withToken(env: "staging" | "prod" = "staging") {

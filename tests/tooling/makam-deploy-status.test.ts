@@ -11,7 +11,6 @@ import { afterEach, describe, expect, it } from "vitest";
 // staging for having no successful status.
 const repo = fileURLToPath(new URL("../..", import.meta.url));
 const statusScript = path.join(repo, "deploy/bin/makam-deploy-status");
-const deployScript = path.join(repo, "deploy/bin/makam-deploy");
 const DIGEST = `sha256:${"c".repeat(64)}`;
 const dirs: string[] = [];
 
@@ -65,11 +64,15 @@ describe("makam-deploy-status: a Deployment and its states", () => {
     expect(t.run("state", "success", "healthy").status).toBe(64);
   });
 
-  it("a non-2xx from GitHub exits 0 and leaves one log line", () => {
-    const t = setup("exit 22");
-    t.run("begin", "--digest", DIGEST, "--tag", "sha-abc");
-    expect(t.run("state", "--state", "success", "--description", "x").status).toBe(0);
-    expect(t.log()).not.toMatch(/usage/i);
+  it("a non-2xx from GitHub exits 0 and leaves one line, not curl's error", () => {
+    const t = setup('echo "curl: (22) The requested URL returned error: 422" >&2; exit 22');
+    expect(t.run("begin", "--digest", DIGEST, "--tag", "sha-abc").status).toBe(0);
+    const lines = t.log().trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("could not create the GitHub deployment");
+    const r = t.run("state", "--state", "success", "--description", "x");
+    expect(r.status).toBe(0);
+    expect(r.stderr).toBe("");
   });
 
   it("without a token every call is a logged no-op", () => {
@@ -87,18 +90,5 @@ describe("makam-deploy-status: a Deployment and its states", () => {
     const before = t.sent();
     t.run("state", "--state", "failure", "--description", "x");
     expect(t.sent()).toBe(before);
-  });
-});
-
-describe("makam-deploy: every state call is in the form makam-deploy-status accepts", () => {
-  it("each `status state` call passes --state and --description", () => {
-    const calls = readFileSync(deployScript, "utf8").split("\n").filter((l) => /^\s*status state/.test(l));
-    expect(calls.length).toBeGreaterThanOrEqual(5);
-    for (const line of calls) expect(line).toMatch(/^\s*status state --state (in_progress|success|failure) --description "/);
-  });
-
-  it("the unsigned refusal runs before begin and records no state", () => {
-    const text = readFileSync(deployScript, "utf8");
-    expect(text).not.toMatch(/status state[^\n]*unsigned/);
   });
 });
