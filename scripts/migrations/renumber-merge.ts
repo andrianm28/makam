@@ -46,6 +46,15 @@ function lines(out: string): string[] {
   return out.split("\n").filter(Boolean);
 }
 
+function mergeInProgress(cwd: string): boolean {
+  try {
+    git(cwd, ["rev-parse", "-q", "--verify", "MERGE_HEAD"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function renumberForMerge(options: RenumberOptions): RenumberResult {
   const { cwd, branchRef } = options;
   const baseRef = options.baseRef ?? "HEAD";
@@ -62,11 +71,13 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
   }
   const snapshots = lines(git(cwd, ["diff", "--name-only", `${base}...${branchRef}`, "--", "drizzle/meta/*_snapshot.json"]));
 
+  let mergeError: unknown;
   try {
     git(cwd, ["merge", "--no-commit", "--no-ff", branchRef]);
-  } catch {
-    // conflicts are expected; they are handled below
+  } catch (error) {
+    mergeError = error; // conflicts are expected and leave MERGE_HEAD; anything else is rethrown below
   }
+  if (mergeError !== undefined && !mergeInProgress(cwd)) throw mergeError;
 
   const unionResolved: string[] = [];
   const codeConflicts: string[] = [];
