@@ -54,3 +54,12 @@ The Vitest suite is about 65 % of a main run's 23 minutes. Three of the research
 2. minor: reading the dirty list and truncating were two statements. Fix: one `do` block.
 3. minor: only `public` is watched, a later table is caught at the next reset: same as before, no change.
 4. covered: COPY, INSERT … SELECT, ON CONFLICT and cascades behave.
+
+### Re-review (fresh, two axes, sonnet, head 4170f62) and final timing
+
+Fix commit 4170f62: a reset restarts every used sequence, reads and truncates in one `do` block, the `needs:` reader refuses what it cannot read, the B test reads `deploy/` too.
+
+**Standards**: 0 hard, 0 should-fix, 1 nit. Items 1, 4, 5 accepted as recorded; 2 and 3 fixed. New nit: the B test runs `git ls-files` (fails in a checkout without `.git`); left, as every other tooling test here already reads tracked files.
+**Spec**: 0 should-fix, 3 minor; Spec items 1 and 2 fixed, 3 unchanged as accepted. Minor: this section was stale (now updated); two resets at the same moment on one database could collide on `create trigger` (files run one at a time, so theoretical); the sequence restart also covers sequences no `public` table owns (harmless).
+
+Full suite on 4170f62, same method as above: 345 files, 3201 passed, 1 skipped, exit 0, **1107 s (18.5 min)** vs 1454 s before (−24 %).
