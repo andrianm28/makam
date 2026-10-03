@@ -25,4 +25,18 @@ describe("session-start hook, dependencies", () => {
     expect(c.run().status).toBe(0);
     expect(c.npmCalls()).toMatch(/^ci\b/);
   });
+
+  it("leaves node_modules alone on the next start, once the install for this lockfile is recorded", () => {
+    const c = cloud('{"lock":"new"}', "hash-of-an-older-lockfile");
+    c.run();
+    const callsAfterFirst = c.npmCalls();
+    expect(c.run().status).toBe(0);
+    expect(c.npmCalls()).toBe(callsAfterFirst);
+  });
+
+  it("installs when node_modules has no record of which lockfile it came from", () => {
+    const c = cloud('{"lock":"new"}');
+    c.run();
+    expect(c.npmCalls()).toMatch(/^ci\b/);
+  });
 });
