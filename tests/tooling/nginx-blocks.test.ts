@@ -167,3 +167,12 @@ describe("ticket 65's archive criterion", () => {
     expect(criterion).toMatch(/\(superseded 2026-10-03, owner: stays local, S3 is v2\)/);
   });
 });
+
+describe("the runbook's HSTS step", () => {
+  it("re-runs install-host.sh before makam-switch, because makam-switch installs from /opt/makam-v1/nginx", () => {
+    const runbook = read("docs/ops/runbook.md");
+    const step = runbook.slice(runbook.indexOf("**HSTS, in steps.**"), runbook.indexOf("**The owner archives"));
+    expect(step.indexOf("install-host.sh")).toBeGreaterThan(0);
+    expect(step.indexOf("install-host.sh")).toBeLessThan(step.indexOf("makam-switch --ke v1"));
+  });
+});
