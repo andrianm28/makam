@@ -79,4 +79,28 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
     expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 0 dibuat, 0 diubah, 1 sama, 0 ditolak.");
     expect(await lokasi.tpuDkiList(admin)).toEqual([sebelum]);
   });
+
+  it("updates a TPU DKI the owner corrected, address and the new-plot flag, by name", async () => {
+    const { lokasi, admin } = await modul();
+    await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": TPU_CONTOH }), "--tulis"], env(), { clock: clock() });
+    const koreksi = `${TPU_HEADER}\nTPU Utara,Jl. Baru No. 9,Kota Jakarta Utara,,,Dinas (kunjungan),tidak\n`;
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": koreksi }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    const semua = await lokasi.tpuDkiList(admin);
+    expect(semua).toHaveLength(1);
+    expect(semua[0]).toMatchObject({ address: "Jl. Baru No. 9", pin: null, dataSource: "Dinas (kunjungan)", menerimaMakamBaru: false });
+  });
+
+  it("dry-runs a corrected TPU DKI as a change and leaves it as it was", async () => {
+    const { lokasi, admin } = await modul();
+    await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": TPU_CONTOH }), "--tulis"], env(), { clock: clock() });
+    const koreksi = `${TPU_HEADER}\nTPU Utara,Jl. Baru No. 9,Kota Jakarta Utara,,,Dinas (kunjungan),tidak\n`;
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": koreksi })], env(), { clock: clock() });
+
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 0 akan dibuat, 1 akan diubah, 0 sama, 0 ditolak.");
+    expect((await lokasi.tpuDkiList(admin))[0]).toMatchObject({ address: "Jl. Contoh No. 1, Kelurahan Contoh", menerimaMakamBaru: true });
+  });
 });
