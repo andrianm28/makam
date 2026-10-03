@@ -10,7 +10,17 @@ SESSIONS.json is a plain file the coordinator saves from the platform's `get_ses
      "sessions": [{"session_id", "title", "role", "ticket", "parent_session_id",
                    "status_bucket", "cost_usd", "created_at"}, ...]}
 """
-import argparse, json, sys
+import argparse, json, re, sys
+
+ROLES = ("builder", "reviewer", "re-review", "merge", "prototype", "research")
+
+
+def derive(s):
+    """(role, ticket) from the record's own fields, else from its title and tags, else "unknown"."""
+    text = " ".join([s.get("title") or ""] + [str(x) for x in s.get("tags") or []]).lower()
+    role = s.get("role") or next((r for r in ROLES if r in text), "unknown")
+    m = re.search(r"\b(aos-\d+|\d+)\b", text)
+    return role, s.get("ticket") or (m.group(1) if m else "unknown")
 
 
 def build(data):
@@ -23,7 +33,8 @@ def build(data):
             continue
         if s.get("parent_session_id") != coord:
             continue
-        t = {"session_id": s["session_id"], "role": s.get("role"), "ticket": s.get("ticket"), "cost_usd": cost}
+        role, ticket = derive(s)
+        t = {"session_id": s["session_id"], "role": role, "ticket": ticket, "cost_usd": cost}
         threads.append(t)
         tickets[t["ticket"]] = tickets.get(t["ticket"], 0) + cost
     total = coordinator_cost + sum(t["cost_usd"] for t in threads)
