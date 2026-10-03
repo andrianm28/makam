@@ -19,6 +19,7 @@ await build({
     "sentry-check": "src/cli/sentry-check.ts",
     "email-check": "src/cli/email-check.ts",
     "pdf-check": "src/cli/pdf-check.ts",
+    "import-katalog-lama": "src/cli/import-katalog-lama.ts",
   },
   outdir: "dist",
   outExtension: { ".js": ".mjs" },

@@ -142,9 +142,13 @@ facilities and pin, their Jenis Makam, and their tariffs. It takes any catalog
 export in the format below, so it does not care which catalog that is — but
 know that **the old app's own catalog is entirely example data** (research
 2026-09-27, §1.5, and the "Data contoh" line of its own report), so where the
-beta's real Lokasi come from is the owner's decision, not this tool's. It is
-**development and test only** — it refuses on staging and on production, is not
-in the runtime image, and never opens the old app's database: a
+beta's real Lokasi come from is the owner's decision, not this tool's. It runs
+on development and test freely; on **staging only with `--izinkan-staging`** and
+on **production only with `--izinkan-produksi`** (owner decision 2026-10-03: the
+old app's 10 example rows go to production as data contoh, Belum Tayang), each
+refused without its flag. It is bundled into the runtime image as
+`dist/import-katalog-lama.mjs`, so the VPS needs no Node toolchain. It never
+opens the old app's database: a
 `KATALOG_LAMA_DATABASE_URL` in the environment is refused, not used, so no
 credential for `makam_beta` is ever needed or stored.
 
@@ -248,7 +252,7 @@ drift apart, and a hand-written `"["parkir","musala"]"` fails the build.
 ### 2. Dry run, then write
 
 ```bash
-# Development, test, or staging with the named allowance. A dry run unless --tulis.
+# Development, test, or staging/production with the named allowance. A dry run unless --tulis.
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json
 # [import-katalog-lama] Mode dry-run: tidak ada yang ditulis.
 # Lokasi: 3 dibaca, 3 akan diimpor, 1 ditolak.
@@ -267,8 +271,22 @@ npm run import:katalog-lama -- --sumber ~/katalog-lama.json --tulis
 # default, and every write it makes says so in the Entri Audit reason.
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json --tulis --izinkan-staging
 # Ditolak: di staging perlu allowance --izinkan-staging (ditolak secara bawaan).  # without it
-# Ditolak: import-katalog-lama tidak pernah jalan di production.                 # production, always
+# Ditolak: di production perlu allowance --izinkan-produksi (ditolak secara bawaan).  # production without its own
 ```
+
+On the VPS (no Node on the host) run the bundle in the running `web` container,
+feeding the export on stdin so no file has to be copied in (`$S` is the compose
+command of the runbook's other ops commands). Dry run first, then write; the
+rows stay data contoh and Belum Tayang, and every write's reason says
+`production, --izinkan-produksi`:
+
+```bash
+$S exec -T web node dist/import-katalog-lama.mjs --sumber /dev/stdin < ~/katalog-lama.json
+$S exec -T web node dist/import-katalog-lama.mjs --sumber /dev/stdin --tulis --izinkan-produksi < ~/katalog-lama.json
+```
+
+A re-run over the same export writes nothing (idempotent on the old app's own
+code). Never run this from a development machine against production's database.
 
 Against a worktree's local stack, `npm run stack -- up --build -d` first, then
 the same commands with `DATABASE_URL` pointing at that stack (or inside it,
@@ -288,8 +306,8 @@ Which Entri Audit entries that is, exactly:
   Mitra, with the same reason.
 
 On staging the reason is `impor katalog aplikasi lama (staging,
---izinkan-staging)`, so the Audit Log of every row an import created on the
-beta's own environment says so.
+--izinkan-staging)` and on production `impor katalog aplikasi lama (production,
+--izinkan-produksi)`, so the Audit Log of every row an import created there says so.
 
 ### 3. What the report is saying
 
