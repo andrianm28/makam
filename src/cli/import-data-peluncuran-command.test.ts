@@ -346,6 +346,56 @@ describe("npm run import:data-peluncuran: a catalog row is all or nothing", () =
   });
 });
 
+describe("npm run import:data-peluncuran: the catalog's refusals from the Layanan module and its field changes", () => {
+  const HEADER = "layanan,jenis,deskripsi,lead_time_hari,bisa_hari_h,ada_di_petak_kosong,teks_label,varian";
+  const AWAL = "Pembersihan Makam,pembersihan,Membersihkan.,3,tidak,ya,,Standar";
+
+  it("reports a refusal from the Layanan module when creating a Layanan, with its reason, and creates nothing", async () => {
+    const { clock: jam, audit, admin } = await modul();
+    const menolak = (di: typeof db) => ({
+      ...createKatalogLayanan({ db: di, clock: jam, audit }),
+      createLayanan: async () => ({ ok: false as const, reason: "layanan_tidak_valid" as const }),
+    });
+
+    const hasil = await olahKatalog(folder({ "katalog-layanan.csv": `${HEADER}\n${AWAL}\n` }), db, menolak, admin, "uji");
+
+    expect(hasil.ditolak).toEqual(["katalog-layanan.csv baris 2: isi baris tidak diterima modul pemiliknya"]);
+    expect(hasil.dibuat).toBe(0);
+    expect(await createKatalogLayanan({ db, clock: jam, audit }).katalog()).toEqual([]);
+  });
+
+  it("reports a refusal from the Layanan module when changing a Layanan, and leaves its variants as they were", async () => {
+    const { clock: jam, audit, admin } = await modul();
+    await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${AWAL}\n` }), "--tulis"], env(), { clock: clock() });
+    const menolak = (di: typeof db) => ({
+      ...createKatalogLayanan({ db: di, clock: jam, audit }),
+      ubahLayanan: async () => ({ ok: false as const, reason: "layanan_tidak_valid" as const }),
+    });
+    const ubah = AWAL.replace("Membersihkan.", "Lain.").replace("Standar", "Standar | Menyeluruh");
+
+    const hasil = await olahKatalog(folder({ "katalog-layanan.csv": `${HEADER}\n${ubah}\n` }), db, menolak, admin, "uji");
+
+    expect(hasil.ditolak).toEqual(["katalog-layanan.csv baris 2: isi baris tidak diterima modul pemiliknya"]);
+    const [layanan] = await createKatalogLayanan({ db, clock: jam, audit }).katalog();
+    expect(layanan!.varian.map((varian) => varian.name)).toEqual(["Standar"]);
+  });
+
+  it.each([
+    ["lead_time_hari", AWAL.replace(",3,", ",7,"), { leadTimeDays: 7 }],
+    ["bisa_hari_h", AWAL.replace(",tidak,", ",ya,"), { bisaHariH: true }],
+    ["ada_di_petak_kosong", AWAL.replace(",ya,,", ",tidak,,"), { adaDiPetakKosong: false }],
+    ["teks_label", AWAL.replace(",ya,,", ",ya,Tulisan di karangan,"), { teksLabel: "Tulisan di karangan" }],
+  ])("updates an existing Layanan when only %s changed", async (_kolom, baris, diharapkan) => {
+    const { clock: jam, audit } = await modul();
+    await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${AWAL}\n` }), "--tulis"], env(), { clock: clock() });
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${baris}\n` }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.output).toContain("Katalog Layanan: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    expect(await createKatalogLayanan({ db, clock: jam, audit }).katalog()).toMatchObject([diharapkan]);
+  });
+});
+
 describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI dan tarif Mitra Jasa", () => {
   const LAYANAN = "layanan,varian,harga_dki_rupiah,tarif_mitra_jasa_rupiah,berlaku_mulai\nPembersihan Makam,Reguler,250000,180000,\n";
 
