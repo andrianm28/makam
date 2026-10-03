@@ -130,7 +130,12 @@ function alasanModul(reason: string, berlakuMulai?: string | null): string {
   }
 }
 
-const ALASAN_IMPOR = "Impor data peluncuran (ticket 06)";
+/** The reason every write carries; on staging and production it names the flag the run was allowed by, so the Audit Log shows where a price came from. */
+function alasanImpor(appEnv: string, izin: { staging: boolean; production: boolean }): string {
+  if (appEnv === "production" && izin.production) return "Impor data peluncuran (ticket 06, production, --izinkan-production)";
+  if (appEnv === "staging" && izin.staging) return "Impor data peluncuran (ticket 06, staging, --izinkan-staging)";
+  return "Impor data peluncuran (ticket 06)";
+}
 
 /** The moment a version entered for `berlakuMulai` is in force: now, or the start of a later date. */
 function saatBerlaku(berlakuMulai: string | null, sekarang: Date): Date {
@@ -138,7 +143,7 @@ function saatBerlaku(berlakuMulai: string | null, sekarang: Date): Date {
   return berlakuMulai !== null && berlakuMulai > hariIni ? wib(`${berlakuMulai} 00:00`) : sekarang;
 }
 
-async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekarang: Date): Promise<Ringkasan> {
+async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekarang: Date, alasan: string): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "biaya-pengurusan.csv");
   if (!csv) return hasil;
@@ -165,7 +170,7 @@ async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekaran
       key: biaya.kunci,
       amount: biaya.jumlah,
       effectiveOn: biaya.berlakuMulai ?? wibDateOf(sekarang),
-      reason: ALASAN_IMPOR,
+      reason: alasan,
     });
     if (!dicatat.ok) {
       hasil.ditolak.push(`biaya-pengurusan.csv baris ${baris.nomor}: ${alasanModul(dicatat.reason, biaya.berlakuMulai)}`);
@@ -183,6 +188,7 @@ async function olahLayanan(
   tariffs: Tariffs,
   aktor: Actor,
   sekarang: Date,
+  alasan: string,
 ): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "layanan-dki.csv");
@@ -222,8 +228,8 @@ async function olahLayanan(
       continue;
     }
     const berlaku = row.berlakuMulai ?? wibDateOf(sekarang);
-    const dicatat = dkiSama ? { ok: true as const } : await tariffs.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: ALASAN_IMPOR });
-    const dicatatMitra = !dicatat.ok || mitraSama ? dicatat : await tariffs.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: ALASAN_IMPOR });
+    const dicatat = dkiSama ? { ok: true as const } : await tariffs.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: alasan });
+    const dicatatMitra = !dicatat.ok || mitraSama ? dicatat : await tariffs.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: alasan });
     if (!dicatatMitra.ok) {
       hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${alasanModul(dicatatMitra.reason, row.berlakuMulai)}`);
       continue;
@@ -283,8 +289,8 @@ type Hasil = { judul: string; ringkasan: Ringkasan }[] | string;
 class UjiCobaSelesai extends Error {}
 
 /** Composes the modules on `db` (the connection, or the dry run's transaction) and imports every kind in dependency order. */
-async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntimeEnv>; adapters: ReturnType<typeof createAdapters>; sumber: string }): Promise<Hasil> {
-  const { db, env, adapters, sumber } = input;
+async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntimeEnv>; adapters: ReturnType<typeof createAdapters>; sumber: string; alasan: string }): Promise<Hasil> {
+  const { db, env, adapters, sumber, alasan } = input;
   const { audit, identity } = composeIdentity({ env, db, adapters });
   const lokasi = createLokasi({ db, clock: adapters.clock, files: adapters.files, audit, identity });
   const admin = (await identity.staffAccounts()).find(
@@ -302,8 +308,8 @@ async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntim
   };
   const tariffs = createTariffs({ db, clock: adapters.clock, audit, lokasi });
   const tpu = await olahTpu(sumber, lokasi, aktor);
-  const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now());
-  const layanan = await olahLayanan(sumber, createKatalogLayanan({ db }), tariffs, aktor, adapters.clock.now());
+  const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), alasan);
+  const layanan = await olahLayanan(sumber, createKatalogLayanan({ db }), tariffs, aktor, adapters.clock.now(), alasan);
   const nazhir = await olahNazhir(sumber, createNazhirList({ db, clock: adapters.clock, audit }), aktor);
   return [
     { judul: "TPU DKI", ringkasan: tpu },
@@ -390,7 +396,7 @@ export async function importDataPeluncuranCommand(
         devFilesRoot: env.DEV_FILES_ROOT,
         overrides: options.clock ? { clock: options.clock } : undefined,
       });
-      const kerja = (db: Database) => jalankan({ db, env, adapters, sumber });
+      const kerja = (db: Database) => jalankan({ db, env, adapters, sumber, alasan: alasanImpor(env.APP_ENV, { staging: izinkanStaging, production: izinkanProduction }) });
       if (tulis) return laporan(true, await kerja(database.db));
       // A dry run is the real run inside a transaction that is rolled back: every refusal a write would
       // make (a past date, a name already taken) shows, and nothing stays.
