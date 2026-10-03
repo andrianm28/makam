@@ -111,16 +111,20 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
   return { asideDir, setAside, unionResolved, codeConflicts };
 }
 
-if (require.main === module) {
-  const [branchRef, baseRef] = process.argv.slice(2);
-  if (!branchRef) {
-    console.error("usage: npx tsx scripts/migrations/renumber-merge.ts <branch-ref> [base-ref]");
-    process.exit(2);
+export type CliIo = { cwd: string; out: (line: string) => void; err: (line: string) => void };
+
+/** The command line as a function of its arguments, returning the exit code. */
+export function renumberMergeCli(argv: string[], io: CliIo): number {
+  const [branchRef, baseRef] = argv;
+  try {
+    renumberForMerge({ cwd: io.cwd, branchRef: branchRef as string, baseRef });
+    return 0;
+  } catch (error) {
+    io.err(`renumber-merge: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
   }
-  const result = renumberForMerge({ cwd: process.cwd(), branchRef, baseRef });
-  console.log(`Set aside ${result.setAside.length} migration file(s) in ${result.asideDir}`);
-  for (const file of result.unionResolved) console.log(`Ticket file resolved by union: ${file}`);
-  for (const file of result.codeConflicts) console.log(`CODE CONFLICT (not resolved): ${file}`);
-  if (result.codeConflicts.length > 0) process.exit(1);
-  console.log("Next: npm run db:generate, then npx tsx scripts/migrations/merge-proofs.ts " + result.asideDir);
+}
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  process.exitCode = renumberMergeCli(process.argv.slice(2), { cwd: process.cwd(), out: console.log, err: console.error });
 }
