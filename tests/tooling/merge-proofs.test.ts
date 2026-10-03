@@ -57,7 +57,7 @@ describe("the regenerated SQL against the branch's own migration", () => {
   it("is statement-identical when only whitespace and the file's line endings differ", () => {
     const result = compareMigrationSql(`${create}${bp}${index}\n`, `${create}${bp}${index}`);
 
-    expect(result).toEqual({ identical: true, handWritten: [], unexpected: [] });
+    expect(result).toEqual({ identical: true, ordered: true, handWritten: [], unexpected: [] });
   });
 
   it("reports a hand-written block the generator cannot produce, so it is re-appended", () => {
@@ -68,6 +68,19 @@ describe("the regenerated SQL against the branch's own migration", () => {
     expect(result.handWritten).toEqual([backfill]);
     expect(result.unexpected).toEqual([]);
     expect(result.identical).toBe(false);
+  });
+
+  it("is not in order when the generator emitted the branch's statements reordered", () => {
+    const result = compareMigrationSql(`${index}${bp}${create}`, `${create}${bp}${index}`);
+
+    expect(result.ordered).toBe(false);
+    expect(result.identical).toBe(false);
+  });
+
+  it("treats a statement the generator emitted twice as unexpected when the branch has it once", () => {
+    const result = compareMigrationSql(`${create}${bp}${create}`, create);
+
+    expect(result.unexpected).toEqual([create]);
   });
 
   it("fails when the generator emitted a statement the branch does not have", () => {
@@ -124,6 +137,16 @@ describe("the three proofs as one run", () => {
 
     expect(report.destructive).toEqual([]);
     expect(report.ok).toBe(true);
+  });
+
+  it("is not OK when the regenerated statements are reordered against the branch's", () => {
+    const a = 'CREATE TABLE "a" ("id" int);';
+    const b = 'CREATE TABLE "b" ("id" int);';
+    const bp = "\n--> statement-breakpoint\n";
+
+    const report = runMergeProofs({ ...setup({ generated: `${b}${bp}${a}`, branch: `${a}${bp}${b}` }), generate: () => "nothing to migrate" });
+
+    expect(report.ok).toBe(false);
   });
 
   it("is not OK while the branch has a hand-written block the regenerated file lacks: re-append it, then rerun", () => {
