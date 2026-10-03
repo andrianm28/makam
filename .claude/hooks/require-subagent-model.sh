@@ -13,6 +13,18 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
   try { input = JSON.parse(raw).tool_input ?? {}; } catch { process.exit(0); }
   // Agent calls take an alias; create_session takes an alias or a full id such as claude-opus-5-5.
   const tier = ["sonnet", "haiku", "opus"].find((t) => typeof input.model === "string" && input.model.includes(t));
+  const name = `${input.title ?? ""} ${input.description ?? ""}`;
+  const isReview = input.subagent_type === "reviewer" || /^\s*(re-?)?review\b/i.test(name);
+  const isMoney = /\b(billing|payouts?|refunds?|tagihan|payment|pembayaran)\b/i.test(`${name} ${input.prompt ?? ""}`);
+  if (isReview && isMoney && tier !== "opus") {
+    process.stderr.write(
+      "Review blocked: a review of money code (Billing, Payouts, Refunds, Tagihan, payment, refund) must name opus " +
+      `(got ${JSON.stringify(input.model ?? null)}; the reviewer agent defaults to sonnet). Pass model "opus" ` +
+      "(a full id such as claude-opus-5-5 for create_session). AGENTS.md model tiering. " +
+      "If the code is not money code, leave those words out of the title, description and prompt.\n"
+    );
+    process.exit(2);
+  }
   if (tier) process.exit(0);
   // The project agents in .claude/agents (builder, reviewer) name their own model in their frontmatter.
   if (["builder", "reviewer"].includes(input.subagent_type)) process.exit(0);
