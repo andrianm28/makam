@@ -13,7 +13,7 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import { composeIdentity } from "@/composition/identity";
 import { createAdapters } from "@/composition/adapters";
-import { createDatabase } from "@/db/client";
+import { createDatabase, type Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { createKatalogLayanan, type Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi, type TpuDki } from "@/domain/lokasi";
@@ -55,7 +55,7 @@ function samaDenganTpu(lama: TpuDki, baru: BarisTpu): boolean {
   );
 }
 
-async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: boolean): Promise<Ringkasan> {
+async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "tpu-dki.csv");
   if (!csv) return hasil;
@@ -81,29 +81,46 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
         hasil.sama += 1;
         continue;
       }
-      if (tulis) {
-        const { menerimaMakamBaru, ...profil } = tpu;
-        const profilBerubah = lama.address !== tpu.address || lama.city !== tpu.city || lama.dataSource !== tpu.dataSource || lama.pin?.lat !== tpu.pin?.lat || lama.pin?.lng !== tpu.pin?.lng;
-        const diubah = profilBerubah ? await lokasi.updateTpuDki(aktor, lama.id, profil) : { ok: true as const };
-        const bendera = diubah.ok && lama.menerimaMakamBaru !== menerimaMakamBaru ? await lokasi.updateTpuDkiFlag(aktor, lama.id, { menerimaMakamBaru }) : diubah;
-        if (!bendera.ok) {
-          hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${bendera.reason}`);
-          continue;
-        }
+      const { menerimaMakamBaru, ...profil } = tpu;
+      const profilBerubah = lama.address !== tpu.address || lama.city !== tpu.city || lama.dataSource !== tpu.dataSource || lama.pin?.lat !== tpu.pin?.lat || lama.pin?.lng !== tpu.pin?.lng;
+      const diubah = profilBerubah ? await lokasi.updateTpuDki(aktor, lama.id, profil) : { ok: true as const };
+      const bendera = diubah.ok && lama.menerimaMakamBaru !== menerimaMakamBaru ? await lokasi.updateTpuDkiFlag(aktor, lama.id, { menerimaMakamBaru }) : diubah;
+      if (!bendera.ok) {
+        hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${alasanModul(bendera.reason)}`);
+        continue;
       }
       hasil.diubah += 1;
       continue;
     }
-    if (tulis) {
-      const dibuat = await lokasi.createTpuDki(aktor, tpu);
-      if (!dibuat.ok) {
-        hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${dibuat.reason}`);
-        continue;
-      }
+    const dibuat = await lokasi.createTpuDki(aktor, tpu);
+    if (!dibuat.ok) {
+      hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${alasanModul(dibuat.reason)}`);
+      continue;
     }
     hasil.dibuat += 1;
   }
   return hasil;
+}
+
+/** The owner's words for a refusal code a module returns; an unknown code is shown as it is. */
+function alasanModul(reason: string, berlakuMulai?: string | null): string {
+  switch (reason) {
+    case "tanggal_berlaku_lampau":
+      return `berlaku_mulai ${berlakuMulai ?? "hari ini"} sudah lewat: tanggal berlaku tidak boleh lampau`;
+    case "nama_sudah_ada":
+      return "nama sudah dipakai";
+    case "tarif_tidak_valid":
+      return "jumlah tidak diterima Tariffs (bilangan bulat rupiah, 0 sampai Rp 100.000.000.000)";
+    case "tpu_tidak_valid":
+    case "input_tidak_valid":
+    case "layanan_tidak_valid":
+      return "isi baris tidak diterima modul pemiliknya";
+    case "tidak_ditemukan":
+    case "nazhir_tidak_ditemukan":
+      return "data yang dituju tidak ditemukan";
+    default:
+      return `ditolak modul (${reason})`;
+  }
 }
 
 const ALASAN_IMPOR = "Impor data peluncuran (ticket 06)";
@@ -114,7 +131,7 @@ function saatBerlaku(berlakuMulai: string | null, sekarang: Date): Date {
   return berlakuMulai !== null && berlakuMulai > hariIni ? wib(`${berlakuMulai} 00:00`) : sekarang;
 }
 
-async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekarang: Date, tulis: boolean): Promise<Ringkasan> {
+async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekarang: Date): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "biaya-pengurusan.csv");
   if (!csv) return hasil;
@@ -137,17 +154,15 @@ async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekaran
       hasil.sama += 1;
       continue;
     }
-    if (tulis) {
-      const dicatat = await tariffs.setGlobalTariff(aktor, {
-        key: biaya.kunci,
-        amount: biaya.jumlah,
-        effectiveOn: biaya.berlakuMulai ?? wibDateOf(sekarang),
-        reason: ALASAN_IMPOR,
-      });
-      if (!dicatat.ok) {
-        hasil.ditolak.push(`biaya-pengurusan.csv baris ${baris.nomor}: ${dicatat.reason}`);
-        continue;
-      }
+    const dicatat = await tariffs.setGlobalTariff(aktor, {
+      key: biaya.kunci,
+      amount: biaya.jumlah,
+      effectiveOn: biaya.berlakuMulai ?? wibDateOf(sekarang),
+      reason: ALASAN_IMPOR,
+    });
+    if (!dicatat.ok) {
+      hasil.ditolak.push(`biaya-pengurusan.csv baris ${baris.nomor}: ${alasanModul(dicatat.reason, biaya.berlakuMulai)}`);
+      continue;
     }
     if (berlaku) hasil.diubah += 1;
     else hasil.dibuat += 1;
@@ -164,7 +179,6 @@ async function olahLayanan(
   tariffs: Tariffs,
   aktor: Actor,
   sekarang: Date,
-  tulis: boolean,
 ): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "layanan-dki.csv");
@@ -203,14 +217,12 @@ async function olahLayanan(
       hasil.sama += 1;
       continue;
     }
-    if (tulis) {
-      const berlaku = row.berlakuMulai ?? wibDateOf(sekarang);
-      const dicatat = dkiSama ? { ok: true as const } : await tariffs.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: ALASAN_IMPOR });
-      const dicatatMitra = !dicatat.ok || mitraSama ? dicatat : await tariffs.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: ALASAN_IMPOR });
-      if (!dicatatMitra.ok) {
-        hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${dicatatMitra.reason}`);
-        continue;
-      }
+    const berlaku = row.berlakuMulai ?? wibDateOf(sekarang);
+    const dicatat = dkiSama ? { ok: true as const } : await tariffs.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: ALASAN_IMPOR });
+    const dicatatMitra = !dicatat.ok || mitraSama ? dicatat : await tariffs.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: ALASAN_IMPOR });
+    if (!dicatatMitra.ok) {
+      hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${alasanModul(dicatatMitra.reason, row.berlakuMulai)}`);
+      continue;
     }
     if (dki || mitra) hasil.diubah += 1;
     else hasil.dibuat += 1;
@@ -222,7 +234,6 @@ async function olahNazhir(
   folder: string,
   wakaf: Pick<Wakaf, "daftarNazhir" | "tambahNazhir" | "ubahNazhir">,
   aktor: Actor,
-  tulis: boolean,
 ): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "nazhir.csv");
@@ -251,12 +262,10 @@ async function olahNazhir(
       hasil.sama += 1;
       continue;
     }
-    if (tulis) {
-      const dicatat = lama ? await wakaf.ubahNazhir(aktor, { ...input, nazhirId: lama.id }) : await wakaf.tambahNazhir(aktor, input);
-      if (!dicatat.ok) {
-        hasil.ditolak.push(`nazhir.csv baris ${baris.nomor}: ${dicatat.reason}`);
-        continue;
-      }
+    const dicatat = lama ? await wakaf.ubahNazhir(aktor, { ...input, nazhirId: lama.id }) : await wakaf.tambahNazhir(aktor, input);
+    if (!dicatat.ok) {
+      hasil.ditolak.push(`nazhir.csv baris ${baris.nomor}: ${alasanModul(dicatat.reason)}`);
+      continue;
     }
     if (lama) hasil.diubah += 1;
     else hasil.dibuat += 1;
@@ -264,8 +273,46 @@ async function olahNazhir(
   return hasil;
 }
 
+/** What a run found, kind by kind; or the reason it could not start. */
+type Hasil = { judul: string; ringkasan: Ringkasan }[] | string;
+
+class UjiCobaSelesai extends Error {}
+
+/** Composes the modules on `db` (the connection, or the dry run's transaction) and imports every kind in dependency order. */
+async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntimeEnv>; adapters: ReturnType<typeof createAdapters>; sumber: string }): Promise<Hasil> {
+  const { db, env, adapters, sumber } = input;
+  const { audit, identity } = composeIdentity({ env, db, adapters });
+  const lokasi = createLokasi({ db, clock: adapters.clock, files: adapters.files, audit, identity });
+  const admin = (await identity.staffAccounts()).find(
+    (account) => account.roles.includes("admin_platform") && !account.deactivated,
+  );
+  if (!admin) return "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu.";
+  const aktor: Actor = {
+    accountId: admin.accountId,
+    email: admin.email ?? "",
+    phoneNumber: admin.phoneNumber,
+    roles: ["admin_platform"],
+    lokasiIds: [],
+    totp: "lolos",
+    sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
+  };
+  const tariffs = createTariffs({ db, clock: adapters.clock, audit, lokasi });
+  const tpu = await olahTpu(sumber, lokasi, aktor);
+  const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now());
+  const layanan = await olahLayanan(sumber, createKatalogLayanan({ db }), tariffs, aktor, adapters.clock.now());
+  const nazhir = await olahNazhir(sumber, createNazhirList({ db, clock: adapters.clock, audit }), aktor);
+  return [
+    { judul: "TPU DKI", ringkasan: tpu },
+    { judul: "Biaya Pengurusan", ringkasan: biaya },
+    { judul: "Layanan DKI", ringkasan: layanan },
+    { judul: "Nazhir", ringkasan: nazhir },
+  ];
+}
+
 /** The report a run ends with: one line of counts per kind, then every refusal. Exit 1 when any row was refused. */
-function laporan(tulis: boolean, bagian: { judul: string; ringkasan: Ringkasan }[]): { exitCode: number; output: string } {
+function laporan(tulis: boolean, hasil: Hasil): { exitCode: number; output: string } {
+  if (typeof hasil === "string") return { exitCode: 1, output: hasil };
+  const bagian = hasil;
   const ditolak = bagian.flatMap((satu) => satu.ringkasan.ditolak);
   const baris = [
     tulis ? "[import-data-peluncuran] Ditulis." : "[import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.",
@@ -339,32 +386,20 @@ export async function importDataPeluncuranCommand(
         devFilesRoot: env.DEV_FILES_ROOT,
         overrides: options.clock ? { clock: options.clock } : undefined,
       });
-      const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
-      const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
-      const admin = (await identity.staffAccounts()).find(
-        (account) => account.roles.includes("admin_platform") && !account.deactivated,
-      );
-      if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
-      const aktor: Actor = {
-        accountId: admin.accountId,
-        email: admin.email ?? "",
-        phoneNumber: admin.phoneNumber,
-        roles: ["admin_platform"],
-        lokasiIds: [],
-        totp: "lolos",
-        sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
-      };
-      const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
-      const tpu = await olahTpu(sumber, lokasi, aktor, tulis);
-      const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), tulis);
-      const layanan = await olahLayanan(sumber, createKatalogLayanan({ db: database.db }), tariffs, aktor, adapters.clock.now(), tulis);
-      const nazhir = await olahNazhir(sumber, createNazhirList({ db: database.db, clock: adapters.clock, audit }), aktor, tulis);
-      return laporan(tulis, [
-        { judul: "TPU DKI", ringkasan: tpu },
-        { judul: "Biaya Pengurusan", ringkasan: biaya },
-        { judul: "Layanan DKI", ringkasan: layanan },
-        { judul: "Nazhir", ringkasan: nazhir },
-      ]);
+      const kerja = (db: Database) => jalankan({ db, env, adapters, sumber });
+      if (tulis) return laporan(true, await kerja(database.db));
+      // A dry run is the real run inside a transaction that is rolled back: every refusal a write would
+      // make (a past date, a name already taken) shows, and nothing stays.
+      let hasil: Hasil | null = null;
+      try {
+        await database.db.transaction(async (tx) => {
+          hasil = await kerja(tx);
+          throw new UjiCobaSelesai();
+        });
+      } catch (error) {
+        if (!(error instanceof UjiCobaSelesai)) throw error;
+      }
+      return laporan(false, hasil!);
     } finally {
       await database.close();
     }

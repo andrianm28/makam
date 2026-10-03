@@ -4,6 +4,7 @@
  * naming its column, never half-read.
  */
 import { z } from "zod";
+import { RUPIAH_MAX } from "@/lib/rupiah";
 import { TPU_LIMITS } from "@/domain/lokasi";
 
 const yaTidak = z
@@ -58,7 +59,11 @@ export function alasanBaris(error: z.ZodError): string {
 
 /** A whole-rupiah cell: digits only, no "Rp", no thousands separator, so `750.000` is refused rather than read as 750. */
 const rupiah = (nama: string) =>
-  z.string().regex(/^\d+$/, `${nama} harus bilangan bulat rupiah tanpa titik atau "Rp", misalnya 750000`).transform(Number);
+  z
+    .string()
+    .regex(/^\d+$/, `${nama} harus bilangan bulat rupiah tanpa titik atau "Rp", misalnya 750000`)
+    .transform(Number)
+    .pipe(z.number().max(RUPIAH_MAX, `${nama} tidak boleh lebih dari Rp ${RUPIAH_MAX.toLocaleString("id-ID")}`));
 
 /** An optional effective date: blank means the day of the import, anything else is `TTTT-BB-HH`. */
 const berlakuMulai = z
