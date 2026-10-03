@@ -124,3 +124,32 @@ A pre-launch checklist for the Operator. Every value below is entered by Admin P
   Nits taken: `RUPIAH_MAX` in the reason (`alasanModul`); `KatalogDeps` in `varian.ts`; `hasil!` removed (the rollback error carries the result); a dry-run test that the Audit Log is unchanged. Left: the `fieldBerbeda` cascade (it compares Layanan fields, `profilBerbeda` TPU fields: different shapes, a shared helper would not be shorter); the single-use second parameter of `alasanModul` (only the past-date reason needs the date, and a one-case parameter is clearer than a second function).
 
   HANDOFF: branch `ticket-06-data-peluncuran`, fix pass 2 done. `npx vitest run src/cli src/domain/wakaf src/domain/layanan/katalog.test.ts src/domain/layanan/varian.test.ts tests/support/global-prune.test.ts`: 19 test files, 188 tests passed (own file: 44). `npm run lint` exit 0 (6 pre-existing warnings), `npm run typecheck` exit 0. Full suite not run (orchestrator's).
+
+- 2026-10-03 — Re-review 2 (Opus, money code), fixed point `4fab4b1`..`a22c5f2` (18 files, +1679/−8). Tests run by the reviewer on a testcontainers Postgres: `npx vitest run src/cli` gave 12 files and 130 tests passed, exit 0. The own file `import-data-peluncuran-command.test.ts` gave 44/44, exit 0. `lint` exit 0, `typecheck` exit 0.
+
+  ## Standards
+  Earlier findings: half-written catalog row **OK** (`command.ts:247-258`, one `refusable` on `katalogDi(tx)`); atomic price pair **OK** (`test.ts:451-469`); `RUPIAH_MAX` **OK** (`command.ts:122`); `KatalogDeps` in `varian.ts` **OK** (`:86`); `hasil!` **OK** (`command.ts:507-516`); slicing in `56c6e09` is history and was not reopened. Two nits are **BELUM**, declined with reasons, and those reasons are accepted: the `fieldBerbeda` cascade (`:226-232`) and the one-case `berlakuMulai` (`:115`).
+  New findings. All are judgement calls; no rule in AGENTS.md is broken.
+  1. nit: Duplicated Code. `createKatalogLayanan({ db, clock, audit })` is composed twice in `jalankan` (`command.ts:414-415`). Build the factory once.
+  2. nit: `type KatalogModul = Pick<Layanan, …>` (`command.ts:188`) repeats the return type of `createKatalogLayanan`. Export one named type from Layanan.
+  3. nit: two seams in one file for "module on the transaction". One is a `(db) => KatalogModul` factory, the other is `Tariffs.within(tx)`.
+  4. nit: `olahKatalog` and `olahLayanan` are exported for tests only, and the tests replace one public method with a refusing stub (`test.ts:336-339, 352-355, 458-463`). Postgres is real and the assertions read back through public queries, so this is allowed. Injecting the factory through the command's options would be cleaner.
+  5. nit: the `HEADER` literal is repeated in two `describe` blocks (`test.ts:327, 350`).
+  6. nit: `fbe216d` is labelled `chore` but mixes a refactor, a type change and a new test.
+  Count: 0 blocking / 0 should-fix / 6 nit. Worst: the duplicate composition of `createKatalogLayanan` (`command.ts:414-415`).
+
+  ## Spec
+  Findings from re-review 1 (4 should-fix, 6 nit), item by item:
+  - should-fix 1, half-written catalog row: **OK** (`command.ts:247-262`; the create path is already atomic in `katalog.ts:173`).
+  - should-fix 2, atomic price pair untested: **OK** (`test.ts:451`: Tariffs refuses `setTarifMitraJasa`, so `hargaLayananDki` reads null). The old test was renamed (`:471`).
+  - should-fix 3, slicing `56c6e09`: **BELUM**, history. It is recorded in fix pass 2 (d) and accepted per the brief.
+  - should-fix 4, catalog refusal from Layanan, and all fields: **OK** (`test.ts:349-388`: refusal on create and on change, plus `it.each` over `lead_time_hari`, `bisa_hari_h`, `ada_di_petak_kosong`, `teks_label`).
+  - nit `fieldBerbeda`: **BELUM** (declined, reason accepted). nit `RUPIAH_MAX`: **OK**. nit `berlakuMulai`: **BELUM** (declined, reason accepted). nit `KatalogDeps`: **OK**. nit `hasil!`: **OK**. nit dry-run Audit Log: **OK** (`test.ts:626`).
+  Process, 8 new commits only. `7b517db` and `9ac2bce` are preparatory refactors and come before the red. `ea0ef20` (red) → `d5fd7d0` (green) is one behaviour, and the red fails for the right reason: only "description is still the old one" fails. Nits:
+  - `890f3a6` is test-after for a money behaviour. It is labelled honestly, and the mutation check (removing the transaction makes it fail) holds.
+  - `1d3e6ee` is six behaviours in one already-green `test:` commit. That is coverage requested by the review, not horizontal slicing.
+  - `fbe216d` is labelled `chore` but contains a test.
+  New spec findings. Missing: none. The owner decision (the importer also creates the Layanan catalog) is satisfied and covered for create, idempotence and refusal. Scope creep: none. Wrong: nit, the refusal tests exercise CLI helpers with a stubbed module rather than the domain module (AGENTS.md "The seam is the domain modules' public functions"). This is allowed, because the stub sits on the public interface and Postgres is real.
+  Count: 0 blocking / 0 should-fix / 5 nit (3 process, 2 code). Worst: the exported-for-test helpers with stubbed modules (`command.ts:195,269`).
+
+  **Fixed 7/10** from re-review 1. The 3 BELUM are 1 history item and 2 declined nits, all accepted. New across both axes: 0 blocking / 0 should-fix / 11 nit. Money paths are sound: the DKI price and Mitra Jasa rate are one atomic pair of dated versions, a price in use is never overwritten, the dry run (including the Audit Log) is rolled back, and `RUPIAH_MAX` is checked in Zod and in the reason. **Hard remaining: no.** Ready to merge; the nits are optional.
