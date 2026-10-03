@@ -139,3 +139,27 @@ Verification: lint 0 errors (old warnings only), typecheck clean, migration chec
 - The Telepon Pemesan row for a Makam TPU has no page of its own to open (it links to the Antrean), like other non-Tagihan subjects.
 
 HANDOFF: both items done and green; remaining: browser check of the renewal pages without Almarhum, owner to tick the two Added items.
+
+### Two-axis review (2026-10-03, reviewer thread)
+
+Fixed point `cd0bcc2` (merge-base with `origin/main`), head `380e311`; 27 source files plus migration 0062. Two sonnet sub-agents (Standards, Spec); the reviewer thread checked TDD order, the migration, module ownership and the null readers itself. Nothing was run except the migration checker (`check-destructive-ddl.ts drizzle/0062_*.sql`: "No unmarked destructive DDL"). Migration 0062 is expand-only (DROP NOT NULL ×4, nullable `kunci`).
+
+#### Process
+- **nit:** one `test(red)` commit (74d77bf) holds both behaviours (Q1: 3 tests + 2 refusal tests; Q4: 5 tests), then one code commit (2b4db6b). The two behaviours are independent, so no behaviour was left untested-red; but it is not "one behaviour at a time" and the code commit cannot be bisected per behaviour. Next time: two red/green pairs.
+
+#### Standards
+- No blocking. Ownership holds: only `notifications/telepon-pemesan.ts` and `schema.ts` touch `notificationsTeleponPemesan`; pengurusan reaches it through `notifikasi.pengingatIptmBerakhir`. No `new Date()`, Zod kept, no client-import breach.
+- **should-fix** `konfirmasi-saat-duka-tpu.ts:272,327`, `konfirmasi-tpu-terbuka.ts:51`, `tawarkan-tpu-lain.ts:147`: new `!` assertions on the nullable columns. Safe today (kind guard / query filter), but `tawarkan-tpu-lain.ts:147` checks no kind itself. Fix: return a refusal (`status_tidak_sesuai`) when `order.kind !== "saat_duka_tpu"` or a column is null.
+- **nit** `reads.ts:152`, `pengajuan-iptm.ts:~206,~403`: the Makam TPU Blok lookup is written three times, and `pesananSaya` adds a query per order. Fix: one helper, called only for `perpanjangan_tpu` rows.
+- **nit** `telepon-pemesan.ts:81-93`: `kunci` dedup is select-then-insert and `kunci` has no unique index. Open rows are protected by `notifications_telepon_pemesan_open_idx` (two concurrent ticks leave one open row), but a closed row is not: a tick racing a staff close could open a second row for the same reminder. Fix: partial unique index `(subject_kind, subject_id, kunci) WHERE kunci IS NOT NULL` (expand-only) with `onConflictDoNothing`.
+- Readers of the four columns (whole `src`): all handle null or are guarded by kind (`reads.ts`, Surat Kuasa page and PDF component, Pemesan and staff order pages, Akun pesanan, `tier3-iptm-row`, IPTM Terbit email template, `pengurusan-berkas`). The `almarhum.name` hits in pemesanan/Antrean Lokasi read another module.
+
+#### Spec
+- Q1 met: `perpanjangan-tpu.ts` stores none of the columns; the shared `tempatkan` in `saat-duka-tpu.ts` still refuses without them for Saat Duka TPU and Pengurusan IPTM, both tested.
+- Q4 met on the main path: no email for the Pemegang Hak nor the Akun opens one `makam_tpu` row; same reminder not reopened even after the call is logged; none once a Perpanjangan TPU is ordered; outside 08:00-20:00 none.
+- **should-fix** (spec gap) `perpanjangan-tpu.ts`: a row already open when the Perpanjangan TPU is then ordered stays open, so staff phone someone who has ordered. "None once ordered" is met only for new rows. Fix: close the open `makam_tpu` row via a Notifications public function in the order's flow, or the owner confirms it may stay; add a test.
+- **should-fix** missing test: a 3-month row still open when the 1-month reminder fires opens nothing new (the unique open index returns the open row; the 1-month reminder is then covered only after staff close it). Behaviour is acceptable; pin it with a test, and say it in the ticket.
+- **nit** `telepon-pemesan-row.test.ts` asserts only label and count; no concurrency test.
+- Sub-agent claim refuted by the reviewer: `staf/admin-platform/pengurusan/page.tsx:45` renders `almarhumName` from the Saat Duka TPU "Menunggu konfirmasi" list (`KonfirmasiTpu`, kind `saat_duka_tpu` only), so a renewal never appears there. No finding.
+
+Counts: Standards 3 (worst should-fix), Spec 2 should-fix + 1 nit (worst should-fix), process 1 nit. No blocking.
