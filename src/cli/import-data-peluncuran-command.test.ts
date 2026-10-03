@@ -387,6 +387,35 @@ describe("npm run import:data-peluncuran: the template the owner fills in", () =
   });
 });
 
+describe("npm run import:data-peluncuran: the Audit Log of what it writes", () => {
+  it("names the staging allowance in the reason of every write that takes a reason", async () => {
+    const { audit } = await modul();
+    const staging = {
+      ...env(),
+      APP_ENV: "staging",
+      AUTH_SECRET: "s".repeat(32),
+      APP_BASE_URL: "https://makam.co.id",
+      TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+      SMTP_USER: "v1-user",
+      SMTP_PASSWORD: "v1-password",
+      EMAIL_FROM: "no-reply@makam.co.id",
+      SUMOPOD_API_KEY: "sumopod-key",
+      SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
+      VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+      VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+      VAPID_SUBJECT: "mailto:ops@makam.co.id",
+    } as Record<string, string>;
+    const sumber = folder({ "biaya-pengurusan.csv": "jenis,jumlah_rupiah,berlaku_mulai\npemakaman,750000,\n" });
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", sumber, "--tulis", "--izinkan-staging"], staging, { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    const reasons = (await audit.allEntries()).map((entry) => entry.reason).filter((alasan) => alasan !== null);
+    expect(reasons).toContain("Impor data peluncuran (ticket 06, staging, --izinkan-staging)");
+    expect(reasons.every((alasan) => String(alasan).includes("--izinkan-staging"))).toBe(true);
+  });
+});
+
 describe("npm run import:data-peluncuran: which stack it may run on", () => {
   const sumber = () => folder({ "tpu-dki.csv": TPU_CONTOH });
 
