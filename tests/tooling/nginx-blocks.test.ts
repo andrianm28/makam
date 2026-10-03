@@ -157,3 +157,13 @@ describe('the runbook "Hari switch"', () => {
     expect(step).toMatch(/counts[^]*just after the dump[^]*rerun/i);
   });
 });
+
+describe("ticket 65's archive criterion", () => {
+  const ticket = read(".scratch/makam-v1-build/issues/65-production-switch-makam-co-id.md");
+  const criterion = ticket.split("\n").find((line) => line.startsWith("- [ ] `deploy/bin/makam-arsip-app-lama`"));
+
+  it("keeps its wording and says the upload to the bucket is superseded by the owner's local-archive decision", () => {
+    expect(criterion).toContain("uploads it to the backups bucket");
+    expect(criterion).toMatch(/\(superseded 2026-10-03, owner: stays local, S3 is v2\)/);
+  });
+});
