@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkSnapshotChain } from "../../scripts/migrations/merge-proofs";
+import { checkSnapshotChain, compareMigrationSql } from "../../scripts/migrations/merge-proofs";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -46,5 +46,35 @@ describe("the snapshot chain, resolved as a program", () => {
     const chain = checkSnapshotChain(dir);
 
     expect(chain.unexpected).toEqual(["0026"]);
+  });
+});
+
+describe("the regenerated SQL against the branch's own migration", () => {
+  const bp = "\n--> statement-breakpoint\n";
+  const create = 'CREATE TABLE "feat" (\n\t"id" int\n);';
+  const index = 'CREATE INDEX "feat_idx" ON "feat" ("id");';
+
+  it("is statement-identical when only whitespace and the file's line endings differ", () => {
+    const result = compareMigrationSql(`${create}${bp}${index}\n`, `${create}${bp}${index}`);
+
+    expect(result).toEqual({ identical: true, handWritten: [], unexpected: [] });
+  });
+
+  it("reports a hand-written block the generator cannot produce, so it is re-appended", () => {
+    const backfill = 'UPDATE "feat" SET "id" = 0 WHERE "id" IS NULL;';
+
+    const result = compareMigrationSql(`${create}${bp}${index}`, `${create}${bp}${backfill}${bp}${index}`);
+
+    expect(result.handWritten).toEqual([backfill]);
+    expect(result.unexpected).toEqual([]);
+    expect(result.identical).toBe(false);
+  });
+
+  it("fails when the generator emitted a statement the branch does not have", () => {
+    const stray = 'CREATE TABLE "base_again" ("id" int);';
+
+    const result = compareMigrationSql(`${create}${bp}${stray}`, create);
+
+    expect(result.unexpected).toEqual([stray]);
   });
 });
