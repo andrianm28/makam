@@ -221,7 +221,7 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 ## Split of ticket 07 (2026-09-25)
 
 | [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test (rescoped for beta: nightly encrypted local dump) | resolved | 03, 07 |
-| [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 04, 07, 64, 68 |
+| [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 07, 60, 64, 68, 86 |
 | [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | resolved | — |
 
 ## Decisions 2026-09-25 (email login)
