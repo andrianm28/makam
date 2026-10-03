@@ -33,4 +33,16 @@ describe("thread cost report: sessions", () => {
     const e = r.threads.find((t: { session_id: string }) => t.session_id === "sess-e");
     expect(e).toMatchObject({ role: "unknown", ticket: "unknown" });
   });
+
+  it("counts a missing cost as 0 and flags it, and lists sessions whose parent is not the coordinator apart, uncounted", () => {
+    const r = json([fx("sessions.json")]);
+    expect(r.threads.find((t: { session_id: string }) => t.session_id === "sess-e")).toMatchObject({ cost_usd: 0, no_cost: true });
+    expect(r.threads.find((t: { session_id: string }) => t.session_id === "sess-a").no_cost).toBe(false);
+    expect(r.other_sessions.map((o: { session_id: string }) => o.session_id)).toEqual(["sess-f"]);
+    expect(r.total).toBe(15);
+    const text = run([fx("sessions.json")]);
+    expect(text.out).toContain("no cost");
+    expect(text.out).toContain("other sessions");
+    expect(text.out).toContain("sess-f");
+  });
 });
