@@ -241,3 +241,18 @@ describe("guard-git hook, text that only mentions a command", () => {
     expect(bash("cd . && FOO=1 gh pr create").status).toBe(2);
   });
 });
+
+describe("guard-git hook, redirects", () => {
+  it("does not take a redirect target for a refspec", () => {
+    const { bash } = repo();
+    for (const command of ["git push > /tmp/push.log", "git push origin >/tmp/push.log 2>&1", "git push 2> /tmp/e", "git push origin < /dev/null"]) {
+      expect(bash(command).status, command).toBe(2);
+    }
+  });
+
+  it("still lets a ticket branch push with its output redirected", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    expect(bash("git push -u origin ticket-5-x > /tmp/push.log 2>&1").status).toBe(0);
+  });
+});
+
