@@ -256,3 +256,31 @@ describe("guard-git hook, redirects", () => {
   });
 });
 
+describe("guard-git hook, writes through the GitHub API", () => {
+  it("refuses gh api writes to refs and contents, which would bypass the push guard", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      "gh api -X PATCH repos/andrianm28/makam/git/refs/heads/main -f sha=abc123",
+      "gh api repos/andrianm28/makam/contents/README.md -X PUT -f message=m -f content=eA==",
+      "gh api --method DELETE repos/andrianm28/makam/git/refs/heads/x",
+      "gh api repos/andrianm28/makam/git/refs -f ref=refs/heads/main -f sha=abc123",
+      "curl -X PATCH -H 'Authorization: token x' https://api.github.com/repos/andrianm28/makam/git/refs/heads/main -d '{}'",
+    ]) {
+      const r = bash(command);
+      expect(r.status, command).toBe(2);
+      expect(r.stderr, command).toMatch(/git push/);
+    }
+  });
+
+  it("lets refs and contents be read", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      "gh api repos/andrianm28/makam/git/refs/heads/main",
+      "gh api repos/andrianm28/makam/contents/README.md",
+      "curl -s https://api.github.com/repos/andrianm28/makam/contents/README.md",
+    ]) {
+      expect(bash(command).status, command).toBe(0);
+    }
+  });
+});
+
