@@ -2,7 +2,7 @@
 # makam-preflight: which prerequisite of the production go-live is still missing?
 #
 #   makam-preflight --env prod [--digest sha256:...] [--email-to <address>]
-#                   [--skip-s3] [--webhook-url <url>]
+#                   [--met-s3] [--webhook-url <url>]
 #
 # Run by the owner on the VPS before the production rehearsal (ticket 72,
 # "Added 2026-10-03"; docs/ops/runbook.md, "Production preflight"). One line per
@@ -28,7 +28,7 @@ MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
 ENV_NAME=""
 DIGEST=""
 EMAIL_TO=""
-SKIP_S3=0
+MET_S3=0
 WEBHOOK_URL=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
@@ -38,7 +38,7 @@ while [ $# -gt 0 ]; do
     --env) ENV_NAME=${2:?}; shift 2 ;;
     --digest) DIGEST=${2:?}; shift 2 ;;
     --email-to) EMAIL_TO=${2:?}; shift 2 ;;
-    --skip-s3) SKIP_S3=1; shift ;;
+    --met-s3) MET_S3=1; shift ;;
     --webhook-url) WEBHOOK_URL=${2:?}; shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "unknown argument: $1" >&2; usage 64 ;;
@@ -244,13 +244,13 @@ check_s3_probe() {
   fi
 }
 
-# S3 is ticket 03. v1 may go live as a beta without it (decision of 2026-09-26),
-# so --skip-s3 turns every S3 check into a SKIP; without the flag a missing
-# setting is a FAIL, because that is the prerequisite still missing.
+# S3 is ticket 03, moved to v2 on 2026-09-26: v1 goes live as a beta for UAT
+# without S3 (files on the host disk, backups local). The S3 checks are a SKIP
+# unless --met-s3 says ticket 03 is done; then a missing setting is a FAIL.
 check_s3() {
   local missing="" name
-  if [ "$SKIP_S3" -eq 1 ]; then
-    skip "03" "s3" "skipped by --skip-s3: v1 beta goes live without S3 (ticket 03 moved to v2, 2026-09-26)"
+  if [ "$MET_S3" -ne 1 ]; then
+    skip "03" "s3" "not checked: ticket 03 moved to v2 on 2026-09-26 (v1 beta runs without S3); pass --met-s3 once the buckets and keys exist"
     return 0
   fi
   for name in S3_REGION S3_BUCKET_FILES S3_BUCKET_BACKUPS S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_BACKUPS_ACCESS_KEY_ID S3_BACKUPS_SECRET_ACCESS_KEY; do

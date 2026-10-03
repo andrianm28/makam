@@ -298,63 +298,49 @@ describe("makam-preflight", () => {
   });
 
   it("puts, reads and deletes a probe object in the files bucket with the app's key, and removes it even when the read fails", () => {
-    const ok = preflight(healthy(world()));
+    const ok = preflight(healthy(world()), ["--met-s3"]);
     expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 probe.*makam-prod-files/));
     expect(ok.calls).toMatch(/aws s3api put-object --bucket makam-prod-files --key makam-preflight-probe-/);
     expect(ok.calls).toMatch(/aws s3api get-object --bucket makam-prod-files --key makam-preflight-probe-/);
     expect(ok.calls).toMatch(/aws s3api delete-object --bucket makam-prod-files --key makam-preflight-probe-/);
     expect(ok.calls).toContain("as key=AKIAFILES region=ap-southeast-3");
 
-    const unreadable = preflight(healthy(world()), [], { FAKE_S3_GET: "1" });
+    const unreadable = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_GET: "1" });
     expect(unreadable.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 probe.*read/));
     expect(unreadable.calls).toMatch(/aws s3api delete-object/);
 
-    const refused = preflight(healthy(world()), [], { FAKE_S3_PUT: "1" });
+    const refused = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_PUT: "1" });
     expect(refused.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 probe.*put/));
     expect(refused.output).not.toContain(SECRETS.S3_SECRET_ACCESS_KEY);
   });
 
-  it("fails the S3 checks naming the missing settings, and skips them only when --skip-s3 is passed", () => {
-    const noS3 = ENV_FILE.split("\n").filter((line) => !line.startsWith("S3_")).join("\n");
-    const missing = preflight(healthy(world({ envFile: noS3 })));
-    expect(missing.lines).toContainEqual(
-      expect.stringMatching(/^FAIL .*\[03\].*s3 settings.*S3_BUCKET_FILES.*S3_ACCESS_KEY_ID.*S3_SECRET_ACCESS_KEY/),
-    );
-    expect(missing.calls).not.toContain("aws ");
-
-    const skipped = preflight(healthy(world({ envFile: noS3 })), ["--skip-s3"]);
-    expect(skipped.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3.*--skip-s3.*beta.*without S3/));
-    expect(skipped.lines.filter((line) => line.startsWith("FAIL") && line.includes("[03]"))).toEqual([]);
-    expect(skipped.calls).not.toContain("aws ");
-  });
-
   it("reads the files bucket's settings where the key allows it: public access blocked, versioning, encryption", () => {
-    const good = preflight(healthy(world()));
+    const good = preflight(healthy(world()), ["--met-s3"]);
     expect(good.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 public access.*makam-prod-files/));
     expect(good.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 versioning.*Enabled/));
     expect(good.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 encryption.*AES256/));
 
-    const open = preflight(healthy(world()), [], { FAKE_S3_PUBLIC: "true false true true" });
+    const open = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_PUBLIC: "true false true true" });
     expect(open.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 public access/));
 
-    const unversioned = preflight(healthy(world()), [], { FAKE_S3_VERSIONING: "None" });
+    const unversioned = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_VERSIONING: "None" });
     expect(unversioned.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 versioning.*None/));
 
-    const plain = preflight(healthy(world()), [], { FAKE_S3_ENCRYPTION: "0" });
+    const plain = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_ENCRYPTION: "0" });
     expect(plain.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 encryption/));
 
-    const denied = preflight(healthy(world()), [], { FAKE_S3_SETTINGS_DENIED: "1" });
+    const denied = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_SETTINGS_DENIED: "1" });
     expect(denied.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3 public access.*cannot read.*console/));
   });
 
   it("checks that the backups bucket answers to the backups key and that the backup encryption key is present and private", () => {
-    const ok = preflight(healthy(world()));
+    const ok = preflight(healthy(world()), ["--met-s3"]);
     expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 backups bucket.*makam-prod-backups/));
     expect(ok.calls).toContain("aws s3api head-bucket --bucket makam-prod-backups");
     expect(ok.calls).toContain("as key=AKIABACKUPS");
     expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*backup encryption key/));
 
-    const gone = preflight(healthy(world()), [], { FAKE_S3_HEAD: "1" });
+    const gone = preflight(healthy(world()), ["--met-s3"], { FAKE_S3_HEAD: "1" });
     expect(gone.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 backups bucket/));
 
     const noKey = healthy(world());
@@ -365,7 +351,7 @@ describe("makam-preflight", () => {
     chmodSync(path.join(looseKey.root, "prod", "backup-passphrase"), 0o644);
     expect(preflight(looseKey).lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*backup encryption key.*0644/));
 
-    const skipped = preflight(healthy(world()), ["--skip-s3"]);
+    const skipped = preflight(healthy(world()));
     expect(skipped.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*backup encryption key/));
   });
 
@@ -492,7 +478,7 @@ describe("makam-preflight", () => {
     const ready = preflight(healthy(world()), args);
     expect(ready.code).toBe(0);
     expect(ready.lines.filter((line) => line.startsWith("FAIL"))).toEqual([]);
-    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(2);
+    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(3);
 
     const broken = preflight(healthy(world()), args, {
       FAKE_DOCKER_INFO: "1",
@@ -523,7 +509,7 @@ describe("makam-preflight", () => {
     const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Staging is public"));
     expect(section).toContain("makam-preflight --env prod");
     expect(section).toContain("--email-to");
-    expect(section).toContain("--skip-s3");
+    expect(section).toContain("--met-s3");
 
     const ticket = readFileSync(path.join(repo, ".scratch/makam-v1-build/issues/72-deploys-through-github-actions.md"), "utf8");
     expect(ticket).toMatch(/\*\*Rehearsal\*\*[^\n]*first step[^\n]*makam-preflight/);

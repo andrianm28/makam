@@ -1756,8 +1756,9 @@ makam-preflight --env prod --digest sha256:<released digest> --email-to <your ad
   signature, env-schema, SMTP and GitHub checks cannot run (FAIL or SKIP).
 - `--email-to`: where the one real test email goes (SumoPod SMTP, through the
   image's `email-check`). Without it the SMTP line is SKIP.
-- `--skip-s3`: v1 may go live as a beta without S3 (ticket 03 moved to v2). Without
-  the flag a missing S3 setting is a FAIL, because it is the prerequisite still missing.
+- `--met-s3`: ticket 03 moved to v2 (2026-09-26): v1 goes live as a beta without
+  S3, so the S3 lines are a SKIP by default. Pass the flag once the buckets and
+  keys exist; then a missing S3 setting is a FAIL.
 - `--webhook-url`: where the forged-signature check posts; before the nginx
   switch use `http://127.0.0.1:3100/api/webhooks/pembayaran`.
 
