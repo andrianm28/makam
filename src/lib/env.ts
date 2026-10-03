@@ -384,6 +384,21 @@ export function showsStagingBanner(hostname: string): boolean {
   return browserSentryEnvironment(hostname) === "staging";
 }
 
+/**
+ * Whether payments are a trial right now (ticket 101): production whose SumoPod
+ * base-URL override points at the sandbox host, until the live merchant account
+ * and keys exist. Staging (its own banner), development and test never are; a
+ * production on the live host, or with no override, is not. Reads the process
+ * environment at request time, never the build's, and never throws: a bad
+ * setting reads as "not a trial" (the runtime env check stops a bad process).
+ */
+export function paymentsAreTrial(source: EnvSource = process.env): boolean {
+  if (source.APP_ENV !== "production") return false;
+  const override = source.SUMOPOD_BASE_URL;
+  if (!override || !URL.canParse(override)) return false;
+  return new URL(override).host === new URL(SUMOPOD_SANDBOX_BASE_URL).host;
+}
+
 export type SentryEnv = z.infer<typeof sentryEnvSchema>;
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type EmailEnv = z.infer<typeof emailEnvSchema>;

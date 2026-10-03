@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist_Mono, Lora, Plus_Jakarta_Sans } from "next/font/google";
 import { BrowserSentry } from "@/components/browser-sentry";
 import { StagingBanner } from "@/components/staging-banner";
+import { TrialPaymentBanner } from "@/components/trial-payment-banner";
 import { ThemeProvider } from "@/components/makam/theme-provider";
 import "./globals.css";
 
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               instead of finding it in the HTML (components/browser-sentry.tsx). */}
           <BrowserSentry />
           <StagingBanner />
+          <TrialPaymentBanner />
           {children}
         </ThemeProvider>
       </body>

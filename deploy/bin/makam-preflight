@@ -448,6 +448,9 @@ check_sumopod_key() {
   local base code control url
   base=$(setting SUMOPOD_BASE_URL)
   base=${base:-https://api-pay.sumopod.com}
+  if [ "$base" = "https://api-pay-sandbox.sumopod.com" ] || [ "$base" = "https://api-pay-sandbox.sumopod.com/" ]; then
+    skip "04" "production on the sandbox" "SUMOPOD_BASE_URL points at SumoPod's sandbox: payments on makam.co.id are a trial (banner and Bayar notice show) until the live keys are installed and the override is removed (runbook, \"Production (ticket 65)\")"
+  fi
   url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
   code=$(sumopod_get "$(setting SUMOPOD_API_KEY)" "$url")
   case "$code" in

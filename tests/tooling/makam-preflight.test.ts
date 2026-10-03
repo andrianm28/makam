@@ -436,6 +436,23 @@ describe("makam-preflight", () => {
     expect(down.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod api key.*502/));
   });
 
+  it("names a production on SumoPod's sandbox in one SKIP line: payments are a trial until live keys are installed and the override removed", () => {
+    const onSandbox = preflight(
+      healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay-sandbox.sumopod.com\n` })),
+    );
+    const trial = onSandbox.lines.filter((line) => /^SKIP .*\[04\].*production on the sandbox/.test(line));
+    expect(trial).toHaveLength(1);
+    expect(trial[0]).toMatch(/trial.*live keys.*override/);
+    expect(onSandbox.lines.filter((line) => /^SKIP .*sandbox/.test(line))).toHaveLength(1);
+
+    const live = preflight(healthy(world()));
+    expect(live.lines.filter((line) => /production on the sandbox/.test(line))).toEqual([]);
+    const liveOverride = preflight(
+      healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay.sumopod.com\n` })),
+    );
+    expect(liveOverride.lines.filter((line) => /production on the sandbox/.test(line))).toEqual([]);
+  });
+
   it("fails when the SumoPod webhook secret is not set or is not a Svix secret, without printing it", () => {
     const set = preflight(healthy(world()));
     expect(set.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*sumopod webhook secret.*whsec_/));

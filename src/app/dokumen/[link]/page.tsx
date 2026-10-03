@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { TrialPaymentNotice } from "@/components/trial-payment-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import type { DokumenBuktiPencairan } from "@/domain/payouts";
 import type { DokumenBuktiPengembalianDana } from "@/domain/refunds";
 import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
+import { paymentsAreTrial } from "@/lib/env";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { cn } from "@/lib/utils";
@@ -173,7 +175,9 @@ function TagihanView({
           Pembayaran sedang tidak bisa dimulai, coba lagi.
         </p>
       ) : null}
-      {notPayableBecause === null ? <BayarForm link={link} total={tagihan.total} /> : null}
+      {notPayableBecause === null ? (
+        <BayarForm link={link} total={tagihan.total} trial={paymentsAreTrial()} />
+      ) : null}
       {buktiLink ? (
         <div className="print:hidden">
           <a href={documentPagePath(buktiLink)} className={buttonVariants({ variant: "outline" })}>
@@ -228,13 +232,14 @@ function BuktiPengembalianDanaView({ bukti }: { bukti: DokumenBuktiPengembalianD
 }
 
 /** Bayar: on to the payment page (QRIS). Never printed. */
-function BayarForm({ link, total }: { link: string; total: number }) {
+function BayarForm({ link, total, trial }: { link: string; total: number; trial: boolean }) {
   return (
     <form action={bayarTagihan} className="flex flex-col gap-2 print:hidden sm:items-start">
       <input type="hidden" name="link" value={link} />
       <Button type="submit" size="lg" className="px-6">
         Bayar {formatRupiah(total)}
       </Button>
+      <TrialPaymentNotice trial={trial} />
       <p className="text-xs text-muted-foreground">
         Bayar dengan QRIS. Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas
         setelah pembayaran kami terima; muat ulang halaman ini sebentar lagi.
