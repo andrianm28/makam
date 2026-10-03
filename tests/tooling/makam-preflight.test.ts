@@ -174,12 +174,12 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'out=""; data=""; method=GET; url=""',
       "while [ $# -gt 0 ]; do",
-      '  case "$1" in -o) out=$2; shift ;; --data) data=$2; shift ;; -X) method=$2; shift ;; http*) url=$1 ;; esac',
+      '  case "$1" in -o) out=$2; shift ;; --data) data=$2; shift ;; -X) method=$2; shift ;; -H) case "$2" in @*) headerfile=${2#@}; hdr=$(cat "$headerfile") ;; esac; shift ;; http*) url=$1 ;; esac',
       "  shift",
       "done",
       'body=""; code=000',
       'case "$url" in',
-      '  *api-pay*) code=${FAKE_SUMOPOD_CODE:-404} ;;',
+      '  *api-pay*) code=${FAKE_SUMOPOD_CODE:-404}; case "$hdr" in *makam-preflight-wrong-key*) code=${FAKE_SUMOPOD_WRONG_KEY_CODE:-401} ;; esac ;;',
       '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
@@ -600,5 +600,16 @@ describe("makam-preflight", () => {
     const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
     const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Staging is public"));
     expect(section).toMatch(/makam-backup-db[\s\S]*prunes[\s\S]*older than 7 days/);
+  });
+
+  it("proves the SumoPod path with a negative control: the same call with a wrong key must be refused, else the line says the path is unverified", () => {
+    const controlled = preflight(healthy(world()));
+    expect(controlled.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*sumopod api key.*wrong key.*refused/));
+    expect(controlled.calls.match(/curl .*api-pay\.sumopod\.com/g)).toHaveLength(2);
+
+    const vacuous = preflight(healthy(world()), [], { FAKE_SUMOPOD_WRONG_KEY_CODE: "404" });
+    expect(vacuous.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[04\].*sumopod api key.*unverified.*wrong key.*404/));
+    expect(vacuous.lines.filter((line) => /^PASS .*sumopod api key/.test(line))).toEqual([]);
+    expect(vacuous.output).not.toContain(SECRETS.SUMOPOD_API_KEY);
   });
 });
