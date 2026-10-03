@@ -262,6 +262,7 @@ check_s3() {
   fi
   check_s3_probe
   check_s3_settings
+  check_s3_backups_bucket
 }
 
 # Public access blocked, versioning and default encryption of the files bucket,
@@ -303,6 +304,34 @@ check_s3_settings() {
   fi
 }
 
+# head-bucket with the backups IAM key (a separate user from the app's, ticket 03).
+check_s3_backups_bucket() {
+  local bucket
+  bucket=$(setting S3_BUCKET_BACKUPS)
+  if s3api "$(setting S3_BACKUPS_ACCESS_KEY_ID)" "$(setting S3_BACKUPS_SECRET_ACCESS_KEY)" head-bucket --bucket "$bucket" > /dev/null 2>&1; then
+    pass "03" "s3 backups bucket" "$bucket answers to the backups key"
+  else
+    fail "03" "s3 backups bucket" "$bucket does not answer to the backups IAM key: check the name, the region and the key"
+  fi
+}
+
+# The passphrase that encrypts every Dump (makam-backup-lib): without it a
+# backup cannot be read back, and anyone else's read of it opens every Dump.
+check_backup_key() {
+  local file mode
+  file="$DIR/backup-passphrase"
+  if [ ! -s "$file" ]; then
+    fail "03" "backup encryption key" "$file is missing or empty: openssl rand -base64 32 > $file, chmod 600, and keep an offline copy (runbook, \"The passphrase\")"
+    return 0
+  fi
+  mode=$(stat -c %a "$file")
+  if [ "$mode" != 600 ]; then
+    fail "03" "backup encryption key" "$file has mode 0$mode, expected 0600"
+    return 0
+  fi
+  pass "03" "backup encryption key" "$file is present, non-empty, mode 0600"
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -313,6 +342,7 @@ check_image_pull
 check_signature
 check_env_schema
 check_s3
+check_backup_key
 #@CALLS
 
 echo
