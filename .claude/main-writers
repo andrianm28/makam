@@ -1,5 +1,0 @@
-# Who may push `main` (read by .claude/hooks/guard-git.sh from origin/main; docs/agents/orchestration.md, "Enforcement in settings").
-# One line per session: <session id without its cse_/session_ prefix> <merge|docs> [note]
-#   merge: the merge thread (any push to main)   docs: the coordinator (only changes under docs/ and .scratch/)
-# The coordinator adds itself and the current merge thread here, on main, before it starts that thread.
-# A session cannot list itself: a push to main needs the listing already on origin/main.
