@@ -623,6 +623,19 @@ describe("npm run import:data-peluncuran: the Audit Log of what it writes", () =
   });
 });
 
+describe("npm run import:data-peluncuran: a dry run leaves no trace", () => {
+  it("leaves the Audit Log as empty as it found it, after a dry run over every kind", async () => {
+    const { audit } = await modul();
+    const sebelum = await audit.allEntries();
+    const TEMPLATE = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", TEMPLATE], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(await audit.allEntries()).toEqual(sebelum);
+  });
+});
+
 describe("npm run import:data-peluncuran: which stack it may run on", () => {
   const sumber = () => folder({ "tpu-dki.csv": TPU_CONTOH });
 

@@ -22,6 +22,7 @@ import { createNazhirList, type Wakaf } from "@/domain/wakaf";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv } from "@/lib/env";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
+import { RUPIAH_MAX } from "@/lib/rupiah";
 import type { Clock } from "@/ports/clock";
 import { alasanBaris, barisBiayaSchema, barisKatalogSchema, barisLayananSchema, barisNazhirSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
 import { bacaCsv } from "./data-peluncuran/csv";
@@ -118,7 +119,7 @@ function alasanModul(reason: string, berlakuMulai?: string | null): string {
     case "nama_sudah_ada":
       return "nama sudah dipakai";
     case "tarif_tidak_valid":
-      return "jumlah tidak diterima Tariffs (bilangan bulat rupiah, 0 sampai Rp 100.000.000.000)";
+      return `jumlah tidak diterima Tariffs (bilangan bulat rupiah, 0 sampai Rp ${RUPIAH_MAX.toLocaleString("id-ID")})`;
     case "tpu_tidak_valid":
     case "input_tidak_valid":
     case "layanan_tidak_valid":
@@ -382,7 +383,12 @@ async function olahNazhir(
 /** What a run found, kind by kind; or the reason it could not start. */
 type Hasil = { judul: string; ringkasan: Ringkasan }[] | string;
 
-class UjiCobaSelesai extends Error {}
+/** Ends a dry run: thrown to roll the transaction back, carrying what the run found. */
+class UjiCobaSelesai extends Error {
+  constructor(readonly hasil: Hasil) {
+    super("uji coba selesai");
+  }
+}
 
 /** Composes the modules on `db` (the connection, or the dry run's transaction) and imports every kind in dependency order. */
 async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntimeEnv>; adapters: ReturnType<typeof createAdapters>; sumber: string; alasan: string }): Promise<Hasil> {
@@ -499,16 +505,15 @@ export async function importDataPeluncuranCommand(
       if (tulis) return laporan(true, await kerja(database.db));
       // A dry run is the real run inside a transaction that is rolled back: every refusal a write would
       // make (a past date, a name already taken) shows, and nothing stays.
-      let hasil: Hasil | null = null;
       try {
         await database.db.transaction(async (tx) => {
-          hasil = await kerja(tx);
-          throw new UjiCobaSelesai();
+          throw new UjiCobaSelesai(await kerja(tx));
         });
       } catch (error) {
-        if (!(error instanceof UjiCobaSelesai)) throw error;
+        if (error instanceof UjiCobaSelesai) return laporan(false, error.hasil);
+        throw error;
       }
-      return laporan(false, hasil!);
+      throw new Error("uji coba tidak berakhir");
     } finally {
       await database.close();
     }
