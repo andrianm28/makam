@@ -138,25 +138,29 @@ function currentBranch(cwd) {
   return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
 
-/** Where a refspec lands on the remote, as a short branch name. */
-function destination(refspec, branch) {
-  let spec = refspec.replace(/^\+/, "");
-  const dst = spec.includes(":") ? spec.slice(spec.indexOf(":") + 1) : spec;
-  return (dst === "HEAD" || dst === "" ? branch : dst).replace(/^refs\/heads\//, "");
+/** A refspec as { src, dst }: what is sent and which remote branch it lands on, as short names. */
+function parseRefspec(refspec, branch) {
+  const spec = refspec.replace(/^\+/, "");
+  const colon = spec.indexOf(":");
+  const src = colon < 0 ? spec : spec.slice(0, colon);
+  const dst = colon < 0 ? spec : spec.slice(colon + 1);
+  const short = (name) => name.replace(/^refs\//, "").replace(/^heads\//, "");
+  return { src: src === "" ? null : src, dst: dst === "HEAD" || dst === "" ? branch : short(dst) };
 }
 
 /** AGENTS.md: only the merge thread (and the coordinator, for docs) pushes to `main`. */
 function noPushToMain(push, cwd) {
   const branch = currentBranch(cwd);
-  const targets = push.refspecs.length ? push.refspecs.map((r) => destination(r, branch)) : [branch];
-  if (push.all || targets.includes("main")) {
+  const specs = push.refspecs.length ? push.refspecs.map((r) => parseRefspec(r, branch)) : [{ src: "HEAD", dst: branch }];
+  const toMain = specs.filter((x) => x.dst === "main");
+  if (push.all || toMain.length) {
     const writer = mainWriter(cwd);
     if (writer === "merge") return;
     if (writer === "docs") {
-      const outside = changedOutsideDocs(cwd);
+      const outside = toMain.flatMap((x) => changedOutsideDocs(cwd, x.src));
       if (!outside.length) return;
       deny(
-        `you are marked as the coordinator, who may push only docs to \`main\` (docs/ and .scratch/), but this push also changes: ${outside.slice(0, 5).join(", ")}. ` +
+        `you are marked as the coordinator, who may push only docs to \`main\` (docs/ and .scratch/), but the commits this push sends also change: ${outside.slice(0, 5).join(", ")}. ` +
           "Move those changes to a ticket branch (`git push origin HEAD:ticket-NN-slug`) for the review and the merge thread.",
       );
     }
@@ -179,8 +183,15 @@ function mainWriter(cwd) {
   }
 }
 
-function changedOutsideDocs(cwd) {
-  const files = execFileSync("git", ["diff", "--name-only", "origin/main", "HEAD"], { cwd, encoding: "utf8" })
+/** Files the commits being pushed change, outside docs/ and .scratch/: from where `src` forked off the remote `main` (three dots), renames counted as a delete and an add. */
+function changedOutsideDocs(cwd, src) {
+  if (!src) return ["(a deletion of main)"];
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "-q", "origin/main"], { cwd, stdio: "ignore" });
+  } catch {
+    deny("there is no `origin/main` here to compare the push with. Run `git fetch origin main` and repeat the push.");
+  }
+  const files = execFileSync("git", ["diff", "--name-only", "--no-renames", `origin/main...${src}`], { cwd, encoding: "utf8" })
     .split("\n")
     .filter(Boolean);
   return files.filter((f) => !f.startsWith("docs/") && !f.startsWith(".scratch/"));

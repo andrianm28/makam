@@ -154,6 +154,7 @@ describe("guard-git hook, the writers to main", () => {
     commit("src/move.ts", "export const m = 1;\n");
     git(dir, "push", "-q", "origin", "main");
     mark(dir, "docs");
+    mkdirSync(path.join(dir, "docs"));
     git(dir, "mv", "src/move.ts", "docs/move.ts");
     git(dir, "commit", "-q", "-m", "move");
     const r = bash("git push origin main");
