@@ -8,6 +8,9 @@
  * `drizzle/*.sql` aside, drops the branch's migrations and snapshots from the
  * merge and restores the base's journal and snapshots, so `npm run db:generate`
  * regenerates the branch's schema change under the next free number.
+ *
+ * Refuses a worktree with uncommitted changes. Exits 0 after a clean renumber; 1 on a code conflict (never
+ * resolved), a merge that failed for any other reason, or a restore that left main's files changed; 64 on bad arguments.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
