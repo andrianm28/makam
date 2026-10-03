@@ -142,7 +142,7 @@ function healthy(w: ReturnType<typeof world>) {
       'case "$2" in',
       '  put-object) [ "${FAKE_S3_PUT:-0}" = 0 ] || { echo "An error occurred (AccessDenied)" >&2; exit 1; }',
       '    while [ $# -gt 0 ]; do [ "$1" = --body ] && cp "$2" "$obj"; shift; done ;;',
-      '  get-object) [ "${FAKE_S3_GET:-0}" = 0 ] || exit 1; cp "$obj" "${@: -1}" ;;',
+      `  get-object) ${INTERRUPT_AT("get-object")}; [ "\${FAKE_S3_GET:-0}" = 0 ] || exit 1; cp "$obj" "\${@: -1}" ;;`,
       '  delete-object) exit "${FAKE_S3_DELETE:-0}" ;;',
       '  head-bucket) exit "${FAKE_S3_HEAD:-0}" ;;',
       '  get-public-access-block) [ "${FAKE_S3_SETTINGS_DENIED:-0}" = 0 ] || { echo "An error occurred (AccessDenied)" >&2; exit 254; }',
@@ -550,5 +550,12 @@ describe("makam-preflight", () => {
 
     const finished = preflight(healthy(world()), ["--digest", DIGEST, "--met-s3", "--email-to", "owner@example.test"]);
     expect(finished.leftovers).toEqual([]);
+  });
+
+  it("deletes the S3 probe object when it is interrupted between the put and the delete", () => {
+    const interrupted = preflight(healthy(world()), ["--met-s3"], { FAKE_INTERRUPT: "get-object" });
+    expect(interrupted.code).toBe(143);
+    expect(interrupted.calls).toMatch(/aws s3api put-object --bucket makam-prod-files --key (makam-preflight-probe-\S+)[\s\S]*aws s3api delete-object --bucket makam-prod-files --key \1/);
+    expect(interrupted.leftovers).toEqual([]);
   });
 });
