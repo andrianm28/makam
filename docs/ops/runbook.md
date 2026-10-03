@@ -771,7 +771,7 @@ not a build. `RILIS_TERBUKA` is a number, 1 to 3, in the host's env file
 
 | Environment | Value | Why |
 |---|---|---|
-| production | `1` (also what an unset value means) | the release plan: Rilis 1 only |
+| production | `3` from the go-live (owner, 2026-10-03); unset still means `1` | the owner opens all three releases at the switch (ADR 0006 amendment) |
 | staging | `3` | every release can be tested before it opens on production |
 | development, test, the CI e2e stack (`deploy/ci/e2e.env`) | unset, which means `3` | nothing existing changes |
 
@@ -795,8 +795,10 @@ promotion:
    shows the new number, and a page of the newly opened feature no longer says
    "Segera hadir".
 
-Opening Rilis 2 starts the Hak Pakai reminder emails to real Pemegang Hak: do it
-only after the Hak Pakai rows loaded from the old app have been checked (ticket 65).
+Opening Rilis 2 starts the Hak Pakai reminder emails to real Pemegang Hak. The old
+app holds no Hak Pakai (ticket 65, 2026-10-03): rows come from Denah clearing by the
+Admin Lokasi, so each Lokasi's cleared rows (contact and end date) are checked as they
+are entered; a Perlu Verifikasi row has no end date and gets no reminder.
 Closing a release again is the same change in reverse; rows already written stay.
 
 ## Promoting to production

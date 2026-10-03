@@ -8,7 +8,7 @@ Rebuilt from ticket 65, spec "Release plan", and runbook "Promoting to productio
 - [ ] **Old-app data question answered** (ticket 65 AC1): carry over, archive, or confirm all test data; what happens to old-app SumoPod payments still open at the switch.
 - [ ] **GlitchTip token** (`GLITCHTIP_AUTH_TOKEN` + `GLITCHTIP_*` CI vars, `MAKAM_GLITCHTIP_TOKEN` in each host env file) — ticket 72 "Releases".
 - [ ] **Cosign key pairs** exist (staging + production); public keys installed by `deploy/install-host.sh` — ticket 72 "Rehearsal".
-- [ ] **Live SumoPod keys** ready to install on the switch day (project key, webhook secret, webhook URL `https://makam.co.id/api/webhooks/sumopod`).
+- [ ] **Live SumoPod keys** ready to install on the switch day (project key, webhook secret, webhook URL `https://makam.co.id/api/webhooks/pembayaran`).
 - [ ] UAT bayar terbukti (ticket 61 ACs) — needs `pay.sumopod.com` reachable + a working Admin Lokasi for the test order's Lokasi.
 
 ## 1. Rehearsal (ticket 72) — no nginx change
@@ -39,7 +39,7 @@ gh release list
 ## 4. Post-switch verification
 
 - [ ] `https://makam.co.id/api/health` reports DB + worker heartbeat.
-- [ ] SumoPod webhook `https://makam.co.id/api/webhooks/sumopod` reaches v1 (test event 2xx).
+- [ ] SumoPod webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1 (test event 2xx).
 - [ ] Uptime alarm watches production.
 - [ ] A real Kode Masuk and one real booking complete on `makam.co.id`.
 
