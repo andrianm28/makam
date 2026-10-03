@@ -193,6 +193,10 @@ export const notificationsTeleponPemesan = pgTable(
     uniqueIndex("notifications_telepon_pemesan_open_idx")
       .on(table.subjectKind, table.subjectId)
       .where(sql`${table.ditutupPada} is null`),
+    // One row per reminder of a subject, open or closed: a tick racing a staff member's close cannot open a second one.
+    uniqueIndex("notifications_telepon_pemesan_kunci_idx")
+      .on(table.subjectKind, table.subjectId, table.kunci)
+      .where(sql`${table.kunci} is not null`),
   ],
 );
 

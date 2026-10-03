@@ -545,6 +545,19 @@ describe("the IPTM expiry reminder of a Makam TPU with no email on record", () =
     expect(await setup.notifications.teleponPemesanTerbuka()).toMatchObject([{ id: pertama!.id, subjectId: dasar.makamTpuId }]);
   });
 
+  it("cannot open a second row for the same reminder after the first was closed, however many ticks run at once", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await tanpaEmail(setup, "2027-02-15");
+    setup.clock.set(wib("2026-11-15 10:00"));
+    await Promise.all(Array.from({ length: 6 }, () => pengingatIptmTick(deps(setup), setup.clock.now())));
+    const [pertama] = await setup.notifications.teleponPemesanTerbuka();
+    await setup.notifications.catatPanggilan(dasar.admin, { teleponId: pertama!.id, hasil: "sudah_dihubungi" });
+
+    await Promise.all(Array.from({ length: 6 }, () => pengingatIptmTick(deps(setup), setup.clock.now())));
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+    expect(await setup.notifications.teleponPemesanRiwayat("makam_tpu", dasar.makamTpuId)).toHaveLength(1);
+  });
+
   it("does not open a row outside 08:00-20:00 WIB", async () => {
     const setup = pengajuanOnTestDatabase(db);
     await tanpaEmail(setup, "2027-02-15");

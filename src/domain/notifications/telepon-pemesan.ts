@@ -120,8 +120,23 @@ export async function bukaTeleponPemesan(
       ),
     )
     .limit(1);
-  if (!open) throw new Error("a Telepon Pemesan row for an open subject just vanished");
-  return { id: open.id, baru: false };
+  if (open) return { id: open.id, baru: false };
+  // No open row, so the conflict was this reminder's own (closed) row, which a racing tick or a staff close left behind.
+  if (input.kunci) {
+    const [ini] = await tx
+      .select({ id: notificationsTeleponPemesan.id })
+      .from(notificationsTeleponPemesan)
+      .where(
+        and(
+          eq(notificationsTeleponPemesan.subjectKind, input.subjectKind),
+          eq(notificationsTeleponPemesan.subjectId, input.subjectId),
+          eq(notificationsTeleponPemesan.kunci, input.kunci),
+        ),
+      )
+      .limit(1);
+    if (ini) return { id: ini.id, baru: false };
+  }
+  throw new Error("a Telepon Pemesan row for an open subject just vanished");
 }
 
 /** One "Telepon Pemesan" row as a call log entry: open, or closed with what the staff member found. */
