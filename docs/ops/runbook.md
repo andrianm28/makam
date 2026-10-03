@@ -450,8 +450,10 @@ project, compose file and env files).
 ```bash
 cd /opt/makam-v1/staging
 S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
-# 1. Copy the owner's CSV folder (from a checkout of the release) into the container.
-$S cp docs/ops/data-peluncuran web:/tmp/data-peluncuran
+# 1. Put the owner's CSV folder on the host (the host has no checkout), e.g. from your machine:
+#    scp -r docs/ops/data-peluncuran <host>:/opt/makam-v1/data-peluncuran
+#    then copy it into the container.
+$S cp /opt/makam-v1/data-peluncuran web:/tmp/data-peluncuran
 # 2. Dry run: the real import inside a transaction that is rolled back; nothing is written.
 $S exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran --izinkan-staging
 # [import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.
@@ -467,10 +469,10 @@ $S exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran -
 # TPU DKI: 38 baris dibaca, 38 dibuat, 0 diubah, 0 sama, 0 ditolak.
 # ...
 # 4. Remove the copy.
-$S exec web rm -rf /tmp/data-peluncuran
+$S exec -u root web rm -rf /tmp/data-peluncuran   # cp creates root-owned files
 ```
 
-The counts above are the folder's rows at ticket 103; yours follow the CSVs you
+The counts above are the folder's rows at ticket 103 on a stack that has never been imported ("akan dibuat"; a later run shows "sama"); yours follow the CSVs you
 copy. Exit code 1 with a "Ditolak (N):" list of file, line and reason means
 some rows were refused (the others are still imported, and a re-run over the
 fixed file does the rest); exit code 0 means none was.
