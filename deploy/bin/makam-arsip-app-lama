@@ -132,3 +132,41 @@ short=$(awk -F= '
 ' <(printf '%s\n' "$recorded") <(printf '%s\n' "$restored"))
 [ -z "$short" ] || { err "ERROR the restore of $BASE is short of rows: $(printf '%s' "$short" | tr '\n' ' ')"; exit 1; }
 log "archive proven: $BASE restored into a throwaway Postgres, every table with its rows"
+
+# 4. The plan: objects by exact name, from prefixes only the old app uses.
+# `docker ps --filter name=` matches substrings, so the prefix is checked again
+# here; the makam-app image is matched on its repository, any tag.
+CONTAINERS=()
+while IFS= read -r n; do case "$n" in makam-nonprod-*) CONTAINERS+=("$n") ;; esac; done < <(docker ps -a --filter name=makam-nonprod- --format '{{.Names}}')
+VOLUMES=()
+while IFS= read -r n; do case "$n" in makam-nonprod-*) VOLUMES+=("$n") ;; esac; done < <(docker volume ls --filter name=makam-nonprod- --format '{{.Name}}')
+IMAGES=()
+while IFS= read -r n; do case "$n" in makam-app:*) IMAGES+=("$n") ;; esac; done < <(docker images --format '{{.Repository}}:{{.Tag}}')
+BLOCKS=()
+if [ -d "$MAKAM_ROOT/nginx-backups" ]; then
+  while IFS= read -r f; do BLOCKS+=("$f"); done < <(grep -lE '127\.0\.0\.1:(3001|8081|8083)\b' "$MAKAM_ROOT"/nginx-backups/* 2> /dev/null || true)
+fi
+
+echo
+echo "Cleanup plan (nothing is deleted without --hapus and the typed word):"
+for n in "${CONTAINERS[@]}"; do echo "  container  $n"; done
+for n in "${VOLUMES[@]}"; do echo "  volume     $n"; done
+for n in "${IMAGES[@]}"; do echo "  image      $n"; done
+echo "  directory  $OLD_APP_DIR"
+echo "  directory  $OLD_NOTIFY_DIR"
+for f in "${BLOCKS[@]}"; do echo "  nginx block  $f"; done
+
+[ "$HAPUS" = 1 ] || exit 0
+
+# 5. Typed confirmation, then the plan, one object per command.
+read -r -p "Type $CONFIRM_WORD to delete the old app: " typed || typed=""
+if [ "$typed" != "$CONFIRM_WORD" ]; then
+  echo "not confirmed: nothing was deleted" >&2
+  exit 1
+fi
+for n in "${CONTAINERS[@]}"; do docker rm -f "$n" > /dev/null; done
+for n in "${VOLUMES[@]}"; do docker volume rm "$n" > /dev/null; done
+for n in "${IMAGES[@]}"; do docker rmi "$n" > /dev/null; done
+rm -rf -- "$OLD_APP_DIR" "$OLD_NOTIFY_DIR"
+for f in "${BLOCKS[@]}"; do rm -f -- "$f"; done
+log "old app deleted by name: ${#CONTAINERS[@]} containers, ${#VOLUMES[@]} volumes, ${#IMAGES[@]} images, $OLD_APP_DIR, $OLD_NOTIFY_DIR, ${#BLOCKS[@]} nginx blocks"
