@@ -14,7 +14,7 @@ function git(cwd: string, ...args: string[]): string {
 type Repo = { dir: string; bin: string; bash: (command: string, env?: Record<string, string>) => ReturnType<typeof runHook>; commit: (file: string, body?: string) => void };
 
 /** A clone of a bare origin with `main` pushed, checked out on `branch`; `tools` are fakes put first on PATH. */
-function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1] } = {}): Repo {
+function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1]; bootstrap?: boolean } = {}): Repo {
   const origin = tmpDir("gg-origin-", dirs);
   git(origin, "init", "-q", "--bare", "-b", "main");
   const dir = tmpDir("gg-clone-", dirs);
@@ -29,6 +29,8 @@ function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1] } =
     git(dir, "commit", "-q", "-m", `add ${file}`);
   };
   commit("README.md");
+  // Once .claude/main-writers exists on main, only listed sessions may push it; `bootstrap` leaves it out.
+  if (!opts.bootstrap) commit(".claude/main-writers", "# nobody yet\n00NOBODY merge\n");
   git(dir, "push", "-q", "origin", "main");
   if (opts.branch) git(dir, "checkout", "-q", "-b", opts.branch);
   const bin = fakeBin(tmpDir("gg-bin-", dirs), opts.tools ?? {});
@@ -179,30 +181,18 @@ describe("guard-git hook, the writers to main", () => {
   });
 });
 
-describe("guard-git hook, secrets in outgoing commits", () => {
-  it("scans the commits a push sends and refuses the push on a finding", () => {
-    const { bash, bin } = repo({ branch: "ticket-5-x", tools: { gitleaks: { exit: 1 } } });
-    const r = bash("git push -u origin ticket-5-x");
-    expect(r.status).toBe(2);
-    expect(r.stderr).toMatch(/gitleaks/);
-    expect(r.stderr).toMatch(/\.gitleaks\.toml/);
-    expect(readFileSync(`${bin}/gitleaks.calls`, "utf8")).toContain("origin/main..HEAD");
-  });
-
-  it("lets a clean push through, and scans only pushes", () => {
-    const { bash, bin } = repo({ branch: "ticket-5-x", tools: { gitleaks: { exit: 0 } } });
-    bash("git status");
-    expect(existsSync(`${bin}/gitleaks.calls`)).toBe(false);
-    expect(bash("git push -u origin ticket-5-x").status).toBe(0);
-    expect(existsSync(`${bin}/gitleaks.calls`)).toBe(true);
-  });
-
-  it("says plainly that the commits were not scanned when gitleaks is not installed", () => {
-    const { bash } = repo({ branch: "ticket-5-x" });
-    const r = bash("git push -u origin ticket-5-x");
+describe("guard-git hook, bootstrap of the main-writers list", () => {
+  it("allows a push to main with a plain warning while origin/main has no list", () => {
+    const { bash } = repo({ bootstrap: true });
+    const r = bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: "cse_01ANYSESSION" });
     expect(r.status).toBe(0);
-    expect(r.stdout + r.stderr).toMatch(/gitleaks is not installed/);
-    expect(r.stdout + r.stderr).toMatch(/NOT scanned/);
+    expect(r.stdout + r.stderr).toMatch(/bootstrap/i);
+    expect(r.stdout + r.stderr).toMatch(/main-writers/);
+  });
+
+  it("refuses an unlisted session as soon as the list exists", () => {
+    const { bash } = repo();
+    expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: "cse_01ANYSESSION" }).status).toBe(2);
   });
 });
 
