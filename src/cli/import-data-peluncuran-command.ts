@@ -41,7 +41,7 @@ function bacaBerkas(folder: string, nama: string): ReturnType<typeof bacaCsv> | 
   return existsSync(path) ? bacaCsv(readFileSync(path, "utf8")) : null;
 }
 
-async function rencanakanTpu(folder: string, lokasi: Lokasi, aktor: Actor): Promise<Ringkasan> {
+async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: boolean): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "tpu-dki.csv");
   if (!csv) return hasil;
@@ -54,7 +54,15 @@ async function rencanakanTpu(folder: string, lokasi: Lokasi, aktor: Actor): Prom
       continue;
     }
     const tpu: BarisTpu = parsed.data;
-    if (!ada.has(tpu.name)) hasil.dibuat += 1;
+    if (ada.has(tpu.name)) continue;
+    if (tulis) {
+      const dibuat = await lokasi.createTpuDki(aktor, tpu);
+      if (!dibuat.ok) {
+        hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${dibuat.reason}`);
+        continue;
+      }
+    }
+    hasil.dibuat += 1;
   }
   return hasil;
 }
@@ -117,12 +125,12 @@ export async function importDataPeluncuranCommand(
         totp: "lolos",
         sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
       };
-      const tpu = await rencanakanTpu(sumber, lokasi, aktor);
+      const tpu = await olahTpu(sumber, lokasi, aktor, tulis);
       return {
         exitCode: 0,
         output: [
           tulis ? "[import-data-peluncuran] Ditulis." : "[import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.",
-          `TPU DKI: ${tpu.dibaca} baris dibaca, ${tpu.dibuat} akan dibuat, ${tpu.diubah} diubah, ${tpu.sama} sama, ${tpu.ditolak.length} ditolak.`,
+          `TPU DKI: ${tpu.dibaca} baris dibaca, ${tpu.dibuat} ${tulis ? "dibuat" : "akan dibuat"}, ${tpu.diubah} diubah, ${tpu.sama} sama, ${tpu.ditolak.length} ditolak.`,
         ].join("\n"),
       };
     } finally {
