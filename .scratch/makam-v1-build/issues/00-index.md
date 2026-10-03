@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 101 tickets (as of 2026-10-03): 91 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 102 tickets (as of 2026-10-03): 91 resolved, 1 ready-for-agent (102), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -405,3 +405,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [99](99-tagihan-detail-404.md) | Admin Platform Tagihan detail always 404s | resolved | — |
 | [100](100-ticket-guard-three-digit-numbers.md) | The ticket guard reads three-digit ticket numbers | resolved | — |
 | [101](101-banner-pembayaran-uji-coba.md) | Banner "pembayaran uji coba" while production pays through SumoPod's sandbox | resolved | 100, 65 |
+| [102](102-deploy-status-state-arguments.md) | makam-deploy records no Deployment status, so promotion always refuses | ready-for-agent | — |
