@@ -61,3 +61,47 @@ describe("guard-git hook, pull requests", () => {
     }
   });
 });
+
+describe("guard-git hook, pushes to main", () => {
+  it("refuses every push that reaches main, and says how to proceed", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      "git push origin main",
+      "git push -u origin HEAD:main",
+      "git push origin ticket-5-x:refs/heads/main",
+      "git push origin +main",
+      "git push --force origin HEAD:main",
+      "git push origin --all",
+      "git push --mirror origin",
+      "git push origin --delete main",
+      "git push origin :main",
+      "git fetch && git push origin main",
+    ]) {
+      const r = bash(command);
+      expect(r.status, command).toBe(2);
+      expect(r.stderr, command).toMatch(/main/);
+      expect(r.stderr, command).toMatch(/merge thread/);
+      expect(r.stderr, command).toMatch(/makam-main-writer/);
+    }
+  });
+
+  it("refuses a bare push while main is checked out", () => {
+    const { bash } = repo();
+    expect(bash("git push").status).toBe(2);
+    expect(bash("git push origin").status).toBe(2);
+  });
+
+  it("lets a ticket branch be pushed", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      "git push -u origin ticket-5-x",
+      "git push origin HEAD",
+      "git push origin ticket-5-x:ticket-5-x",
+      "git push",
+      "git push origin ticket-5-x:refs/heads/ticket-5-x-fix",
+      "git commit -m 'push to main later'",
+    ]) {
+      expect(bash(command).status, command).toBe(0);
+    }
+  });
+});
