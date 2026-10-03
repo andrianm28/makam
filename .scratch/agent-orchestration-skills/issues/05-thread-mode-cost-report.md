@@ -32,3 +32,5 @@ Spec: `.scratch/agent-orchestration-skills/spec.md`.
 1. **Platform data**: the coordinator saves `get_session`/`list_sessions` output to a JSON file each week and the script reads it; no credential goes into the repo or the environment. The owner counts this export as meeting "against the platform when available", so that criterion is ticked and the spec gap above is closed by this decision.
 2. **First week's numbers**: merge now. The ticket stays in progress until the coordinator runs the first weekly report (around 2026-10-10) and records the numbers in the manual's Token discipline section; the placeholder line stays until then. The third criterion is therefore still open.
 3. **History**: the horizontal red slice in 936f139 (and the two related commits listed in the re-review) is accepted as is; history is not rewritten.
+
+- 2026-10-03 — Merged to main by the merge thread (e4e84c5). Status stays in progress by owner decision, until the coordinator records the first weekly numbers (around 2026-10-10). No migration, lockfile unchanged.

@@ -1,6 +1,6 @@
 # Banner "pembayaran uji coba" while production pays through SumoPod's sandbox
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 100, 65
 Spec: spec.md, Billing > Payment; owner decisions of 2026-10-03 (option tool): makam.co.id switches with SumoPod's sandbox until the live merchant account exists, and visitors see a trial banner meanwhile; the owner's `/to-tickets` of 2026-10-03
 
@@ -56,3 +56,5 @@ Spec: 0 blocking, 1 should-fix, 2 nit. All six criteria met in code; should-fix:
 - The owner confirmed both texts as proposed, through the option tool on 2026-10-03: banner "PEMBAYARAN UJI COBA — pembayaran di Makam.co.id saat ini masih percobaan, tidak ada uang yang berpindah." and Bayar notice "Pembayaran ini uji coba: tidak ada uang yang berpindah.". The wording criterion is met and ticked.
 - The runbook's "Test payment" section already registers `/api/webhooks/pembayaran`; it names `/api/webhooks/sumopod` only to say ticket 04's checklist was wrong, so no edit was needed.
 - Playwright not run: `npm run stack -- up --build -d` failed in the image build (`npm ci` crashed with "Exit handler never called", a network problem inside Docker here). The last criterion (Tests) stays unticked until the spec passes on a stack; `npm run clean` was run afterwards.
+
+- 2026-10-03 — Merged to main by the merge thread (af8db5f). Two-axis review complete (Standards + Spec): reviewed 0 blocking / 3 should-fix / 6 nit, re-reviewed 0 / 0 / 2 (sonnet, display-only change). **e2e first run in CI**: `e2e/trial-payment-banner.spec.ts` was not run locally, so the last AC (Tests) is ticked only after main CI's e2e job passes. The merge with main kept one coherent runbook passage for "Production on SumoPod's sandbox" (the owner's webhook decision, key rotation and `prod.env` values from the go-live docs, and this ticket's base-URL override, banner and notice and preflight SKIP line), nothing factual dropped. No migration, lockfile unchanged.

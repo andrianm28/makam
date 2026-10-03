@@ -1757,11 +1757,18 @@ key; a staging-signed digest is refused (exit 77). Seed the first Admin Platform
 with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then follow "Hari switch" for the
 gated nginx switch.
 
-Production on SumoPod's sandbox (owner decision 2026-10-03): makam.co.id
-switches while SumoPod is still on its sandbox, in the same sandbox project as
-staging ("Project yang sama"). Visitors see the trial banner (ticket 101) for as
-long as the sandbox is used, and the preflight's live-host key check fails until
-ticket 101 (expected).
+Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
+
+## Production on SumoPod's sandbox (ticket 101)
+
+Owner decision, 2026-10-03: `makam.co.id` may switch while payments still go
+through SumoPod's **sandbox**, until the live merchant account and keys exist,
+in the same sandbox project as staging ("Project yang sama"). No money moves in
+that time, and visitors are told so: they see the trial banner (ticket 101) for
+as long as the sandbox is used. Before ticket 101 the preflight's live-host key
+check failed in this state (expected); it now names the state in one SKIP line.
+
+Values in `prod.env`, and the webhook:
 
 | Variable in `prod.env` | Value | Note |
 |---|---|---|
@@ -1784,14 +1791,6 @@ the switch shows in production as a "perlu ditinjau" item (reason
 `pembayaran_tidak_dikenal`) and is resolved as such. When production moves to
 SumoPod's live environment, its webhook goes to the live URL and the sandbox URL
 can return to staging.
-
-Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
-
-## Production on SumoPod's sandbox (ticket 101)
-
-Owner decision, 2026-10-03: `makam.co.id` may switch while payments still go
-through SumoPod's **sandbox**, until the live merchant account and keys exist.
-No money moves in that time, and visitors are told so.
 
 Go-live checklist, sandbox variant (replaces "live SumoPod key" in step 1 of
 "Hari switch" until the live account exists), in `/opt/makam-v1/prod/prod.env`:
