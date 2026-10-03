@@ -25,6 +25,13 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
     );
     process.exit(2);
   }
+  if (isReview && tier === "haiku") {
+    process.stderr.write(
+      "Review blocked: haiku never reviews (AGENTS.md model tiering: haiku only for doc sweeps and mechanical edits). " +
+      'Pass model "sonnet", or "opus" for money code.\n'
+    );
+    process.exit(2);
+  }
   if (tier) process.exit(0);
   // The project agents in .claude/agents (builder, reviewer) name their own model in their frontmatter.
   if (["builder", "reviewer"].includes(input.subagent_type)) process.exit(0);
