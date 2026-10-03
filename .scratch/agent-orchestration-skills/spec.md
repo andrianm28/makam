@@ -62,3 +62,7 @@ Generic, reusable skills that let one coordinator session in Claude Code on the 
 ## Out of scope
 
 - Claude Code Projects itself: the day-one trial when access arrives stays in `docs/agents/orchestration.md`.
+
+## Comments
+
+- 2026-10-03, validation thread: design validated against Matt Pocock's skills (upstream d81f3a1) and the current Claude Code Projects docs, see `validation.md`. Findings 2 blocking / 12 should-fix / 10 nit, 9 decisions for the owner. Blocking: the sync pin (upstream retires `resolving-merge-conflicts` and renames `CONTEXT.md` to `GLOSSARY.md`; `.claude/settings.json` enables the unpinned plugin) and report-back (Routine session binding undocumented, the hourly fallback shares it). Nothing in the design was changed.
