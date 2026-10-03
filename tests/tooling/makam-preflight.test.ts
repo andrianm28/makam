@@ -661,4 +661,13 @@ describe("makam-preflight", () => {
     expect(interrupted.code).toBe(130);
     expect(interrupted.leftovers).toEqual([]);
   });
+
+  it("passes S3_ENDPOINT to aws as --endpoint-url when set, and no endpoint option when it is not", () => {
+    const withEndpoint = preflight(healthy(world({ envFile: `${ENV_FILE}S3_ENDPOINT=https://s3.example.test\n` })), ["--met-s3"]);
+    expect(withEndpoint.calls).toMatch(/aws s3api put-object --endpoint-url https:\/\/s3\.example\.test --bucket makam-prod-files/);
+
+    const without = preflight(healthy(world()), ["--met-s3"]);
+    expect(without.calls).toMatch(/aws s3api put-object --bucket makam-prod-files/);
+    expect(without.calls).not.toContain("--endpoint-url");
+  });
 });
