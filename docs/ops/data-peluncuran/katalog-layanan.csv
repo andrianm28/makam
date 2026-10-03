@@ -1,2 +1,7 @@
 layanan,jenis,deskripsi,lead_time_hari,bisa_hari_h,ada_di_petak_kosong,teks_label,varian
+Karangan Bunga Papan,bunga,Karangan bunga papan ucapan duka cita untuk pemakaman.,1,ya,tidak,,Standar
+Paket Bunga Tabur,bunga,Paket bunga tabur untuk prosesi pemakaman dan ziarah.,1,ya,tidak,,Standar
+Batu Nisan,nisan,Pesan dan pasang batu nisan.,14,tidak,tidak,Tulisan pada nisan,Granit Hitam 60 x 80 cm | Granit Abu-abu 80 x 100 cm | Marmer Putih 60 x 80 cm | Marmer Krem 80 x 100 cm
 Pembersihan Makam,pembersihan,Membersihkan dan merapikan makam.,3,tidak,ya,,Standar | Menyeluruh
+Perawatan Rumput & Taman,perawatan,Merawat rumput dan tanaman di sekitar makam.,3,tidak,ya,,Standar
+Laporan Foto/Video Kondisi Makam,laporan,Laporan foto dan video kondisi makam terkini.,2,tidak,ya,,Foto | Foto & Video
