@@ -427,19 +427,32 @@ check_smtp() {
 # 404 means it was accepted. The key travels in a mode 0600 header file, so it is
 # in neither the argument list nor the output. The path can be overridden with
 # MAKAM_PREFLIGHT_SUMOPOD_PATH if SumoPod documents a better read-only call.
-check_sumopod_key() {
-  local base headers code url
-  base=$(setting SUMOPOD_BASE_URL)
-  base=${base:-https://api-pay.sumopod.com}
-  url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
+sumopod_get() {
+  local key=$1 headers
   new_tmp
   headers=$REPLY
   chmod 600 "$headers"
-  printf 'X-Api-Key: %s\n' "$(setting SUMOPOD_API_KEY)" > "$headers"
-  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$headers" "$url" 2> /dev/null) || code="no answer"
+  printf 'X-Api-Key: %s\n' "$key" > "$headers"
+  curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$headers" "$SUMOPOD_URL" 2> /dev/null || printf 'no answer'
   rm -f "$headers"
+}
+
+check_sumopod_key() {
+  local base code control
+  base=$(setting SUMOPOD_BASE_URL)
+  base=${base:-https://api-pay.sumopod.com}
+  SUMOPOD_URL="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
+  code=$(sumopod_get "$(setting SUMOPOD_API_KEY)")
   case "$code" in
-    200|404) pass "04" "sumopod api key" "authenticated on a read-only call to $base (HTTP $code)" ;;
+    200|404)
+      # A 404 may come from a wrong path before authentication ever runs, so the
+      # same call with a deliberately wrong key has to be refused.
+      control=$(sumopod_get "makam-preflight-wrong-key")
+      case "$control" in
+        401|403) pass "04" "sumopod api key" "authenticated on a read-only call to $base (HTTP $code); the same call with a wrong key was refused (HTTP $control)" ;;
+        *) skip "04" "sumopod api key" "path unverified: HTTP $code with your key, but the same call with a wrong key answered HTTP $control, so it does not prove the key; confirm the key with a sandbox payment (runbook, \"Test payment\") or set MAKAM_PREFLIGHT_SUMOPOD_PATH" ;;
+      esac
+      ;;
     401|403) fail "04" "sumopod api key" "$base refused the key (HTTP $code): fetch the production key from the SumoPod dashboard" ;;
     *) fail "04" "sumopod api key" "$base answered HTTP $code, which proves nothing about the key; try again or check SumoPod's status" ;;
   esac
