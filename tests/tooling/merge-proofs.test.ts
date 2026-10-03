@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { checkSnapshotChain, compareMigrationSql } from "../../scripts/migrations/merge-proofs";
+import { checkSnapshotChain, compareMigrationSql, runMergeProofs } from "../../scripts/migrations/merge-proofs";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -76,5 +76,34 @@ describe("the regenerated SQL against the branch's own migration", () => {
     const result = compareMigrationSql(`${create}${bp}${stray}`, create);
 
     expect(result.unexpected).toEqual([stray]);
+  });
+});
+
+describe("the three proofs as one run", () => {
+  function setup(opts: { generated: string; branch: string }) {
+    const dir = drizzleDir([
+      ["0000", "a", "00000000-0000-0000-0000-000000000000"],
+      ["0001", "b", "a"],
+    ]);
+    const aside = mkdtempSync(path.join(tmpdir(), "makam-aside-"));
+    dirs.push(aside);
+    writeFileSync(path.join(dir, "0001_feat.sql"), opts.generated);
+    writeFileSync(path.join(aside, "0001_feat.sql"), opts.branch);
+    return { drizzleDir: dir, asideDir: aside, newFiles: [path.join(dir, "0001_feat.sql")] };
+  }
+  const sql = 'CREATE TABLE "feat" ("id" int);';
+
+  it("passes when the SQL is identical, a second generate has nothing to migrate and the chain is intact", () => {
+    const report = runMergeProofs({ ...setup({ generated: sql, branch: sql }), generate: () => "No schema changes, nothing to migrate" });
+
+    expect(report.ok).toBe(true);
+    expect(report.secondGenerateClean).toBe(true);
+  });
+
+  it("fails when a second generate still finds a schema change, which is how a broken snapshot chain shows", () => {
+    const report = runMergeProofs({ ...setup({ generated: sql, branch: sql }), generate: () => "[✓] Your SQL migration file ➜ drizzle/0002_x.sql 🚀" });
+
+    expect(report.secondGenerateClean).toBe(false);
+    expect(report.ok).toBe(false);
   });
 });
