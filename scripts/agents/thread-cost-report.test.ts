@@ -25,4 +25,12 @@ describe("thread cost report: sessions", () => {
     expect(r.threads.find((t: { session_id: string }) => t.session_id === "sess-a")).toMatchObject({ role: "builder", ticket: "aos-05", cost_usd: 1.5 });
     expect(r.total).toBe(15);
   });
+
+  it("derives a missing role and ticket from the title, else unknown", () => {
+    const r = json([fx("sessions.json")]);
+    const d = r.threads.find((t: { session_id: string }) => t.session_id === "sess-d");
+    expect(d).toMatchObject({ role: "builder", ticket: "aos-07" });
+    const e = r.threads.find((t: { session_id: string }) => t.session_id === "sess-e");
+    expect(e).toMatchObject({ role: "unknown", ticket: "unknown" });
+  });
 });
