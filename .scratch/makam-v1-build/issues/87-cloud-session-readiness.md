@@ -91,6 +91,14 @@ for p in sys.argv[1:]:
 - [ ] `.claude/skills/makam-coordinator/SKILL.md`: starting a thread, the report-back line, a fix pass into the same session by Routine, watching and the status update each poll, decisions by notification then the option tool, writers to `main`, archiving; the without-Projects mechanics marked temporary, with their fallback.
 - [ ] Built after the merge-time scripts land; tested with the `skill-creator` evals (does each skill trigger when it should, and only then) and on the next ticket; reviewed and merged like any change. `docs/agents/project-instructions.md` and `orchestration.md` then name the skills.
 
+## Added (2026-10-03, owner decisions D5 and recommendation 1: enforcement in settings)
+
+- [ ] `.claude/hooks/session-start.sh` reinstalls dependencies when the lockfile's hash differs from the installed one, so a thread's gate never runs on stale `node_modules`.
+- [ ] A PreToolUse hook on `^mcp__.*__create_session$` refuses a call without a `model`, and the model hook covers `Agent` calls by role (the matrix in the analysis); the message names the tier rule.
+- [ ] `permissions.deny` in `.claude/settings.json` for the GitHub MCP tools that open, merge or update pull requests and that write files or branches through the API.
+- [ ] `.claude/hooks/guard-git.sh` (PreToolUse on Bash), fail-closed with a message that says how to proceed: refuses `gh pr create` and any pull-request creation; refuses a push to `main` unless the session is the merge thread or the coordinator pushing docs, by a rule you can test and document; runs gitleaks on the outgoing commits before a push where it can, and says so plainly where it cannot.
+- [ ] Tests for every hook decision (allowed and refused cases); `docs/agents/orchestration.md` and `AGENTS.md` name the hooks; the instruction lines stay.
+
 ## Comments
 
 - 2026-09-27 — **Owner decision: keep the vendored copies** (asked and answered this session). The evidence now says the plugin covers them: `.claude/settings.json` registers the `mattpocock` marketplace and enables `mattpocock-skills@mattpocock`, and in this session `ask-matt` and `resolving-merge-conflicts` both resolved from the plugin's synced path (`~/.agents/skills/…`), never from `.claude/skills/`. The owner still wants `.claude/skills/` in the repo as a fallback, so this acceptance criterion stays open on purpose — not because the plugin is missing. Delete the vendored copies (keeping `.claude/hooks/` and `.claude/settings.json`) and switch AGENTS.md to name `mattpocock-skills:<skill>` whenever the owner decides the fallback is no longer worth its drift.
