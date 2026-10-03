@@ -139,3 +139,31 @@ describe("makam-arsip-app-lama (the archive, before any deletion)", () => {
     expect(r.output).toContain("users=5");
   });
 });
+
+describe("makam-arsip-app-lama fails closed", () => {
+  it("refuses a restore that is short of rows: no success, no cleanup plan", () => {
+    const w = host();
+    const r = run(w, ["--hapus"], `${CONFIRM}\n`, { FAKE_RESTORED_COUNTS: "orders=3\nusers=4\n" });
+    expect(r.code).not.toBe(0);
+    expect(r.output).toMatch(/short of rows/);
+    expect(r.output).not.toMatch(/makam-nonprod-web-1/);
+    expect(r.docker).not.toMatch(/rm -f makam-nonprod|volume rm|rmi /);
+    expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
+  });
+
+  it("stops when the upload fails: nothing is proven, so nothing is restored or deleted", () => {
+    const w = host();
+    const r = run(w, ["--hapus"], `${CONFIRM}\n`, { FAKE_AWS_FAIL: "1" });
+    expect(r.code).not.toBe(0);
+    expect(r.docker).not.toMatch(/\brun\b|volume rm|rmi /);
+    expect(existsSync(path.join(w.oldApp, "marker"))).toBe(true);
+  });
+
+  it("refuses without the backup key, and with a key others can read", () => {
+    const w = host();
+    chmodSync(path.join(w.root, "prod", "backup-passphrase"), 0o644);
+    const r = run(w);
+    expect(r.code).toBe(78);
+    expect(uploaded(w)).toEqual([]);
+  });
+});
