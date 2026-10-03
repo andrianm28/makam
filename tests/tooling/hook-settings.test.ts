@@ -46,4 +46,11 @@ describe("settings.json registrations", () => {
   it("runs the git guard before every Bash command", () => {
     expect(preToolUse("Bash").join("\n")).toContain("guard-git.sh");
   });
+
+  it("ships the allowlist of main writers, with only comments and valid entries", () => {
+    const lines = readFileSync(path.join(repoRoot, ".claude/main-writers"), "utf8").split("\n").map((l) => l.trim()).filter(Boolean);
+    expect(lines.some((l) => l.startsWith("#"))).toBe(true);
+    for (const l of lines.filter((l) => !l.startsWith("#"))) expect(l).toMatch(/^[A-Za-z0-9]+\s+(merge|docs)(\s.*)?$/);
+  });
 });
+
