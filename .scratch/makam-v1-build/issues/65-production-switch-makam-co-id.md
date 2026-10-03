@@ -147,3 +147,26 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   Also: a typecheck error in my own new test (`NODE_ENV` missing from a spawn env) was fixed in a test-only commit.
 
   **HANDOFF** — Tests off a whole log: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files, 300 passed, 1 skipped, exit 0 (before the one-line typecheck fix, after which `makam-arsip-app-lama.test.ts` alone was re-run: 19 passed); `npm run lint` exit 0 (0 errors, warnings not mine); `npm run typecheck` exit 0. Next: owner's Hari switch after the gate.
+
+- 2026-10-03 — **Re-review 2 of the switch files after fix pass 2 (reviewer thread, sonnet; not money code). Head reviewed: 3c8f3c5223edd5d3ed64b89b5d94bdbd5077d799; fixed point: merge-base with `origin/main` (8a8ee62c), non-empty diff (13 files).** Tests run by the reviewer: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files passed, 300 passed, 1 skipped, exit 0, read off a whole log. One sub-agent per axis.
+
+  ## Spec
+  Re-review 1 items (at 3725aed), item by item:
+  - should-fix, count-timing caveat in the runbook: **OK** (step 2 of "Hari switch" states it).
+  - should-fix, archive criterion marked superseded: **OK** (marker added after "uploads it to the backups bucket", wording kept).
+  - nit, HSTS step re-runs `install-host.sh` before `makam-switch --ke v1`: **OK**.
+  - nit, maintenance `/api/health` repeats the security headers: **OK** (`maintenance/makam.co.id.conf:58-62`).
+  Owner decisions (HSTS stepping, archive local, indexable, maintenance page rollback, `/api/webhooks/pembayaran`): still matching. Runbook order, `--hapus` typed word and by-name removal unchanged.
+  Deferrals judged: red `8cb0b4bc` and the three bundled reds (`e2bb295b`, `80d71083`, `71e919a9`): **acceptable** (history of a pushed branch is not rewritten; disclosed; no new case in this pass). Duplicate `case` patterns on `$MAKAM_ROOT` (`makam-arsip-app-lama:143`): **acceptable**, the claim holds (with `MAKAM_ROOT=/opt/makam-v1/` the first pattern becomes `//*` and the second catches it). Duplicated read loops and the `DB_SIZE` guard: acceptable (guard confirmed in re-review 1, `makam-backup-lib:119`).
+  Fix-pass-2 commit order (3725aed..HEAD): five pairs, each red then green, one behaviour each; `d6a1aa3d` is a comment-only docs commit. No horizontal slicing.
+  - **Count: 0 blocking / 0 should-fix / 0 nit.** New: none.
+
+  ## Standards
+  Each of the four test-first pairs targets its own behaviour (`462661e3`/`c846ef80`, `5dca9af5`/`7f7db298`, `0e712137`/`1c4418a1`, `479d6fa8`/`a7507240`, `92c6b7d0`/`5159c3d0`); none leans on the broken helper of `8cb0b4bc`. `${2:?}` in the archive script: **OK** (`:51-54` prints usage, exit 64; older sibling scripts keep it, out of scope). Plan-item punctuation: **OK** (`:11-26`). No prune, `-a`, `--all`, no secrets.
+  - **nit** — `tests/tooling/nginx-blocks.test.ts` (from `479d6fa8`) reads the ticket's prose and fails once the ticket moves or closes.
+  - **nit** — same file (from `92c6b7d0`): `section.split(...)[2]` is a positional index into the runbook; inserting a step breaks it.
+  - **nit** — `3c8f3c52` bundles the ticket entry with a test typing fix.
+  - Process debt, recorded and not blocking: the bundled reds of fix pass 1 stay as they are.
+  - **Count: 0 blocking / 0 should-fix / 3 nit** (the earlier bundled-red process finding stays as an accepted deferral).
+
+  **Summary:** earlier findings fixed 6/9 (4 should-fix and 5 nits of re-review 1; the 3 not fixed are reasoned deferrals judged acceptable); new 0 blocking / 0 should-fix / 3 nit; hard remaining: no. Ready to merge on both axes. Read-only review; only this entry committed.
