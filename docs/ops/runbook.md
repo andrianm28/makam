@@ -1757,6 +1757,31 @@ key; a staging-signed digest is refused (exit 77). Seed the first Admin Platform
 with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then follow "Hari switch" for the
 gated nginx switch.
 
+Production on SumoPod's sandbox (owner decision 2026-10-03): makam.co.id
+switches while SumoPod is still on its sandbox, in the same sandbox project as
+staging ("Project yang sama"). Visitors see the trial banner (ticket 101) for as
+long as the sandbox is used, and the preflight's live-host key check fails until
+ticket 101 (expected).
+
+| Variable in `prod.env` | Value | Note |
+|---|---|---|
+| `MAKAM_IMAGE` | `ghcr.io/andrianm28/makam` | the digest comes from the `makam-deploy` command |
+| `SENTRY_ENVIRONMENT` | `production` | |
+| `SMTP_PORT` | `465` | |
+| `EMAIL_FROM_NAME` | `Makam.co.id` | |
+| `SUMOPOD_BASE_URL` | `https://api-pay-sandbox.sumopod.com` | the sandbox host, until SumoPod is live |
+| `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret: the sandbox API key and the `whsec_` signing secret, installed by the owner (rotated 2026-10-03) | v1 reads only these two and `SUMOPOD_BASE_URL`; the `whtok_` webhook token is not used and stored nowhere |
+
+Webhook URL: until the switch, the sandbox webhook is
+`https://dev.makam.co.id/api/webhooks/pembayaran`, because makam.co.id still
+serves the old app (test events reached it with HTTP 200 on 2026-10-03).
+Production needs its own `https://makam.co.id/api/webhooks/pembayaran`. Open
+before the switch: can a SumoPod project hold a second webhook URL? If not, the
+owner chooses a second sandbox project for production, or staging without
+webhooks after the switch. While the project is shared, an event that reaches
+the environment that did not create the payment becomes a "perlu ditinjau"
+review item (reason `pembayaran_tidak_dikenal`).
+
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
 
 ## Production preflight (`makam-preflight`)
