@@ -151,4 +151,9 @@ describe('the runbook "Hari switch"', () => {
     expect(section).toMatch(/makam-app/);
     expect(section).toMatch(/archive/i);
   });
+
+  it("says in the archive step that the counts are taken just after the dump, and that a write in between means a rerun", () => {
+    const step = section.split(/\n(?=\d+\. \*\*)/)[2];
+    expect(step).toMatch(/counts[^]*just after the dump[^]*rerun/i);
+  });
 });
