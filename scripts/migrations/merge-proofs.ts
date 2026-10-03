@@ -7,6 +7,8 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { z } from "zod";
+import { refSchema } from "./renumber-merge";
 import { unmarkedDestructiveStatements, type DestructiveStatement } from "./destructive-ddl";
 
 /** Pre-existing gaps in the chain, left by earlier renumberings. Any other dangling prevId is a defect. */
@@ -124,15 +126,18 @@ export function runMergeProofs(options: MergeProofsOptions): MergeProofsReport {
   return { ok: sqlOk && reappend.length === 0 && baseSnapshotProblems.length === 0 && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, reappend, baseSnapshotProblems, sql, secondGenerateClean, chain, destructive };
 }
 
+const argsSchema = z.tuple([z.string().min(1)], refSchema).refine((a) => a.length <= 2);
+
 export type ProofsCliIo = { cwd: string; out: (line: string) => void; err: (line: string) => void; generate: () => string };
 
 /** The command line as a function of its arguments, returning the exit code. */
 export function mergeProofsCli(argv: string[], io: ProofsCliIo): number {
-  if (argv.length === 0) {
-    io.err("usage: npx tsx scripts/migrations/merge-proofs.ts <aside-dir> [base-ref]");
+  const args = argsSchema.safeParse(argv);
+  if (!args.success || !existsSync(args.data[0])) {
+    io.err("usage: npx tsx scripts/migrations/merge-proofs.ts <aside-dir> [base-ref]  (the folder renumber-merge printed; a ref never starts with '-')");
     return 64;
   }
-  const [asideDir, baseRef = "HEAD"] = argv;
+  const [asideDir, baseRef = "HEAD"] = args.data;
   const inBase = new Set(
     execFileSync("git", ["ls-tree", "-r", "--name-only", baseRef, "--", "drizzle"], { cwd: io.cwd, encoding: "utf8" }).split("\n").filter(Boolean),
   );
@@ -145,7 +150,7 @@ export function mergeProofsCli(argv: string[], io: ProofsCliIo): number {
       .filter((f) => f.endsWith("_snapshot.json"))
       .map((f) => [path.basename(f), execFileSync("git", ["show", `${baseRef}:${f}`], { cwd: io.cwd, encoding: "utf8" })]),
   );
-  const report = runMergeProofs({ drizzleDir, asideDir: asideDir as string, newFiles, generate: io.generate, baseSnapshots });
+  const report = runMergeProofs({ drizzleDir, asideDir, newFiles, generate: io.generate, baseSnapshots });
   for (const problem of report.baseSnapshotProblems) io.out(`main's snapshot ${problem}`);
   for (const block of report.reappend) io.out(`hand-written in the branch, RE-APPEND to the regenerated file: ${block}`);
   io.out(report.ok ? "PROOFS OK" : report.reappend.length > 0 ? "RE-APPEND the hand-written block(s) above, then rerun the proofs" : "PROOFS FAILED");

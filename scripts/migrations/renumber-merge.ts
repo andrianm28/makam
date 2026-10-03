@@ -123,7 +123,7 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
 }
 
 /** A ref git would not take for an option: non-empty, no leading dash, no whitespace or control characters. */
-const refSchema = z.string().regex(/^[^-\s\x00-\x1f][^\s\x00-\x1f]*$/);
+export const refSchema = z.string().regex(/^[^-\s\x00-\x1f][^\s\x00-\x1f]*$/);
 const argsSchema = z.tuple([refSchema], refSchema).refine((a) => a.length <= 2);
 
 export type CliIo = { cwd: string; out: (line: string) => void; err: (line: string) => void };
