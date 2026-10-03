@@ -79,4 +79,19 @@ describe("thread cost report: a week", () => {
     expect(r.causes["hourly-poll"]).toMatchObject({ units: 200, wakes: 1 });
     expect(r.causes.owner).toBeUndefined();
   });
+
+  it("--compare prints the change in total, per-ticket and per-cause cost against a previous --json run", () => {
+    const args = [fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--compare", fx("previous.json")];
+    const c = json(args).compare;
+    expect(c.total).toEqual({ previous: 10, current: 15, delta: 5 });
+    expect(c.tickets["aos-05"].delta).toBe(1);
+    expect(c.tickets["48"].delta).toBe(-1);
+    expect(c.tickets["aos-07"]).toEqual({ previous: 0, current: 1, delta: 1 });
+    expect(c.causes.watcher.units.delta).toBe(3350);
+    expect(c.causes.owner.units.delta).toBe(1500);
+    expect(c.causes["report-back"].units).toEqual({ previous: 0, current: 500, delta: 500 });
+    const text = run(args).out;
+    expect(text).toContain("+5.00");
+    expect(text).toContain("-1.00");
+  });
 });

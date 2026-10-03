@@ -1,0 +1,9 @@
+{
+  "coordinator_cost": 8.0,
+  "total": 10.0,
+  "tickets": {"aos-05": 1.0, "48": 3.0},
+  "causes": {
+    "watcher": {"units": 1000, "share": 50.0, "wakes": 1, "usd": 4.0},
+    "owner": {"units": 1000, "share": 50.0, "wakes": 1, "usd": 4.0}
+  }
+}
