@@ -12,3 +12,10 @@ Spec: `.scratch/agent-orchestration-skills/spec.md`.
 - [ ] Today's migrations pass; an unmarked destructive statement in a migration fails, shown by a test of the test.
 
 ## Comments
+
+### Builder, 2026-10-03
+
+- Added `scripts/migrations/check-all-migrations.ts` (`unmarkedInMigrationsAfter(dir, after)`, reuses `unmarkedDestructiveStatements`) and `tests/destructive-ddl-all-migrations.test.ts`: unmarked statement reported with file and statement; 0018 and earlier skipped; a `-- contract:` marker passes; every `drizzle/` migration after 0018 passes today (failure message names file:line and statement).
+- Process: no Skill tool; read `.claude/skills/tdd/SKILL.md` directly. Setup `git checkout -B` was skipped on the orchestrator's instruction (branch already created). Two red/green pairs in git; the last two tests (marker passes, today's migrations pass) were green on first run, committed together as characterisation tests.
+- Spec gaps: none.
+
