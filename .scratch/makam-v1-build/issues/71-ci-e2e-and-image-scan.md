@@ -86,3 +86,10 @@ Decided with the user on 2026-09-26. Move the Playwright critical paths off the 
   - Item 4: this entry.
   - Extra, needed for green: 6fdad28. The reviewer's entry gave ticket 71 a review marker, so `GRACE` in `tests/tooling/ticket-workflow.test.ts` named a gap that no longer exists (2 failures); 71 removed from `GRACE` (17 → 16), as that guard's message prescribes.
   - HANDOFF: `npx vitest run tests/tooling` 17 files, 200 passed | 1 skipped; lint 0; typecheck 0; full `npm test` 333 files, 3007 passed | 1 skipped (from a whole log, on 6fdad28 plus this entry). Status untouched; no spec gaps.
+- 2026-10-03 — Re-review (2026-10-03, reviewer thread, sonnet) of the fix pass, 978b10d..01ca5d3. **Blocking remaining: no.**
+  - Item 1, version parse: **fixed.** `types-node-pin.test.ts:35-39` (`declaredMajor`) reads `22`, `>=22`, `22.x` and more (`:70-72`), throws "cannot read a Node major…" without one. TDD order: red da46620 → green a5a8686.
+  - Item 2, `FROM node:` lines: **fixed.** `:46-51` uses `matchAll`, one major required, throws on none or on differing majors; test `:74-78`. Red cc18fab → green 416213e.
+  - Item 3, cleanup (240e14f): **fixed.** `ignoreRules()` `:26-32` with the assumed layout commented (`yaml` is not in package.json dependencies, checked); `interface Pkg` `:14`; repo root via `fileURLToPath` `:11`; stale "(22)" dropped from dependabot.yml. Refactor, no red possible.
+  - Item 4, builder entry: **fixed.** The fix-pass entry says the assertion was born green and the owner kept it.
+  - 6fdad28: the `GRACE` line is identical to `main`'s (Dependabot #10 merge). The dry-run merge with `origin/main` (`git merge-tree`) is clean for the test file. **It conflicts in the ticket file, both sides appended `## Comments` entries.** The merge thread resolves it by keeping both. On the merged result (conflict resolved by keeping both) `ticket-workflow.test.ts`: 59 passed.
+  - `npx vitest run tests/tooling` (docker info ok, whole log, exit 0): 17 files, 200 passed | 1 skipped.
