@@ -290,3 +290,42 @@ Spec: 3 findings (0 blocking / 0 should-fix / 3 nit). Worst: unverified test cou
   - Nits: characterisation commit `21298d40` and the `ce39b292` label (`refactor` that also touched a runbook row): **left, history**; the new characterisation commit above says in its message that it passes at once. Spec nits: counts now read (see above); the `PENDING_DEPLOY_ID` window stays as disclosed.
 
   HANDOFF: nothing open on my side. Owner items unchanged: the `makam-deploy-status` ref fix, and the SumoPod read call unverified against SumoPod.
+
+### Re-review 3 of the preflight (2026-10-03, reviewer thread, sonnet; head 889b3a16, fixed point 4fab4b19 = merge-base with origin/main; delta since re-review 2: 73812699..889b3a16, 5 commits)
+
+Not money code, so sonnet. I reviewed the delta myself on both axes instead of spawning two sub-agents: it is 4 files (`.gitleaks.toml`, `makam-preflight`, its test, this ticket), about 25 changed lines of code. The clone was shallow; I ran `git fetch --unshallow` so the merge-base and the gitleaks scan cover full history.
+
+**Checks run by me, counts read off whole logs**
+- gitleaks (CI's pinned `v8.30.1@sha256:c00b6bd0…`, `git . --config .gitleaks.toml --redact --no-banner`, all fetched refs): 1444 commits scanned, "no leaks found", exit 0. `gl.log` deleted.
+- `npx vitest run tests/tooling src/cli`: 33 files passed, 360 passed | 1 skipped (361), exit 0. Preflight + env-check alone: 2 files, 39 tests, exit 0.
+- `npm run lint`: exit 0 (0 errors, 6 warnings). `npm run typecheck`: exit 0. The full suite was not run (the orchestrator's).
+- The new endpoint test run against the pre-refactor script (`0bae7ee6`'s version of `makam-preflight`, swapped in temporarily, then restored): 1 passed. So the builder's characterisation claim is true.
+- The script itself was not run against a host.
+
+**Gitleaks entry (`e6715313`)**: follows the file's header. One `[[allowlists]]` entry, the exact fixture value only (no wildcard), `regexTarget = "secret"`, the file named in the description (`src/cli/env-check-command.test.ts`), no `paths`, no directory or rule-wide entry. OK.
+
+## Standards
+- Red/green order of the fix-pass-3 commits: `e6715313` (gitleaks) is one behaviour; its red (CI's scan exit 1) is the real scan and green is exit 0 after the entry: OK. `0bae7ee6` (test) → `48f250ff` (refactor): the test passes against its parent by design (a characterisation, stated in its message) and stays green after the refactor, which changes no behaviour; that is a legitimate pair, not a wrong-reason red. `48f250ff` also deletes the source-reading test in the same commit: fine, since its replacement landed one commit earlier.
+- `${endpoint:+--endpoint-url "$endpoint"}` (`makam-preflight:253-256`): the quoted URL survives word splitting, there is no array, so no bash-version issue. The new test asserts the outcome (what aws received), not source text.
+- nit: `48f250ff` is one commit for a refactor plus a test deletion; harmless.
+
+Standards: 1 finding (0 blocking / 0 should-fix / 1 nit).
+
+## Spec
+Items of re-review 2, one by one:
+- Standards 1 (SumoPod interrupt test not red against its parent): **BELUM, accepted as history.** Fixing it needs a rewrite of pushed history; the builder recorded the evidence in the second fix-pass entry. Not a behaviour risk.
+- Standards 2 (shared fake and two tests in one commit, horizontal slicing): **BELUM, accepted as history**, same reason.
+- Standards 3 (endpoint-array red that also matched the fixed form): **OK**: the array and the red are gone.
+- Standards 4 (test that reads source text): **OK**: deleted, replaced by an outcome test (verified above).
+- Standards 5 (nit, `21298d40` message): **BELUM, accepted as history**; the new characterisation commit says it passes at once.
+- Standards 6 (nit, `ce39b292` label): **BELUM, accepted as history.**
+- Spec nit, counts not reproducible: **OK**: I read 39 / 360 myself, consistent with the builder's 80 over five files.
+- Spec nit, "removed on any way out" comment: **OK**, unchanged and true.
+- Spec nit, `PENDING_DEPLOY_ID` window: **BELUM, accepted** (disclosed, orphan is a deletable `preflight` environment).
+Fixed: 4 of 9 OK, 5 BELUM (all history or accepted, none behaviour).
+
+New: nothing narrowed or over-built; main-CI fix (gitleaks) is in and clean.
+
+Spec: 0 new findings.
+
+**Result**: new 0 blocking / 0 should-fix / 1 nit; gitleaks clean; tests, lint, typecheck green on the head. Hard remaining: **no**. The branch is clean to merge; the remaining BELUM items are history that cannot be changed without rewriting pushed commits. Ticket boxes stay unticked.
