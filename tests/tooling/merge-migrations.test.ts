@@ -264,3 +264,12 @@ describe("the renumber command line's exit code", () => {
     expect(git(cwd, "status", "--porcelain").trim()).toBe("");
   });
 });
+
+describe("refs handed to the renumber helper", () => {
+  it("must resolve to a commit through git, never reach git as an option", () => {
+    const cwd = fixtureRepo();
+
+    expect(() => renumberForMerge({ cwd, branchRef: "--abort", baseRef: "HEAD" })).toThrow(/"--abort" is not a commit/);
+    expect(() => renumberForMerge({ cwd, branchRef: "no-such-branch", baseRef: "HEAD" })).toThrow(/"no-such-branch" is not a commit/);
+  });
+});
