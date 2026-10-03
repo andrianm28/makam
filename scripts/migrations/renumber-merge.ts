@@ -29,6 +29,8 @@ export type RenumberResult = {
   setAside: string[];
   /** Ticket files (`.scratch/**\/*.md`) whose conflict was resolved by keeping both sides. */
   unionResolved: string[];
+  /** Any other conflict: reported, left unresolved, never touched. */
+  codeConflicts: string[];
 };
 
 /** Keeps both sides of every conflict hunk (ours, then theirs); the diff3 base section is dropped. */
@@ -67,11 +69,14 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
   }
 
   const unionResolved: string[] = [];
+  const codeConflicts: string[] = [];
   for (const file of lines(git(cwd, ["diff", "--name-only", "--diff-filter=U"]))) {
     if (/^\.scratch\/.*\.md$/.test(file)) {
       writeFileSync(path.join(cwd, file), unionConflictMarkers(readFileSync(path.join(cwd, file), "utf8")));
       git(cwd, ["add", "--", file]);
       unionResolved.push(file);
+    } else if (!file.startsWith("drizzle/")) {
+      codeConflicts.push(file);
     }
   }
 
@@ -89,7 +94,7 @@ export function renumberForMerge(options: RenumberOptions): RenumberResult {
   git(cwd, ["checkout", base, "--", ...restore]);
   const stray = lines(git(cwd, ["diff", "--name-only", base, "--", ...restore]));
   if (stray.length > 0) throw new Error(`could not restore ${base}'s copy of: ${stray.join(", ")}`);
-  return { asideDir, setAside, unionResolved };
+  return { asideDir, setAside, unionResolved, codeConflicts };
 }
 
 if (require.main === module) {
@@ -100,5 +105,8 @@ if (require.main === module) {
   }
   const result = renumberForMerge({ cwd: process.cwd(), branchRef, baseRef });
   console.log(`Set aside ${result.setAside.length} migration file(s) in ${result.asideDir}`);
+  for (const file of result.unionResolved) console.log(`Ticket file resolved by union: ${file}`);
+  for (const file of result.codeConflicts) console.log(`CODE CONFLICT (not resolved): ${file}`);
+  if (result.codeConflicts.length > 0) process.exit(1);
   console.log("Next: npm run db:generate, then npx tsx scripts/migrations/merge-proofs.ts " + result.asideDir);
 }
