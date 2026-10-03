@@ -8,10 +8,16 @@ function deny(message) {
   process.exit(2);
 }
 
+const notes = []; // advice for an allowed command, shown to the agent as additional context
+
 let raw = "";
 process.stdin.on("data", (c) => (raw += c)).on("end", () => {
   try {
     decide(raw);
+    if (notes.length) {
+      process.stderr.write(`${notes.join("\n")}\n`);
+      process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: notes.join("\n") } }));
+    }
   } catch (e) {
     deny(`could not decide (${e?.message ?? e}); refusing the command (fail-closed). Run it from a plain shell step without chaining, or ask the owner.`);
   }
@@ -26,7 +32,7 @@ function decide(text) {
   for (const words of all) noPullRequest(words);
   const sent = pushes(all, cwd);
   for (const push of sent) noPushToMain(push);
-  for (const push of sent) noSecrets(push);
+  for (const cwdOfPush of new Set(sent.map((p) => p.cwd))) noSecrets(cwdOfPush);
 }
 
 const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
@@ -236,13 +242,49 @@ function noPushToMain(push) {
     deny(
       "this push reaches `main`, and only the merge thread pushes to `main` (the coordinator only for docs; AGENTS.md: never push to `main`). " +
         "Push your outcome branch instead: `git push -u origin <ticket-NN-slug>`. " +
-        "If you are the merge thread or the coordinator, say so once with `echo merge > \"$(git rev-parse --git-dir)/makam-main-writer\"` (coordinator: `echo docs`), then repeat the push.",
+        "Who may push `main` is the session ids listed in `.claude/main-writers` on `origin/main`; the coordinator lists itself and the current merge thread there before it starts that thread (docs/agents/orchestration.md, \"Enforcement in settings\").",
     );
   }
 }
 
-/** Who the session says it is: `merge` (the merge thread) or `docs` (the coordinator), from a marker in the git dir. */
+/**
+ * Who this session is for pushing `main`: `merge` (the merge thread) or `docs` (the coordinator), or null.
+ * The platform's session id is looked up in `.claude/main-writers` as it stands on origin/main, so a thread cannot grant itself the role.
+ * Only without a session id (an unknown platform) does it fall back to a marker the session wrote in its git dir, and says so.
+ */
 function mainWriter(push) {
+  const sid = process.env.CLAUDE_CODE_REMOTE_SESSION_ID;
+  if (!sid) {
+    notes.push(
+      "guard-git: CLAUDE_CODE_REMOTE_SESSION_ID is not set, so who may push `main` falls back to the self-declared marker in the git dir " +
+        "(makam-main-writer), which a thread can write for itself. Check this session's role by hand.",
+    );
+    return markerRole(push);
+  }
+  const id = sid.replace(/^[A-Za-z]+_/, ""); // cse_X and session_X name the same session
+  return roleIn(readWriters(push), id) ?? roleIn(readWriters(push, true), id);
+}
+
+/** The text of .claude/main-writers on origin/main, after a fetch when `fetch` is set; empty when there is none. */
+function readWriters(push, fetch = false) {
+  try {
+    if (fetch) execFileSync("git", [...(push.gitDir ? [`--git-dir=${push.gitDir}`] : []), "fetch", "-q", "origin", "main"], { cwd: push.cwd, stdio: "ignore", timeout: 30000 });
+    return git(push, ["show", "origin/main:.claude/main-writers"]);
+  } catch {
+    return "";
+  }
+}
+
+/** Lines of `<session id> <merge|docs> [note]`; blank lines and `#` comments are skipped. */
+function roleIn(text, id) {
+  for (const line of text.split("\n")) {
+    const [who, role] = line.trim().split(/\s+/);
+    if (who === id && (role === "merge" || role === "docs")) return role;
+  }
+  return null;
+}
+
+function markerRole(push) {
   try {
     const value = readFileSync(path.resolve(push.cwd, git(push, ["rev-parse", "--git-dir"]).trim(), "makam-main-writer"), "utf8").trim();
     return value === "merge" || value === "docs" ? value : null;
@@ -265,18 +307,16 @@ function changedOutsideDocs(push, src) {
 }
 
 /** CI runs gitleaks on `main` only, so a secret on a ticket branch would be published unscanned: scan before the push. */
-function noSecrets(push) {
-  const { cwd } = push;
+function noSecrets(cwd) {
   const r = spawnSync("gitleaks", ["detect", "--source", ".", "--log-opts", "origin/main..HEAD", "--redact", "--no-banner"], {
     cwd,
     encoding: "utf8",
   });
   if (r.error?.code === "ENOENT") {
-    const note =
+    notes.push(
       "guard-git: gitleaks is not installed here, so the outgoing commits were NOT scanned for secrets before this push (CI scans only `main`). " +
-      "Check the diff yourself (`git diff origin/main..HEAD`) for keys, tokens and passwords before relying on it.";
-    process.stderr.write(`${note}\n`);
-    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: note } }));
+        "Check the diff yourself (`git diff origin/main..HEAD`) for keys, tokens and passwords before relying on it.",
+    );
     return;
   }
   if (r.status !== 0) {
