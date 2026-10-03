@@ -167,3 +167,20 @@ Silent failure (unmerged path not restored): guarded — unmerged drizzle paths 
 AC status: renumber helper met (caveat: merge-failure swallowing); three proofs + destructive-DDL partly (reuses `unmarkedDestructiveStatements`, but snapshot-survival and ordering gaps); ticket-file union and other conflicts reported met; tests on a fixture partly (restore-failure guard and CLI exit codes untested); docs name commands and drop "stop and report" met (byte-identical wording aside). Data flow aside-dir → `db:generate` → `merge-proofs` works as documented. No horizontal slicing.
 
 Spec: 6 findings (worst: should-fix; blocking via the shared merge-catch item).
+
+### 2026-10-03 — Fix pass (builder, from head f49fa43)
+
+Item → green commit (red commit just before it):
+1. BLOCKING merge catch: rethrow unless MERGE_HEAD → `8c487d3`; refuse non-empty `git status --porcelain` → `33e384d`.
+2. Hand-written block ends in a non-zero RE-APPEND state, never "PROOFS OK" → `802ddcc` (CLI prints the block: `a8adbd2`).
+3. Restore failure: CLI catches, prints, exits 1 → `4bd9ffd`. The library-level throw test passed on arrival (guard existed, untested), so only the CLI half was red; stated in the red commit `e2fba1f`.
+4. Exit codes tested through `renumberMergeCli` / `mergeProofsCli` (return the code): clean 0 `00f48b3`, code conflict 1 `6becd72`, usage 64 `19a4f1e`, proofs OK/FAILED `556ac33`, usage `935d731`.
+5. Zod arguments, leading `-` rejected (64): `5d902bd`, `efe2f89`; refs resolved with `rev-parse --verify --end-of-options` and the commit ids used afterwards: `876c8d0`.
+6. Every base snapshot must survive byte-equal: `7a21c63` (library), `004b3af` (CLI reads them from the base commit).
+7. Statements compared as an ordered multiset (reordered or duplicated fails): `7c4469c` (+ test fix `aa9eae8`, a single-line fixture; the earlier green had one failing test of mine).
+8. Nits: CLI shape (`import.meta.url` guard, `process.exitCode`, 64) with 3–5; header `35d0efb`; snapshot JSON validated with Zod `457f0f7`. **Pairing by journal order: not changed** (see below).
+9. Docs: "statement-identical (whitespace aside)" `c32d098`.
+
+**Spec gaps and decisions for the owner:** item 8's "pair by journal order" changes nothing in practice: drizzle tags are number-prefixed and journal order follows the number, so the existing number-first sort already pairs correctly whatever the random suffix; a characterization test (`35d0efb`, already green, not a red) pins it. Say so if you still want the journal read. The CLIs were also run for real under tsx (usage, exit 64) but not against a live merge with `db:generate`.
+
+HANDOFF — head after this entry's commit. `npm run lint` and `npm run typecheck` exit 0; full `npm test`, read off the whole log: Test Files 335 passed (335), Tests 3033 passed | 1 skipped (3034). Status untouched.
