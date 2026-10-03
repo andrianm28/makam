@@ -153,3 +153,37 @@ Decided with the user on 2026-09-26 (rewritten after finding that GitHub Free of
   - **Images built before this ticket have no `dist/env-check.mjs`**; the env-schema line FAILs saying so. Use a digest built from a `main` containing it.
 
   HANDOFF: done, nothing left open on my side. Head is the last commit of `ticket-72-preflight`. Review focus: the SumoPod call and S3 defaults above (both guesses made explicit), and `check_backup_and_restore` (deletes only files that appeared during the run). Owner: decide the `makam-deploy-status` ref fix and the `--skip-s3` default; create `prod.env` with the keys listed in the runbook section before running it.
+
+### Review of the production preflight (2026-10-03, reviewer thread, sonnet; head 35a54e08, fixed point 4fab4b19 = merge-base with origin/main)
+
+Not money code, so sonnet. Tests re-run by the reviewer: `npx vitest run tests/tooling/makam-preflight.test.ts src/cli/env-check-command.test.ts` → exit 0, Test Files 2 passed (2), Tests 25 passed (25). Read-only review; the reviewer did not run the script against a host. Verified by hand: no `trap` anywhere in `makam-preflight`; the probe-Deployment inactive/delete calls discard their result (lines 472-473, 480-481); the restore step removes every new file in `backups/db` (line 356).
+
+## Standards
+
+No blocking finding. No secret value is printed on any path read: the env file is read with `sed` and never sourced, the SumoPod key and GitHub token go through 0600 header files, the S3 secret only through aws's environment, the ghcr token through `--password-stdin` into a throwaway `DOCKER_CONFIG`; no `set -x`/`curl -v`; Docker and curl output discarded or cut to 300 characters; `env-check` prints variable names only; tests assert no secret in output or fake-call logs. Fakes for every external command; no `docker prune`/`-a`; exit 1 on any FAIL, 64 on usage.
+
+- **should-fix** `makam-preflight:151,226-239,441-448,467-489`: no `trap`. An interrupt (Ctrl-C, SIGTERM) mid-run leaves the temp `DOCKER_CONFIG` (holds the ghcr token), the header files (SumoPod key, GitHub token), the S3 probe object and the GitHub probe Deployment. Add one `trap cleanup EXIT INT TERM` that removes the temp files and runs the S3 delete.
+- **should-fix** `:472-473,480-481`: the inactive-status and DELETE results are ignored, yet the PASS line says "the probe was deleted again"; a failed DELETE leaves an orphan Deployment and still PASSes. Check for 204, else FAIL/warn.
+- **should-fix** `:356`: removes every new file in `backups/db`, not only the Dump it made; a cron backup finishing in the same window is deleted. Remove only `$f` and its `.counts.enc`.
+- **should-fix** `:342`: `makam-backup-db` also prunes Dumps older than 7 days (`makam-backup-db:114-116`); the script header and runbook say "read-only" and should name this.
+- **should-fix (process, horizontal slicing)**: red tests `bffd583c` and `d5af1812` are two reds before the single green `c799fb44`. The rest alternate red/green.
+- nit `:465-466`: with no revision label `ref` becomes `sha-`, a confusing message.
+- nit `:214-215`: `"${endpoint[@]}"` on an empty array fails under `set -u` on bash < 4.4.
+- nit `:57`: the `sed` key pattern is not anchored against regex characters, and quoted values (`KEY="v"`) keep their quotes.
+- judgement (not counted): duplicated `openssl s_client` (`:125-126`) and Deployment create/status/delete (`:468-481`); unexplained `#@FUNCS`/`#@CALLS` markers; hard-coded IP and `andrianm28` (overridable); `MAKAM_PREFLIGHT_*` knobs nothing needs yet; `env-check` messages in English where the CLI uses Indonesian.
+
+Standards: 8 findings (0 blocking / 5 should-fix / 3 nit). Worst: no `trap`, so tokens and probe objects survive an interrupt.
+
+## Spec
+
+Every check the Added section names is implemented and reads real code, not a list: env schema inside the image through the app's own `readRuntimeEnv` (`dist/env-check.mjs`, shipped by `build-worker.mjs`); Docker and compose; disk and memory through `makam-diskcheck`; DNS (both hosts) and certificate `-checkend`; ghcr pull then the real `makam-verify-image`; S3 put/read-back/delete probe and bucket settings; backups bucket and key; backup then `makam-restore-test` on that very Dump; SMTP through `email-check`; SumoPod key, `whsec_` webhook secret and the forged-signature POST expecting 401; GitHub Deployment probe plus the live diagnosis that `makam-deploy-status:83` sends `ref: $TAG` (`sha-<hex>`, not a branch/tag/SHA → 422, swallowed; retried with the plain SHA); the manual SKIP items with instructions. Output is `PASS|FAIL|SKIP [ticket] name: reason` with next-step hints on FAIL; runbook flags (`--env --digest --email-to --skip-s3 --webhook-url`) match the script; install-host installs it; the Rehearsal item names it first. The builder's "why none are listed" finding is plausible and flagged as unconfirmed on the host; workflows only read Deployments, so nothing contradicts it.
+
+- **should-fix** "the API key authenticates on a read-only call": the check is `GET /api/v1/payments/<nonexistent>` and treats 200 *or* 404 as PASS. Only `POST /api/v1/payments` is known, so a wrong path or a router 404 before auth gives a vacuous PASS. Add a negative control (same call with a bad key must give 401) or make the PASS line say "path unverified".
+- **should-fix** "bucket settings … where the CLI can read them": public access, versioning and encryption are SKIP with the app key (object-level IAM only), so the owner will normally see three SKIPs and nothing proven. Honest, but the runbook should say these are a console check unless a read-capable key is given.
+- nit: `check_backup_key` runs under `--skip-s3` (fine, local backups need no S3).
+- nit: the webhook route in code is `/api/webhooks/pembayaran`, ticket 04 and nginx say `/api/webhooks/sumopod`; the default URL is `$APP_BASE_URL`, which before the nginx switch hits the OLD app, so the owner must pass `--webhook-url` (the runbook says so, the FAIL line says so).
+- nit: `GHCR_READ_TOKEN` and the S3 settings are new env names the spec did not give; documented, not scope creep.
+
+Spec: 5 findings (0 blocking / 2 should-fix / 3 nit). Worst: SumoPod key check can pass vacuously on a wrong path. No scope creep beyond the `env-check` CLI the spec requires.
+
+Combined, for the fix pass (builder): the five Standards should-fix and the two Spec should-fix. The ticket's tick boxes stay unticked.
