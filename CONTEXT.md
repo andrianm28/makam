@@ -267,8 +267,8 @@ The question the Admin Platform puts to the TPU, without charge, when a Perpanja
 _Avoid_: Verifikasi TPU, cek kadaluarsa
 
 **Perpanjangan Makam**:
-Extending a fixed-term Hak Pakai (at a Lokasi Mitra) or a TPU permit by one or more further terms.
-_Avoid_: Renewal, sewa ulang
+Extending a fixed-term Hak Pakai at a Lokasi Mitra by one or more further terms. Renewing the IPTM of a Makam TPU is a Perpanjangan TPU, never a Perpanjangan Makam.
+_Avoid_: Renewal, sewa ulang, Perpanjangan Makam for a TPU permit
 
 **IPTM**:
 Izin Penggunaan Tanah Makam, the Pemda permit for a grave at a DKI TPU, issued for a fixed term and renewed through Pengurusan; the TPU counterpart of a Hak Pakai.
@@ -413,7 +413,7 @@ How soon a row of the Antrean wants an answer, which is what puts it in which li
 _Avoid_: Prioritas, urgensi, level (for a tier)
 
 **Telepon Pemesan**:
-A Tier 2 Antrean row asking a staff member to call a Pemesan: the family has to act and email is not enough (a money message that failed for good, an order submitted with no email, a Saat Duka Tagihan Lewat Jatuh Tempo, a Hak Pakai nearing its end). One open row per subject, no deadline of its own, closed once a staff member logs the call and what they found; a declined order keeps its Tier 1 call instead.
+A Tier 2 Antrean row asking a staff member to call a Pemesan: the family has to act and email is not enough (a money message that failed for good, an order submitted with no email, a Saat Duka Tagihan Lewat Jatuh Tempo, a Hak Pakai nearing its end, an IPTM nearing its end when neither the Pemegang Hak nor the Akun has an email). One open row per subject, no deadline of its own, closed once a staff member logs the call and what they found; a declined order keeps its Tier 1 call instead.
 _Avoid_: Telepon CS, telephon, follow-up call, tiket telepon
 
 **Tugas Lapangan**:

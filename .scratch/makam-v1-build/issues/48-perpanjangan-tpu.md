@@ -1,6 +1,6 @@
 # Perpanjangan TPU (IPTM renewal)
 
-Status: resolved
+Status: ready-for-agent
 Blocked by: 47
 Spec: Domain modules > 8. Pengurusan (Perpanjangan TPU statuses, expiry date, past-grace check, PTSP rejection); 15. Notifications (IPTM expiry reminders); 14. Work Queues (Tier 3 past-grace TPU check, filing-only check and filing); stories 79, 80, 81, 82, 83
 
@@ -21,6 +21,13 @@ IPTM renewal for a Makam TPU. Reminders go to the Pemegang Hak 3 months and 1 mo
 ## Added (2026-09-25)
 
 - [ ] ~~Optional email field on the order screen (copies of Tagihan / Bukti by email through SumoPod SMTP; SES dropped 2026-09-25), as in spec "Booking wizards".~~ (superseded: ADR 0004, as ticket 47)
+
+## Added (2026-10-03, owner decisions after the merge)
+
+- [ ] **Q1, fix now:** a Perpanjangan TPU no longer stores burial data it does not own. In an expand-only migration the burial columns of the Pengurusan order (`almarhum_name`, `tanggal_wafat`, `jenis_penguburan`, `kelayakan`) become nullable; a Perpanjangan TPU stores none of them (no copied Almarhum, no faked `kelayakan`, no `tumpang`), the other two kinds still require them (domain rule, tested), and every reader and screen handles their absence. Run the migration checker; a DROP NOT NULL needs no contract line, anything else destructive does.
+- [ ] **Q4, Telepon Pemesan:** when an IPTM reminder (3 months or 1 month before expiry) finds no email for the Pemegang Hak nor the Akun, it opens a Telepon Pemesan row for that Makam TPU (one open row per subject, as CONTEXT.md defines it) instead of only counting it as skipped; the row is not opened twice for the same reminder, and none once a Perpanjangan TPU is ordered.
+- Q2 confirmed: the filing documents are the IPTM scan, Surat Kuasa bermaterai, KTP and KK. Q3 confirmed: the past-grace TPU check row is due 1 working day after the request.
+- Tests: a Perpanjangan TPU stores no Almarhum or burial type and the other kinds still refuse without them; the no-email reminder opens one Telepon Pemesan row.
 
 ## Comments
 
@@ -117,3 +124,4 @@ Head: 6670c10 (before fix pass). Review entry: both Spec should-fix items from t
 - 2026-10-02 — Merged to main by the orchestrator. Two-axis review: 2 should-fix (spec) raised to blocking (double charge, past-grace bypass) and fixed, 2 should-fix (standards) fixed, re-reviewed item by item (hard remaining no). Merge gate on the merged tree (migrations 0060–0061, no renumbering needed, clean db:generate): typecheck, lint (0 errors), build, full suite 332 files / 2983 tests passed (1 skipped), exit 0.
 - Open for the owner (not blocking): Q1 renewal stored as a `tumpang`-type order row (accept for v1; nullable columns in a later contract release?); Q2 the filing document list (IPTM scan, Surat Kuasa bermaterai, KTP, KK) against the PTSP's real list; Q3 the past-grace TPU check deadline of 1 working day; Q4 no Telepon Pemesan row when a reminder has no email. Also: the glossary entry "Perpanjangan Makam" still says "or a TPU permit", overlapping "Perpanjangan TPU". Browser check of the new screens owed.
 - 2026-10-02 — Main CI 359 red on the destructive-DDL check only (the partial UNIQUE index in 0061 lacked a `-- contract:` line); fixed in d3135c0 with the reason (no release before 48 writes a `perpanjangan_tpu` order, as 0023); main CI 360 green including E2E and signing.
+- 2026-10-03 — Owner decisions (grilling, options tool): Q1 fix now (burial columns nullable, not stored for a Perpanjangan TPU); Q2 document list confirmed; Q3 1 working day confirmed; Q4 Telepon Pemesan row when a reminder has no email; glossary: Perpanjangan Makam is the Lokasi Mitra Hak Pakai only (CONTEXT.md updated). Ticket reopened as ready-for-agent for the two Added items.
