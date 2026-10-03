@@ -14,7 +14,9 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
   // Agent calls take an alias; create_session takes an alias or a full id such as claude-opus-5-5.
   const tier = ["sonnet", "haiku", "opus"].find((t) => typeof input.model === "string" && input.model.includes(t));
   const name = `${input.title ?? ""} ${input.description ?? ""}`;
-  const isReview = input.subagent_type === "reviewer" || /^\s*(re-?)?review\b/i.test(name);
+  // A title or description that opens with another role (Build, Fix, Docs, Research, Merge) is not a review even when its prompt mentions one.
+  const otherRole = /^\s*(build|fix|docs|research|merge)\b/i.test(name);
+  const isReview = input.subagent_type === "reviewer" || (!otherRole && /\b(re-?)?review/i.test(`${name} ${input.prompt ?? ""}`));
   const isMoney = /\b(billing|payouts?|refunds?|tagihan|payment|pembayaran)\b/i.test(`${name} ${input.prompt ?? ""}`);
   if (isReview && isMoney && tier !== "opus") {
     process.stderr.write(

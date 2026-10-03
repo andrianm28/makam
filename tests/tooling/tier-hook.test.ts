@@ -56,7 +56,7 @@ describe("a review named anywhere in the call", () => {
     expect(agent({ model: "haiku", description: "Code review of Billing", prompt: "x" }).status).toBe(2);
     expect(agent({ model: "sonnet", description: "Check the refund diff", prompt: "review the Payouts code" }).status).toBe(2);
     expect(agent({ model: "haiku", description: "Check src/lib", prompt: "Please review the helpers" }).status).toBe(2);
-    expect(createSession({ title: "Merge-check ticket 12", prompt: "re-review the Tagihan change", model: "claude-sonnet-5-5" }).status).toBe(2);
+    expect(createSession({ title: "Check ticket 12", prompt: "re-review the Tagihan change", model: "claude-sonnet-5-5" }).status).toBe(2);
     expect(agent({ model: "opus", description: "Check the refund diff", prompt: "review the Payouts code" }).status).toBe(0);
   });
 
