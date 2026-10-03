@@ -149,3 +149,5 @@ What the owner still has to do, either way:
     1. nit — the third bullet of the Added section still says "this ticket's unticked AC4 … ticked if they prove it"; stale now that AC4 is ticked on proof (owner's original text, so left to the owner).
     - Count: 1 (0 blocking / 0 should-fix / 1 nit). Worst: stale wording in the Added section (nit).
   - **Result:** all 11 earlier findings FIXED or left with an accepted reason; new findings 0 blocking / 0 should-fix / 4 nit. Hard remaining: **no**.
+
+- 2026-10-03 — Merged to main by the merge thread (the example catalog goes to production). Two-axis review (ad27d53): 1 blocking and 5 should-fix findings, fixed in 60497f4 and re-reviewed item by item on sonnet (af9a575: 11 of 11 fixed or left with an accepted reason, new 0 blocking / 0 should-fix / 4 nit, hard remaining no). Two-axis review complete (Standards + Spec). No migration, lockfile unchanged. Gate on the merged tree (with ticket 98's text-only branch): typecheck, lint, build, full suite 336 files / 3046 tests passed (1 skipped), exit 0.
