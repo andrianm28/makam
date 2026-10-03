@@ -10,7 +10,7 @@ Rebuilt from ticket 65, spec "Release plan", and runbook "Promoting to productio
 - [ ] **Cosign key pairs** exist (staging + production); public keys installed by `deploy/install-host.sh` — ticket 72 "Rehearsal".
 - [ ] **Live SumoPod keys** ready to install on the switch day (project key, webhook secret, webhook URL `https://makam.co.id/api/webhooks/pembayaran`).
 - [ ] **Production runs on SumoPod's sandbox** (owner, 2026-10-03): `prod.env` has `SUMOPOD_BASE_URL=https://api-pay-sandbox.sumopod.com` with the sandbox API key and `whsec_` secret of the same project as staging. The trial banner (ticket 101) shows to visitors; the preflight's live-host key check fails until ticket 101 (expected). Only `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` and `SUMOPOD_BASE_URL` are read; the `whtok_` token is not used.
-- [ ] **Open question, before the switch:** can a SumoPod project hold a second webhook URL (`https://makam.co.id/api/webhooks/pembayaran`)? If not, the owner chooses: a second sandbox project for production, or staging without webhooks after the switch. Until then the sandbox webhook is `https://dev.makam.co.id/api/webhooks/pembayaran`; an event reaching the environment that did not create the payment becomes a "perlu ditinjau" item (`pembayaran_tidak_dikenal`).
+- [ ] **Before the switch: finish the UAT payment cases on staging** (owner decision 2026-10-03). A SumoPod project has two environments, sandbox and live, each with exactly one webhook URL, and the owner chose one project: after the switch staging's sandbox payments are not confirmed. A staging payment whose event arrives after the switch shows in production as a "perlu ditinjau" item (`pembayaran_tidak_dikenal`) and is resolved as such.
 - [ ] UAT bayar terbukti (ticket 61 ACs) — needs `pay.sumopod.com` reachable + a working Admin Lokasi for the test order's Lokasi.
 
 ## 1. Rehearsal (ticket 72) — no nginx change
@@ -33,6 +33,7 @@ gh release list
 ## 3. Switch (owner, on the day)
 
 - [ ] Install the SumoPod key/secret/webhook URL on production only (sandbox values for now, see section 0; the live ones when SumoPod leaves its sandbox).
+- [ ] Move the sandbox webhook URL in the SumoPod project from `https://dev.makam.co.id/api/webhooks/pembayaran` to `https://makam.co.id/api/webhooks/pembayaran` (owner). When production moves to SumoPod's live environment, its webhook goes to the live URL and the sandbox URL can return to staging.
 - [ ] Back up the current `makam.co.id` / `www` nginx block **verbatim**.
 - [ ] Replace it with one proxying to `makam-prod` `web` (`127.0.0.1:3100`), keeping the Certbot certificate.
 - [ ] `nginx -t` passes **before** reload.
