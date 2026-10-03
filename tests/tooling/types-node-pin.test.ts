@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // Ticket 71, owner decision 2026-10-03: production, staging and CI run the
@@ -6,14 +8,27 @@ import { describe, expect, it } from "vitest";
 // (types for a newer Node would let code use APIs the runtime lacks, failing
 // only at runtime). Dependabot is told not to propose major bumps, and the
 // declared range is checked against the Dockerfile.
-const read = (p: string) => readFileSync(new URL(`../../${p}`, import.meta.url), "utf8");
+const repo = fileURLToPath(new URL("../..", import.meta.url));
+const read = (p: string) => readFileSync(path.join(repo, p), "utf8");
 
-/** The text of the `package-ecosystem: npm` entry in dependabot.yml. */
-function npmEntry(): string {
+interface Pkg {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+}
+
+/**
+ * The `ignore` rules (one text block each) of the `package-ecosystem: npm`
+ * entry in dependabot.yml. `yaml` is not a direct dependency, so this assumes
+ * the file's layout: entries are `  - package-ecosystem:` at two spaces, the
+ * `ignore:` key at four, its rules `      - …` at six. A reformat makes the
+ * "has an ignore block" assertion fail, not pass.
+ */
+function ignoreRules(): string[] {
   const entries = read(".github/dependabot.yml").split(/^ {2}- (?=package-ecosystem:)/m);
-  const entry = entries.find((e) => /^package-ecosystem:\s*npm\s*$/m.test(e));
-  if (!entry) throw new Error("no npm entry in .github/dependabot.yml");
-  return entry;
+  const npm = entries.find((e) => /^package-ecosystem:\s*npm\s*$/m.test(e));
+  if (!npm) throw new Error("no npm entry in .github/dependabot.yml");
+  const block = npm.match(/^ {4}ignore:\s*\n((?: {6,}.*\n?|\s*#.*\n?)+)/m);
+  return block ? block[1]!.split(/^ {6}- /m) : [];
 }
 
 /** The major a `package.json` range such as `^22.20.4` declares. */
@@ -37,16 +52,16 @@ function dockerNodeMajor(dockerfile: string): string {
 
 describe("@types/node follows the runtime's Node major", () => {
   it("Dependabot's npm entry ignores semver-major updates of @types/node", () => {
-    const ignore = npmEntry().match(/^ {4}ignore:\s*\n((?: {6,}.*\n?|\s*#.*\n?)+)/m);
-    expect(ignore, "npm entry has an ignore block").not.toBeNull();
-    const rule = ignore![1]!.split(/^ {6}- /m).find((r) => /dependency-name:\s*["']?@types\/node["']?\s*$/m.test(r));
+    const rules = ignoreRules();
+    expect(rules, "npm entry has an ignore block").not.toHaveLength(0);
+    const rule = rules.find((r) => /dependency-name:\s*["']?@types\/node["']?\s*$/m.test(r));
     expect(rule, "ignore rule for @types/node").toBeDefined();
     expect(rule).toMatch(/update-types:\s*\[\s*["']version-update:semver-major["']\s*\]/);
   });
 
   it("package.json's @types/node major equals the Dockerfile's node: major", () => {
     const docker = dockerNodeMajor(read("Dockerfile"));
-    const declared = (JSON.parse(read("package.json")) as { devDependencies?: Record<string, string>; dependencies?: Record<string, string> });
+    const declared = JSON.parse(read("package.json")) as Pkg;
     const range = declared.devDependencies?.["@types/node"] ?? declared.dependencies?.["@types/node"];
     expect(range, "@types/node declared").toBeDefined();
     expect(declaredMajor(range!)).toBe(docker);
