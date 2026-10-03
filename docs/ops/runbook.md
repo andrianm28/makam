@@ -1787,6 +1787,12 @@ What it checks, and what runs it:
 | GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (ref `sha-<revision>`), set inactive, deleted | 72 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
 
+Public access, versioning and encryption of the buckets are a console check
+(AWS console, bucket, Permissions / Properties) unless `S3_ACCESS_KEY_ID` is a
+read-capable key (`s3:GetBucketPublicAccessBlock`, `s3:GetBucketVersioning`,
+`s3:GetEncryptionConfiguration`): the app's object-level key may not read them, and
+then those three lines are SKIP, not proof.
+
 The S3 settings are env-file keys (they are not read by the app in v1, which
 keeps its FileStore on the host disk): `S3_REGION` (`ap-southeast-3`),
 `S3_BUCKET_FILES`, `S3_BUCKET_BACKUPS`, `S3_ACCESS_KEY_ID`,
