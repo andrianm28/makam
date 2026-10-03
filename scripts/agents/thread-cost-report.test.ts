@@ -68,3 +68,15 @@ describe("thread cost report: coordinator wake causes", () => {
     expect(r.causes.owner).toMatchObject({ units: 500, wakes: 1 });
   });
 });
+
+describe("thread cost report: a week", () => {
+  it("keeps only the threads created and the wakes that happened between --since and --until (whole days)", () => {
+    const r = json([fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--since", "2026-10-02", "--until", "2026-10-08"]);
+    expect(r.threads.map((t: { session_id: string }) => t.session_id).sort()).toEqual(["sess-b", "sess-d", "sess-e"]);
+    expect(r.tickets).toEqual({ "aos-05": 0.5, "aos-07": 1, unknown: 0 });
+    expect(r.total).toBe(11.5);
+    expect(r.causes.watcher).toMatchObject({ units: 1100, wakes: 1 });
+    expect(r.causes["hourly-poll"]).toMatchObject({ units: 200, wakes: 1 });
+    expect(r.causes.owner).toBeUndefined();
+  });
+});
