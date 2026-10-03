@@ -57,6 +57,13 @@ describe("the production block for makam.co.id and www", () => {
     expect(block).not.toMatch(/X-Robots-Tag/);
   });
 
+  it("starts HSTS at one day, and the runbook says when to raise it to a year", () => {
+    expect(block).toMatch(/Strict-Transport-Security "max-age=86400" always;/);
+    expect(block).not.toMatch(/max-age=31536000/);
+    const runbook = read("docs/ops/runbook.md");
+    expect(runbook).toMatch(/two (stable )?weeks[^]*max-age=31536000/);
+  });
+
   it("leaves the payment webhook reachable with no auth of any kind", () => {
     expect(block).toMatch(/location = \/api\/webhooks\/pembayaran \{/);
     expect(block).not.toMatch(/auth_basic|auth_request|allow |deny (?!all;\s*access_log)/);
