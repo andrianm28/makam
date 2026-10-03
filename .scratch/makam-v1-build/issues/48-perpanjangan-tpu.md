@@ -171,3 +171,15 @@ Items → commits (red → code): 1 `!` assertions replaced by a `status_tidak_s
 Verification: lint 0 errors, typecheck clean, full `npm test` read off a whole log: Test Files 332 passed (332), Tests 2998 passed | 1 skipped (2999), exit 0.
 
 HANDOFF: fix pass complete; remaining: browser check of the renewal pages without Almarhum.
+
+### Re-review (2026-10-03, reviewer thread, sonnet)
+
+Head 680c33c (local checkout was a stale 380e311; fast-forwarded to origin before reviewing). `git diff 711cbf0 HEAD`. `npx vitest run src/domain/pengurusan src/domain/notifications`, whole log: Test Files 23 passed (23), Tests 205 passed (205), exit 0.
+
+1. **Fixed.** `tawarkan-tpu-lain.ts:149` refuses `status_tidak_sesuai` before `daftarDokumen`; `konfirmasi-saat-duka-tpu.ts:137-138` refuses on null Almarhum/tanggal wafat and uses the narrowed locals (no `!` left); `konfirmasi-tpu-terbuka.ts:48-62` skips such rows. Tested in `tawarkan-tpu-lain.test.ts` (both refusals + empty list). TDD: red 4a465d3 then code 83777eb.
+2. **Fixed.** `perpanjangan-tpu.ts:133` calls `notifikasi.tutupTeleponPemesanSubjek("makam_tpu", makam.id, …, tx)` inside the order's `refusable` transaction; implemented in `notifications/telepon-pemesan.ts` (closes only rows with `ditutupPada` null) and exposed in `notifications/index.ts`. Pengurusan has no reference to `notifications_telepon_pemesan`. Test in `perpanjangan-tpu.test.ts`. TDD: red 78078f8, code a93ad70.
+3. **Fixed (pin).** `perpanjangan-tpu.test.ts` "leaves a 3-month row that is still open alone…", commit 825372a, green on arrival as stated. Behaviour is written only in the builder's Fix pass entry (ticket line ~169), not in the ACs/body. Minor: say it next to the Q4 AC.
+4. **Fixed.** Migration 0063: partial unique index on (subject_kind, subject_id, kunci) WHERE kunci IS NOT NULL, `-- contract:` reason is accurate (kunci added in 0062 same release); `check-destructive-ddl.ts` reports "No unmarked destructive DDL". Insert uses `.onConflictDoNothing()` (`telepon-pemesan.ts:109`); a closed-row conflict returns the existing row (`:123-138`). Test: six concurrent ticks, one history row. **Process finding:** 025b16d has no separate `test(red)` commit before it; the builder's reason (race has no deterministic red) is stated, test was green before the index.
+5. **Fixed.** `reads.ts` exports `blokMakamOf` (returns null without a query unless `kind === "perpanjangan_tpu"`); `pengajuan-iptm.ts` uses it in both places. Refactor, 8bc39fc. Nit: `reads.ts:150` now has two stacked doc comments; the older Tagihan comment is orphaned above the Blok helper.
+
+Broke nothing found. Blocking remaining: no.
