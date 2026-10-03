@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -172,5 +172,40 @@ describe("makam-switch when nginx -t fails, beyond the site file", () => {
     const w = host();
     run(w, ["--ke", "v1"], { FAKE_NGINX_T_FAIL: "1" });
     expect(existsSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"))).toBe(false);
+  });
+});
+
+describe("makam-switch before it changes anything", () => {
+  it("refuses, naming the file, when a file it installs is missing, and leaves the site file alone", () => {
+    const w = host();
+    rmSync(path.join(w.src, "makam-prod-proxy.conf"));
+    const r = run(w, ["--ke", "v1"]);
+    expect(r.code).toBe(78);
+    expect(r.output).toContain("makam-prod-proxy.conf");
+    expect(site(w)).toBe(OLD_BLOCK);
+    expect(backupFiles(w)).toEqual([]);
+  });
+
+  it("installs on a host that has no site file yet, with a note rather than a bare error", () => {
+    const w = host();
+    rmSync(path.join(w.nginx, "sites-available", "makam.co.id.conf"));
+    const r = run(w, ["--ke", "v1"]);
+    expect(r.code).toBe(0);
+    expect(r.output).toMatch(/no current block/i);
+    expect(site(w)).toBe(readFileSync(path.join(repo, "deploy/nginx/makam.co.id.conf"), "utf8"));
+  });
+
+  it("failing nginx -t on a first install removes the block it just wrote", () => {
+    const w = host();
+    rmSync(path.join(w.nginx, "sites-available", "makam.co.id.conf"));
+    const r = run(w, ["--ke", "v1"], { FAKE_NGINX_T_FAIL: "1" });
+    expect(r.code).toBe(1);
+    expect(existsSync(path.join(w.nginx, "sites-available", "makam.co.id.conf"))).toBe(false);
+  });
+
+  it("asks for a target with the usage line when --ke has none", () => {
+    const r = run(host(), ["--ke"]);
+    expect(r.code).toBe(64);
+    expect(r.output).toMatch(/usage:/);
   });
 });
