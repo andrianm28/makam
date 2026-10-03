@@ -18,7 +18,9 @@ function npmEntry(): string {
 
 /** The major a `package.json` range such as `^22.20.4` declares. */
 function declaredMajor(range: string): string {
-  return range.match(/(\d+)\./)![1]!;
+  const major = range.match(/^[\^~>=\s]*(\d+)/)?.[1];
+  if (!major) throw new Error(`cannot read a Node major from the @types/node range "${range}"`);
+  return major;
 }
 
 describe("@types/node follows the runtime's Node major", () => {
