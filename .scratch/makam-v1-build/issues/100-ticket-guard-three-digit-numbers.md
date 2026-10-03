@@ -19,3 +19,11 @@ Ticket numbers have reached 100, but the ticket guard reads only two-digit names
 ### 2026-10-03 builder
 
 The guard (`tests/support/ticket-workflow.ts`) now reads ticket numbers of two or more digits: new `ticketNumber(name)`, `TICKET_FILE_NAME` = `^\d{2,}-...`, index row link `\[(\d+)\]`; `tests/tooling/ticket-workflow.test.ts` reads the tree through `ticketNumber`. The old test that asserted a `100-*.md` file is refused was replaced by one asserting it is counted. One-digit names (`9-x.md`) are still refused. Tests/tooling: 21 files, 274 passed, 1 skipped; lint and typecheck clean. No spec gaps.
+
+### 2026-10-03 review (head 819a4b98, fixed point origin/main)
+
+**Standards: 0 blocking / 0 should-fix / 3 nit.** No hard AGENTS.md violation; one red/green commit pair per behaviour. Nits: (1) `ticketNumber` assumes a dash is present (safe after the `TICKET_FILE_NAME` filter; a doc note on the precondition would help); (2) the "two or more digits" comment and `padStart(2)` are fine, no change; (3) the "index rows" describe block sits between the number tests and the naming tests, minor placement.
+
+**Spec: 0 blocking / 0 should-fix / 1 nit.** AC1–AC3 met; scope clean (tickets 101, other tickets, index rows and summary sentence untouched since fb90a143). Nit: no unit test pins the summary sentence's parenthetical list with a three-digit number; it is covered only by the real-tree check.
+
+No fix pass and no re-review: nothing blocking or should-fix. The nits are left as they are.
