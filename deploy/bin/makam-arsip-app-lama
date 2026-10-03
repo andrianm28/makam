@@ -16,12 +16,12 @@
 #      $MAKAM_ROOT/prod/backups/app-lama/ (like the nightly backups of ticket
 #      64; it is not under backups/db, so the 7-day pruning never reaches it).
 #      Nothing leaves the host: S3 is v2 (ticket 03);
-#   2. the Dump restored into a throwaway Postgres (no network, removed again)
-#      and every table's rows counted against the counts of the source: the proof.
+#   2. the dump is restored into a throwaway Postgres (no network, removed again)
+#      and every table's rows counted against the counts of the source: the proof;
 #   3. the cleanup plan is printed: the old app's containers, volumes and images
 #      (only names that start with makam-nonprod- or are the makam-app image),
 #      /home/ubuntu/makam-app, /opt/makam-notify and the old app's nginx blocks
-#      (backups under $MAKAM_ROOT/nginx-backups that point at the old upstreams).
+#      (backups under $MAKAM_ROOT/nginx-backups that point at the old upstreams);
 #   4. with --hapus, the word `hapus-app-lama` typed on stdin runs the plan.
 #
 # Nothing of makam-v1, makam-prod, makam-staging or GlitchTip is touched: the
