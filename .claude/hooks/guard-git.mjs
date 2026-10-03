@@ -1,5 +1,5 @@
 // Decision logic of guard-git.sh. Reads the PreToolUse JSON on stdin; exit 2 = refuse.
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
@@ -23,7 +23,9 @@ function decide(text) {
   if (typeof command !== "string") deny("no command in the tool input; refusing (fail-closed).");
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
   noPullRequest(command);
-  for (const push of pushes(command)) noPushToMain(push, cwd);
+  const sent = pushes(command);
+  for (const push of sent) noPushToMain(push, cwd);
+  if (sent.length) noSecrets(cwd);
 }
 
 /** AGENTS.md: the repo has no pull requests; review, then the merge thread's push to `main`. */
@@ -154,4 +156,28 @@ function changedOutsideDocs(cwd) {
     .split("\n")
     .filter(Boolean);
   return files.filter((f) => !f.startsWith("docs/") && !f.startsWith(".scratch/"));
+}
+
+/** CI runs gitleaks on `main` only, so a secret on a ticket branch would be published unscanned: scan before the push. */
+function noSecrets(cwd) {
+  const r = spawnSync("gitleaks", ["detect", "--source", ".", "--log-opts", "origin/main..HEAD", "--redact", "--no-banner"], {
+    cwd,
+    encoding: "utf8",
+  });
+  if (r.error?.code === "ENOENT") {
+    const note =
+      "guard-git: gitleaks is not installed here, so the outgoing commits were NOT scanned for secrets before this push (CI scans only `main`). " +
+      "Check the diff yourself (`git diff origin/main..HEAD`) for keys, tokens and passwords before relying on it.";
+    process.stderr.write(`${note}\n`);
+    process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: note } }));
+    return;
+  }
+  if (r.status !== 0) {
+    deny(
+      "gitleaks found a possible secret in the commits this push would send (or could not scan them). Output:\n" +
+        `${(r.stdout + r.stderr).trim().slice(0, 1500)}\n` +
+        "Remove the secret from the commits (a new commit does not remove it from history: amend or reset the unpushed commits), " +
+        "rotate it if it was real, or, for a false positive, add the accepted finding with a reason to `.gitleaks.toml` and push again.",
+    );
+  }
 }
