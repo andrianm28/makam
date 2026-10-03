@@ -163,3 +163,11 @@ Fixed point `cd0bcc2` (merge-base with `origin/main`), head `380e311`; 27 source
 - Sub-agent claim refuted by the reviewer: `staf/admin-platform/pengurusan/page.tsx:45` renders `almarhumName` from the Saat Duka TPU "Menunggu konfirmasi" list (`KonfirmasiTpu`, kind `saat_duka_tpu` only), so a renewal never appears there. No finding.
 
 Counts: Standards 3 (worst should-fix), Spec 2 should-fix + 1 nit (worst should-fix), process 1 nit. No blocking.
+
+### 2026-10-03 Fix pass (builder, sonnet, claude.ai/code thread)
+
+Items → commits (red → code): 1 `!` assertions replaced by a `status_tidak_sesuai` refusal in `jawabTpuLain` (accepting an offer) and `konfirmasiSaatDukaTpu`, and `konfirmasiTpuTerbuka` skips a row without an Almarhum (`tawarkanTpuLain` has no assertion and a kind guard) → red 4a465d3, code 83777eb. 2 ordering a Perpanjangan TPU closes the Makam TPU's open reminder row through the new Notifications function `tutupTeleponPemesanSubjek`, in the order's transaction (no call logged: `hasil` empty, `catatan` says why) → red 78078f8, code a93ad70. 3 pinned: a 3-month row still open when the 1-month reminder fires opens nothing new (the one open row per Makam TPU stays; the 1-month reminder is covered only once staff close it) → 825372a (green on arrival, test only). 4 partial unique index `notifications_telepon_pemesan_kunci_idx` (migration 0063, `-- contract:` line, checker clean), a conflict with a closed row of the same reminder returns that row → 025b16d; no deterministic red is possible for a race through public functions, so the concurrency test (six ticks at once, before and after the call is logged: one row in the history) was green before the index and guards it after. 5 one helper `blokMakamOf` (queried only for `perpanjangan_tpu`) → 8bc39fc.
+
+Verification: lint 0 errors, typecheck clean, full `npm test` read off a whole log: Test Files 332 passed (332), Tests 2998 passed | 1 skipped (2999), exit 0.
+
+HANDOFF: fix pass complete; remaining: browser check of the renewal pages without Almarhum.
