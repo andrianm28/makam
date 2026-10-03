@@ -429,3 +429,20 @@ describe("the reason of a Lokasi Mitra's creating write", () => {
     expect(await alasanDari(dengan.lokasiMitra.id)).toBe("impor katalog (production, --izinkan-produksi)");
   });
 });
+
+describe("the reason of a Lokasi Mitra's profile write", () => {
+  it("is recorded on the Entri Audit of lokasi.ubah_profil when the caller gives one, and is empty when it gives none", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const created = await newLokasiMitra(setup, admin);
+    const profil = { name: "Makam Al-Amin", pengelolaName: "Yayasan Al-Amin", address: "Jl. Mawar 3", city: "Kota Bogor", pin: { lat: -6.595, lng: 106.816 }, facilities: { checked: [], note: "" } };
+
+    await setup.lokasi.updateProfile(admin, created.id, profil);
+    await setup.lokasi.updateProfile(admin, created.id, { ...profil, city: "Kabupaten Bogor" }, { reason: "impor katalog (production, --izinkan-produksi)" });
+
+    const alasan = (await setup.audit.entriesAbout({ kind: "lokasi_mitra", id: created.id }))
+      .filter((entry) => entry.action === "lokasi.ubah_profil")
+      .map((entry) => entry.reason);
+    expect(alasan).toEqual([null, "impor katalog (production, --izinkan-produksi)"]);
+  });
+});
