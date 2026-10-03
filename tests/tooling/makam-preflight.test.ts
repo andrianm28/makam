@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -59,6 +59,7 @@ function world(options: { envFile?: string | null; envMode?: number } = {}) {
     writeFileSync(path.join(root, "prod", "prod.env"), options.envFile ?? ENV_FILE);
     chmodSync(path.join(root, "prod", "prod.env"), options.envMode ?? 0o600);
   }
+  writeFileSync(path.join(root, "prod", "backup-passphrase"), "fake-backup-passphrase\n", { mode: 0o600 });
   writeFileSync(path.join(root, "log"), "");
   return { root, bin };
 }
@@ -304,5 +305,27 @@ describe("makam-preflight", () => {
 
     const denied = preflight(healthy(world()), [], { FAKE_S3_SETTINGS_DENIED: "1" });
     expect(denied.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3 public access.*cannot read.*console/));
+  });
+
+  it("checks that the backups bucket answers to the backups key and that the backup encryption key is present and private", () => {
+    const ok = preflight(healthy(world()));
+    expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 backups bucket.*makam-prod-backups/));
+    expect(ok.calls).toContain("aws s3api head-bucket --bucket makam-prod-backups");
+    expect(ok.calls).toContain("as key=AKIABACKUPS");
+    expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*backup encryption key/));
+
+    const gone = preflight(healthy(world()), [], { FAKE_S3_HEAD: "1" });
+    expect(gone.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 backups bucket/));
+
+    const noKey = healthy(world());
+    rmSync(path.join(noKey.root, "prod", "backup-passphrase"));
+    expect(preflight(noKey).lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*backup encryption key.*backup-passphrase/));
+
+    const looseKey = healthy(world());
+    chmodSync(path.join(looseKey.root, "prod", "backup-passphrase"), 0o644);
+    expect(preflight(looseKey).lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*backup encryption key.*0644/));
+
+    const skipped = preflight(healthy(world()), ["--skip-s3"]);
+    expect(skipped.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*backup encryption key/));
   });
 });
