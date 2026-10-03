@@ -470,4 +470,13 @@ describe("makam-preflight", () => {
     const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*github deployments.*pull/));
   });
+
+  it("explains why no Deployments are listed when GitHub accepts the commit SHA but not the sha-<sha> image tag makam-deploy-status sends", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_REJECT_SHA_PREFIX: "1" });
+    expect(result.lines).toContainEqual(
+      expect.stringMatching(/^FAIL .*\[72\].*github deployments.*sha-0123456789abcdef.*not a branch, tag or commit SHA.*makam-deploy-status.*accepts the plain commit SHA/),
+    );
+    // The probe made with the plain SHA is cleaned up too.
+    expect(result.calls).toMatch(/-X DELETE .*deployments\/42/);
+  });
 });
