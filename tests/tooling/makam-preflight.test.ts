@@ -59,7 +59,7 @@ const INTERRUPT_AT = (step: string) =>
     "  done",
     // Ctrl-C reaches the whole foreground group: every $(...) subshell between this fake and the script dies mid-call, the script itself handles its trap.
     '  for q in $chain; do [ "$q" = "$top" ] || kill -TERM "$q"; done',
-    '  kill -TERM "$top"',
+    '  kill -"${FAKE_SIGNAL:-TERM}" "$top"',
     "  exit 143",
     "fi",
   ].join("\n");
@@ -654,5 +654,11 @@ describe("makam-preflight", () => {
     const script = readFileSync(preflightScript, "utf8");
     expect(script).not.toMatch(/(?<!\+)"\$\{endpoint\[@\]\}"/);
     expect(script).toMatch(/\$\{endpoint\[@\]\+"\$\{endpoint\[@\]\}"\}/);
+  });
+
+  it("exits 130 and still removes its temp files on Ctrl-C (SIGINT), as it does on SIGTERM", () => {
+    const interrupted = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_INTERRUPT: "pull", FAKE_SIGNAL: "INT" });
+    expect(interrupted.code).toBe(130);
+    expect(interrupted.leftovers).toEqual([]);
   });
 });
