@@ -125,3 +125,35 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
     expect((await lokasi.tpuDkiList(admin)).map((tpu) => tpu.name)).toEqual(["TPU Baik"]);
   });
 });
+
+describe("npm run import:data-peluncuran: which stack it may run on", () => {
+  const sumber = () => folder({ "tpu-dki.csv": TPU_CONTOH });
+
+  it("refuses staging without --izinkan-staging, and writes nothing", async () => {
+    const hasil = await importDataPeluncuranCommand(["--sumber", sumber(), "--tulis"], env({ APP_ENV: "staging" }), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("Ditolak: di staging perlu --izinkan-staging");
+  });
+
+  it("refuses production without --izinkan-production, even with --izinkan-staging", async () => {
+    const hasil = await importDataPeluncuranCommand(
+      ["--sumber", sumber(), "--tulis", "--izinkan-staging"],
+      env({ APP_ENV: "production" }),
+      { clock: clock() },
+    );
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("Ditolak: di production perlu --izinkan-production");
+  });
+
+  it("lets production past the gate only with --izinkan-production (the stack itself is then checked as usual)", async () => {
+    const hasil = await importDataPeluncuranCommand(
+      ["--sumber", sumber(), "--izinkan-production"],
+      env({ APP_ENV: "production" }),
+      { clock: clock() },
+    );
+
+    expect(hasil.output).not.toContain("perlu --izinkan-production");
+  });
+});
