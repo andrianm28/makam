@@ -1,5 +1,7 @@
 // Decision logic of guard-git.sh. Reads the PreToolUse JSON on stdin; exit 2 = refuse.
 import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 function deny(message) {
   process.stderr.write(`guard-git: ${message}\n`);
@@ -118,10 +120,38 @@ function noPushToMain(push, cwd) {
   const branch = currentBranch(cwd);
   const targets = push.refspecs.length ? push.refspecs.map((r) => destination(r, branch)) : [branch];
   if (push.all || targets.includes("main")) {
+    const writer = mainWriter(cwd);
+    if (writer === "merge") return;
+    if (writer === "docs") {
+      const outside = changedOutsideDocs(cwd);
+      if (!outside.length) return;
+      deny(
+        `you are marked as the coordinator, who may push only docs to \`main\` (docs/ and .scratch/), but this push also changes: ${outside.slice(0, 5).join(", ")}. ` +
+          "Move those changes to a ticket branch (`git push origin HEAD:ticket-NN-slug`) for the review and the merge thread.",
+      );
+    }
     deny(
       "this push reaches `main`, and only the merge thread pushes to `main` (the coordinator only for docs; AGENTS.md: never push to `main`). " +
         "Push your outcome branch instead: `git push -u origin <ticket-NN-slug>`. " +
         "If you are the merge thread or the coordinator, say so once with `echo merge > \"$(git rev-parse --git-dir)/makam-main-writer\"` (coordinator: `echo docs`), then repeat the push.",
     );
   }
+}
+
+/** Who the session says it is: `merge` (the merge thread) or `docs` (the coordinator), from a marker in the git dir. */
+function mainWriter(cwd) {
+  try {
+    const gitDir = execFileSync("git", ["rev-parse", "--git-dir"], { cwd, encoding: "utf8" }).trim();
+    const value = readFileSync(path.resolve(cwd, gitDir, "makam-main-writer"), "utf8").trim();
+    return value === "merge" || value === "docs" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function changedOutsideDocs(cwd) {
+  const files = execFileSync("git", ["diff", "--name-only", "origin/main", "HEAD"], { cwd, encoding: "utf8" })
+    .split("\n")
+    .filter(Boolean);
+  return files.filter((f) => !f.startsWith("docs/") && !f.startsWith(".scratch/"));
 }

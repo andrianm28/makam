@@ -119,7 +119,7 @@ describe("guard-git hook, the writers to main", () => {
   });
 
   it("lets the coordinator push only docs and ticket files to main", () => {
-    const { dir, bash, commit } = repo({ branch: "main" });
+    const { dir, bash, commit } = repo();
     mark(dir, "docs");
     commit("docs/agents/notes.md");
     commit(".scratch/makam-v1-build/issues/90-x.md");
