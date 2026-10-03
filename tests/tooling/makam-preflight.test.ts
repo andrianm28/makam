@@ -272,4 +272,18 @@ describe("makam-preflight", () => {
     expect(refused.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 probe.*put/));
     expect(refused.output).not.toContain(SECRETS.S3_SECRET_ACCESS_KEY);
   });
+
+  it("fails the S3 checks naming the missing settings, and skips them only when --skip-s3 is passed", () => {
+    const noS3 = ENV_FILE.split("\n").filter((line) => !line.startsWith("S3_")).join("\n");
+    const missing = preflight(healthy(world({ envFile: noS3 })));
+    expect(missing.lines).toContainEqual(
+      expect.stringMatching(/^FAIL .*\[03\].*s3 settings.*S3_BUCKET_FILES.*S3_ACCESS_KEY_ID.*S3_SECRET_ACCESS_KEY/),
+    );
+    expect(missing.calls).not.toContain("aws ");
+
+    const skipped = preflight(healthy(world({ envFile: noS3 })), ["--skip-s3"]);
+    expect(skipped.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3.*--skip-s3.*beta.*without S3/));
+    expect(skipped.lines.filter((line) => line.startsWith("FAIL") && line.includes("[03]"))).toEqual([]);
+    expect(skipped.calls).not.toContain("aws ");
+  });
 });
