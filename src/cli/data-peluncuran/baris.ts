@@ -1,0 +1,152 @@
+/**
+ * The rows of the launch data template, each kind validated with Zod. A cell is
+ * text until a schema here reads it; a row that fails is refused with the reason
+ * naming its column, never half-read.
+ */
+import { z } from "zod";
+import { jenisLayananValues } from "@/domain/layanan";
+import { RUPIAH_MAX } from "@/lib/rupiah";
+import { TPU_LIMITS } from "@/domain/lokasi";
+
+const yaTidak = z
+  .string()
+  .transform((nilai) => nilai.trim().toLowerCase())
+  .pipe(z.enum(["ya", "tidak"], { error: 'harus "ya" atau "tidak"' }))
+  .transform((nilai) => nilai === "ya");
+
+/** An optional decimal degree: a blank cell is "no pin", anything else must be a number. */
+const derajat = (nama: string, batas: number) =>
+  z
+    .string()
+    .transform((nilai, konteks) => {
+      if (nilai === "") return null;
+      const angka = Number(nilai.replace(",", "."));
+      if (!Number.isFinite(angka) || Math.abs(angka) > batas) {
+        konteks.addIssue({ code: "custom", message: `${nama} harus angka antara -${batas} dan ${batas}` });
+        return z.NEVER;
+      }
+      return angka;
+    });
+
+export const barisTpuSchema = z
+  .object({
+    nama: z.string().min(1, "nama wajib").max(TPU_LIMITS.name, `nama maksimal ${TPU_LIMITS.name} huruf`),
+    alamat: z.string().min(1, "alamat wajib").max(TPU_LIMITS.address),
+    kota: z.string().min(1, "kota wajib").max(TPU_LIMITS.city),
+    lintang: derajat("lintang", 90),
+    bujur: derajat("bujur", 180),
+    sumber_data: z.string().min(1, "sumber_data wajib").max(TPU_LIMITS.dataSource),
+    menerima_makam_baru: yaTidak,
+  })
+  .refine((baris) => (baris.lintang === null) === (baris.bujur === null), {
+    message: "lintang dan bujur harus diisi keduanya atau dikosongkan keduanya",
+    path: ["lintang"],
+  })
+  .transform((baris) => ({
+    name: baris.nama,
+    address: baris.alamat,
+    city: baris.kota,
+    pin: baris.lintang === null || baris.bujur === null ? null : { lat: baris.lintang, lng: baris.bujur },
+    dataSource: baris.sumber_data,
+    menerimaMakamBaru: baris.menerima_makam_baru,
+  }));
+
+export type BarisTpu = z.output<typeof barisTpuSchema>;
+
+/** The reason a row was refused, in the owner's words: the columns and what is wrong with each. */
+export function alasanBaris(error: z.ZodError): string {
+  return error.issues.map((isu) => `${isu.path.join(".") || "baris"}: ${isu.message}`).join("; ");
+}
+
+/** A whole-rupiah cell: digits only, no "Rp", no thousands separator, so `750.000` is refused rather than read as 750. */
+const rupiah = (nama: string) =>
+  z
+    .string()
+    .regex(/^\d+$/, `${nama} harus bilangan bulat rupiah tanpa titik atau "Rp", misalnya 750000`)
+    .transform(Number)
+    .pipe(z.number().max(RUPIAH_MAX, `${nama} tidak boleh lebih dari Rp ${RUPIAH_MAX.toLocaleString("id-ID")}`));
+
+/** An optional effective date: blank means the day of the import, anything else is `TTTT-BB-HH`. */
+const berlakuMulai = z
+  .string()
+  .transform((nilai) => (nilai === "" ? null : nilai))
+  .pipe(z.iso.date({ error: "berlaku_mulai harus TTTT-BB-HH atau kosong" }).nullable());
+
+export const barisBiayaSchema = z
+  .object({
+    jenis: z.enum(["pemakaman", "berkas"], { error: 'jenis harus "pemakaman" atau "berkas"' }),
+    jumlah_rupiah: rupiah("jumlah_rupiah"),
+    berlaku_mulai: berlakuMulai,
+  })
+  .transform((baris) => ({
+    kunci: baris.jenis === "pemakaman" ? ("biaya_pengurusan_pemakaman" as const) : ("biaya_pengurusan_berkas" as const),
+    jenis: baris.jenis,
+    jumlah: baris.jumlah_rupiah,
+    berlakuMulai: baris.berlaku_mulai,
+  }));
+
+export type BarisBiaya = z.output<typeof barisBiayaSchema>;
+
+export const barisLayananSchema = z
+  .object({
+    layanan: z.string().min(1, "layanan wajib"),
+    varian: z.string().min(1, "varian wajib"),
+    harga_dki_rupiah: rupiah("harga_dki_rupiah"),
+    tarif_mitra_jasa_rupiah: rupiah("tarif_mitra_jasa_rupiah"),
+    berlaku_mulai: berlakuMulai,
+  })
+  .transform((baris) => ({
+    layanan: baris.layanan,
+    varian: baris.varian,
+    hargaDki: baris.harga_dki_rupiah,
+    tarifMitraJasa: baris.tarif_mitra_jasa_rupiah,
+    berlakuMulai: baris.berlaku_mulai,
+  }));
+
+export type BarisLayanan = z.output<typeof barisLayananSchema>;
+
+export const barisNazhirSchema = z.object({
+  nama: z.string().min(1, "nama wajib").max(200),
+  jenis: z.enum(["perorangan", "organisasi", "badan_hukum"], { error: 'jenis harus "perorangan", "organisasi", atau "badan_hukum"' }),
+  kab_kota: z.string().min(1, "kab_kota wajib").max(100),
+  kontak: z.string().min(1, "kontak wajib").max(200),
+  nomor_bwi: z.string().min(1, "nomor_bwi wajib").max(100),
+});
+
+export type BarisNazhir = z.output<typeof barisNazhirSchema>;
+
+/** The variants of a Layanan, written in one cell separated by `|`: each trimmed, none blank, none twice. */
+const daftarVarian = z
+  .string()
+  .transform((nilai) => nilai.split("|").map((satu) => satu.trim().replace(/\s+/g, " ")))
+  .pipe(
+    z
+      .array(z.string().min(1, "varian tidak boleh kosong di antara tanda |").max(120))
+      .min(1)
+      .max(50)
+      .refine((nama) => new Set(nama.map((satu) => satu.toLowerCase())).size === nama.length, "varian muncul dua kali dalam satu Layanan"),
+  );
+
+export const barisKatalogSchema = z
+  .object({
+    layanan: z.string().min(1, "layanan wajib").max(120),
+    jenis: z.enum(jenisLayananValues, { error: `jenis harus salah satu dari: ${jenisLayananValues.join(", ")}` }),
+    deskripsi: z.string().max(500, "deskripsi maksimal 500 huruf"),
+    lead_time_hari: z.string().regex(/^\d+$/, "lead_time_hari harus bilangan bulat hari").transform(Number).pipe(z.number().max(365, "lead_time_hari maksimal 365")),
+    bisa_hari_h: yaTidak,
+    ada_di_petak_kosong: yaTidak,
+    teks_label: z.string().max(200),
+    varian: daftarVarian,
+  })
+  .transform((baris) => ({
+    name: baris.layanan,
+    jenis: baris.jenis,
+    description: baris.deskripsi,
+    leadTimeDays: baris.lead_time_hari,
+    bisaHariH: baris.bisa_hari_h,
+    adaDiPetakKosong: baris.ada_di_petak_kosong,
+    teksLabel: baris.teks_label === "" ? null : baris.teks_label,
+    varian: baris.varian,
+  }));
+
+export type BarisKatalog = z.output<typeof barisKatalogSchema>;

@@ -5,6 +5,9 @@ import type { WakafDeps } from "./deps";
 import { wakafNazhir, type JenisNazhir } from "./schema";
 import { hapusNazhirSchema, nazhirInputSchema, ubahNazhirSchema } from "./skema";
 
+/** What the Nazhir list needs: no files, Field Work or Notifications, so a caller that only keeps the list composes only these. */
+export type NazhirDeps = Pick<WakafDeps, "db" | "clock" | "audit">;
+
 export interface Nazhir {
   id: string;
   nama: string;
@@ -29,20 +32,20 @@ const pilih = {
 };
 
 /** The whole list with contact and BWI number: Admin Platform only (empty for anyone else). */
-export async function daftarNazhir(deps: WakafDeps, by: Actor): Promise<Nazhir[]> {
+export async function daftarNazhir(deps: NazhirDeps, by: Actor): Promise<Nazhir[]> {
   if (writeRefusal(by, "wakaf.kelola", wakafResource())) return [];
   return deps.db.select(pilih).from(wakafNazhir).orderBy(asc(wakafNazhir.nama));
 }
 
 /** The list the Pengajuan form offers: names only, no sign-in needed. */
-export async function nazhirUntukPilihan(deps: WakafDeps): Promise<NazhirPilihan[]> {
+export async function nazhirUntukPilihan(deps: NazhirDeps): Promise<NazhirPilihan[]> {
   return deps.db
     .select({ id: wakafNazhir.id, nama: wakafNazhir.nama, jenis: wakafNazhir.jenis, kabKota: wakafNazhir.kabKota })
     .from(wakafNazhir)
     .orderBy(asc(wakafNazhir.nama));
 }
 
-export async function tambahNazhir(deps: WakafDeps, by: Actor, raw: unknown): Promise<NazhirResult> {
+export async function tambahNazhir(deps: NazhirDeps, by: Actor, raw: unknown): Promise<NazhirResult> {
   const refusal = writeRefusal(by, "wakaf.kelola", wakafResource());
   if (refusal) return refusal;
   const parsed = nazhirInputSchema.safeParse(raw);
@@ -62,7 +65,7 @@ export async function tambahNazhir(deps: WakafDeps, by: Actor, raw: unknown): Pr
   });
 }
 
-export async function ubahNazhir(deps: WakafDeps, by: Actor, raw: unknown): Promise<NazhirResult> {
+export async function ubahNazhir(deps: NazhirDeps, by: Actor, raw: unknown): Promise<NazhirResult> {
   const refusal = writeRefusal(by, "wakaf.kelola", wakafResource());
   if (refusal) return refusal;
   const parsed = ubahNazhirSchema.safeParse(raw);
@@ -85,7 +88,7 @@ export async function ubahNazhir(deps: WakafDeps, by: Actor, raw: unknown): Prom
 }
 
 /** Removes a Nazhir from the list; Pengajuan that already name it keep the name as it stood. */
-export async function hapusNazhir(deps: WakafDeps, by: Actor, raw: unknown): Promise<NazhirResult> {
+export async function hapusNazhir(deps: NazhirDeps, by: Actor, raw: unknown): Promise<NazhirResult> {
   const refusal = writeRefusal(by, "wakaf.kelola", wakafResource());
   if (refusal) return refusal;
   const parsed = hapusNazhirSchema.safeParse(raw);

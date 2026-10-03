@@ -18,6 +18,7 @@ import {
   ubahNazhir,
   type Nazhir,
   type NazhirPilihan,
+  type NazhirDeps,
   type NazhirResult,
 } from "./nazhir";
 
@@ -90,6 +91,15 @@ export interface Wakaf {
   tambahBerkasWakaf(wakif: Wakif, input: unknown): Promise<UbahPengajuanWakifResult>;
   /** A short-lived link to one of the Wakif's own documents, or the final scan. */
   berkasUrl(wakif: Wakif, pengajuanId: string, berkasId: string): Promise<BerkasUrlResult>;
+}
+
+/** The Nazhir list alone (list, add, change), for a caller that keeps the list without the rest of Wakaf: the launch data import. */
+export function createNazhirList(deps: NazhirDeps): Pick<Wakaf, "daftarNazhir" | "tambahNazhir" | "ubahNazhir"> {
+  return {
+    daftarNazhir: (by) => daftarNazhir(deps, by),
+    tambahNazhir: (by, input) => tambahNazhir(deps, by, input),
+    ubahNazhir: (by, input) => ubahNazhir(deps, by, input),
+  };
 }
 
 export function createWakaf(deps: WakafDeps): Wakaf {

@@ -71,6 +71,9 @@ export function proofOf(jenis: JenisLayanan): ProofRequirement {
   };
 }
 
+/** What the catalog's own writes need: no billing, orders or Lokasi, so a caller that only keeps the catalog composes only these. */
+export type KatalogDeps = Pick<LayananDeps, "db" | "clock" | "audit">;
+
 /** Everything a new Layanan carries, as an Admin Platform types it. */
 export interface NewLayanan {
   name: string;
@@ -154,7 +157,7 @@ function folded(names: readonly string[]): string[] | null {
 }
 
 /** Admin Platform adds a Layanan to the catalog with its first variants; audited. */
-export function createLayanan(deps: LayananDeps, by: Actor, input: NewLayanan): Promise<CreateLayananResult> {
+export function createLayanan(deps: KatalogDeps, by: Actor, input: NewLayanan): Promise<CreateLayananResult> {
   // Defence in depth behind guarded(): the module checks the actor itself, before anything else.
   const refusal = writeRefusal(by, "layanan.kelola", layananKatalogResource());
   if (refusal) return Promise.resolve(refusal);
@@ -210,7 +213,7 @@ export function createLayanan(deps: LayananDeps, by: Actor, input: NewLayanan): 
 }
 
 /** Admin Platform changes a Layanan's own fields; audited with before and after. */
-export function ubahLayanan(deps: LayananDeps, by: Actor, layananId: string, input: PerubahanLayanan): Promise<UbahLayananResult> {
+export function ubahLayanan(deps: KatalogDeps, by: Actor, layananId: string, input: PerubahanLayanan): Promise<UbahLayananResult> {
   const refusal = writeRefusal(by, "layanan.kelola", layananKatalogResource());
   if (refusal) return Promise.resolve(refusal);
   const parsed = layananFieldsSchema.safeParse(input);

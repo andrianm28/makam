@@ -56,6 +56,7 @@ import {
   ubahLayanan as ubahLayananEntry,
   type CreateLayananResult,
   type HapusLayananResult,
+  type KatalogDeps,
   type LayananTerbaca,
   type NewLayanan,
   type PerubahanLayanan,
@@ -799,6 +800,21 @@ export interface StaffLayananReads {
 function staffLayananReads(deps: LayananDeps, by: Actor): StaffLayananReads {
   return {
     lokasiLayanan: async (lokasiId, at) => ((await deps.lokasi.lokasiMitra(by, lokasiId)).ok ? layananDiLokasi(deps, lokasiId, at) : []),
+  };
+}
+
+/**
+ * The catalog alone (read, create a Layanan, change one, add a variant), for a caller that keeps the catalog
+ * without the order machinery: the launch data import.
+ */
+export function createKatalogLayanan(
+  deps: KatalogDeps,
+): Pick<Layanan, "katalog" | "createLayanan" | "ubahLayanan" | "tambahVarian"> {
+  return {
+    katalog: () => katalog(deps.db),
+    createLayanan: (by, input) => createLayananEntry(deps, by, input),
+    ubahLayanan: (by, layananId, input) => ubahLayananEntry(deps, by, layananId, input),
+    tambahVarian: (by, layananId, input) => tambahVarian(deps, by, layananId, input),
   };
 }
 

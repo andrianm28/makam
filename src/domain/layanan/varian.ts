@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import { layananKatalogResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { LayananDeps } from "./deps";
+import type { KatalogDeps } from "./katalog";
 import { nameKeyOf, reasonOf } from "./nama";
 import { layananLayanan, layananPaketItem, layananPenawaran, layananVarian } from "./schema";
 
@@ -82,7 +83,7 @@ export async function insertVarian(
 }
 
 /** Admin Platform adds a fixed-price variant to a Layanan; audited. */
-export async function tambahVarian(deps: LayananDeps, by: Actor, layananId: string, input: NewVarian): Promise<TambahVarianResult> {
+export async function tambahVarian(deps: KatalogDeps, by: Actor, layananId: string, input: NewVarian): Promise<TambahVarianResult> {
   // Defence in depth behind guarded(): the module checks the actor itself, before anything else.
   const refusal = writeRefusal(by, "layanan.kelola", layananKatalogResource());
   if (refusal) return refusal;
