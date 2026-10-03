@@ -79,3 +79,10 @@ Decided with the user on 2026-09-26. Move the Playwright critical paths off the 
     - nit: the indentation regexes would give a misleading "no ignore block" on a harmless reformat.
   - **PR #11**: GitHub's reference says nothing about closing an open PR when an `ignore` rule is added, so this is not documented. Dependabot usually closes such PRs itself on its next run, but the owner should close #11 by hand to be sure.
   - Horizontal slicing: none (one behaviour, one red/green pair for the ignore rule). Nothing blocks merge.
+- 2026-10-03 — Builder, **Fix pass** on `ticket-71-types-node-pin` (from 978b10d; not merged). Owner decision: KEEP the package.json-vs-Dockerfile assertion. Note for the record: that assertion was **born green** (a regression guard, never seen red; only the Dependabot test was red in 6a3c93d), and the owner chose to keep it.
+  - Item 1, version parse reads `22`, `>=22`, `22.x`, `^22.20.4`, `~22.0.0`, `>= 22.12.0` with a clear failure message: red da46620 (2 failed), green a5a8686.
+  - Item 2, every `FROM node:` line read (`matchAll`), one major required, digest-pinned form noted in a comment: red cc18fab (1 failed), green 416213e.
+  - Item 3, refactor, no red possible: 240e14f. `yaml` is not a direct dependency, so `ignoreRules()` documents the assumed layout; `interface Pkg`; repo-root `fileURLToPath` idiom; also dropped the stale "(22)" from the Dependabot comment (reviewer nit).
+  - Item 4: this entry.
+  - Extra, needed for green: 6fdad28. The reviewer's entry gave ticket 71 a review marker, so `GRACE` in `tests/tooling/ticket-workflow.test.ts` named a gap that no longer exists (2 failures); 71 removed from `GRACE` (17 → 16), as that guard's message prescribes.
+  - HANDOFF: `npx vitest run tests/tooling` 17 files, 200 passed | 1 skipped; lint 0; typecheck 0; full `npm test` 333 files, 3007 passed | 1 skipped (from a whole log, on 6fdad28 plus this entry). Status untouched; no spec gaps.
