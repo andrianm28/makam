@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# makam-switch: choose what nginx serves for makam.co.id and www (ticket 65).
+#
+#   makam-switch --ke v1            the production block, proxying to makam-prod
+#   makam-switch --ke pemeliharaan  the static maintenance page (503), the
+#                                   switch-day fallback and its rollback
+#   makam-switch --cek              which one is installed now
+#
+# Run as root on the host (docs/ops/runbook.md, "Hari switch"). The current site
+# file is backed up verbatim with a UTC timestamp under
+# $MAKAM_ROOT/nginx-backups/ before anything is replaced; `nginx -t` runs
+# before the reload, and when it fails the backup is put back and nginx is not
+# reloaded. Running the same switch twice changes nothing and reloads nothing.
+#
+# The blocks come from $MAKAM_SWITCH_SRC (default $MAKAM_ROOT/nginx, where
+# deploy/install-host.sh copies deploy/nginx). The staging block
+# (dev.makam.co.id.conf) is never touched.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+NGINX_DIR=${MAKAM_NGINX_DIR:-/etc/nginx}
+SRC=${MAKAM_SWITCH_SRC:-$MAKAM_ROOT/nginx}
+WWW=${MAKAM_MAINTENANCE_DIR:-/var/www/makam-maintenance}
+BACKUPS="$MAKAM_ROOT/nginx-backups"
+SITE="$NGINX_DIR/sites-available/makam.co.id.conf"
+ENABLED="$NGINX_DIR/sites-enabled/makam.co.id.conf"
+SNIPPET="$NGINX_DIR/snippets/makam-prod-proxy.conf"
+
+usage() {
+  cat <<'USAGE'
+usage: makam-switch --ke v1|pemeliharaan
+       makam-switch --cek
+
+  --ke v1            serve makam.co.id from makam-prod (127.0.0.1:3100)
+  --ke pemeliharaan  serve the static maintenance page with 503
+  --cek              print which block is installed: v1, pemeliharaan or lain
+  -h, --help         this text
+USAGE
+  exit "${1:-0}"
+}
+
+TARGET=""
+CHECK=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --ke) TARGET=${2:?}; shift 2 ;;
+    --cek) CHECK=1; shift ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$TARGET" in
+  v1|pemeliharaan) ;;
+  *) usage 64 ;;
+esac
+
+BLOCK="$SRC/makam.co.id.conf"
+[ -r "$BLOCK" ] || { echo "refusing: no block at $BLOCK" >&2; exit 78; }
+
+STAMP=$(date -u +%Y%m%dT%H%M%SZ)
+install -d -m 0700 "$BACKUPS"
+BACKUP="$BACKUPS/makam.co.id.conf.$STAMP"
+cp -p "$SITE" "$BACKUP"
+echo "backed up the current block to $BACKUP"
+install -m 0640 "$BLOCK" "$SITE"
+install -m 0644 "$SRC/makam-prod-proxy.conf" "$SNIPPET"
+nginx -t
+systemctl reload nginx
+echo "makam.co.id now serves v1"
