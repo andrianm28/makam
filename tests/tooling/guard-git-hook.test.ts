@@ -308,3 +308,27 @@ describe("guard-git hook, other spellings of a command", () => {
   });
 });
 
+describe("guard-git hook, commands inside a command", () => {
+  it("looks inside bash -c, sh -c and eval, however deep", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      'bash -c "git push origin main"',
+      "sh -c 'git push origin HEAD:main'",
+      'bash -lc "git push origin main"',
+      'eval "git push origin main"',
+      "bash -c \"sh -c 'git push origin main'\"",
+      '/bin/zsh -c "gh pr create --fill"',
+      'bash -c "git status; git push origin main"',
+    ]) {
+      expect(bash(command).status, command).toBe(2);
+    }
+  });
+
+  it("lets harmless commands in a shell string through", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of ['bash -c "git status"', "bash ./scripts/run.sh", 'eval "echo hi"']) {
+      expect(bash(command).status, command).toBe(0);
+    }
+  });
+});
+
