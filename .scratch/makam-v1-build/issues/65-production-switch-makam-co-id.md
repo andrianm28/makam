@@ -10,7 +10,7 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
 
 ## Acceptance criteria
 
-- [ ] **Open question answered before the switch**: must any data from the old app (users, orders, Lokasi, payments) be carried over or archived? The Operator's answer, and any carry-over or archive done, is recorded in `## Comments``, including what happens to old-app SumoPod payments still open at the switch (ticket 04).
+- [ ] **Open question answered before the switch**: must any data from the old app (users, orders, Lokasi, payments) be carried over or archived? The Operator's answer, and any carry-over or archive done, is recorded in `## Comments`, including what happens to old-app SumoPod payments still open at the switch (ticket 04).
 - [ ] **Human confirmation gate**: a named human confirms in `## Comments` that v1 is ready to replace the old app and the question above is answered.
 - [ ] `makam-prod` deployed from ghcr with live SumoPod key, secret and webhook URL installed on the switch day only.
 - [ ] **Switch**: the current `makam.co.id` / `www` block is backed up verbatim, replaced by one proxying to `makam-prod` `web` (127.0.0.1:3100), keeping the Certbot certificate; `nginx -t` passes before reload.
