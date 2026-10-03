@@ -46,3 +46,18 @@ describe("thread cost report: sessions", () => {
     expect(text.out).toContain("sess-f");
   });
 });
+
+describe("thread cost report: coordinator wake causes", () => {
+  it("splits the coordinator's cost by what woke it: watcher, report-back, hourly-poll, owner, other", () => {
+    const r = json([fx("sessions.json"), "--transcript", fx("coordinator.jsonl")]);
+    const c = r.causes;
+    expect(Object.keys(c).sort()).toEqual(["hourly-poll", "other", "owner", "report-back", "watcher"]);
+    expect(c.watcher).toMatchObject({ units: 4350, wakes: 2 });
+    expect(c["report-back"]).toMatchObject({ units: 500, wakes: 1 });
+    expect(c["hourly-poll"]).toMatchObject({ units: 200, wakes: 1 });
+    expect(c.owner).toMatchObject({ units: 2500, wakes: 1 });
+    expect(c.other).toMatchObject({ units: 100, wakes: 1 });
+    expect(c.watcher.share).toBeCloseTo(56.86, 1);
+    expect(c.watcher.usd).toBeCloseTo(5.686, 2);
+  });
+});
