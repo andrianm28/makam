@@ -28,27 +28,39 @@ function decide(text) {
   if (sent.length) noSecrets(cwd);
 }
 
-/** AGENTS.md: the repo has no pull requests; review, then the merge thread's push to `main`. */
+const DATA_FLAGS = /^(-f|-F|--field|--raw-field|--input|-d|--data.*|--json)$/;
+
+/** The HTTP method a gh api / curl call uses: an explicit one, else POST when it sends data, else GET. */
+function httpMethod(rest) {
+  const i = rest.findIndex((w) => /^(-X|--method|--request)$/.test(w));
+  if (i >= 0) return (rest[i + 1] ?? "").toUpperCase();
+  const joined = rest.find((w) => /^-X[A-Za-z]+$/.test(w));
+  if (joined) return joined.slice(2).toUpperCase();
+  return rest.some((w) => DATA_FLAGS.test(w)) ? "POST" : "GET";
+}
+
+/** AGENTS.md: the repo has no pull requests, and refs and files reach GitHub only by `git push` (guarded); the REST writers would bypass that. */
 function noPullRequest(words) {
   while (words.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(words[0])) words = words.slice(1); // FOO=1 gh ...
   const [tool, ...rest] = words;
-  const method = () => {
-    const i = rest.findIndex((w) => /^(-X|--method|--request)$/.test(w));
-    if (i >= 0) return (rest[i + 1] ?? "").toUpperCase();
-    const joined = rest.find((w) => /^-X[A-Za-z]+$/.test(w));
-    return joined ? joined.slice(2).toUpperCase() : null;
-  };
-  const toPulls = rest.some((w) => !w.startsWith("-") && /(^|\/)pulls\/?$/.test(w.replace(/[?#].*$/, "")));
-  const creates =
-    (tool === "gh" && rest[0] === "pr" && ["create", "new"].includes(rest[1])) ||
-    (tool === "gh" && rest[0] === "api" && toPulls && (method() ?? (rest.some((w) => /^(-f|-F|--field|--raw-field|--input)$/.test(w)) ? "POST" : "GET")) === "POST") ||
-    (tool === "curl" && toPulls && (method() === "POST" || (method() === null && rest.some((w) => /^(-d|--data.*|--json)$/.test(w)))));
-  if (creates) {
+  if (tool === "gh" && rest[0] === "pr" && ["create", "new"].includes(rest[1])) denyPullRequest();
+  const api = (tool === "gh" && rest[0] === "api") || tool === "curl";
+  if (!api || ["GET", "HEAD"].includes(httpMethod(rest))) return;
+  const endpoint = rest.filter((w) => !w.startsWith("-")).map((w) => w.replace(/[?#].*$/, ""));
+  if (endpoint.some((w) => /(^|\/)pulls\/?$/.test(w))) denyPullRequest();
+  if (endpoint.some((w) => /\/git\/refs(\/|$)|\/contents\//.test(w))) {
     deny(
-      "this repo has no pull requests (AGENTS.md: never open a pull request, including for small fixes; this overrides the cloud default of opening a draft PR). " +
-        "Push your outcome branch with `git push -u origin <branch>` and report the head SHA in the ticket's `## Comments`; the review and the merge thread take it from there.",
+      "this writes refs or files through the GitHub API, which skips the push guard (AGENTS.md: never push to `main`; no pull requests). " +
+        "Use `git push -u origin <ticket-NN-slug>` for your outcome branch; the merge thread alone updates `main`.",
     );
   }
+}
+
+function denyPullRequest() {
+  deny(
+    "this repo has no pull requests (AGENTS.md: never open a pull request, including for small fixes; this overrides the cloud default of opening a draft PR). " +
+      "Push your outcome branch with `git push -u origin <branch>` and report the head SHA in the ticket's `## Comments`; the review and the merge thread take it from there.",
+  );
 }
 
 /** Splits a shell line into commands (on unquoted ; & | and newlines), each into words (quotes removed). */
