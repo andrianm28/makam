@@ -137,3 +137,33 @@ Still open for the owner:
 - Not exercised: the two CLIs were smoke-run for usage only, not against a real merge with a live `db:generate`. Red commits: the snapshot-chain pair and the SQL-compare pair each put two closely related cases in one red commit.
 
 HANDOFF — head `3a9b723` (+ this entry's commit). `npx vitest run` on the two new files: 13 passed; `npm run lint` and `npm run typecheck` exit 0; full `npm test` (read off the whole log): Test Files 334 passed (334), Tests 3011 passed | 1 skipped (3012). Status untouched. Open: first real use by a merge thread.
+
+### Two-axis review (2026-10-03, reviewer thread)
+
+Branch `ticket-87-merge-scripts`, head 2be176f, fixed point `git merge-base origin/main HEAD` = 0fc45c2. Lint, typecheck and tests not re-run by the reviewer.
+
+## Standards
+
+- **blocking** — `scripts/migrations/renumber-merge.ts:65-69`: the bare `catch {}` swallows every `git merge` failure, not only conflicts (dirty tree, bad ref, merge already in progress). The helper then deletes and restores drizzle paths (`:88-94`), can clobber uncommitted drizzle edits and exits 0 with "Next: db:generate". Fix: after the catch require `git rev-parse -q --verify MERGE_HEAD`, otherwise rethrow the original error; refuse to start on a non-empty `git status --porcelain`; one test for each.
+- **should-fix** — `merge-proofs.ts:94`: `sqlOk` ignores `handWritten`, so the proofs print "PROOFS OK" and exit 0 while ticket 39's backfill is missing from the migration. Fix: fail (or a distinct "RE-APPEND, then rerun" non-zero state) while `handWritten.length > 0`; test it.
+- **should-fix** — `123a034` mixes two behaviours (destructive-DDL check and the whole CLI); the CLI exit codes (`renumber-merge.ts` code-conflict exit 1, `merge-proofs.ts` PROOFS FAILED) have no test. Fix: extract an exit-code function or spawn the CLI in a test.
+- **should-fix** — `renumber-merge.ts:101-106`, `merge-proofs.ts:100`: no validation at the CLI boundary (`scripts/migrations/deployed-release.ts:19` uses Zod). A `branchRef` starting with `-` reaches `git merge` as an option. Fix: Zod or reject a leading `-`, and use `rev-parse --verify --end-of-options`.
+- **nit** — CLI shape differs from `deployed-release.ts` (`import.meta.url` guard, `process.exitCode`, usage code 64) vs `require.main === module` and `process.exit`. `merge-proofs.ts:5` header says `<aside-dir>` while usage accepts `[base-ref]`; `:27` parses JSON unvalidated.
+- Checked, fine: branch SQL copied aside before the merge (`:56-62`); no shell (`execFileSync` with arrays), no `|| true`; no scratchpad or home paths; no docker prune; tests use exported functions and assert outcomes; red/feat pairs are one behaviour each except `123a034`.
+
+Standards: 5 findings (1 blocking, 3 should-fix, 1 nit group).
+
+## Spec
+
+Silent failure (unmerged path not restored): guarded — unmerged drizzle paths are cleared (`git rm --cached` + `rmSync`) before `git checkout base --`, and a `git diff --name-only base` check throws on any difference (`renumber-merge.ts:86-96`). The collision test covers the cleared path. Guard is **not tested** for failure and the throw is uncaught (no try/catch at the CLI, `:106`).
+
+- **should-fix** — `renumber-merge.ts:96`: no test makes the restore fail, and the CLI does not catch/print and `exit(1)`. Fix: fixture where restore leaves a stray file, assert it throws; wrap the CLI.
+- **should-fix** — `renumber-merge.ts:65-69`: same swallowed merge failure as the Standards blocking item (a loud, non-zero exit on any unresolved state is an Added AC, so it is blocking for the Spec too).
+- **should-fix** — `merge-proofs.ts:195-209`: nothing asserts main's snapshots survived (the "32 merge" deletion the third proof is meant to catch). Fix: every `drizzle/meta/*_snapshot.json` in base must exist and be byte-equal in the tree.
+- **should-fix** — `merge-proofs.ts:170,206`: `ok` ignores `identical`; a reordered or duplicated statement passes (set membership only). Fix: require the generated statements to match the branch's in order.
+- **should-fix (docs)** — `orchestration.md:35` still says "byte-identical" next to the new statement-identical command; code compares normalised statements. Say "statement-identical (whitespace aside)".
+- **nit** — `merge-proofs.ts:197-202` pairs new and aside files by sorted index; two migrations with random names can misorder. Pair by journal order.
+
+AC status: renumber helper met (caveat: merge-failure swallowing); three proofs + destructive-DDL partly (reuses `unmarkedDestructiveStatements`, but snapshot-survival and ordering gaps); ticket-file union and other conflicts reported met; tests on a fixture partly (restore-failure guard and CLI exit codes untested); docs name commands and drop "stop and report" met (byte-identical wording aside). Data flow aside-dir → `db:generate` → `merge-proofs` works as documented. No horizontal slicing.
+
+Spec: 6 findings (worst: should-fix; blocking via the shared merge-catch item).
