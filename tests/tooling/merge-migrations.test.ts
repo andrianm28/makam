@@ -98,3 +98,31 @@ describe("renumbering when main has taken the branch's number", () => {
     expect(git(cwd, "diff", "--name-only", "--diff-filter=U").trim()).toBe("");
   });
 });
+
+describe("conflicts outside drizzle during the merge", () => {
+  function conflicting(file: string): string {
+    const cwd = fixtureRepo();
+    write(cwd, file, "start\n");
+    commit(cwd, "file");
+    git(cwd, "checkout", "-q", "-b", "ticket-3");
+    write(cwd, file, "start\nbranch line\n");
+    commit(cwd, "branch edit");
+    git(cwd, "checkout", "-q", "main");
+    write(cwd, file, "start\nmain line\n");
+    commit(cwd, "main edit");
+    return cwd;
+  }
+
+  it("keeps both sides of a ticket file's conflict and leaves it resolved", () => {
+    const cwd = conflicting(".scratch/feature/issues/01-x.md");
+
+    const result = renumberForMerge({ cwd, branchRef: "ticket-3", baseRef: "HEAD" });
+
+    const text = read(cwd, ".scratch/feature/issues/01-x.md");
+    expect(text).toContain("main line");
+    expect(text).toContain("branch line");
+    expect(text).not.toMatch(/^(<<<<<<<|=======|>>>>>>>)/m);
+    expect(result.unionResolved).toEqual([".scratch/feature/issues/01-x.md"]);
+    expect(git(cwd, "diff", "--name-only", "--diff-filter=U").trim()).toBe("");
+  });
+});
