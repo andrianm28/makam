@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -278,6 +279,76 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: Nazhir", () => {
     expect(await nazhir()).toMatchObject([
       { nama: "Nazhir Sejahtera", jenis: "badan_hukum", kabKota: "Kota Jakarta Selatan", kontak: "021-5550100", nomorBwi: "BWI-001" },
     ]);
+  });
+
+  it("changes nothing on a second run, updates a Nazhir whose contact changed, and never adds a second one", async () => {
+    const { nazhir } = await daftar();
+    const sumber = folder({ "nazhir.csv": NAZHIR });
+    await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+
+    const ulang = await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+    expect(ulang.output).toContain("Nazhir: 1 baris dibaca, 0 dibuat, 0 diubah, 1 sama, 0 ditolak.");
+
+    const baru = folder({ "nazhir.csv": NAZHIR.replace("021-5550100", "021-5550199") });
+    const berubah = await importDataPeluncuranCommand(["--sumber", baru, "--tulis"], env(), { clock: clock() });
+    expect(berubah.output).toContain("Nazhir: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    expect(await nazhir()).toMatchObject([{ nama: "Nazhir Sejahtera", kontak: "021-5550199" }]);
+  });
+
+  it("refuses an unknown jenis and a missing BWI number with the column in the reason", async () => {
+    const { nazhir } = await daftar();
+    const salah = [NAZHIR_HEADER, "A,yayasan,Kota Bekasi,021,BWI-9", "B,perorangan,Kota Bekasi,021,", ""].join("\n");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "nazhir.csv": salah }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain('nazhir.csv baris 2: jenis: jenis harus "perorangan", "organisasi", atau "badan_hukum"');
+    expect(hasil.output).toContain("nazhir.csv baris 3: nomor_bwi: nomor_bwi wajib");
+    expect(await nazhir()).toEqual([]);
+  });
+});
+
+describe("npm run import:data-peluncuran: reading the spreadsheet's CSV", () => {
+  it("reads a file saved by Excel in an Indonesian locale: semicolons, a byte-order mark, quoted cells with a line break", async () => {
+    const { lokasi, admin } = await modul();
+    const excel = `\uFEFF${TPU_HEADER.replaceAll(",", ";")}\r\n"TPU; Barat";"Jl. Satu\nBlok B";Kota Jakarta Barat;-6,15;106,75;Dinas;YA\r\n`;
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": excel }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(await lokasi.tpuDkiList(admin)).toMatchObject([
+      { name: "TPU; Barat", address: "Jl. Satu\nBlok B", pin: { lat: -6.15, lng: 106.75 }, menerimaMakamBaru: true },
+    ]);
+  });
+
+  it("reports a missing source folder as a usage error, not a crash", async () => {
+    const hasil = await importDataPeluncuranCommand(["--sumber", "/tidak/ada"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(2);
+  });
+
+  it("refuses a folder with none of the four template files, naming them", async () => {
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "catatan.txt": "x" })], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("tpu-dki.csv, biaya-pengurusan.csv, layanan-dki.csv, nazhir.csv");
+  });
+});
+
+describe("npm run import:data-peluncuran: the template the owner fills in", () => {
+  const TEMPLATE = fileURLToPath(new URL("../../docs/ops/data-peluncuran", import.meta.url));
+
+  it("passes the dry run with its worked example rows, once the catalog has the example Layanan", async () => {
+    const setup = layananOnTestDatabase(db);
+    await catalogFixture(setup, { varian: ["Standar"] });
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", TEMPLATE], env(), { clock: clock() });
+
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.output).toContain("Biaya Pengurusan: 2 baris dibaca, 2 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.output).toContain("Layanan DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.output).toContain("Nazhir: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.exitCode).toBe(0);
   });
 });
 
