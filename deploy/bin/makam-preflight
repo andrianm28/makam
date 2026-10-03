@@ -182,6 +182,28 @@ check_signature() {
   esac
 }
 
+# "Complete for APP_ENV=production" is the app's own env schema, run inside the
+# released image on the host's env file (dist/env-check.mjs): no hand-kept list
+# of variables here. Its output names variables, never values.
+check_env_schema() {
+  local out code=0
+  if [ "$PULLED" -ne 1 ]; then
+    skip "02, 04, 72" "env schema" "needs the pulled image (ghcr pull above)"
+    return 0
+  fi
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "02, 04, 72" "env schema" "needs the env file (above)"
+    return 0
+  fi
+  out=$(docker run --rm --env-file "$ENV_FILE" -e APP_ENV=production "$IMAGE_REF" node dist/env-check.mjs production 2>&1) || code=$?
+  out=$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)
+  if [ "$code" -eq 0 ]; then
+    pass "02, 04, 72" "env schema" "the app accepts $ENV_FILE for APP_ENV=production"
+  else
+    fail "02, 04, 72" "env schema" "${out:-env-check exited $code with no output (an image built before this preflight has no dist/env-check.mjs)}"
+  fi
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -190,6 +212,7 @@ check_resources
 check_dns_and_certificates
 check_image_pull
 check_signature
+check_env_schema
 #@CALLS
 
 echo
