@@ -5,6 +5,7 @@ import {
   readPublicSentryEnv,
   readRuntimeEnv,
   readSentryEnv,
+  paymentsAreTrial,
   showsStagingBanner,
   SUMOPOD_LIVE_BASE_URL,
   SUMOPOD_SANDBOX_BASE_URL,
@@ -346,5 +347,34 @@ describe("staging banner (from the page's host, since statically rendered pages 
     ["", false],
   ])("on %s the banner shows: %s", (hostname, shown) => {
     expect(showsStagingBanner(hostname)).toBe(shown);
+  });
+});
+
+describe("Pembayaran uji coba: production paying through SumoPod's sandbox", () => {
+  it("is a trial on production when the base-URL override points at the sandbox", () => {
+    expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: SUMOPOD_SANDBOX_BASE_URL })).toBe(true);
+    expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: `${SUMOPOD_SANDBOX_BASE_URL}/` })).toBe(true);
+  });
+
+  it("is not a trial on production paying live, with the override unset, empty or on the live host", () => {
+    expect(paymentsAreTrial({ APP_ENV: "production" })).toBe(false);
+    expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: "" })).toBe(false);
+    expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: SUMOPOD_LIVE_BASE_URL })).toBe(false);
+  });
+
+  it("is not a trial on staging, development or test, even on the sandbox host (staging has its own banner)", () => {
+    for (const APP_ENV of ["staging", "development", "test"]) {
+      expect(paymentsAreTrial({ APP_ENV, SUMOPOD_BASE_URL: SUMOPOD_SANDBOX_BASE_URL })).toBe(false);
+    }
+    expect(paymentsAreTrial({ SUMOPOD_BASE_URL: SUMOPOD_SANDBOX_BASE_URL })).toBe(false);
+  });
+
+  it("fails to not-a-trial on a malformed setting instead of throwing", () => {
+    expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: "not a url" })).toBe(false);
+    expect(paymentsAreTrial({ APP_ENV: "prod", SUMOPOD_BASE_URL: SUMOPOD_SANDBOX_BASE_URL })).toBe(false);
+  });
+
+  it("is not a trial when the host only looks like the sandbox", () => {
+    expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: "https://api-pay-sandbox.sumopod.com.evil.example" })).toBe(false);
   });
 });
