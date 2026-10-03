@@ -244,4 +244,13 @@ describe("the renumber command line's exit code", () => {
     expect(out).toMatch(/CODE CONFLICT.*src\/x\.ts/);
     expect(read(cwd, "src/x.ts")).toMatch(/^<<<<<<< /m);
   });
+
+  it("is 64 with a usage line when no branch is given", () => {
+    const cwd = repoWithBranch("start\nbranch\n");
+
+    const { code, err } = runCli(cwd, []);
+
+    expect(code).toBe(64);
+    expect(err).toMatch(/usage: .*renumber-merge\.ts <branch-ref>/);
+  });
 });
