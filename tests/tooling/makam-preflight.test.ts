@@ -618,4 +618,10 @@ describe("makam-preflight", () => {
     const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Staging is public"));
     expect(section).toMatch(/public access, versioning and encryption[^.]*console[^.]*unless[^.]*read-capable key/i);
   });
+
+  it("fails with a clear reason when the image carries no revision label instead of probing the ref sha-", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_REVISION: "" });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*no org\.opencontainers\.image\.revision label/));
+    expect(result.calls).not.toMatch(/-X POST .*\/deployments(\s|$)/);
+  });
 });
