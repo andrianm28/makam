@@ -211,3 +211,20 @@ describe("makam-arsip-app-lama --hapus", () => {
     expect(archived(w).some((f) => f.endsWith(".dump.enc"))).toBe(true);
   });
 });
+
+describe("makam-arsip-app-lama's proof", () => {
+  it("wants the restore's row counts equal to the source's, not merely at least as many", () => {
+    const w = host();
+    const r = run(w, [], "", { FAKE_RESTORED_COUNTS: "orders=3\npayments=1\nusers=9\n" });
+    expect(r.code).not.toBe(0);
+    expect(r.output).toMatch(/row counts differ/);
+    expect(r.output).not.toMatch(/Cleanup plan/);
+  });
+
+  it("is no proof when the source reports no tables at all", () => {
+    const w = host();
+    const r = run(w, [], "", { FAKE_OLD_COUNTS: "", FAKE_RESTORED_COUNTS: "" });
+    expect(r.code).not.toBe(0);
+    expect(r.output).not.toMatch(/Cleanup plan/);
+  });
+});
