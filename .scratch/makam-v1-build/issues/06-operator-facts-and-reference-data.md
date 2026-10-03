@@ -153,3 +153,5 @@ A pre-launch checklist for the Operator. Every value below is entered by Admin P
   Count: 0 blocking / 0 should-fix / 5 nit (3 process, 2 code). Worst: the exported-for-test helpers with stubbed modules (`command.ts:195,269`).
 
   **Fixed 7/10** from re-review 1. The 3 BELUM are 1 history item and 2 declined nits, all accepted. New across both axes: 0 blocking / 0 should-fix / 11 nit. Money paths are sound: the DKI price and Mitra Jasa rate are one atomic pair of dated versions, a price in use is never overwritten, the dry run (including the Audit Log) is rolled back, and `RUPIAH_MAX` is checked in Zod and in the reason. **Hard remaining: no.** Ready to merge; the nits are optional.
+
+- 2026-10-03 — Added (launch data template and importer) merged to main by the merge thread (41f2066). Two-axis review complete (Standards + Spec), Opus re-review 2 clean (fixed 7/10, the other 3 accepted; new 0 blocking / 0 should-fix / 11 nit). Status unchanged (`ready-for-human`): the owner still fills in the real data. No migration, lockfile unchanged.
