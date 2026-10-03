@@ -179,7 +179,7 @@ function healthy(w: ReturnType<typeof world>) {
       "done",
       'body=""; code=000',
       'case "$url" in',
-      '  *api-pay*) code=${FAKE_SUMOPOD_CODE:-404}; case "$hdr" in *makam-preflight-wrong-key*) code=${FAKE_SUMOPOD_WRONG_KEY_CODE:-401} ;; esac ;;',
+      `  *api-pay*) ${INTERRUPT_AT("sumopod")}; code=\${FAKE_SUMOPOD_CODE:-404}; case "$hdr" in *makam-preflight-wrong-key*) code=\${FAKE_SUMOPOD_WRONG_KEY_CODE:-401} ;; esac ;;`,
       '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
@@ -623,5 +623,11 @@ describe("makam-preflight", () => {
     const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_REVISION: "" });
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*no org\.opencontainers\.image\.revision label/));
     expect(result.calls).not.toMatch(/-X POST .*\/deployments(\s|$)/);
+  });
+
+  it("leaves no header file with the SumoPod key behind when interrupted during the SumoPod call", () => {
+    const interrupted = preflight(healthy(world()), [], { FAKE_INTERRUPT: "sumopod" });
+    expect(interrupted.code).toBe(143);
+    expect(interrupted.leftovers).toEqual([]);
   });
 });
