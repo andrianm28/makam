@@ -612,4 +612,10 @@ describe("makam-preflight", () => {
     expect(vacuous.lines.filter((line) => /^PASS .*sumopod api key/.test(line))).toEqual([]);
     expect(vacuous.output).not.toContain(SECRETS.SUMOPOD_API_KEY);
   });
+
+  it("tells the owner in the runbook that bucket public access, versioning and encryption are a console check unless a read-capable key is given", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Staging is public"));
+    expect(section).toMatch(/public access, versioning and encryption[^.]*console[^.]*unless[^.]*read-capable key/i);
+  });
 });
