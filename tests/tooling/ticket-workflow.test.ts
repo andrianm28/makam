@@ -8,6 +8,7 @@ import {
   summaryProblems,
   ticketComments,
   ticketFileProblems,
+  ticketNumber,
   ticketStatus,
   TICKET_FILE_NAME,
   type Ticket,
@@ -108,7 +109,7 @@ function readTree(issues: URL = ISSUES): Tree {
       .filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)
       .map((name) => {
         const text = readFileSync(new URL(name, issues), "utf8");
-        return { number: Number(name.slice(0, 2)), name, status: ticketStatus(text), comments: ticketComments(text) };
+        return { number: ticketNumber(name), name, status: ticketStatus(text), comments: ticketComments(text) };
       })
       .sort((a, b) => a.number - b.number);
     return { issueFiles, indexText: readFileSync(new URL(INDEX, issues), "utf8"), tickets, problem: null };
@@ -293,18 +294,32 @@ describe("each check on the real tree, with one violation added in memory", () =
   });
 });
 
+describe("the ticket number a file name carries", () => {
+  it("reads 100-x.md as ticket 100, never ticket 10", () => {
+    expect(ticketNumber("100-x.md")).toBe(100);
+    expect(ticketNumber("101-y.md")).toBe(101);
+  });
+
+  it("reads a two-digit name as before", () => {
+    expect(ticketNumber("07-production.md")).toBe(7);
+    expect(ticketNumber("87-cloud-session-readiness.md")).toBe(87);
+  });
+});
+
+describe("the index rows", () => {
+  it("reads the row of ticket 100 under its full number, with its Status and file", () => {
+    const rows = indexRows("| [100](100-catalog.md) | Catalog | resolved | — |\n| [07](07-production.md) | Seven | ready-for-agent | — |\n");
+    expect(rows.get(100)).toEqual({ file: "100-catalog.md", status: "resolved" });
+    expect(rows.get(7)).toEqual({ file: "07-production.md", status: "ready-for-agent" });
+    expect(rows.size).toBe(2);
+  });
+});
+
 describe("the ticket-file naming rule", () => {
-  it("catches the ticket file both other readers cannot see", () => {
-    // `100-*.md` is invisible on both sides at once: the two-digit filter drops
-    // it from the ticket list, and a three-digit number is not an index row
-    // either. So the two readers below are shown dropping it, and this rule is
-    // the one thing left that sees it.
+  it("counts a ticket file numbered 100 as a ticket file, and finds nothing to refuse", () => {
     const names = [INDEX, "07-production.md", "100-catalog.md"];
-    expect(names.filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)).toEqual(["07-production.md"]);
-    expect(indexRows("| [100](100-catalog.md) | Catalog | resolved | — |\n").size).toBe(0);
-    expect(ticketFileProblems(names)).toEqual([
-      "100-catalog.md: not a ticket file name — one is <nn>-<slug>.md, two digits (01..99) then a dash then a slug with no spaces and a lowercase .md. The readers match that name exactly, so this one is at best half-read and at worst not read at all: rename it to fit, or move it out of the issues directory",
-    ]);
+    expect(names.filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)).toEqual(["07-production.md", "100-catalog.md"]);
+    expect(ticketFileProblems(names)).toEqual([]);
   });
 
   it("catches a capital extension, which no reader and no rule used to notice", () => {
