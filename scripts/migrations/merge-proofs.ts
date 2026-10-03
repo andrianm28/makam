@@ -30,3 +30,29 @@ export function checkSnapshotChain(drizzleDir: string): SnapshotChain {
     .sort();
   return { dangling, unexpected: dangling.filter((n) => !KNOWN_SNAPSHOT_GAPS.includes(n)) };
 }
+
+export type SqlComparison = {
+  /** Every statement matches, in order, with nothing added or missing. */
+  identical: boolean;
+  /** Statements only the branch has: hand-written blocks (ticket 39's backfill) to re-append. */
+  handWritten: string[];
+  /** Statements only the generator produced: a sign the restore went wrong (two tickets in one file). */
+  unexpected: string[];
+};
+
+function statements(sql: string): string[] {
+  return sql
+    .replace(/\r\n/g, "\n")
+    .split("--> statement-breakpoint")
+    .map((s) => s.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+}
+
+export function compareMigrationSql(generated: string, branch: string): SqlComparison {
+  const gen = statements(generated);
+  const own = statements(branch);
+  const handWritten = own.filter((s) => !gen.includes(s));
+  const unexpected = gen.filter((s) => !own.includes(s));
+  const identical = handWritten.length === 0 && unexpected.length === 0 && gen.every((s, i) => s === own[i]);
+  return { identical, handWritten, unexpected };
+}
