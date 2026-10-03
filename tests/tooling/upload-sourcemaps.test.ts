@@ -60,7 +60,7 @@ describe("the source maps of one image", () => {
   it("go to the GlitchTip the app reports to, under the image's own release, once per project", () => {
     const result = run(withToken);
     expect(result.code).toBe(0);
-    expect(result.calls).toContain(`sourcemaps upload --url ${GLITCHTIP} --org makam --project makam-staging --release ${RELEASE} /work`);
+    expect(result.calls).toContain(`--url ${GLITCHTIP} sourcemaps upload --org makam --project makam-staging --release ${RELEASE} /work`);
     expect(result.calls).toContain(`--project makam-prod --release ${RELEASE} /work`);
     // The maps come out of the pushed image, not out of a rebuild of it.
     expect(result.calls).toContain(`cp container-id:/app/dist/sourcemaps`);
