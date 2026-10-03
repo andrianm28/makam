@@ -111,3 +111,42 @@ describe("makam-switch run twice", () => {
     expect(again.output).toMatch(/already/i);
   });
 });
+
+describe("makam-switch --ke pemeliharaan", () => {
+  it("installs the maintenance block and page, and v1 again afterwards, each backed up", () => {
+    const w = host();
+    run(w, ["--ke", "v1"]);
+    const r = run(w, ["--ke", "pemeliharaan"]);
+    expect(r.code).toBe(0);
+    expect(site(w)).toBe(readFileSync(path.join(repo, "deploy/nginx/maintenance/makam.co.id.conf"), "utf8"));
+    expect(readFileSync(path.join(w.www, "index.html"), "utf8")).toContain("pemeliharaan");
+    expect(r.calls).toEqual(["nginx -t", "systemctl reload nginx"]);
+    // The v1 block that was replaced is kept too.
+    const kept = backupFiles(w).map((f) => readFileSync(path.join(w.backups, f), "utf8"));
+    expect(kept).toContain(readFileSync(path.join(repo, "deploy/nginx/makam.co.id.conf"), "utf8"));
+  });
+});
+
+describe("makam-switch --cek", () => {
+  it("says which block is installed: lain, v1 or pemeliharaan, and exits 0 only for the last two", () => {
+    const w = host();
+    expect(run(w, ["--cek"])).toMatchObject({ code: 1 });
+    expect(run(w, ["--cek"]).output.trim()).toBe("lain");
+    run(w, ["--ke", "v1"]);
+    expect(run(w, ["--cek"])).toMatchObject({ code: 0 });
+    expect(run(w, ["--cek"]).output.trim()).toBe("v1");
+    run(w, ["--ke", "pemeliharaan"]);
+    expect(run(w, ["--cek"]).output.trim()).toBe("pemeliharaan");
+  });
+
+  it("changes and reloads nothing", () => {
+    const w = host();
+    expect(run(w, ["--cek"]).calls).toEqual([]);
+    expect(backupFiles(w)).toEqual([]);
+  });
+
+  it("refuses an unknown target with the usage exit code", () => {
+    expect(run(host(), ["--ke", "lama"]).code).toBe(64);
+    expect(run(host(), []).code).toBe(64);
+  });
+});
