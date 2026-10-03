@@ -4,23 +4,25 @@
 # (ticket 65, owner decision 2026-10-03: the old app is switched off at the
 # switch).
 #
-#   makam-arsip-app-lama --container <old postgres container> --bucket <bucket>
-#   makam-arsip-app-lama ... --hapus
+#   makam-arsip-app-lama --container <old postgres container>
+#   makam-arsip-app-lama --container <old postgres container> --hapus
 #
 # Steps, in order; any failure stops the run before the next one and exits
 # non-zero, so a plan is never printed (and nothing deleted) for an archive that
 # is not proven:
 #   1. pg_dump -Fc of the old database, encrypted with the backup key
 #      ($MAKAM_ROOT/prod/backup-passphrase, same cipher as makam-backup-db),
-#      plus its row counts, kept under $MAKAM_ROOT/archive/app-lama/;
-#   2. both uploaded to s3://<bucket>/app-lama/ with the AWS CLI;
-#   3. the Dump restored into a throwaway Postgres (no network, removed again)
+#      plus its row counts, kept in the host's backup folder
+#      $MAKAM_ROOT/prod/backups/app-lama/ (like the nightly backups of ticket
+#      64; it is not under backups/db, so the 7-day pruning never reaches it).
+#      Nothing leaves the host: S3 is v2 (ticket 03);
+#   2. the Dump restored into a throwaway Postgres (no network, removed again)
 #      and every table's rows counted against the counts of the source: the proof.
-#   4. the cleanup plan is printed: the old app's containers, volumes and images
+#   3. the cleanup plan is printed: the old app's containers, volumes and images
 #      (only names that start with makam-nonprod- or are the makam-app image),
 #      /home/ubuntu/makam-app, /opt/makam-notify and the old app's nginx blocks
 #      (backups under $MAKAM_ROOT/nginx-backups that point at the old upstreams).
-#   5. with --hapus, the word `hapus-app-lama` typed on stdin runs the plan.
+#   4. with --hapus, the word `hapus-app-lama` typed on stdin runs the plan.
 #
 # Nothing of makam-v1, makam-prod, makam-staging or GlitchTip is touched: the
 # plan is built from the prefixes above and each removal names one object. There
@@ -38,10 +40,9 @@ CONFIRM_WORD=hapus-app-lama
 
 usage() {
   cat <<'USAGE'
-usage: makam-arsip-app-lama --container <name> --bucket <bucket> [--db <name>] [--user <name>] [--hapus]
+usage: makam-arsip-app-lama --container <name> [--db <name>] [--user <name>] [--hapus]
 
   --container  the old app's Postgres container
-  --bucket     the backups bucket the encrypted dump is uploaded to
   --db         the old database, makam_beta by default
   --user       its Postgres user, postgres by default
   --hapus      after the proof, delete the old app by name once the word
@@ -52,14 +53,12 @@ USAGE
 }
 
 SOURCE_CONTAINER=""
-BUCKET=""
 OLD_DB=makam_beta
 OLD_USER=postgres
 HAPUS=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --container) SOURCE_CONTAINER=${2:?}; shift 2 ;;
-    --bucket) BUCKET=${2:?}; shift 2 ;;
     --db) OLD_DB=${2:?}; shift 2 ;;
     --user) OLD_USER=${2:?}; shift 2 ;;
     --hapus) HAPUS=1; shift ;;
@@ -67,10 +66,10 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
 done
-[ -n "$SOURCE_CONTAINER" ] && [ -n "$BUCKET" ] || usage 64
+[ -n "$SOURCE_CONTAINER" ] || usage 64
 
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-ARCHIVE="$MAKAM_ROOT/archive/app-lama"
+ARCHIVE="$MAKAM_ROOT/prod/backups/app-lama"
 BASE="makam-app-lama-$STAMP"
 DUMP="$ARCHIVE/$BASE.dump.enc"
 COUNTS="$ARCHIVE/$BASE.counts.enc"
@@ -102,14 +101,10 @@ docker exec "$SOURCE_CONTAINER" psql -U "$OLD_USER" -d "$OLD_DB" -Atc "$COUNTS_Q
 mv "$DUMP.part" "$DUMP"
 mv "$COUNTS.part" "$COUNTS"
 
-# 2. Upload.
-for file in "$DUMP" "$COUNTS"; do
-  aws s3 cp "$file" "s3://$BUCKET/app-lama/$(basename "$file")" > /dev/null \
-    || { err "ERROR the upload of $(basename "$file") to s3://$BUCKET failed; nothing is proven, nothing may be deleted"; exit 1; }
-done
-log "uploaded $BASE to s3://$BUCKET/app-lama/"
+# Nothing is uploaded: the Dump and its counts stay in $ARCHIVE (S3 is v2).
+log "archived $BASE in $ARCHIVE"
 
-# 3. Restore into a throwaway Postgres and compare.
+# 2. Restore into a throwaway Postgres and compare.
 docker run -d --name "$NAME" --label makam.role=restore-test --network none --restart no \
   --memory 1g --cpus 1 --shm-size 256m -e POSTGRES_HOST_AUTH_METHOD=trust "$PG_IMAGE" > /dev/null
 container_up=1
@@ -133,7 +128,7 @@ short=$(awk -F= '
 [ -z "$short" ] || { err "ERROR the restore of $BASE is short of rows: $(printf '%s' "$short" | tr '\n' ' ')"; exit 1; }
 log "archive proven: $BASE restored into a throwaway Postgres, every table with its rows"
 
-# 4. The plan: objects by exact name, from prefixes only the old app uses.
+# 3. The plan: objects by exact name, from prefixes only the old app uses.
 # `docker ps --filter name=` matches substrings, so the prefix is checked again
 # here; the makam-app image is matched on its repository, any tag.
 CONTAINERS=()
@@ -158,7 +153,7 @@ for f in "${BLOCKS[@]}"; do echo "  nginx block  $f"; done
 
 [ "$HAPUS" = 1 ] || exit 0
 
-# 5. Typed confirmation, then the plan, one object per command.
+# 4. Typed confirmation, then the plan, one object per command.
 read -r -p "Type $CONFIRM_WORD to delete the old app: " typed || typed=""
 if [ "$typed" != "$CONFIRM_WORD" ]; then
   echo "not confirmed: nothing was deleted" >&2

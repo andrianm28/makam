@@ -63,7 +63,7 @@ function host() {
     ].join("\n"),
   );
   chmodSync(path.join(bin, "docker"), 0o755);
-  return { root, bin, archive, oldApp, notify, dockerLog: path.join(root, "docker.log"), restoreIn: path.join(root, "restore.in") };
+  return { root, bin, archive: path.join(root, "prod", "backups", "app-lama"), oldApp, notify, dockerLog: path.join(root, "docker.log"), restoreIn: path.join(root, "restore.in") };
 }
 
 type World = ReturnType<typeof host>;

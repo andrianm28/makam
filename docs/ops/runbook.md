@@ -1755,11 +1755,13 @@ and the blocks under `/opt/makam-v1/nginx/`.
    `/opt/makam-v1/prod/backup-passphrase` (0600).
 2. **Archive the old app's database.**
    ```bash
-   sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <old postgres container> --bucket <backups bucket>
+   sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <old postgres container>
    ```
-   It dumps `makam_beta`, encrypts the dump with the backup key, uploads it to
-   `s3://<bucket>/app-lama/`, restores it into a throwaway Postgres (no network,
-   removed again) and row-counts it. Only a proven archive prints the cleanup
+   It dumps `makam_beta`, encrypts the dump with the backup key and keeps it in
+   the host's backup folder `/opt/makam-v1/prod/backups/app-lama/` (the way the
+   nightly backups are kept; S3 is v2, ticket 03, so nothing is uploaded),
+   restores it into a throwaway Postgres (no network, removed again) and
+   compares every table's row count with the source. Only a proven archive prints the cleanup
    plan; it deletes nothing yet. Any failure exits non-zero: do not switch on
    an unproven archive.
 3. **Promotion.** Run `promote.yml` ("Promosikan ke produksi", owner only, the
@@ -1790,7 +1792,7 @@ and the blocks under `/opt/makam-v1/nginx/`.
    coming back). `makam-switch --ke v1` puts v1 back. After the first release,
    rollback is the previous v1 digest ("Rolling back").
 7. **Delete the old app** the same day, once the checks pass:
-   `sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <name> --bucket <bucket> --hapus`
+   `sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <name> --hapus`
    re-proves the archive, prints the plan and runs it only after you type
    `hapus-app-lama`: the old app's containers, volumes and images (the
    `makam-nonprod-*` names and `makam-app`), `/home/ubuntu/makam-app`,
