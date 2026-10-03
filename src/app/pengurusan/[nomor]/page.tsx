@@ -232,12 +232,14 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
         <dl className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
           <Baris label="TPU" value={order.tpu.name} href={`/tpu/${order.tpu.id}`} />
           <Baris label="Alamat TPU" value={order.tpu.address} />
-          <Baris
-            label="Jenis pemakaman"
-            value={order.jenisPenguburan === "tumpang" ? "Tumpang, di makam yang sudah ada isinya" : "Makam baru"}
-          />
+          {order.jenisPenguburan ? (
+            <Baris
+              label="Jenis pemakaman"
+              value={order.jenisPenguburan === "tumpang" ? "Tumpang, di makam yang sudah ada isinya" : "Makam baru"}
+            />
+          ) : null}
           {order.kuburan ? <Baris label="Makam yang ditumpang" value={`${order.kuburan.blokNomor} · ${order.kuburan.nama}`} /> : null}
-          <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} />
+          {order.almarhum ? <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} /> : null}
           <Baris
             label="Pemegang Hak"
             value={

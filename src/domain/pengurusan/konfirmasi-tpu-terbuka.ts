@@ -47,7 +47,8 @@ export async function konfirmasiTpuTerbuka(deps: { db: Database }): Promise<Konf
   return rows.map((row) => ({
     id: row.id,
     nomor: row.nomor,
-    almarhumName: row.almarhumName,
+    // A Saat Duka TPU order always carries its Almarhum (placing it requires one).
+    almarhumName: row.almarhumName!,
     tpuName: row.tpuName,
     konfirmasiDueAt: row.konfirmasiDueAt,
     tpuDitawarkan: row.tpuDitawarkanName ? { name: row.tpuDitawarkanName } : null,

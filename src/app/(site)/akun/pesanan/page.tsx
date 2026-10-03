@@ -81,7 +81,7 @@ export default async function AkunPesananPage() {
       nomor: order.nomor,
       href: `/pengurusan/${order.nomor}`,
       status: order.status,
-      judul: `${order.tpu.name} · ${order.almarhum.name}`,
+      judul: order.almarhum ? `${order.tpu.name} · ${order.almarhum.name}` : `${order.tpu.name} · Perpanjangan IPTM`,
       diajukanAt: order.diajukanAt,
     })),
   ].sort((a, b) => b.diajukanAt.getTime() - a.diajukanAt.getTime());

@@ -124,7 +124,6 @@ export async function placePerpanjanganTpu(
   if (!dikutip.ok || !withinPaymentCap(dikutip.total))
     return { ok: false, reason: "harga_tidak_tersedia" };
   const tpu = await deps.lokasi.publicTpuDki(makam.tpuId);
-  const almarhum = makam.almarhum[0]!;
   const dokumen = daftarDokumenPerpanjangan();
 
   try {
@@ -141,12 +140,7 @@ export async function placePerpanjanganTpu(
         pemesanName: nama,
         email: akun.email,
         phoneNumber: input.phoneNumber.trim() || null,
-        almarhumName: almarhum.name,
-        // The table needs a date of death; a renewal has no new burial, so the first Almarhum's, else the day of the request.
-        tanggalWafat: almarhum.tanggalWafat || hariIni,
-        jenisPenguburan: "tumpang",
-        kelayakan: { ktpDki: true, wafatDiJakarta: true },
-        kuburan: { blokNomor: makam.blokNomor, nama: almarhum.name },
+        // No Almarhum, date of death, burial type, eligibility or grave: a renewal is not a burial and stores none of it.
         pemegangHak: makam.pemegangHak,
         dokumenPemakaman: dokumen.pemakaman,
         dokumenPengajuan: dokumen.pengajuan,
@@ -343,7 +337,8 @@ export interface CekTpuTerbuka {
   id: string;
   nomor: string;
   tpuName: string;
-  almarhumName: string;
+  /** Null for a Perpanjangan TPU, which has no Almarhum. */
+  almarhumName: string | null;
   diajukanAt: Date;
   /** 1 working day after the request, on the Admin Platform calendar. */
   dueAt: Date;

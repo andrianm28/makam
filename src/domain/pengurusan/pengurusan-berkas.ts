@@ -324,7 +324,8 @@ export interface PeriksaBerkasTerbuka {
   id: string;
   nomor: string;
   tpuName: string;
-  almarhumName: string;
+  /** Null for a Perpanjangan TPU, which has no Almarhum. */
+  almarhumName: string | null;
   /** When the last document came in. */
   lengkapDiunggahPada: Date;
   /** 1 working day after that, on the Admin Platform calendar. */
@@ -357,7 +358,8 @@ export interface PengajuanBerkasTerbuka {
   id: string;
   nomor: string;
   tpuName: string;
-  almarhumName: string;
+  /** Null for a Perpanjangan TPU, which has no Almarhum. */
+  almarhumName: string | null;
   lunasPada: Date;
   /** 3 working days after Lunas, on the Admin Platform calendar. */
   dueAt: Date;

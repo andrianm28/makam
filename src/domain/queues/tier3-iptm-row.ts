@@ -12,11 +12,11 @@ export const IPTM_FILING_TYPE = "iptm_diajukan";
 export const IPTM_FILING_HREF = "/staf/admin-platform/pengurusan";
 
 /** One filing row of a Pengurusan order, shared by every Tier 3 filing row (the 7-day one, and the filing-only two of ticket 47). */
-export function barisPengurusan(order: { id: string; nomor: string; almarhumName: string; tpuName: string; dueAt: Date }): RawAntreanRow {
+export function barisPengurusan(order: { id: string; nomor: string; almarhumName: string | null; tpuName: string; dueAt: Date }): RawAntreanRow {
   return {
     subjectKind: "pengurusan_tpu",
     subjectId: order.id,
-    subjectLabel: `${order.nomor} · ${order.almarhumName} · ${order.tpuName}`,
+    subjectLabel: order.almarhumName ? `${order.nomor} · ${order.almarhumName} · ${order.tpuName}` : `${order.nomor} · ${order.tpuName}`,
     href: `${IPTM_FILING_HREF}/${order.nomor}`,
     deadline: order.dueAt,
   };

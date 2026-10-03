@@ -6,7 +6,8 @@
  * `notifications.teleponPemesanTerbuka()` and needs no change to close.
  *
  * This row lists money subjects (`subjectKind` "tagihan"): failed Tagihan,
- * reminder and Bukti emails, and orders with no email. Tickets 29 (a Saat
+ * reminder and Bukti emails, and orders with no email; and a Makam TPU whose IPTM
+ * is nearing its end with no email on record (`subjectKind` "makam_tpu", ticket 48). Tickets 29 (a Saat
  * Duka Tagihan Lewat Jatuh Tempo) and 42 (a Hak Pakai nearing its end) open
  * rows for their own subjects. A declined order keeps ticket 24's Tier 1 call.
  *
@@ -37,11 +38,15 @@ export const teleponPemesanRowType: AntreanRowType = {
   async rows(deps: AntreanRowDeps): Promise<RawAntreanRow[]> {
     const terbuka = await deps.notifications.teleponPemesanTerbuka();
     return terbuka
-      .filter((telepon) => telepon.subjectKind === "tagihan")
+      .filter((telepon) => telepon.subjectKind === "tagihan" || telepon.subjectKind === "makam_tpu")
       .map((telepon) => ({
         subjectKind: "telepon_pemesan",
         subjectId: telepon.id,
-        subjectLabel: `${telepon.nomorTagihan ?? telepon.subjectId} · ${SEBAB_LABEL[telepon.sebab] ?? telepon.sebab}`,
+        // A Makam TPU has no Nomor of its own: its row says what to tell the Pemegang Hak.
+        subjectLabel:
+          telepon.subjectKind === "makam_tpu"
+            ? (telepon.perihal ?? `IPTM segera berakhir · ${SEBAB_LABEL[telepon.sebab]}`)
+            : `${telepon.nomorTagihan ?? telepon.subjectId} · ${SEBAB_LABEL[telepon.sebab] ?? telepon.sebab}`,
         // Chasing's own overdue-list page reads a Tagihan by id (ticket 29); every other money subject still has none.
         href: telepon.sebab === "tagihan_lewat_jatuh_tempo" ? "/staf/admin-platform/tagihan-lewat-jatuh-tempo" : FALLBACK_HREF,
         deadline: null,

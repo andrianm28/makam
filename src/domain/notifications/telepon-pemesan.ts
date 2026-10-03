@@ -63,6 +63,8 @@ export interface BukaTeleponPemesan {
   perihal?: string | null;
   sebab: (typeof teleponSebab)[number];
   pesanId?: string | null;
+  /** The reminder behind the row: when a row of this subject already carries it, open or closed, nothing is opened. */
+  kunci?: string | null;
 }
 
 /**
@@ -76,6 +78,20 @@ export async function bukaTeleponPemesan(
   now: Date,
   input: BukaTeleponPemesan,
 ): Promise<{ id: string; baru: boolean }> {
+  if (input.kunci) {
+    const [sudah] = await tx
+      .select({ id: notificationsTeleponPemesan.id })
+      .from(notificationsTeleponPemesan)
+      .where(
+        and(
+          eq(notificationsTeleponPemesan.subjectKind, input.subjectKind),
+          eq(notificationsTeleponPemesan.subjectId, input.subjectId),
+          eq(notificationsTeleponPemesan.kunci, input.kunci),
+        ),
+      )
+      .limit(1);
+    if (sudah) return { id: sudah.id, baru: false };
+  }
   const inserted = await tx
     .insert(notificationsTeleponPemesan)
     .values({
@@ -87,6 +103,7 @@ export async function bukaTeleponPemesan(
       perihal: input.perihal ?? null,
       sebab: input.sebab,
       pesanId: input.pesanId ?? null,
+      kunci: input.kunci ?? null,
       dibukaPada: now,
     })
     .onConflictDoNothing()

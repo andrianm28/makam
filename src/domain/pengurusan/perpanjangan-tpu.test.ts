@@ -433,7 +433,7 @@ describe("what a Perpanjangan TPU stores", () => {
     expect(await setup.pengurusan.suratKuasa(dasar.pemesan, nomor)).toMatchObject({ almarhum: null, blokNomor: "Blok B-12 No. 34" });
 
     const lengkap = await setup.pengurusan.periksaDokumen(dasar.admin, { nomor });
-    if (!lengkap.ok) throw new Error("check refused");
+    if (!lengkap.ok || lengkap.status !== "menunggu_pembayaran") throw new Error("check refused");
     await setup.billing.recordPayment(lengkap.tagihan.id, QRIS);
     await setup.pengurusan.pembayaranBerkasTick();
     expect(await setup.pengurusan.pengajuanBerkasTerbuka()).toMatchObject([{ nomor, almarhumName: null }]);

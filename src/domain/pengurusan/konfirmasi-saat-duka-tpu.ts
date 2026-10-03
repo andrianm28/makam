@@ -269,7 +269,7 @@ export async function konfirmasiSaatDukaTpu(
           tpu: { id: tpu.id, name: tpu.name, address: tpu.address },
           makam: {
             blokNomor: order.kuburan?.blokNomor ?? "Makam baru: petak ditentukan TPU pada hari pemakaman",
-            almarhumName: order.almarhumName,
+            almarhumName: order.almarhumName!,
             keterangan: order.kuburan ? `Tumpang di makam ${order.kuburan.nama}` : null,
             // The IPTM photo is a permit, never a grave photo, and is not shown to a Mitra Jasa.
             fotoKeys: [],
@@ -324,7 +324,7 @@ export async function konfirmasiSaatDukaTpu(
     email: order.email,
     pemesanName: order.pemesanName,
     tpu: { name: order.tpuName, address: order.tpuAddress },
-    almarhum: { name: order.almarhumName, tanggalWafat: order.tanggalWafat },
+    almarhum: { name: order.almarhumName!, tanggalWafat: order.tanggalWafat! },
     pemakamanAt,
     adminPlatform: { name: by.email, phoneNumber: by.phoneNumber },
     kontakTpu: input.kontakTpu,

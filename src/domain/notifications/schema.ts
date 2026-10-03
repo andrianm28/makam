@@ -178,6 +178,8 @@ export const notificationsTeleponPemesan = pgTable(
     sebab: text("sebab", { enum: teleponSebab }).notNull(),
     /** The failed message, when `sebab` is `pesan_gagal`. */
     pesanId: uuid("pesan_id"),
+    /** Names the reminder that opened this row (a Makam TPU's IPTM expiry and stage), so a closed row is not opened again for the same reminder; null for any other subject. */
+    kunci: text("kunci"),
     dibukaPada: at("dibuka_pada").notNull(),
     ditutupPada: at("ditutup_pada"),
     hasil: text("hasil", { enum: teleponHasil }),

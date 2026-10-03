@@ -28,7 +28,7 @@ import { hariKemudian } from "./aturan";
 import { HARI_BERKAS_PENGAJUAN } from "./pengajuan-iptm";
 import { pengurusanTpu } from "./schema";
 import type { Pemesan, PengurusanDeps } from "./deps";
-import { FOTO_IPTM_MAX_BYTES } from "./skema-pengurusan";
+import { FOTO_IPTM_MAX_BYTES, jenisPenguburanSchema, kelayakanSchema } from "./skema-pengurusan";
 import type { JenisPenguburan, Kelayakan, KuburanTpu, PemegangHak, PemegangHakInput } from "./skema-pengurusan";
 
 /** An IPTM photo as a screen hands it over: the bytes and the type the browser declared. */
@@ -92,6 +92,7 @@ export type PlaceSaatDukaTpuResult =
   | { ok: false; reason: "pemesan_kosong" }
   /** The Almarhum's name is missing. */
   | { ok: false; reason: "almarhum_kosong" }
+  | { ok: false; reason: "input_tidak_valid" }
   /** The named Pemegang Hak is the Almarhum, who can never hold the right. */
   | { ok: false; reason: "pemegang_hak_almarhum" }
   /** A hari-H Layanan this TPU does not offer (not marked "boleh di TPU DKI", not "bisa hari-H", or with no DKI price). */
@@ -147,6 +148,9 @@ async function tempatkan(
   if (pemesanName === "") return { ok: false, reason: "pemesan_kosong" };
   const almarhumName = input.almarhumName.trim();
   if (almarhumName === "") return { ok: false, reason: "almarhum_kosong" };
+  // The order's burial columns allow their absence (a Perpanjangan TPU has none), so the rule that a burial order carries them is kept here.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.tanggalWafat ?? "") || !jenisPenguburanSchema.safeParse(input.jenis).success || !kelayakanSchema.safeParse(input.kelayakan).success)
+    return { ok: false, reason: "input_tidak_valid" };
 
   const pemegangHak = pemegangHakOf(input, pemesanName, almarhumName);
   if (!pemegangHak.ok) return pemegangHak;

@@ -144,7 +144,7 @@ export async function jawabTpuLain(
   const tpu = await deps.lokasi.publicTpuDki(order.tpuDitawarkanId);
   if (!tpu || !tpu.newPlot) return { ok: false, reason: "tidak_ada_tawaran" };
 
-  const dokumen = daftarDokumen({ jenis: order.jenisPenguburan, kelayakan: order.kelayakan });
+  const dokumen = daftarDokumen({ jenis: order.jenisPenguburan!, kelayakan: order.kelayakan! });
   await deps.db
     .update(pengurusanTpu)
     .set({
