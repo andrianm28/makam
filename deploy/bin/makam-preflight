@@ -416,6 +416,23 @@ check_webhook_secret() {
   fi
 }
 
+# The app's webhook route (src/app/api/webhooks/pembayaran) answers 401 to a
+# signature it cannot verify. Before the nginx switch makam.co.id still reaches
+# the old app; --webhook-url http://127.0.0.1:<port>/... tests v1 directly.
+check_webhook_forged() {
+  local url code
+  url=${WEBHOOK_URL:-$(setting APP_BASE_URL)/api/webhooks/pembayaran}
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
+    -H 'content-type: application/json' -H 'svix-id: msg_makampreflight' -H "svix-timestamp: $(date +%s)" \
+    -H 'svix-signature: v1,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+    --data '{"type":"makam.preflight"}' "$url" 2> /dev/null) || code="no answer"
+  case "$code" in
+    401) pass "04" "webhook forged signature" "$url answers 401 to a forged signature" ;;
+    200|201|202|204) fail "04" "webhook forged signature" "$url answered $code: it accepts forged signatures, do not register it with SumoPod" ;;
+    *) fail "04" "webhook forged signature" "$url answered $code, expected 401 (before the nginx switch makam.co.id still reaches the old app: use --webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran, or finish the nginx switch)" ;;
+  esac
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -428,6 +445,7 @@ check_env_schema
 check_smtp
 check_sumopod_key
 check_webhook_secret
+check_webhook_forged
 check_s3
 check_backup_key
 check_backup_and_restore
