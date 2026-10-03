@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { runHook } from "../support/hook";
 
+const agent = (tool_input: Record<string, unknown>) => runHook("require-subagent-model.sh", { tool_name: "Agent", tool_input });
+
 const createSession = (tool_input: Record<string, unknown>) =>
   runHook("require-subagent-model.sh", {
     tool_name: "mcp__bf7c680d-5fdc-5ef4-b4a0-abadb619bf0a__create_session",
@@ -20,5 +22,21 @@ describe("create_session tier hook", () => {
     for (const model of ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001", "sonnet"]) {
       expect(createSession({ title: "Build ticket 12: perpanjangan", model }).status, model).toBe(0);
     }
+  });
+});
+
+describe("review tier matrix", () => {
+  it("makes a review of money code name opus, for the reviewer agent and for a review thread alike", () => {
+    const a = agent({ subagent_type: "reviewer", description: "Review ticket 61", prompt: "Review the Billing Tagihan branch" });
+    expect(a.status).toBe(2);
+    expect(a.stderr).toMatch(/opus/);
+    expect(agent({ subagent_type: "reviewer", description: "Review ticket 61", prompt: "Review Billing", model: "sonnet" }).status).toBe(2);
+    expect(createSession({ title: "Review ticket 61: refund", prompt: "go", model: "claude-sonnet-5-5" }).status).toBe(2);
+    expect(agent({ subagent_type: "reviewer", description: "Review ticket 61", prompt: "Review Billing", model: "opus" }).status).toBe(0);
+    expect(createSession({ title: "Review ticket 61: refund", prompt: "go", model: "claude-opus-5-5" }).status).toBe(0);
+  });
+
+  it("leaves a review of other code on the reviewer's own sonnet", () => {
+    expect(agent({ subagent_type: "reviewer", description: "Review ticket 48", prompt: "Review perpanjangan" }).status).toBe(0);
   });
 });
