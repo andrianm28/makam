@@ -131,6 +131,33 @@ describe("guard-git hook, the writers to main", () => {
     expect(r.stderr).toMatch(/docs/);
   });
 
+  it("judges the coordinator's push by the commits it sends, not by what origin/main gained since", () => {
+    const { dir, bash, commit } = repo();
+    mark(dir, "docs");
+    const origin = git(dir, "remote", "get-url", "origin").trim();
+    const other = tmpDir("gg-other-", dirs);
+    git(other, "clone", "-q", origin, ".");
+    git(other, "config", "user.email", "t@example.com");
+    git(other, "config", "user.name", "t");
+    mkdirSync(path.join(other, "src"));
+    writeFileSync(path.join(other, "src/a.ts"), "x");
+    git(other, "add", "-A");
+    git(other, "commit", "-q", "-m", "merge thread code");
+    git(other, "push", "-q", "origin", "main");
+    git(dir, "fetch", "-q", "origin");
+    commit("docs/agents/notes.md");
+    expect(bash("git push origin main").status).toBe(0);
+  });
+
+  it("tells the coordinator to fetch when it has no origin/main to compare with", () => {
+    const { dir, bash } = repo();
+    mark(dir, "docs");
+    git(dir, "update-ref", "-d", "refs/remotes/origin/main");
+    const r = bash("git push origin main");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/git fetch origin main/);
+  });
+
   it("ignores a marker it does not know", () => {
     const { dir, bash } = repo({ branch: "ticket-5-x" });
     mark(dir, "please");
