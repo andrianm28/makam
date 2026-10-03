@@ -52,12 +52,15 @@ const INTERRUPT_AT = (step: string) =>
   [
     `if [ "\${FAKE_INTERRUPT:-}" = ${step} ] && [ ! -e "$FAKE_LOG.interrupted" ]; then`,
     '  touch "$FAKE_LOG.interrupted"',
-    "  p=$PPID; top=",
+    "  p=$PPID; top=; chain=",
     '  while [ -n "$p" ] && [ "$p" != 1 ]; do',
-    '    if grep -qa deploy/bin/makam-preflight "/proc/$p/cmdline" 2> /dev/null; then top=$p; elif [ -n "$top" ]; then break; fi',
+    '    if grep -qa deploy/bin/makam-preflight "/proc/$p/cmdline" 2> /dev/null; then top=$p; chain="$chain $p"; elif [ -n "$top" ]; then break; fi',
     '    p=$(ps -o ppid= -p "$p" | tr -d " ")',
     "  done",
+    // Ctrl-C reaches the whole foreground group: every $(...) subshell between this fake and the script dies mid-call, the script itself handles its trap.
+    '  for q in $chain; do [ "$q" = "$top" ] || kill -TERM "$q"; done',
     '  kill -TERM "$top"',
+    "  exit 143",
     "fi",
   ].join("\n");
 
@@ -627,6 +630,12 @@ describe("makam-preflight", () => {
 
   it("leaves no header file with the SumoPod key behind when interrupted during the SumoPod call", () => {
     const interrupted = preflight(healthy(world()), [], { FAKE_INTERRUPT: "sumopod" });
+    expect(interrupted.code).toBe(143);
+    expect(interrupted.leftovers).toEqual([]);
+  });
+
+  it("leaves no header file with the GitHub token behind when interrupted during the Deployment call", () => {
+    const interrupted = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_INTERRUPT: "gh-create" });
     expect(interrupted.code).toBe(143);
     expect(interrupted.leftovers).toEqual([]);
   });
