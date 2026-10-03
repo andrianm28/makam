@@ -15,12 +15,13 @@ import { composeIdentity } from "@/composition/identity";
 import { createAdapters } from "@/composition/adapters";
 import { createDatabase } from "@/db/client";
 import type { Actor } from "@/domain/identity";
+import { createKatalogLayanan, type Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi, type TpuDki } from "@/domain/lokasi";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv } from "@/lib/env";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
-import { alasanBaris, barisBiayaSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
+import { alasanBaris, barisBiayaSchema, barisLayananSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
 import { bacaCsv } from "./data-peluncuran/csv";
 import { cliFailure } from "./cli-failure";
 
@@ -153,6 +154,69 @@ async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekaran
   return hasil;
 }
 
+/** The name a Layanan or variant is matched on: case and surrounding spaces are the spreadsheet's, not the catalog's. */
+const kunciNama = (nama: string) => nama.trim().toLowerCase();
+
+async function olahLayanan(
+  folder: string,
+  katalogLayanan: Pick<Layanan, "katalog">,
+  tariffs: Tariffs,
+  aktor: Actor,
+  sekarang: Date,
+  tulis: boolean,
+): Promise<Ringkasan> {
+  const hasil = kosong();
+  const csv = bacaBerkas(folder, "layanan-dki.csv");
+  if (!csv) return hasil;
+  const varianId = new Map<string, string>();
+  for (const layanan of await katalogLayanan.katalog()) {
+    for (const varian of layanan.varian) varianId.set(`${kunciNama(layanan.name)}|${kunciNama(varian.name)}`, varian.id);
+  }
+  const terlihat = new Map<string, number>();
+  for (const baris of csv.baris) {
+    hasil.dibaca += 1;
+    const parsed = barisLayananSchema.safeParse(baris.nilai);
+    if (!parsed.success) {
+      hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${alasanBaris(parsed.error)}`);
+      continue;
+    }
+    const row = parsed.data;
+    const kunci = `${kunciNama(row.layanan)}|${kunciNama(row.varian)}`;
+    const id = varianId.get(kunci);
+    if (!id) {
+      hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: varian "${row.varian}" dari Layanan "${row.layanan}" tidak ada di katalog Layanan`);
+      continue;
+    }
+    const pertama = terlihat.get(kunci);
+    if (pertama !== undefined) {
+      hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: varian "${row.varian}" dari "${row.layanan}" sudah muncul di baris ${pertama}`);
+      continue;
+    }
+    terlihat.set(kunci, baris.nomor);
+    const saat = saatBerlaku(row.berlakuMulai, sekarang);
+    const dki = await tariffs.hargaLayananDki(id, saat);
+    const mitra = await tariffs.mitraJasaRate(aktor, id, saat);
+    const dkiSama = dki?.amount === row.hargaDki;
+    const mitraSama = mitra?.amount === row.tarifMitraJasa;
+    if (dkiSama && mitraSama) {
+      hasil.sama += 1;
+      continue;
+    }
+    if (tulis) {
+      const berlaku = row.berlakuMulai ?? wibDateOf(sekarang);
+      const dicatat = dkiSama ? { ok: true as const } : await tariffs.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: ALASAN_IMPOR });
+      const dicatatMitra = !dicatat.ok || mitraSama ? dicatat : await tariffs.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: ALASAN_IMPOR });
+      if (!dicatatMitra.ok) {
+        hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${dicatatMitra.reason}`);
+        continue;
+      }
+    }
+    if (dki || mitra) hasil.diubah += 1;
+    else hasil.dibuat += 1;
+  }
+  return hasil;
+}
+
 /** The report a run ends with: one line of counts per kind, then every refusal. Exit 1 when any row was refused. */
 function laporan(tulis: boolean, bagian: { judul: string; ringkasan: Ringkasan }[]): { exitCode: number; output: string } {
   const ditolak = bagian.flatMap((satu) => satu.ringkasan.ditolak);
@@ -241,9 +305,11 @@ export async function importDataPeluncuranCommand(
       const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
       const tpu = await olahTpu(sumber, lokasi, aktor, tulis);
       const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), tulis);
+      const layanan = await olahLayanan(sumber, createKatalogLayanan({ db: database.db }), tariffs, aktor, adapters.clock.now(), tulis);
       return laporan(tulis, [
         { judul: "TPU DKI", ringkasan: tpu },
         { judul: "Biaya Pengurusan", ringkasan: biaya },
+        { judul: "Layanan DKI", ringkasan: layanan },
       ]);
     } finally {
       await database.close();

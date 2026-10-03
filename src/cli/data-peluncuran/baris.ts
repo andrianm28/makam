@@ -80,3 +80,21 @@ export const barisBiayaSchema = z
   }));
 
 export type BarisBiaya = z.output<typeof barisBiayaSchema>;
+
+export const barisLayananSchema = z
+  .object({
+    layanan: z.string().min(1, "layanan wajib"),
+    varian: z.string().min(1, "varian wajib"),
+    harga_dki_rupiah: rupiah("harga_dki_rupiah"),
+    tarif_mitra_jasa_rupiah: rupiah("tarif_mitra_jasa_rupiah"),
+    berlaku_mulai: berlakuMulai,
+  })
+  .transform((baris) => ({
+    layanan: baris.layanan,
+    varian: baris.varian,
+    hargaDki: baris.harga_dki_rupiah,
+    tarifMitraJasa: baris.tarif_mitra_jasa_rupiah,
+    berlakuMulai: baris.berlaku_mulai,
+  }));
+
+export type BarisLayanan = z.output<typeof barisLayananSchema>;

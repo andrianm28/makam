@@ -802,6 +802,14 @@ function staffLayananReads(deps: LayananDeps, by: Actor): StaffLayananReads {
   };
 }
 
+/**
+ * The catalog read alone, for a caller that only needs to know which Layanan and variants exist (the launch
+ * data import resolves a variant by its names): it needs the database and none of the order machinery.
+ */
+export function createKatalogLayanan(deps: Pick<LayananDeps, "db">): Pick<Layanan, "katalog"> {
+  return { katalog: () => katalog(deps.db) };
+}
+
 export function createLayanan(deps: LayananDeps): Layanan {
   const now = () => deps.clock.now();
   return {
