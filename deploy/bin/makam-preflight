@@ -383,6 +383,27 @@ check_smtp() {
   fi
 }
 
+# GET of a payment that does not exist: 401/403 means the key was refused, 200 or
+# 404 means it was accepted. The key travels in a mode 0600 header file, so it is
+# in neither the argument list nor the output. The path can be overridden with
+# MAKAM_PREFLIGHT_SUMOPOD_PATH if SumoPod documents a better read-only call.
+check_sumopod_key() {
+  local base headers code url
+  base=$(setting SUMOPOD_BASE_URL)
+  base=${base:-https://api-pay.sumopod.com}
+  url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
+  headers=$(mktemp)
+  chmod 600 "$headers"
+  printf 'X-Api-Key: %s\n' "$(setting SUMOPOD_API_KEY)" > "$headers"
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$headers" "$url" 2> /dev/null) || code="no answer"
+  rm -f "$headers"
+  case "$code" in
+    200|404) pass "04" "sumopod api key" "authenticated on a read-only call to $base (HTTP $code)" ;;
+    401|403) fail "04" "sumopod api key" "$base refused the key (HTTP $code): fetch the production key from the SumoPod dashboard" ;;
+    *) fail "04" "sumopod api key" "$base answered HTTP $code, which proves nothing about the key; try again or check SumoPod's status" ;;
+  esac
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -393,6 +414,7 @@ check_image_pull
 check_signature
 check_env_schema
 check_smtp
+check_sumopod_key
 check_s3
 check_backup_key
 check_backup_and_restore
