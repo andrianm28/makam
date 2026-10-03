@@ -51,8 +51,8 @@ def derive(s):
     """(role, ticket) from the record's own fields, else from its title and tags, else "unknown"."""
     text = " ".join([s.get("title") or ""] + [str(x) for x in s.get("tags") or []]).lower()
     role = s.get("role") or next((r for r in ROLES if r in text), "unknown")
-    m = re.search(r"\b(aos-\d+|\d+)\b", text)
-    return role, s.get("ticket") or (m.group(1) if m else "unknown")
+    m = re.search(r"\b(aos-\d+)\b|#(\d+)\b|\bticket\s+(\d+)\b", text)
+    return role, s.get("ticket") or (next(g for g in m.groups() if g) if m else "unknown")
 
 
 def classify(text, markers):
