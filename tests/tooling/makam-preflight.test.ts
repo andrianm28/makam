@@ -117,6 +117,25 @@ function healthy(w: ReturnType<typeof world>) {
     "cosign",
     'if [ "${FAKE_COSIGN_SIGNED:-1}" = 1 ]; then exit 0; fi; echo "no matching signatures" >&2; exit 1',
   );
+  install(
+    w.bin,
+    "aws",
+    [
+      'echo "  as key=${AWS_ACCESS_KEY_ID:-none} region=${AWS_DEFAULT_REGION:-none}" >> "$FAKE_LOG"',
+      'obj="$FAKE_LOG.object"',
+      'case "$2" in',
+      '  put-object) [ "${FAKE_S3_PUT:-0}" = 0 ] || { echo "An error occurred (AccessDenied)" >&2; exit 1; }',
+      '    while [ $# -gt 0 ]; do [ "$1" = --body ] && cp "$2" "$obj"; shift; done ;;',
+      '  get-object) [ "${FAKE_S3_GET:-0}" = 0 ] || exit 1; cp "$obj" "${@: -1}" ;;',
+      '  delete-object) exit "${FAKE_S3_DELETE:-0}" ;;',
+      '  head-bucket) exit "${FAKE_S3_HEAD:-0}" ;;',
+      '  get-public-access-block) [ "${FAKE_S3_SETTINGS_DENIED:-0}" = 0 ] || { echo "An error occurred (AccessDenied)" >&2; exit 254; }',
+      '    echo "${FAKE_S3_PUBLIC:-true true true true}" ;;',
+      '  get-bucket-versioning) echo "${FAKE_S3_VERSIONING:-Enabled}" ;;',
+      '  get-bucket-encryption) [ "${FAKE_S3_ENCRYPTION:-1}" = 1 ] && echo AES256 || { echo "ServerSideEncryptionConfigurationNotFoundError" >&2; exit 254; } ;;',
+      "esac",
+    ].join("\n"),
+  );
   return w;
 }
 
@@ -235,5 +254,22 @@ describe("makam-preflight", () => {
 
     const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*env schema.*pull/));
+  });
+
+  it("puts, reads and deletes a probe object in the files bucket with the app's key, and removes it even when the read fails", () => {
+    const ok = preflight(healthy(world()));
+    expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 probe.*makam-prod-files/));
+    expect(ok.calls).toMatch(/aws s3api put-object --bucket makam-prod-files --key makam-preflight-probe-/);
+    expect(ok.calls).toMatch(/aws s3api get-object --bucket makam-prod-files --key makam-preflight-probe-/);
+    expect(ok.calls).toMatch(/aws s3api delete-object --bucket makam-prod-files --key makam-preflight-probe-/);
+    expect(ok.calls).toContain("as key=AKIAFILES region=ap-southeast-3");
+
+    const unreadable = preflight(healthy(world()), [], { FAKE_S3_GET: "1" });
+    expect(unreadable.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 probe.*read/));
+    expect(unreadable.calls).toMatch(/aws s3api delete-object/);
+
+    const refused = preflight(healthy(world()), [], { FAKE_S3_PUT: "1" });
+    expect(refused.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 probe.*put/));
+    expect(refused.output).not.toContain(SECRETS.S3_SECRET_ACCESS_KEY);
   });
 });
