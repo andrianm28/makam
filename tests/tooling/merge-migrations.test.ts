@@ -253,4 +253,14 @@ describe("the renumber command line's exit code", () => {
     expect(code).toBe(64);
     expect(err).toMatch(/usage: .*renumber-merge\.ts <branch-ref>/);
   });
+
+  it("is 64 for a ref that git would take as an option, and starts no merge", () => {
+    const cwd = repoWithBranch("start\nbranch\n");
+
+    const { code, err } = runCli(cwd, ["--abort"]);
+
+    expect(code).toBe(64);
+    expect(err).toMatch(/branch-ref/);
+    expect(git(cwd, "status", "--porcelain").trim()).toBe("");
+  });
 });
