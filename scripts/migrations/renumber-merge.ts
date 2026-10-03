@@ -117,7 +117,10 @@ export type CliIo = { cwd: string; out: (line: string) => void; err: (line: stri
 export function renumberMergeCli(argv: string[], io: CliIo): number {
   const [branchRef, baseRef] = argv;
   try {
-    renumberForMerge({ cwd: io.cwd, branchRef: branchRef as string, baseRef });
+    const result = renumberForMerge({ cwd: io.cwd, branchRef: branchRef as string, baseRef });
+    io.out(`Set aside ${result.setAside.length} migration file(s) in ${result.asideDir}`);
+    for (const file of result.unionResolved) io.out(`Ticket file resolved by union: ${file}`);
+    io.out(`Next: npm run db:generate, then npx tsx scripts/migrations/merge-proofs.ts ${result.asideDir}`);
     return 0;
   } catch (error) {
     io.err(`renumber-merge: ${error instanceof Error ? error.message : String(error)}`);
