@@ -97,7 +97,15 @@ def by_cause(ws, coordinator_cost):
     return res
 
 
-def build(data):
+def in_window(stamp, since, until):
+    """since/until are ISO dates (whole days, both inclusive); a record with no stamp is kept."""
+    if not stamp or not (since or until):
+        return True
+    day = stamp[:10]
+    return (not since or day >= since) and (not until or day <= until)
+
+
+def build(data, since=None, until=None):
     coord = data["coordinator"]
     threads, tickets, coordinator_cost, other = [], {}, 0.0, []
     for s in data["sessions"]:
@@ -107,6 +115,8 @@ def build(data):
             continue
         if s.get("parent_session_id") != coord:
             other.append({"session_id": s["session_id"], "title": s.get("title"), "cost_usd": cost})
+            continue
+        if not in_window(s.get("created_at"), since, until):
             continue
         role, ticket = derive(s)
         t = {"session_id": s["session_id"], "role": role, "ticket": ticket, "cost_usd": cost, "no_cost": s.get("cost_usd") is None}
@@ -140,16 +150,18 @@ def text(r):
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("sessions")
+    ap.add_argument("--since", help="ISO date, inclusive")
+    ap.add_argument("--until", help="ISO date, inclusive")
     ap.add_argument("--transcript")
     ap.add_argument("--markers")
     ap.add_argument("--json", action="store_true")
     a = ap.parse_args(argv)
-    r = build(json.load(open(a.sessions)))
+    r = build(json.load(open(a.sessions)), a.since, a.until)
     if a.transcript:
         markers = dict(MARKERS)
         if a.markers:
             markers.update(json.load(open(a.markers)))
-        r["causes"] = by_cause(wakes(a.transcript, markers), r["coordinator_cost"])
+        r["causes"] = by_cause([w for w in wakes(a.transcript, markers) if in_window(w["ts"], a.since, a.until)], r["coordinator_cost"])
     print(json.dumps(r, indent=2) if a.json else text(r))
 
 
