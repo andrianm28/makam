@@ -91,6 +91,18 @@ function healthy(w: ReturnType<typeof world>) {
     "free",
     'printf "total used free shared buff/cache available\\nMem: 8000 3000 2000 100 3000 ${FAKE_MEM_AVAILABLE_MB:-4000}\\nSwap: 0 0 0\\n"',
   );
+  install(w.bin, "getent", 'echo "${FAKE_DNS_IP:-103.92.214.243} STREAM $3"');
+  install(
+    w.bin,
+    "openssl",
+    [
+      'case "$*" in',
+      '  s_client*) echo CERTIFICATE ;;',
+      '  *-checkend*) exit "${FAKE_CERT_CHECKEND:-0}" ;;',
+      '  *-enddate*) echo "notAfter=${FAKE_CERT_END:-Jan  1 00:00:00 2027 GMT}" ;;',
+      "esac",
+    ].join("\n"),
+  );
   return w;
 }
 
@@ -151,5 +163,18 @@ describe("makam-preflight", () => {
     const fine = preflight(healthy(world()));
     expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*disk/));
     expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*memory.*4000/));
+  });
+
+  it("fails when makam.co.id or www do not point at this host, or the certificate expires within 14 days", () => {
+    const moved = preflight(healthy(world()), [], { FAKE_DNS_IP: "203.0.113.9" });
+    expect(moved.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*dns makam\.co\.id.*203\.0\.113\.9.*103\.92\.214\.243/));
+    expect(moved.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*dns www\.makam\.co\.id/));
+
+    const expiring = preflight(healthy(world()), [], { FAKE_CERT_CHECKEND: "1", FAKE_CERT_END: "Oct 10 00:00:00 2026 GMT" });
+    expect(expiring.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*certificate makam\.co\.id.*Oct 10 00:00:00 2026 GMT/));
+
+    const fine = preflight(healthy(world()));
+    expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*dns makam\.co\.id/));
+    expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*certificate www\.makam\.co\.id.*Jan  1 00:00:00 2027 GMT/));
   });
 });
