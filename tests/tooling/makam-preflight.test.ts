@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -79,6 +79,18 @@ function healthy(w: ReturnType<typeof world>) {
       "exit 0",
     ].join("\n"),
   );
+  copyFileSync(path.join(repo, "deploy/bin/makam-diskcheck"), path.join(w.bin, "makam-diskcheck"));
+  install(
+    w.bin,
+    "df",
+    'printf "Filesystem 1K-blocks Used Available Use%% Mounted on\\n/dev/root 100 50 50 ${FAKE_DF_USE:-40}%% /\\n"',
+  );
+  install(w.bin, "logger", "exit 0");
+  install(
+    w.bin,
+    "free",
+    'printf "total used free shared buff/cache available\\nMem: 8000 3000 2000 100 3000 ${FAKE_MEM_AVAILABLE_MB:-4000}\\nSwap: 0 0 0\\n"',
+  );
   return w;
 }
 
@@ -127,5 +139,17 @@ describe("makam-preflight", () => {
     const fine = preflight(healthy(world()));
     expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*docker daemon/));
     expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*compose plugin/));
+  });
+
+  it("fails when makam-diskcheck warns about the root disk or the free memory is below the minimum", () => {
+    const full = preflight(healthy(world()), [], { FAKE_DF_USE: "91" });
+    expect(full.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*disk.*85/));
+
+    const tight = preflight(healthy(world()), [], { FAKE_MEM_AVAILABLE_MB: "300" });
+    expect(tight.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*memory.*300/));
+
+    const fine = preflight(healthy(world()));
+    expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*disk/));
+    expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*memory.*4000/));
   });
 });
