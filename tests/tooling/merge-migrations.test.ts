@@ -1,9 +1,9 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { renumberForMerge } from "../../scripts/migrations/renumber-merge";
+import { renumberForMerge, renumberMergeCli } from "../../scripts/migrations/renumber-merge";
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -166,5 +166,36 @@ describe("a merge worktree with uncommitted changes", () => {
     expect(read(cwd, "drizzle/0000_init.sql")).toContain("uncommitted edit");
     expect(existsSync(asideDir)).toBe(false);
     expect(git(cwd, "rev-parse", "-q", "--verify", "HEAD").trim()).not.toBe("");
+  });
+});
+
+describe("a restore that leaves main's journal changed", () => {
+  /** A repo whose `git checkout <ref> -- <path>` leaves a stray line in the journal (a post-checkout hook). */
+  function strayRestoreRepo(): string {
+    const cwd = fixtureRepo();
+    git(cwd, "checkout", "-q", "-b", "ticket-6");
+    addMigration(cwd, "0001_feat", 'CREATE TABLE "feat" ("id" int);');
+    commit(cwd, "ticket");
+    git(cwd, "checkout", "-q", "main");
+    const hook = path.join(cwd, ".git/hooks/post-checkout");
+    writeFileSync(hook, "#!/bin/sh\necho stray >> drizzle/meta/_journal.json\n");
+    chmodSync(hook, 0o755);
+    return cwd;
+  }
+
+  it("throws instead of reporting a restored tree", () => {
+    const cwd = strayRestoreRepo();
+
+    expect(() => renumberForMerge({ cwd, branchRef: "ticket-6", baseRef: "HEAD" })).toThrow(/could not restore/);
+  });
+
+  it("makes the command line print the reason and exit non-zero", () => {
+    const cwd = strayRestoreRepo();
+    const err: string[] = [];
+
+    const code = renumberMergeCli(["ticket-6"], { cwd, out: () => {}, err: (line) => err.push(line) });
+
+    expect(code).toBe(1);
+    expect(err.join("\n")).toMatch(/could not restore/);
   });
 });
