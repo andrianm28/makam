@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { FakeClock } from "@/adapters/memory";
+import { createKatalogLayanan } from "@/domain/layanan";
 import { createNazhirList } from "@/domain/wakaf";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
@@ -218,6 +219,51 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: Biaya Pengurusan"
     expect(hasil.output).toContain("biaya-pengurusan.csv baris 3: jumlah_rupiah: jumlah_rupiah harus bilangan bulat rupiah");
     expect(hasil.output).toContain("biaya-pengurusan.csv baris 4: berlaku_mulai 2026-09-01 sudah lewat");
     expect(await tariffs.globalTariffHistory("biaya_pengurusan_berkas")).toEqual([]);
+  });
+});
+
+describe("npm run import:data-peluncuran -- --sumber <folder>: katalog Layanan", () => {
+  const KATALOG_HEADER = "layanan,jenis,deskripsi,lead_time_hari,bisa_hari_h,ada_di_petak_kosong,teks_label,varian";
+  const KATALOG = `${KATALOG_HEADER}\nPembersihan Makam,pembersihan,Membersihkan dan merapikan makam.,3,tidak,ya,,Standar | Menyeluruh\n`;
+  const HARGA = "layanan,varian,harga_dki_rupiah,tarif_mitra_jasa_rupiah,berlaku_mulai\nPembersihan Makam,Menyeluruh,300000,220000,\n";
+
+  async function isi() {
+    const { clock: jam, audit, admin, tariffs } = await modul();
+    const katalog = createKatalogLayanan({ db, clock: jam, audit });
+    return { katalog: () => katalog.katalog(), tariffs, admin };
+  }
+
+  it("dry-runs a new Layanan with its variants, and a DKI price on one of those not-yet-created variants, writing nothing", async () => {
+    const { katalog } = await isi();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": KATALOG, "layanan-dki.csv": HARGA })], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Katalog Layanan: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(hasil.output).toContain("Layanan DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(await katalog()).toEqual([]);
+  });
+
+  it("creates the Layanan with its variants through the Layanan module, before the DKI price that needs one of them", async () => {
+    const { katalog, tariffs } = await isi();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": KATALOG, "layanan-dki.csv": HARGA }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Katalog Layanan: 1 baris dibaca, 1 dibuat, 0 diubah, 0 sama, 0 ditolak.");
+    const [layanan] = await katalog();
+    expect(layanan).toMatchObject({
+      name: "Pembersihan Makam",
+      jenis: "pembersihan",
+      description: "Membersihkan dan merapikan makam.",
+      leadTimeDays: 3,
+      bisaHariH: false,
+      adaDiPetakKosong: true,
+      teksLabel: null,
+    });
+    expect(layanan!.varian.map((varian) => varian.name)).toEqual(["Standar", "Menyeluruh"]);
+    const menyeluruh = layanan!.varian.find((varian) => varian.name === "Menyeluruh")!;
+    expect((await tariffs.hargaLayananDki(menyeluruh.id, wib("2026-10-01 09:00")))?.amount).toBe(300_000);
   });
 });
 
