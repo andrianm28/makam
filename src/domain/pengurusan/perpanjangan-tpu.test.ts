@@ -535,6 +535,16 @@ describe("the IPTM expiry reminder of a Makam TPU with no email on record", () =
     expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
   });
 
+  it("leaves a 3-month row that is still open alone when the 1-month reminder fires, and opens nothing new", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await tanpaEmail(setup, "2027-02-15");
+    await tick(setup, "2026-11-15 10:00");
+    const [pertama] = await setup.notifications.teleponPemesanTerbuka();
+
+    await tick(setup, "2027-01-15 10:00");
+    expect(await setup.notifications.teleponPemesanTerbuka()).toMatchObject([{ id: pertama!.id, subjectId: dasar.makamTpuId }]);
+  });
+
   it("does not open a row outside 08:00-20:00 WIB", async () => {
     const setup = pengajuanOnTestDatabase(db);
     await tanpaEmail(setup, "2027-02-15");
