@@ -15,3 +15,5 @@ Spec: `.scratch/agent-orchestration-skills/spec.md`.
 - [ ] Proven by syncing into a scratch repository and into makam on a branch, and seeing the skills listed in a fresh cloud session; the sync has tests.
 
 ## Comments
+
+- 2026-10-03, owner decisions (option tool, after this ticket was written): the repository becomes **private** (the owner changes its visibility; no open licence for its own content), so the description's "public" is superseded; its `main` is created by a merge thread with a README-only first commit before this ticket starts. Vendored Matt Pocock skills keep their MIT licence file. Since the repository is private, the sync fetches it with credentials: say how a project's session gets them (for a cloud session, the repository added to its sources).
