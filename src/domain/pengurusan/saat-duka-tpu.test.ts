@@ -114,6 +114,17 @@ describe("the Saat Duka TPU submission", () => {
     );
   });
 
+  it("still requires the Almarhum's date of death, the burial type and both eligibility answers, now that the order's columns allow their absence", async () => {
+    const setup = pengurusanOnTestDatabase(db);
+    const fixture = await saatDukaTpuFixture(setup);
+
+    for (const lepas of [{ tanggalWafat: undefined }, { tanggalWafat: "" }, { jenis: undefined }, { kelayakan: undefined }]) {
+      expect(await setup.pengurusan.placeSaatDukaTpu(orderSaatDukaTpu(fixture, lepas as never))).toEqual({ ok: false, reason: "input_tidak_valid" });
+    }
+    expect(await setup.pengurusan.placeSaatDukaTpu(orderSaatDukaTpu(fixture, { almarhumName: "  " }))).toEqual({ ok: false, reason: "almarhum_kosong" });
+    expect(await setup.pengurusan.konfirmasiTpuTerbuka()).toEqual([]);
+  });
+
   it("refuses a family with neither a DKI KTP nor a death in Jakarta, and writes no order", async () => {
     const setup = pengurusanOnTestDatabase(db);
     const fixture = await saatDukaTpuFixture(setup);

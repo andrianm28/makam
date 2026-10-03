@@ -8,6 +8,8 @@ import { addWorkingDays } from "@/domain/lokasi";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { pengajuanOnTestDatabase, type PengajuanSetup } from "../../../tests/support/pengurusan";
+import { makamTpu } from "./schema";
+import { eq } from "drizzle-orm";
 import { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
 import { makamTpuDenganIptm } from "../../../tests/support/makam-tpu";
 
@@ -406,6 +408,122 @@ describe("the IPTM expiry reminders", () => {
     await tickPada(setup, "2027-01-15 10:00");
     expect(keHolder(setup)).toHaveLength(1);
     expect(await pengingatIptmTick(deps(setup), setup.clock.now())).toEqual({ diumumkan: 0, dilewati: 1 });
+  });
+});
+
+describe("what a Perpanjangan TPU stores", () => {
+  it("holds no Almarhum, date of death, burial type, eligibility answers or Tumpang grave, because it is not a burial", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-12-20 10:00"));
+    const nomor = await pesanan(setup, dasar);
+
+    const order = await setup.pengurusan.orderOf(nomor, dasar.pemesan);
+    expect(order).toMatchObject({ kind: "perpanjangan_tpu", almarhum: null, jenisPenguburan: null, kelayakan: null, kuburan: null });
+  });
+
+  it("shows its Antrean rows without an Almarhum and its Surat Kuasa with the grave's Blok but no Almarhum", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-12-20 10:00"));
+    const nomor = await pesanan(setup, dasar);
+    await unggah(setup, dasar, nomor);
+
+    expect(await setup.pengurusan.periksaBerkasTerbuka()).toMatchObject([{ nomor, almarhumName: null }]);
+    expect(await setup.pengurusan.suratKuasa(dasar.pemesan, nomor)).toMatchObject({ almarhum: null, blokNomor: "Blok B-12 No. 34" });
+
+    const lengkap = await setup.pengurusan.periksaDokumen(dasar.admin, { nomor });
+    if (!lengkap.ok) throw new Error("check refused");
+    await setup.billing.recordPayment(lengkap.tagihan.id, QRIS);
+    await setup.pengurusan.pembayaranBerkasTick();
+    expect(await setup.pengurusan.pengajuanBerkasTerbuka()).toMatchObject([{ nomor, almarhumName: null }]);
+  });
+
+  it("shows a past-grace request's TPU check row without an Almarhum", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2027-05-20 10:00"));
+    const nomor = await pesananPada(setup, dasar, "2027-02-15");
+    expect(await setup.pengurusan.cekTpuTerbuka()).toMatchObject([{ nomor, almarhumName: null }]);
+  });
+});
+
+describe("the IPTM expiry reminder of a Makam TPU with no email on record", () => {
+  const deps = (setup: PengajuanSetup): PengingatIptmDeps => ({
+    db,
+    identity: setup.identity,
+    notifikasi: setup.notifications,
+    tautan: (makamTpuId) => `https://makam.test/perpanjang-iptm/${makamTpuId}`,
+  });
+  /** The Pemegang Hak has no email and no Akun is attached to the Makam TPU. */
+  async function tanpaEmail(setup: PengajuanSetup, berlakuSampai: string) {
+    const dasar = await makamBerakhir(setup, berlakuSampai);
+    const [makam] = await db.select().from(makamTpu).where(eq(makamTpu.id, dasar.makamTpuId));
+    await db.update(makamTpu).set({ pemegangAccountId: null, pemegangHak: { ...makam!.pemegangHak, email: null } }).where(eq(makamTpu.id, dasar.makamTpuId));
+    return dasar;
+  }
+  const tick = async (setup: PengajuanSetup, waktu: string) => {
+    setup.clock.set(wib(waktu));
+    return pengingatIptmTick(deps(setup), setup.clock.now());
+  };
+
+  it("opens one Telepon Pemesan row for that Makam TPU instead of sending anything", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await tanpaEmail(setup, "2027-02-15");
+
+    await tick(setup, "2026-11-15 10:00");
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+
+    expect(setup.email.sent.filter((pesan) => pesan.subject.startsWith("Pengingat IPTM"))).toEqual([]);
+    expect(await setup.notifications.teleponPemesanTerbuka()).toMatchObject([
+      { subjectKind: "makam_tpu", subjectId: dasar.makamTpuId, sebab: "tanpa_email", lokasiId: null },
+    ]);
+  });
+
+  it("does not open it twice for the same reminder, even once a staff member has logged the call, and stays idempotent", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await tanpaEmail(setup, "2027-02-15");
+    await tick(setup, "2026-11-15 10:00");
+    await tick(setup, "2026-11-15 10:00");
+    await tick(setup, "2026-11-15 15:00");
+    const terbuka = await setup.notifications.teleponPemesanTerbuka();
+    expect(terbuka).toHaveLength(1);
+
+    const admin = dasar.admin;
+    const dicatat = await setup.notifications.catatPanggilan(admin, { teleponId: terbuka[0]!.id, hasil: "janji_bayar" });
+    expect(dicatat.ok).toBe(true);
+    await tick(setup, "2026-11-16 10:00");
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+  });
+
+  it("opens a row again for the 1 month reminder, which is a reminder of its own", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await tanpaEmail(setup, "2027-02-15");
+    await tick(setup, "2026-11-15 10:00");
+    const [pertama] = await setup.notifications.teleponPemesanTerbuka();
+    await setup.notifications.catatPanggilan(dasar.admin, { teleponId: pertama!.id, hasil: "janji_bayar" });
+
+    await tick(setup, "2027-01-15 10:00");
+    expect(await setup.notifications.teleponPemesanTerbuka()).toHaveLength(1);
+  });
+
+  it("opens none once a Perpanjangan TPU is ordered for the Makam TPU", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamBerakhir(setup, "2027-02-15");
+    setup.clock.set(wib("2026-12-20 10:00"));
+    await pesanan(setup, dasar);
+    const [makam] = await db.select().from(makamTpu).where(eq(makamTpu.id, dasar.makamTpuId));
+    await db.update(makamTpu).set({ pemegangAccountId: null, pemegangHak: { ...makam!.pemegangHak, email: null } }).where(eq(makamTpu.id, dasar.makamTpuId));
+
+    await tick(setup, "2027-01-15 10:00");
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
+  });
+
+  it("does not open a row outside 08:00-20:00 WIB", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    await tanpaEmail(setup, "2027-02-15");
+    await tick(setup, "2026-11-15 07:00");
+    expect(await setup.notifications.teleponPemesanTerbuka()).toEqual([]);
   });
 });
 
