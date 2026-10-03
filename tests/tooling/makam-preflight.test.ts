@@ -652,7 +652,7 @@ describe("makam-preflight", () => {
     // bash 4.4 and later accept "${endpoint[@]}" on an empty array, so no behaviour test can fail on a current
     // bash: this reads the script instead of running it.
     const script = readFileSync(preflightScript, "utf8");
-    expect(script).not.toMatch(/"\$\{endpoint\[@\]\}"/);
+    expect(script).not.toMatch(/(?<!\+)"\$\{endpoint\[@\]\}"/);
     expect(script).toMatch(/\$\{endpoint\[@\]\+"\$\{endpoint\[@\]\}"\}/);
   });
 });
