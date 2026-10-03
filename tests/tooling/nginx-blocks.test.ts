@@ -66,3 +66,30 @@ describe("the production block for makam.co.id and www", () => {
     expect(block).toMatch(/location ~ \/\\\. \{\s*deny all;/);
   });
 });
+
+describe("the maintenance block and page for makam.co.id", () => {
+  const block = read("deploy/nginx/maintenance/makam.co.id.conf");
+  const page = read("deploy/nginx/maintenance/index.html");
+
+  it("serves the page for every path with 503 and Retry-After, and keeps the ACME challenge open", () => {
+    expect(block).toMatch(/server_name makam\.co\.id www\.makam\.co\.id;/);
+    expect(block).toContain("ssl_certificate     /etc/letsencrypt/live/makam.co.id/fullchain.pem;");
+    expect(block).toMatch(/error_page 503 @pemeliharaan;/);
+    expect(block).toMatch(/add_header Retry-After "?\d+"? always;/);
+    expect(block).toMatch(/location \/ \{\s*return 503;/);
+    expect(block).toMatch(/location \^~ \/\.well-known\/acme-challenge\//);
+    expect(block).not.toMatch(/proxy_pass/);
+  });
+
+  it("answers /api/health with a 503 JSON body, so the uptime alarm sees the outage", () => {
+    expect(block).toMatch(/location = \/api\/health \{[^}]*default_type application\/json;[^}]*return 503 '\{[^']*"ok":false/);
+  });
+
+  it("is a page in Bahasa Indonesia with no external assets", () => {
+    expect(page).toMatch(/<html lang="id">/);
+    expect(page).toMatch(/pemeliharaan/i);
+    expect(page).not.toMatch(/(src|href)\s*=\s*["']?(https?:)?\/\//i);
+    expect(page).not.toMatch(/url\(\s*["']?(https?:)?\/\//i);
+    expect(page).not.toMatch(/@import/);
+  });
+});
