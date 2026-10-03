@@ -218,4 +218,22 @@ describe("makam-preflight", () => {
     const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*image signature.*pull/));
   });
+
+  it("validates the env file inside the image with the app's own env schema, naming what is missing and no value", () => {
+    const missing = preflight(healthy(world()), ["--digest", DIGEST], {
+      FAKE_ENVCHECK_CODE: "1",
+      FAKE_ENVCHECK_OUT: "[env-check] environment is not valid for production; check: SUMOPOD_API_KEY, TOTP_ENCRYPTION_KEY",
+    });
+    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 04, 72\].*env schema.*SUMOPOD_API_KEY, TOTP_ENCRYPTION_KEY/));
+
+    const complete = preflight(healthy(world()), ["--digest", DIGEST]);
+    expect(complete.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 04, 72\].*env schema/));
+    expect(complete.calls).toContain(
+      `docker run --rm --env-file ${complete.calls.match(/--env-file (\S+)/)?.[1]} -e APP_ENV=production ghcr.io/andrianm28/makam@${DIGEST} node dist/env-check.mjs production`,
+    );
+    expect(complete.calls).toMatch(/--env-file \S+\/prod\/prod\.env/);
+
+    const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
+    expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*env schema.*pull/));
+  });
 });
