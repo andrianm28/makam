@@ -1,0 +1,609 @@
+#!/usr/bin/env bash
+# makam-preflight: which prerequisite of the production go-live is still missing?
+#
+#   makam-preflight --env prod [--digest sha256:...] [--email-to <address>]
+#                   [--met-s3] [--webhook-url <url>]
+#
+# Run by the owner on the VPS before the production rehearsal (ticket 72,
+# "Added 2026-10-03"; docs/ops/runbook.md, "Production preflight"). One line per
+# check:
+#
+#   PASS [02] docker: ...        the prerequisite holds
+#   FAIL [03] s3 probe: ...      it does not; the reason says what to do
+#   SKIP [72] uptime monitor: .. cannot be checked from here; the instruction is on the line
+#
+# The bracket names the ticket items a check proves (02 infrastructure, 03 S3,
+# 04 SumoPod, 72 deploys). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
+#
+# Read-only, except for objects it names itself and removes again: the S3 probe
+# object, the GitHub probe Deployment and the Dump its own backup writes. One
+# thing is not removed: makam-backup-db prunes Dumps older than 7 days, as it does
+# on every run, so a preflight can age out the oldest night's Dump.
+#
+# It never prints a secret value: env file settings are read with sed (the file
+# is never sourced), handed to the one command that needs them, and only names or
+# reasons are written out. The
+# existing scripts and CLIs do the work (makam-diskcheck, makam-verify-image,
+# makam-backup-db, makam-restore-test, email-check, env-check); this script
+# only calls them and reads their exit codes.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+ENV_NAME=""
+DIGEST=""
+EMAIL_TO=""
+MET_S3=0
+WEBHOOK_URL=""
+
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    --digest) DIGEST=${2:?}; shift 2 ;;
+    --email-to) EMAIL_TO=${2:?}; shift 2 ;;
+    --met-s3) MET_S3=1; shift ;;
+    --webhook-url) WEBHOOK_URL=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+[ "$ENV_NAME" = prod ] || { echo "--env must be prod" >&2; usage 64; }
+
+DIR="$MAKAM_ROOT/$ENV_NAME"
+ENV_FILE="$DIR/$ENV_NAME.env"
+FAILS=0
+IMAGE=ghcr.io/andrianm28/makam
+IMAGE_REF=""
+PULLED=0
+
+# One setting of the env file; the file is never sourced and the value never printed.
+setting() { sed -n "s/^$1=//p" "$ENV_FILE" 2> /dev/null | tail -n 1 || true; }
+
+# Everything a run creates that must not outlive it (a throwaway Docker config
+# with the ghcr token, header files with the SumoPod key and GitHub token, probe
+# bodies) is registered here and removed on any way out, Ctrl-C and SIGTERM
+# included.
+TMP_PATHS=()
+new_tmp() { REPLY=$(mktemp "$@"); TMP_PATHS+=("$REPLY"); }
+PENDING_S3_KEY=""
+PENDING_DEPLOY_ID=""
+PENDING_DEPLOY_REPO=""
+REMOVE_NOTE=""
+cleanup() {
+  local path
+  if [ -n "$PENDING_S3_KEY" ]; then
+    s3api "$(setting S3_ACCESS_KEY_ID)" "$(setting S3_SECRET_ACCESS_KEY)" delete-object \
+      --bucket "$(setting S3_BUCKET_FILES)" --key "$PENDING_S3_KEY" > /dev/null 2>&1 || true
+    PENDING_S3_KEY=""
+  fi
+  if [ -n "$PENDING_DEPLOY_ID" ]; then
+    new_tmp
+    BODY_FILE=$REPLY
+    remove_probe_deployment "$PENDING_DEPLOY_REPO" "$PENDING_DEPLOY_ID" > /dev/null 2>&1 || true
+    PENDING_DEPLOY_ID=""
+  fi
+  for path in ${TMP_PATHS[@]+"${TMP_PATHS[@]}"}; do rm -rf "$path"; done
+  TMP_PATHS=()
+}
+trap cleanup EXIT
+# The one file the SumoPod key and the GitHub token are written to for curl's
+# `-H @file`. It is made here, in the main shell, so the trap knows it (a file
+# made inside $(...) would be lost to the cleanup list), and emptied after each call.
+new_tmp
+HEADER_FILE=$REPLY
+chmod 600 "$HEADER_FILE"
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+line() { printf '%s [%s] %s: %s\n' "$1" "$2" "$3" "$4"; }
+pass() { line PASS "$@"; }
+skip() { line SKIP "$@"; }
+fail() { FAILS=$((FAILS + 1)); line FAIL "$@"; }
+
+check_env_file() {
+  if [ ! -r "$ENV_FILE" ]; then
+    fail "02, 72" "env file" "$ENV_FILE is missing or unreadable; create it as in docs/ops/runbook.md, \"Production (ticket 65)\""
+    return 1
+  fi
+  local mode
+  mode=$(stat -c %a "$ENV_FILE")
+  if [ "$mode" != 600 ]; then
+    fail "02, 72" "env file" "$ENV_FILE has mode 0$mode; it holds every secret, so chmod 600 it"
+    return 1
+  fi
+  pass "02, 72" "env file" "$ENV_FILE exists, mode 0600"
+}
+
+check_docker() {
+  if docker info > /dev/null 2>&1; then
+    pass "02" "docker daemon" "answers"
+  else
+    fail "02" "docker daemon" "docker info fails; start Docker (systemctl start docker) and check this user is in the docker group"
+  fi
+  if docker compose version > /dev/null 2>&1; then
+    pass "02" "compose plugin" "docker compose is installed"
+  else
+    fail "02" "compose plugin" "docker compose version fails; install the docker-compose-plugin package"
+  fi
+}
+
+# Free disk is makam-diskcheck's own verdict (85 % by default); memory is what
+# `free` calls available, against MAKAM_PREFLIGHT_MIN_MEM_MB (1024 by default).
+check_resources() {
+  local bin disk_out mem
+  bin="$MAKAM_ROOT/bin"
+  if disk_out=$("$bin/makam-diskcheck" / 2>&1); then
+    pass "02" "disk" "makam-diskcheck: the root filesystem is below its warning"
+  else
+    fail "02" "disk" "makam-diskcheck warns (${disk_out:-no output}); free space as in the runbook, \"What to do when it warns\" (threshold ${MAKAM_DISK_WARN_PERCENT:-85}%)"
+  fi
+  mem=$(free -m 2>/dev/null | awk '/^Mem:/ { print $7 }')
+  case "$mem" in
+    ''|*[!0-9]*) fail "02" "memory" "free -m gave no available figure"; return 0 ;;
+  esac
+  if [ "$mem" -ge "${MAKAM_PREFLIGHT_MIN_MEM_MB:-1024}" ]; then
+    pass "02" "memory" "${mem} MB available (minimum ${MAKAM_PREFLIGHT_MIN_MEM_MB:-1024})"
+  else
+    fail "02" "memory" "only ${mem} MB available, minimum ${MAKAM_PREFLIGHT_MIN_MEM_MB:-1024}: web, worker, Postgres and GlitchTip will not fit beside the other projects"
+  fi
+}
+
+# DNS must already point at this host (the switch is only nginx, ticket 02), and
+# each name's certificate must have MAKAM_PREFLIGHT_CERT_DAYS (14) left.
+check_dns_and_certificates() {
+  local expected host got end days
+  expected=${MAKAM_PREFLIGHT_EXPECTED_IP:-103.92.214.243}
+  days=${MAKAM_PREFLIGHT_CERT_DAYS:-14}
+  for host in makam.co.id www.makam.co.id; do
+    got=$(getent ahostsv4 "$host" 2>/dev/null | awk 'NR == 1 { print $1 }')
+    if [ "$got" = "$expected" ]; then
+      pass "02" "dns $host" "$got"
+    else
+      fail "02" "dns $host" "resolves to ${got:-nothing}, expected $expected (this host)"
+    fi
+    end=$(openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -enddate 2> /dev/null | sed -n 's/^notAfter=//p') || true
+    if openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -checkend $((days * 86400)) > /dev/null 2>&1; then
+      pass "02" "certificate $host" "valid until $end (more than $days days)"
+    else
+      fail "02" "certificate $host" "expires ${end:-unknown} or cannot be read (less than $days days left); run certbot renew"
+    fi
+  done
+}
+
+# The digest to prove is --digest, else the one deployed.env records. The pull
+# uses the ghcr read token when the env file holds GHCR_READ_TOKEN (in a
+# throwaway Docker config that is removed again), else the host's own login.
+check_image_pull() {
+  local digest login_note config token
+  digest=$DIGEST
+  [ -n "$digest" ] || digest=$(sed -n 's/^MAKAM_DIGEST=//p' "$DIR/deployed.env" 2> /dev/null | tail -n 1) || digest=""
+  if [ -z "$digest" ]; then
+    fail "72" "ghcr pull" "no released digest known: pass --digest sha256:<digest of a released image> (the digest the promotion printed)"
+    return 0
+  fi
+  IMAGE_REF="$IMAGE@$digest"
+  DIGEST=$digest
+  config=""
+  login_note="the host's own ghcr login"
+  token=$(setting GHCR_READ_TOKEN)
+  if [ -n "$token" ]; then
+    new_tmp -d
+    config=$REPLY
+    login_note="the read token from $ENV_NAME.env"
+    if ! printf '%s' "$token" | DOCKER_CONFIG="$config" docker login ghcr.io -u andrianm28 --password-stdin > /dev/null 2>&1; then
+      rm -rf "$config"
+      fail "02, 72" "ghcr pull" "docker login ghcr.io refused GHCR_READ_TOKEN: create a token with read:packages (ticket 02)"
+      return 0
+    fi
+  fi
+  if DOCKER_CONFIG="${config:-${DOCKER_CONFIG:-$HOME/.docker}}" docker pull "$IMAGE_REF" > /dev/null 2>&1; then
+    PULLED=1
+    pass "02, 72" "ghcr pull" "pulled $IMAGE_REF with $login_note"
+  else
+    fail "02, 72" "ghcr pull" "could not pull $IMAGE_REF with $login_note: check the token's read:packages scope and that the digest exists"
+  fi
+  [ -z "$config" ] || rm -rf "$config"
+}
+
+# makam-verify-image decides; its exit code (77 unsigned / wrong key, 78 no key
+# installed) is turned into words.
+check_signature() {
+  local code=0
+  if [ "$PULLED" -ne 1 ]; then
+    skip "72" "image signature" "needs the pulled image (ghcr pull above)"
+    return 0
+  fi
+  "$MAKAM_ROOT/bin/makam-verify-image" --env "$ENV_NAME" --image "$IMAGE" --digest "$DIGEST" > /dev/null 2>&1 || code=$?
+  case "$code" in
+    0) pass "72" "image signature" "$DIGEST carries the production signature" ;;
+    77) fail "72" "image signature" "no valid production signature: unsigned, or signed with another key than $DIR/cosign.pub (makam-verify-image exit 77); promote the release first" ;;
+    78) fail "72" "image signature" "cosign is not installed or $DIR/cosign.pub is missing (exit 78): run deploy/install-host.sh and install the production public key" ;;
+    *) fail "72" "image signature" "makam-verify-image exited $code" ;;
+  esac
+}
+
+# "Complete for APP_ENV=production" is the app's own env schema, run inside the
+# released image on the host's env file (dist/env-check.mjs): no hand-kept list
+# of variables here. Its output names variables, never values.
+check_env_schema() {
+  local out code=0
+  if [ "$PULLED" -ne 1 ]; then
+    skip "02, 04, 72" "env schema" "needs the pulled image (ghcr pull above)"
+    return 0
+  fi
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "02, 04, 72" "env schema" "needs the env file (above)"
+    return 0
+  fi
+  out=$(docker run --rm --env-file "$ENV_FILE" -e APP_ENV=production "$IMAGE_REF" node dist/env-check.mjs production 2>&1) || code=$?
+  out=$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)
+  if [ "$code" -eq 0 ]; then
+    pass "02, 04, 72" "env schema" "the app accepts $ENV_FILE for APP_ENV=production"
+  else
+    fail "02, 04, 72" "env schema" "${out:-env-check exited $code with no output (an image built before this preflight has no dist/env-check.mjs)}"
+  fi
+}
+
+# aws with one IAM key pair from the env file. The secret goes in aws's
+# environment only: never in an argument, never in output.
+s3api() {
+  local key_id=$1 secret=$2
+  shift 2
+  local endpoint
+  endpoint=$(setting S3_ENDPOINT)
+  AWS_ACCESS_KEY_ID=$key_id AWS_SECRET_ACCESS_KEY=$secret AWS_DEFAULT_REGION=$(setting S3_REGION) \
+    AWS_EC2_METADATA_DISABLED=true aws s3api "$1" ${endpoint:+--endpoint-url "$endpoint"} "${@:2}"
+}
+
+# A probe object is put, read back and deleted in the files bucket with the app's
+# key; the delete runs whatever happened before it, so nothing is left behind.
+check_s3_probe() {
+  local bucket key_id secret probe body got problem=""
+  bucket=$(setting S3_BUCKET_FILES)
+  key_id=$(setting S3_ACCESS_KEY_ID)
+  secret=$(setting S3_SECRET_ACCESS_KEY)
+  probe="makam-preflight-probe-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  new_tmp
+  body=$REPLY
+  new_tmp
+  got=$REPLY
+  printf 'makam-preflight %s\n' "$probe" > "$body"
+  PENDING_S3_KEY=$probe
+  if ! s3api "$key_id" "$secret" put-object --bucket "$bucket" --key "$probe" --body "$body" > /dev/null 2>&1; then
+    problem="put was refused"
+  elif ! s3api "$key_id" "$secret" get-object --bucket "$bucket" --key "$probe" "$got" > /dev/null 2>&1; then
+    problem="read back failed"
+  elif ! cmp -s "$body" "$got"; then
+    problem="read back returned other bytes"
+  fi
+  if s3api "$key_id" "$secret" delete-object --bucket "$bucket" --key "$probe" > /dev/null 2>&1; then
+    PENDING_S3_KEY=""
+  else
+    problem="${problem:+$problem; }delete failed, remove $probe from $bucket by hand"
+  fi
+  rm -f "$body" "$got"
+  if [ -z "$problem" ]; then
+    pass "03" "s3 probe" "put, read and delete of $probe in $bucket with the app key"
+  else
+    fail "03" "s3 probe" "$bucket: $problem (the app's IAM key needs Get/Put/DeleteObject on it)"
+  fi
+}
+
+# S3 is ticket 03, moved to v2 on 2026-09-26: v1 goes live as a beta for UAT
+# without S3 (files on the host disk, backups local). The S3 checks are a SKIP
+# unless --met-s3 says ticket 03 is done; then a missing setting is a FAIL.
+check_s3() {
+  local missing="" name
+  if [ "$MET_S3" -ne 1 ]; then
+    skip "03" "s3" "not checked: ticket 03 moved to v2 on 2026-09-26 (v1 beta runs without S3); pass --met-s3 once the buckets and keys exist"
+    return 0
+  fi
+  for name in S3_REGION S3_BUCKET_FILES S3_BUCKET_BACKUPS S3_ACCESS_KEY_ID S3_SECRET_ACCESS_KEY S3_BACKUPS_ACCESS_KEY_ID S3_BACKUPS_SECRET_ACCESS_KEY; do
+    [ -n "$(setting "$name")" ] || missing="${missing:+$missing, }$name"
+  done
+  if [ -n "$missing" ]; then
+    fail "03" "s3 settings" "missing from $ENV_FILE: $missing (ticket 03: create the buckets and the two IAM keys first)"
+    return 0
+  fi
+  check_s3_probe
+  check_s3_settings
+  check_s3_backups_bucket
+}
+
+# Public access blocked, versioning and default encryption of the files bucket,
+# as far as the app's key may read them (its IAM policy is Get/Put/DeleteObject,
+# so AccessDenied is a SKIP with the console instruction, not a FAIL).
+check_s3_settings() {
+  local bucket key_id secret out err
+  bucket=$(setting S3_BUCKET_FILES)
+  key_id=$(setting S3_ACCESS_KEY_ID)
+  secret=$(setting S3_SECRET_ACCESS_KEY)
+  new_tmp
+  err=$REPLY
+  if out=$(s3api "$key_id" "$secret" get-public-access-block --bucket "$bucket" --output text \
+    --query 'PublicAccessBlockConfiguration.[BlockPublicAcls,IgnorePublicAcls,BlockPublicPolicy,RestrictPublicBuckets]' 2> "$err"); then
+    out=$(printf '%s' "$out" | tr 'A-Z\t' 'a-z ')
+    if [ "$out" = "true true true true" ]; then
+      pass "03" "s3 public access" "all four public access blocks are on for $bucket"
+    else
+      fail "03" "s3 public access" "$bucket is not fully blocked ($out): turn on all four Block Public Access settings"
+    fi
+  elif grep -q AccessDenied "$err"; then
+    rm -f "$err"
+    skip "03" "s3 public access" "the app key cannot read the bucket settings (by design); check public access, versioning and encryption of $bucket in the AWS console"
+    return 0
+  else
+    fail "03" "s3 public access" "$bucket: no public access block is configured, or it cannot be read"
+  fi
+  rm -f "$err"
+  out=$(s3api "$key_id" "$secret" get-bucket-versioning --bucket "$bucket" --output text --query Status 2> /dev/null) || out="unreadable"
+  if [ "$out" = Enabled ]; then
+    pass "03" "s3 versioning" "$bucket: Enabled"
+  else
+    fail "03" "s3 versioning" "$bucket versioning is $out, expected Enabled"
+  fi
+  if out=$(s3api "$key_id" "$secret" get-bucket-encryption --bucket "$bucket" --output text \
+    --query 'ServerSideEncryptionConfiguration.Rules[0].ApplyServerSideEncryptionByDefault.SSEAlgorithm' 2> /dev/null) && [ -n "$out" ]; then
+    pass "03" "s3 encryption" "$bucket default encryption: $out"
+  else
+    fail "03" "s3 encryption" "$bucket has no default encryption: turn on SSE-S3 (AES256)"
+  fi
+}
+
+# head-bucket with the backups IAM key (a separate user from the app's, ticket 03).
+check_s3_backups_bucket() {
+  local bucket
+  bucket=$(setting S3_BUCKET_BACKUPS)
+  if s3api "$(setting S3_BACKUPS_ACCESS_KEY_ID)" "$(setting S3_BACKUPS_SECRET_ACCESS_KEY)" head-bucket --bucket "$bucket" > /dev/null 2>&1; then
+    pass "03" "s3 backups bucket" "$bucket answers to the backups key"
+  else
+    fail "03" "s3 backups bucket" "$bucket does not answer to the backups IAM key: check the name, the region and the key"
+  fi
+}
+
+# The passphrase that encrypts every Dump (makam-backup-lib): without it a
+# backup cannot be read back, and anyone else's read of it opens every Dump.
+check_backup_key() {
+  local file mode
+  file="$DIR/backup-passphrase"
+  if [ ! -s "$file" ]; then
+    fail "03" "backup encryption key" "$file is missing or empty: openssl rand -base64 32 > $file, chmod 600, and keep an offline copy (runbook, \"The passphrase\")"
+    return 0
+  fi
+  mode=$(stat -c %a "$file")
+  if [ "$mode" != 600 ]; then
+    fail "03" "backup encryption key" "$file has mode 0$mode, expected 0600"
+    return 0
+  fi
+  pass "03" "backup encryption key" "$file is present, non-empty, mode 0600"
+}
+
+# One real backup, then makam-restore-test on exactly that Dump. The Dump (and
+# its counts) this run created are removed again; no other file is touched here.
+# Note that makam-backup-db itself prunes Dumps older than 7 days, as every run of it does.
+check_backup_and_restore() {
+  local db out f="" code=0 problem=""
+  db="$DIR/backups/db"
+  out=$("$MAKAM_ROOT/bin/makam-backup-db" --env "$ENV_NAME" 2>&1) || code=$?
+  if [ "$code" -ne 0 ]; then
+    fail "03, 72" "backup and restore" "makam-backup-db exited $code (is the makam-prod stack up? needs the passphrase and free space)"
+    return 0
+  fi
+  # makam-backup-db names the Dump it wrote in its log line; that file and its
+  # counts file are the only ones this check may remove (the nightly timer can
+  # finish a Dump of its own in the same minute).
+  f=$(printf '%s\n' "$out" | sed -n 's/.* to \(.*\.dump\.enc\),.*/\1/p' | tail -n 1)
+  f=${f##*/}
+  if [ -z "$f" ] || [ ! -e "$db/$f" ]; then
+    fail "03, 72" "backup and restore" "makam-backup-db succeeded but did not name a Dump in $db; nothing was removed"
+    return 0
+  fi
+  "$MAKAM_ROOT/bin/makam-restore-test" --env "$ENV_NAME" --dump "$db/$f" > /dev/null 2>&1 || code=$?
+  [ "$code" -eq 0 ] || problem="makam-restore-test exited $code on $f"
+  rm -f "$db/$f" "$db/${f%.dump.enc}.counts.enc"
+  if [ -z "$problem" ]; then
+    pass "03, 72" "backup and restore" "makam-backup-db wrote $f and makam-restore-test restored it; this Dump and its counts file were removed again"
+  else
+    fail "03, 72" "backup and restore" "$problem"
+  fi
+}
+
+# The same CLI the runbook's "Test email" uses, inside the image, with the env
+# file's SMTP settings. It prints the check code and Message-ID, never the
+# address, and so does this line.
+check_smtp() {
+  local out code=0
+  if [ -z "$EMAIL_TO" ]; then
+    skip "04" "smtp send" "not run: pass --email-to <your address> to send one real test email through SumoPod SMTP"
+    return 0
+  fi
+  if [ "$PULLED" -ne 1 ]; then
+    skip "04" "smtp send" "needs the pulled image (ghcr pull above)"
+    return 0
+  fi
+  out=$(docker run --rm --env-file "$ENV_FILE" -e APP_ENV=production "$IMAGE_REF" node dist/email-check.mjs "$EMAIL_TO" 2>&1) || code=$?
+  out=$(printf '%s' "$out" | tr '\n' ' ' | cut -c1-300)
+  if [ "$code" -eq 0 ]; then
+    pass "04" "smtp send" "accepted by the SumoPod relay; read the received headers for DKIM, SPF and DMARC (runbook, \"Test email\")"
+  else
+    fail "04" "smtp send" "email-check exited $code: ${out:-no output}"
+  fi
+}
+
+# GET of a payment that does not exist: 401/403 means the key was refused, 200 or
+# 404 means it was accepted. The key travels in a mode 0600 header file, so it is
+# in neither the argument list nor the output. The path can be overridden with
+# MAKAM_PREFLIGHT_SUMOPOD_PATH if SumoPod documents a better read-only call.
+sumopod_get() {
+  local key=$1 url=$2
+  printf 'X-Api-Key: %s\n' "$key" > "$HEADER_FILE"
+  local code
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$HEADER_FILE" "$url" 2> /dev/null) || code="no answer"
+  : > "$HEADER_FILE"
+  printf '%s' "$code"
+}
+
+check_sumopod_key() {
+  local base code control url
+  base=$(setting SUMOPOD_BASE_URL)
+  base=${base:-https://api-pay.sumopod.com}
+  url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
+  code=$(sumopod_get "$(setting SUMOPOD_API_KEY)" "$url")
+  case "$code" in
+    200|404)
+      # A 404 may come from a wrong path before authentication ever runs, so the
+      # same call with a deliberately wrong key has to be refused.
+      control=$(sumopod_get "makam-preflight-wrong-key" "$url")
+      case "$control" in
+        401|403) pass "04" "sumopod api key" "authenticated on a read-only call to $base (HTTP $code); the same call with a wrong key was refused (HTTP $control)" ;;
+        *) skip "04" "sumopod api key" "path unverified: HTTP $code with your key, but the same call with a wrong key answered HTTP $control, so it does not prove the key; confirm the key with a sandbox payment (runbook, \"Test payment\") or set MAKAM_PREFLIGHT_SUMOPOD_PATH" ;;
+      esac
+      ;;
+    401|403) fail "04" "sumopod api key" "$base refused the key (HTTP $code): fetch the production key from the SumoPod dashboard" ;;
+    *) fail "04" "sumopod api key" "$base answered HTTP $code, which proves nothing about the key; try again or check SumoPod's status" ;;
+  esac
+}
+
+check_webhook_secret() {
+  local secret
+  secret=$(setting SUMOPOD_WEBHOOK_SECRET)
+  if [ -z "$secret" ]; then
+    fail "04" "sumopod webhook secret" "SUMOPOD_WEBHOOK_SECRET is not set in $ENV_FILE: copy the Svix signing secret from the SumoPod dashboard"
+  elif [ "${secret#whsec_}" = "$secret" ]; then
+    fail "04" "sumopod webhook secret" "SUMOPOD_WEBHOOK_SECRET does not start with whsec_, so it is not a Svix signing secret"
+  else
+    pass "04" "sumopod webhook secret" "set, and a whsec_ Svix secret (value not shown)"
+  fi
+}
+
+# The app's webhook route (src/app/api/webhooks/pembayaran) answers 401 to a
+# signature it cannot verify. Before the nginx switch makam.co.id still reaches
+# the old app; --webhook-url http://127.0.0.1:<port>/... tests v1 directly.
+check_webhook_forged() {
+  local url code
+  url=${WEBHOOK_URL:-$(setting APP_BASE_URL)/api/webhooks/pembayaran}
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
+    -H 'content-type: application/json' -H 'svix-id: msg_makampreflight' -H "svix-timestamp: $(date +%s)" \
+    -H 'svix-signature: v1,AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=' \
+    --data '{"type":"makam.preflight"}' "$url" 2> /dev/null) || code="no answer"
+  case "$code" in
+    401) pass "04" "webhook forged signature" "$url answers 401 to a forged signature" ;;
+    200|201|202|204) fail "04" "webhook forged signature" "$url answered $code: it accepts forged signatures, do not register it with SumoPod" ;;
+    *) fail "04" "webhook forged signature" "$url answered $code, expected 401 (before the nginx switch makam.co.id still reaches the old app: use --webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran, or finish the nginx switch)" ;;
+  esac
+}
+
+# One GitHub API call with the deploy token in a mode 0600 header file. Prints
+# the HTTP status; the response body goes to $BODY_FILE.
+gh_call() {
+  local method=$1 path=$2 data=${3:-} code
+  printf 'Authorization: Bearer %s\n' "$(setting MAKAM_GITHUB_TOKEN)" > "$HEADER_FILE"
+  code=$(curl -sS -o "$BODY_FILE" -w '%{http_code}' --max-time 20 -X "$method" \
+    -H "@$HEADER_FILE" -H 'Accept: application/vnd.github+json' -H 'X-GitHub-Api-Version: 2022-11-28' -H 'User-Agent: makam-preflight' \
+    ${data:+--data "$data"} "https://api.github.com$path" 2> /dev/null) || code="no answer"
+  : > "$HEADER_FILE"
+  printf '%s' "$code"
+}
+
+# Marks a probe Deployment inactive and deletes it (GitHub only deletes an
+# inactive one). Sets REMOVE_PROBLEM and returns 1 unless both calls succeed.
+remove_probe_deployment() {
+  local repo=$1 id=$2 code
+  REMOVE_PROBLEM=""
+  code=$(gh_call POST "/repos/$repo/deployments/$id/statuses" '{"state":"inactive"}')
+  [ "$code" = 201 ] || REMOVE_PROBLEM="could not mark it inactive (HTTP $code)"
+  code=$(gh_call DELETE "/repos/$repo/deployments/$id")
+  if [ "$code" != 204 ]; then
+    REMOVE_PROBLEM="${REMOVE_PROBLEM:+$REMOVE_PROBLEM; }delete answered HTTP $code"
+  fi
+  if [ -n "$REMOVE_PROBLEM" ]; then
+    REMOVE_PROBLEM="probe deployment $id is left on $repo ($REMOVE_PROBLEM): delete it by hand in GitHub, Deployments"
+    return 1
+  fi
+  PENDING_DEPLOY_ID=""
+}
+
+# Does makam-deploy-status work from this host? It creates a Deployment with
+# the image tag sha-<revision> as its ref; this probe does the same call (a
+# transient "preflight" environment), then marks it inactive and deletes it.
+check_github_deployments() {
+  local repo rev ref code id message="" tried_plain=0
+  repo=$(setting MAKAM_GITHUB_REPOSITORY)
+  repo=${repo:-andrianm28/makam}
+  if [ -z "$(setting MAKAM_GITHUB_TOKEN)" ]; then
+    fail "72" "github deployments" "MAKAM_GITHUB_TOKEN is not set in $ENV_FILE: makam-deploy-status then does nothing, so every deploy is invisible in GitHub (fine-grained token, Deployments: write, this repository only)"
+    return 0
+  fi
+  if [ "$PULLED" -ne 1 ]; then
+    skip "72" "github deployments" "needs the pulled image for its revision (ghcr pull above)"
+    return 0
+  fi
+  rev=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF" 2> /dev/null || true)
+  if [ -z "$rev" ]; then
+    fail "72" "github deployments" "the image has no org.opencontainers.image.revision label, so makam-deploy would send the ref sha- and GitHub would refuse it; rebuild the image from CI"
+    return 0
+  fi
+  ref="sha-$rev"
+  new_tmp
+  BODY_FILE=$REPLY
+  code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$ref\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
+  id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
+  message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
+  if [ -n "$id" ] && [ "$code" = 201 ]; then
+    PENDING_DEPLOY_ID=$id
+    PENDING_DEPLOY_REPO=$repo
+    if remove_probe_deployment "$repo" "$id"; then
+      pass "72" "github deployments" "$repo accepted a Deployment with ref $ref and the probe was deleted again"
+    else
+      fail "72" "github deployments" "$repo accepted a Deployment with ref $ref, but $REMOVE_PROBLEM"
+    fi
+  elif [ "$code" = 422 ]; then
+    # Diagnose the likely cause of "gh api .../deployments lists none": the ref.
+    code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[]}")
+    id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
+    if [ -n "$id" ] && [ "$code" = 201 ]; then
+      PENDING_DEPLOY_ID=$id
+      PENDING_DEPLOY_REPO=$repo
+      remove_probe_deployment "$repo" "$id" || REMOVE_NOTE=" Also: $REMOVE_PROBLEM."
+      fail "72" "github deployments" "ref $ref is not a branch, tag or commit SHA, so GitHub answers 422: makam-deploy-status sends the image tag as ref and every deploy then goes unreported (logged only in deploy.log); GitHub accepts the plain commit SHA $rev, so the ref must be the revision.${REMOVE_NOTE:-}"
+    else
+      fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}), also with the plain commit SHA: check the token's repository and Deployments: write"
+    fi
+  else
+    fail "72" "github deployments" "$repo refused the Deployment (HTTP $code${message:+, $message}): check the token's repository and Deployments: write"
+  fi
+  rm -f "$BODY_FILE"
+}
+
+# What no script on this host can prove.
+check_manual_steps() {
+  skip "02" "uptime monitor" "manual: an external monitor outside the VPS must watch https://makam.co.id/api/health with an alert contact (runbook, \"Uptime alarm\"); record which service in ticket 02"
+  skip "72" "nginx switch" "manual, the owner's gated step: only after every line above is PASS, switch makam.co.id to v1 (runbook, \"Production (ticket 65)\")"
+}
+
+
+check_env_file || true
+check_docker
+check_resources
+check_dns_and_certificates
+check_image_pull
+check_signature
+check_env_schema
+check_smtp
+check_sumopod_key
+check_webhook_secret
+check_webhook_forged
+check_github_deployments
+check_s3
+check_backup_key
+check_backup_and_restore
+check_manual_steps
+
+echo
+if [ "$FAILS" -eq 0 ]; then
+  echo "preflight: nothing FAILed (read the SKIP lines: they are yours to do)"
+  exit 0
+fi
+echo "preflight: $FAILS check(s) FAILed"
+exit 1
