@@ -182,8 +182,8 @@ function healthy(w: ReturnType<typeof world>) {
       '        if [ "${FAKE_GH_REJECT_SHA_PREFIX:-0}" = 1 ] && [ "$shaRef" = 1 ]; then',
       "          code=422; body='{\"message\":\"No ref found for: sha-0123\"}'",
       "        else code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"Bad credentials\"}'; fi ;;",
-      '      "POST "*/statuses) code=201 ;;',
-      '      "DELETE "*) code=204 ;;',
+      `      "POST "*/statuses) ${INTERRUPT_AT("statuses")}; code=\${FAKE_GH_STATUS_CODE:-201} ;;`,
+      '      "DELETE "*) code=${FAKE_GH_DELETE_CODE:-204} ;;',
       "    esac ;;",
       "esac",
       '[ -z "$out" ] || [ "$out" = /dev/null ] || printf "%s" "$body" > "$out"',
@@ -557,5 +557,16 @@ describe("makam-preflight", () => {
     expect(interrupted.code).toBe(143);
     expect(interrupted.calls).toMatch(/aws s3api put-object --bucket makam-prod-files --key (makam-preflight-probe-\S+)[\s\S]*aws s3api delete-object --bucket makam-prod-files --key \1/);
     expect(interrupted.leftovers).toEqual([]);
+  });
+
+  it("fails instead of passing when the probe Deployment cannot be marked inactive or deleted, naming the orphan", () => {
+    const stuck = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_DELETE_CODE: "403" });
+    expect(stuck.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*deployment 42.*delete.*403/));
+    expect(stuck.lines.filter((line) => /^PASS .*github deployments/.test(line))).toEqual([]);
+
+    const noStatus = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_STATUS_CODE: "500" });
+    expect(noStatus.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*deployment 42.*inactive.*500/));
+    // The delete is still attempted after a failed status.
+    expect(noStatus.calls).toMatch(/-X DELETE .*deployments\/42/);
   });
 });
