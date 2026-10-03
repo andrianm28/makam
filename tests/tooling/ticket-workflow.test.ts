@@ -8,6 +8,7 @@ import {
   summaryProblems,
   ticketComments,
   ticketFileProblems,
+  ticketNumber,
   ticketStatus,
   TICKET_FILE_NAME,
   type Ticket,
@@ -290,6 +291,18 @@ describe("each check on the real tree, with one violation added in memory", () =
     );
     expect(grandfathared.every((one) => one.status === "resolved")).toBe(true);
     expect(reviewMarkerProblems(tickets, RATCHET_FROM, MARKER)).toEqual(expect.arrayContaining(GRACE));
+  });
+});
+
+describe("the ticket number a file name carries", () => {
+  it("reads 100-x.md as ticket 100, never ticket 10", () => {
+    expect(ticketNumber("100-x.md")).toBe(100);
+    expect(ticketNumber("101-y.md")).toBe(101);
+  });
+
+  it("reads a two-digit name as before", () => {
+    expect(ticketNumber("07-production.md")).toBe(7);
+    expect(ticketNumber("87-cloud-session-readiness.md")).toBe(87);
   });
 });
 
