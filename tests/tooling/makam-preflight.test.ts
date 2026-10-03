@@ -63,6 +63,25 @@ function world(options: { envFile?: string | null; envMode?: number } = {}) {
   return { root, bin };
 }
 
+/**
+ * Every fake answers like a healthy host unless the test turns a FAKE_* switch.
+ * One function per command keeps a test about one prerequisite short.
+ */
+function healthy(w: ReturnType<typeof world>) {
+  install(
+    w.bin,
+    "docker",
+    [
+      'case "$1" in',
+      '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
+      '  compose) exit "${FAKE_DOCKER_COMPOSE:-0}" ;;',
+      "esac",
+      "exit 0",
+    ].join("\n"),
+  );
+  return w;
+}
+
 function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Record<string, string> = {}) {
   const result = spawnSync("bash", [preflightScript, "--env", "prod", ...args], {
     encoding: "utf8",
@@ -84,17 +103,29 @@ function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Reco
 
 describe("makam-preflight", () => {
   it("fails the production env file check, naming tickets 02 and 72, when the file is not there", () => {
-    const w = world({ envFile: null });
+    const w = healthy(world({ envFile: null }));
     const result = preflight(w);
     expect(result.code).toBe(1);
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 72\].*env file.*prod\.env/));
   });
 
   it("fails the env file check when other users can read the file, and passes a 0600 one", () => {
-    const loose = preflight(world({ envMode: 0o644 }));
+    const loose = preflight(healthy(world({ envMode: 0o644 })));
     expect(loose.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 72\].*env file.*0644/));
 
-    const private_ = preflight(world());
+    const private_ = preflight(healthy(world()));
     expect(private_.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 72\].*env file/));
+  });
+
+  it("fails when the Docker daemon is down or the compose plugin is missing", () => {
+    const down = preflight(healthy(world()), [], { FAKE_DOCKER_INFO: "1" });
+    expect(down.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*docker daemon/));
+
+    const noCompose = preflight(healthy(world()), [], { FAKE_DOCKER_COMPOSE: "1" });
+    expect(noCompose.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02\].*compose plugin/));
+
+    const fine = preflight(healthy(world()));
+    expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*docker daemon/));
+    expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*compose plugin/));
   });
 });
