@@ -210,7 +210,7 @@ function parseRefspec(refspec, branch) {
 function noPushToMain(push, cwd) {
   const branch = currentBranch(cwd);
   const specs = push.refspecs.length ? push.refspecs.map((r) => parseRefspec(r, branch)) : [{ src: "HEAD", dst: branch }];
-  const toMain = specs.filter((x) => x.dst === "main");
+  const toMain = specs.filter((x) => x.dst === "main" || x.dst.includes("*")); // a wildcard may match main
   if (push.all || toMain.length) {
     const writer = mainWriter(cwd);
     if (writer === "merge") return;
