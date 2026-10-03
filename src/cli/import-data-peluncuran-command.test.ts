@@ -12,7 +12,7 @@ import { layananOnTestDatabase, catalogFixture } from "../../tests/support/layan
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { signedInAdminPlatform } from "../../tests/support/identity";
 import { lokasiOnTestDatabase } from "../../tests/support/lokasi";
-import { importDataPeluncuranCommand } from "./import-data-peluncuran-command";
+import { importDataPeluncuranCommand, olahKatalog } from "./import-data-peluncuran-command";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -320,6 +320,29 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: katalog Layanan, 
     expect(hasil.output).toContain("katalog-layanan.csv baris 3: varian: varian muncul dua kali dalam satu Layanan");
     expect(hasil.output).toContain('katalog-layanan.csv baris 5: Layanan "c" sudah muncul di baris 4');
     expect((await katalog.katalog()).map((layanan) => layanan.name)).toEqual(["C"]);
+  });
+});
+
+describe("npm run import:data-peluncuran: a catalog row is all or nothing", () => {
+  const HEADER = "layanan,jenis,deskripsi,lead_time_hari,bisa_hari_h,ada_di_petak_kosong,teks_label,varian";
+  const AWAL = `${HEADER}\nPembersihan Makam,pembersihan,Deskripsi lama.,3,tidak,ya,,Standar\n`;
+  const UBAH = `${HEADER}\nPembersihan Makam,pembersihan,Deskripsi baru.,3,tidak,ya,,Standar | Menyeluruh\n`;
+
+  it("leaves the description unchanged and reports the row refused when a variant the row adds is refused", async () => {
+    const { clock: jam, audit, admin } = await modul();
+    const nyata = createKatalogLayanan({ db, clock: jam, audit });
+    await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": AWAL }), "--tulis"], env(), { clock: clock() });
+    // The Layanan module refuses the added variant: the one seam that gets a refusal after the description change succeeded.
+    const menolakVarian = (di: typeof db) => ({
+      ...createKatalogLayanan({ db: di, clock: jam, audit }),
+      tambahVarian: async () => ({ ok: false as const, reason: "nama_sudah_ada" as const }),
+    });
+
+    const hasil = await olahKatalog(folder({ "katalog-layanan.csv": UBAH }), db, menolakVarian, admin, "uji");
+
+    expect(hasil.ditolak).toEqual(['katalog-layanan.csv baris 2: varian "Menyeluruh": nama sudah dipakai']);
+    expect(hasil.diubah).toBe(0);
+    expect(await nyata.katalog()).toMatchObject([{ name: "Pembersihan Makam", description: "Deskripsi lama." }]);
   });
 });
 
