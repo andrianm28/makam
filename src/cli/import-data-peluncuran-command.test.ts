@@ -103,4 +103,25 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
     expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 0 akan dibuat, 1 akan diubah, 0 sama, 0 ditolak.");
     expect((await lokasi.tpuDkiList(admin))[0]).toMatchObject({ address: "Jl. Contoh No. 1, Kelurahan Contoh", menerimaMakamBaru: true });
   });
+
+  it("refuses a row with the reason naming its column and line, writes the good rows, and exits 1", async () => {
+    const { lokasi, admin } = await modul();
+    const campur = [
+      TPU_HEADER,
+      "TPU Baik,Jl. Baik,Kota Jakarta Timur,,,Dinas,ya",
+      "TPU Salah Pin,Jl. A,Kota Jakarta Timur,-6.1,,Dinas,ya",
+      "TPU Salah Bendera,Jl. B,Kota Jakarta Timur,,,Dinas,mungkin",
+      "TPU Baik,Jl. Dobel,Kota Jakarta Timur,,,Dinas,ya",
+      "",
+    ].join("\n");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": campur }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("TPU DKI: 4 baris dibaca, 1 dibuat, 0 diubah, 0 sama, 3 ditolak.");
+    expect(hasil.output).toContain("tpu-dki.csv baris 3: lintang: lintang dan bujur harus diisi keduanya atau dikosongkan keduanya");
+    expect(hasil.output).toContain('tpu-dki.csv baris 4: menerima_makam_baru: harus "ya" atau "tidak"');
+    expect(hasil.output).toContain('tpu-dki.csv baris 5: nama "TPU Baik" sudah muncul di baris 2');
+    expect((await lokasi.tpuDkiList(admin)).map((tpu) => tpu.name)).toEqual(["TPU Baik"]);
+  });
 });
