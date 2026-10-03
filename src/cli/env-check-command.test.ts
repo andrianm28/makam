@@ -31,4 +31,17 @@ describe("env-check: is this environment complete for production?", () => {
     expect(result.output).toMatch(/production/);
     expect(result.output).not.toContain(SECRET);
   });
+
+  it("names every missing variable and never a value", async () => {
+    const env = completeProduction();
+    delete env.SUMOPOD_API_KEY;
+    delete env.TOTP_ENCRYPTION_KEY;
+
+    const result = await envCheckCommand(["production"], env);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain("SUMOPOD_API_KEY");
+    expect(result.output).toContain("TOTP_ENCRYPTION_KEY");
+    expect(result.output).not.toContain(SECRET);
+  });
 });
