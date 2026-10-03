@@ -60,14 +60,14 @@ export function ticketComments(text: string): string[] {
 }
 
 /**
- * What a ticket file's name has to be: two digits (01..99), a dash, a slug with
+ * What a ticket file's name has to be: two or more digits (01, 02 … 100 …), a dash, a slug with
  * no spaces in it, and a lowercase `.md`. Exported because the reader that builds
  * the ticket list and the rule below decide the same question, and two copies of
  * one pattern is how they came to disagree — the reader used a looser one, so it
  * read files this rule then called invalid, and a message that said nothing
  * read them was wrong. One pattern, both sides.
  */
-export const TICKET_FILE_NAME = /^\d\d-[^\s]+\.md$/;
+export const TICKET_FILE_NAME = /^\d{2,}-[^\s]+\.md$/;
 
 /** The ticket number a ticket file's name carries: every digit before the first dash. */
 export function ticketNumber(name: string): number {
@@ -75,21 +75,14 @@ export function ticketNumber(name: string): number {
 }
 
 /**
- * The `.md` files of the issues directory that are not ticket files. A `100-*.md`
+ * The `.md` files of the issues directory that are not ticket files. A `9-*.md`
  * and a `07-*.MD` are the same class of problem: the readers match file names
  * exactly, so a file outside the convention is at best half-read — its index row
  * read, no file to compare it against — and at worst not read at all, which is
  * what a capital `.MD` gets today. A blind spot no test would ever report is
  * reported here instead, with the name to fix.
  *
- * The rule refuses the file rather than widening the readers to three digits.
- * Widening would make `100-*.md` readable by the Status and marker rules while
- * the rest of the guard still writes and expects two digits: the parenthetical
- * number lists in the index's summary sentence, the `01`-style ticket numbers in
- * every message, the `[nn](nn-….md)` links. One reader at three digits and the
- * rest at two is a second, quieter class of the same bug. When the plan really
- * does reach 100, the fix is one pattern here and one there, in a commit that
- * says so.
+ * A name with one digit, or any other shape, is reported with the name to fix.
  */
 export function ticketFileProblems(names: string[], index = "00-index.md"): string[] {
   return names
@@ -97,7 +90,7 @@ export function ticketFileProblems(names: string[], index = "00-index.md"): stri
     .filter((name) => !TICKET_FILE_NAME.test(name))
     .map(
       (name) =>
-        `${name}: not a ticket file name — one is <nn>-<slug>.md, two digits (01..99) then a dash then a slug with no spaces and a lowercase .md. The readers match that name exactly, so this one is at best half-read and at worst not read at all: rename it to fit, or move it out of the issues directory`,
+        `${name}: not a ticket file name — one is <nn>-<slug>.md, two or more digits then a dash then a slug with no spaces and a lowercase .md. The readers match that name exactly, so this one is at best half-read and at worst not read at all: rename it to fit, or move it out of the issues directory`,
     )
     .sort();
 }
