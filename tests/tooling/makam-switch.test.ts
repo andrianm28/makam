@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, lstatSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -207,5 +207,40 @@ describe("makam-switch before it changes anything", () => {
     const r = run(host(), ["--ke"]);
     expect(r.code).toBe(64);
     expect(r.output).toMatch(/usage:/);
+  });
+});
+
+describe("makam-switch and the sites-enabled link", () => {
+  it("links the site file into sites-enabled when the link is missing, so nginx serves it", () => {
+    const w = host();
+    const link = path.join(w.nginx, "sites-enabled", "makam.co.id.conf");
+    expect(existsSync(link)).toBe(false);
+    const r = run(w, ["--ke", "v1"]);
+    expect(r.code).toBe(0);
+    expect(lstatSync(link).isSymbolicLink()).toBe(true);
+    expect(readFileSync(link, "utf8")).toBe(site(w));
+    expect(r.output).toMatch(/sites-enabled/);
+  });
+
+  it("leaves an existing link alone", () => {
+    const w = host();
+    const link = path.join(w.nginx, "sites-enabled", "makam.co.id.conf");
+    symlinkSync(path.join(w.nginx, "sites-available", "makam.co.id.conf"), link);
+    const r = run(w, ["--ke", "v1"]);
+    expect(r.code).toBe(0);
+    expect(r.output).not.toMatch(/linked/);
+  });
+});
+
+describe("makam-switch run again after only the companion file changed", () => {
+  it("installs the new snippet, tests and reloads, instead of calling it already done", () => {
+    const w = host();
+    run(w, ["--ke", "v1"]);
+    writeFileSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"), "# stale snippet\n");
+    writeFileSync(w.calls, "");
+    const again = run(w, ["--ke", "v1"]);
+    expect(again.code).toBe(0);
+    expect(readFileSync(path.join(w.nginx, "snippets", "makam-prod-proxy.conf"), "utf8")).toContain("127.0.0.1:3100");
+    expect(again.calls).toEqual(["nginx -t", "systemctl reload nginx"]);
   });
 });
