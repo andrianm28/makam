@@ -1803,7 +1803,10 @@ and the blocks under `/opt/makam-v1/nginx/`.
    is touched, and nothing is pruned.
 8. **HSTS, in steps.** The production block sends `Strict-Transport-Security`
    with `max-age=86400` at the switch. After two stable weeks, raise it to one
-   year (`max-age=31536000`) in `deploy/nginx/makam.co.id.conf`, install it with
+   year (`max-age=31536000`) in `deploy/nginx/makam.co.id.conf`, merge it to
+   `main`, re-run `deploy/install-host.sh` from a checkout of `main` (it copies the
+   block to `/opt/makam-v1/nginx/`, where `makam-switch` reads it; without it
+   `makam-switch` answers "already serves v1"), install it with
    `makam-switch --ke v1`, and check the header with `curl -sI https://makam.co.id/`.
    Production stays indexable: it must not send the staging block's `X-Robots-Tag`.
 9. **The owner archives the `makam-app` GitHub repository** (Settings, Archive
