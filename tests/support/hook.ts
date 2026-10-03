@@ -17,12 +17,12 @@ export function runHook(
     input: typeof input === "string" ? input : JSON.stringify(input),
     cwd: opts.cwd ?? repoRoot,
     encoding: "utf8",
-    env: {
+    env: ({
       PATH: opts.path ?? process.env.PATH ?? "/usr/bin:/bin",
       HOME: process.env.HOME ?? "/tmp",
       CLAUDE_PROJECT_DIR: opts.cwd ?? repoRoot,
       ...opts.env,
-    },
+    }) as unknown as NodeJS.ProcessEnv,
   });
   return { status: r.status ?? -1, stdout: r.stdout, stderr: r.stderr };
 }
