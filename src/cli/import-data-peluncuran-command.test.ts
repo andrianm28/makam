@@ -151,6 +151,36 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: Biaya Pengurusan"
     expect(await tariffs.globalTariff("biaya_pengurusan_berkas", wib("2026-10-01 09:00"))).toBeNull();
     expect((await tariffs.globalTariff("biaya_pengurusan_berkas", wib("2026-10-15 09:00")))?.amount).toBe(350_000);
   });
+
+  it("changes nothing on a second run, and enters a new version only when the amount changed", async () => {
+    const { tariffs } = await modul();
+    const sumber = folder({ "biaya-pengurusan.csv": BIAYA });
+    await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+
+    const ulang = await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+    expect(ulang.output).toContain("Biaya Pengurusan: 2 baris dibaca, 0 dibuat, 0 diubah, 2 sama, 0 ditolak.");
+    expect(await tariffs.globalTariffHistory("biaya_pengurusan_pemakaman")).toHaveLength(1);
+
+    const naik = folder({ "biaya-pengurusan.csv": "jenis,jumlah_rupiah,berlaku_mulai\npemakaman,800000,\n" });
+    const berubah = await importDataPeluncuranCommand(["--sumber", naik, "--tulis"], env(), { clock: clock() });
+    expect(berubah.output).toContain("Biaya Pengurusan: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    expect((await tariffs.globalTariff("biaya_pengurusan_pemakaman", wib("2026-10-01 09:00")))?.amount).toBe(800_000);
+    expect(await tariffs.globalTariffHistory("biaya_pengurusan_pemakaman")).toHaveLength(2);
+  });
+
+  it("refuses an unknown jenis, an amount written with a thousands separator, and a past date, each with its reason", async () => {
+    const { tariffs } = await modul();
+    const salah = ["jenis,jumlah_rupiah,berlaku_mulai", "kremasi,100000,", "pemakaman,750.000,", "berkas,350000,2026-09-01", ""].join("\n");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "biaya-pengurusan.csv": salah }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("Biaya Pengurusan: 3 baris dibaca, 0 dibuat, 0 diubah, 0 sama, 3 ditolak.");
+    expect(hasil.output).toContain('biaya-pengurusan.csv baris 2: jenis: jenis harus "pemakaman" atau "berkas"');
+    expect(hasil.output).toContain("biaya-pengurusan.csv baris 3: jumlah_rupiah: jumlah_rupiah harus bilangan bulat rupiah");
+    expect(hasil.output).toContain("biaya-pengurusan.csv baris 4: tanggal_berlaku_lampau");
+    expect(await tariffs.globalTariffHistory("biaya_pengurusan_berkas")).toEqual([]);
+  });
 });
 
 describe("npm run import:data-peluncuran: which stack it may run on", () => {
