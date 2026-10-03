@@ -205,3 +205,38 @@ Combined, for the fix pass (builder): the five Standards should-fix and the two 
   - Spec nits (backup key under S3 skip, webhook route name, new env names): no change; the review calls them fine and they are documented.
 
   HANDOFF: all seven should-fix and the nits I agree with are done. Open for the owner, unchanged: the `makam-deploy-status` ref fix (above), and the SumoPod read call still unverified against SumoPod (now at least flagged by the negative control).
+
+### Re-review of the preflight fix pass (2026-10-03, reviewer thread, sonnet; head 59424069, fixed point 4f198062 = the reviewed head)
+
+Not money code, so sonnet. Two parallel sub-agents (Standards, Spec) on `git diff 4f198062...59424069` (4 files, 21 commits). Tests re-run by the reviewer, whole log kept: `npx vitest run tests/tooling/makam-preflight.test.ts src/cli/env-check-command.test.ts tests/tooling/makam-deploy.test.ts tests/tooling/makam-diskcheck.test.ts` → Test Files 4 passed (4), Tests 65 passed (65), exit 0. (The builder's 75 also counts the global-prune file, not re-run.) Read-only; the script was not run against a host. Hand-verified by the reviewer: `new_tmp` (`makam-preflight:66`) runs in a `$(...)` subshell when called from `sumopod_get` (`:432`) and `gh_call` (`:493`); the 7-day pruning note is in the runbook diff.
+
+**Items of the first review**
+- Standards, no `trap`: **PARTLY FIXED**. `trap cleanup EXIT` plus INT/TERM exist (`:71-89`); the ghcr config, S3 probe object and probe Deployment are covered and tested (SIGTERM mid-pull, mid-read, mid-status; EXIT runs once after exit 130/143). **NOT FIXED for the header files** holding the SumoPod key and GitHub token: see new finding 1.
+- Probe Deployment results: **FIXED** (`:496-512`, 201 / 204 required, else FAIL naming the orphan).
+- Backup removes only its own Dump: **FIXED** (`:386-396`; Dump name parsed from `makam-backup-db`'s log line, `##*/`, only it and its `.counts.enc`; none named → nothing removed, FAIL).
+- 7-day pruning named: **FIXED** (header `:19-21`, `:376`, runbook intro of the preflight section). Wrapping nit below.
+- Horizontal slicing: **left by instruction**; the 20 new commits alternate red/green. Exception: new finding 3.
+- Spec, SumoPod negative control: **FIXED** (`:449-453`; 401/403 PASS, else SKIP "path unverified" with codes).
+- Spec, bucket settings: **FIXED** (runbook "console check unless a read-capable key", three IAM actions).
+- Nits: `sha-` label **FIXED** (`:540`); empty `endpoint` array **FIXED** (`:248`, untestable on bash 5, reason accepted, but see finding 3); `sed` key/quoted values **left, reason accepted** (sibling scripts read the env file the same way, `docker --env-file` keeps quotes, keys are fixed names); judgement items left: reasons accepted except "English `env-check` messages" (weak, harmless).
+- Owner decision, S3: **applied correctly**. Default is one SKIP naming ticket 03 and its move to v2 (`:290-292`); `--met-s3` makes a missing setting a FAIL (`:294-298`); `--skip-s3` gone from script, runbook, tests and install-host (it survives only in the older Comments above, as history). Default run still checks the backup key (`:359`); the backups-bucket half is skipped with S3, as the decision intends.
+
+## Standards
+- **should-fix** `makam-preflight:432,493`: header files (SumoPod key, GitHub token, mode 0600) are created by `new_tmp` inside `$(...)`, so `TMP_PATHS+=` is lost and `cleanup` never removes them; SIGTERM during `curl` leaves a secret in `$TMPDIR`. The comment at `:61-64` ("removed on any way out") is false for them, and no test covers it (the three signal tests hit pull, get-object and statuses). Create the file in the caller or use one `mktemp -d` registered up front, and add a red test that signals during the SumoPod and Deployment curl.
+- **should-fix** `:436`: `curl -w '%{http_code}' … || printf 'no answer'` prints `000no answer` on a network failure (curl writes `000` then exits non-zero); the control call falls into the SKIP with the same garbage. Use `code=$(…) || code="no answer"` as the other sites do (`:482`, `:500`).
+- **should-fix (process, one behaviour per pair)** `c752e63e`: the green for "names a missing revision label" also adds the `${endpoint[@]+…}` guard (`:248`) with no red, and changes the fake's `FAKE_REVISION` default. Split it, or add a red for the empty-endpoint case.
+- nit `:20-21`: the pruning sentence is spliced into the middle of the next one; re-wrap.
+- nit `:413,434`: `sumopod_get` reads the global `SUMOPOD_URL`; pass it as an argument.
+- nit `:520-523`: `PENDING_DEPLOY_ID` is set after `gh_call POST` returns, so an interrupt during the create call itself leaves the Deployment unrecorded (small window).
+- nit: only SIGTERM (143) is tested, the `INT` → 130 path is not.
+- nit: runbook SumoPod table row (`:1786`) does not mention the negative control.
+- nit: `59424069` is labelled `docs(ticket-72)` but also removes the `#@FUNCS`/`#@CALLS` markers from the script.
+
+Standards: 9 new findings (0 blocking / 3 should-fix / 6 nit). Worst: header files holding the SumoPod key and GitHub token escape `cleanup` (the very leak the trap fix was meant to close).
+
+## Spec
+No requirement of the Added section is missing or narrowed; no scope creep (the only addition is the trap's 130/143 exit codes); nothing implemented wrongly beyond the Standards findings above. The ticket's older Comments still say `--skip-s3` as history (nit, not counted: left as written).
+
+Spec: 0 new findings. Worst: none.
+
+**Result**: first-review items 6 of 7 should-fix FIXED (trap only partly), 6 of 6 nits resolved or accepted; new 0 blocking / 3 should-fix / 6 nit; hard remaining: **no** (no blocking, but a second fix pass is needed for the three should-fix, the first two being secret/robustness issues on interrupt and network failure). Ticket boxes stay unticked.
