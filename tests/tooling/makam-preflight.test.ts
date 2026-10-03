@@ -286,4 +286,23 @@ describe("makam-preflight", () => {
     expect(skipped.lines.filter((line) => line.startsWith("FAIL") && line.includes("[03]"))).toEqual([]);
     expect(skipped.calls).not.toContain("aws ");
   });
+
+  it("reads the files bucket's settings where the key allows it: public access blocked, versioning, encryption", () => {
+    const good = preflight(healthy(world()));
+    expect(good.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 public access.*makam-prod-files/));
+    expect(good.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 versioning.*Enabled/));
+    expect(good.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*s3 encryption.*AES256/));
+
+    const open = preflight(healthy(world()), [], { FAKE_S3_PUBLIC: "true false true true" });
+    expect(open.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 public access/));
+
+    const unversioned = preflight(healthy(world()), [], { FAKE_S3_VERSIONING: "None" });
+    expect(unversioned.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 versioning.*None/));
+
+    const plain = preflight(healthy(world()), [], { FAKE_S3_ENCRYPTION: "0" });
+    expect(plain.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 encryption/));
+
+    const denied = preflight(healthy(world()), [], { FAKE_S3_SETTINGS_DENIED: "1" });
+    expect(denied.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3 public access.*cannot read.*console/));
+  });
 });
