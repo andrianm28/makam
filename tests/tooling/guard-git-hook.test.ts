@@ -346,3 +346,23 @@ describe("guard-git hook, refspec forms that reach main", () => {
   });
 });
 
+describe("guard-git hook, another repository named on the command line", () => {
+  it("judges git -C <dir> and --git-dir by that repository, not by the hook's own directory", () => {
+    const ticket = repo({ branch: "ticket-5-x" });
+    const onMain = repo();
+    for (const command of [`git -C ${onMain.dir} push`, `git -C ${onMain.dir} push origin`, `git --git-dir=${onMain.dir}/.git push`, `git --git-dir ${onMain.dir}/.git push`]) {
+      expect(ticket.bash(command).status, command).toBe(2);
+    }
+    for (const command of [`git -C ${ticket.dir} push`, `git -C ${ticket.dir} push origin HEAD`, `git --git-dir=${ticket.dir}/.git push`]) {
+      expect(onMain.bash(command).status, command).toBe(0);
+    }
+  });
+
+  it("composes several -C options the way git does", () => {
+    const onMain = repo();
+    const ticket = repo({ branch: "ticket-5-x" });
+    expect(ticket.bash(`git -C / -C ${onMain.dir} push`).status).toBe(2);
+    expect(onMain.bash(`git -C ${path.dirname(ticket.dir)} -C ${path.basename(ticket.dir)} push`).status).toBe(0);
+  });
+});
+
