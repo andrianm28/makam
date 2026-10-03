@@ -16,6 +16,11 @@ function npmEntry(): string {
   return entry;
 }
 
+/** The major a `package.json` range such as `^22.20.4` declares. */
+function declaredMajor(range: string): string {
+  return range.match(/(\d+)\./)![1]!;
+}
+
 describe("@types/node follows the runtime's Node major", () => {
   it("Dependabot's npm entry ignores semver-major updates of @types/node", () => {
     const ignore = npmEntry().match(/^ {4}ignore:\s*\n((?: {6,}.*\n?|\s*#.*\n?)+)/m);
@@ -31,6 +36,10 @@ describe("@types/node follows the runtime's Node major", () => {
     const declared = (JSON.parse(read("package.json")) as { devDependencies?: Record<string, string>; dependencies?: Record<string, string> });
     const range = declared.devDependencies?.["@types/node"] ?? declared.dependencies?.["@types/node"];
     expect(range, "@types/node declared").toBeDefined();
-    expect(range!.match(/(\d+)\./)![1]).toBe(docker![1]);
+    expect(declaredMajor(range!)).toBe(docker![1]);
+  });
+
+  it.each(["22", ">=22", "22.x", "^22.20.4", "~22.0.0", ">= 22.12.0"])("reads the major of the range %s", (range) => {
+    expect(declaredMajor(range)).toBe("22");
   });
 });
