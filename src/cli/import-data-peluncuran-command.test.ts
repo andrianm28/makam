@@ -67,4 +67,16 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
       menerimaMakamBaru: true,
     });
   });
+
+  it("changes nothing on a second run over the same TPU DKI: it is idempotent on the name", async () => {
+    const { lokasi, admin } = await modul();
+    const sumber = folder({ "tpu-dki.csv": TPU_CONTOH });
+    await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+    const [sebelum] = await lokasi.tpuDkiList(admin);
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", sumber, "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 0 dibuat, 0 diubah, 1 sama, 0 ditolak.");
+    expect(await lokasi.tpuDkiList(admin)).toEqual([sebelum]);
+  });
 });
