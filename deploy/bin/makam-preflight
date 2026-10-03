@@ -472,6 +472,17 @@ check_github_deployments() {
     gh_call POST "/repos/$repo/deployments/$id/statuses" '{"state":"inactive"}' > /dev/null
     gh_call DELETE "/repos/$repo/deployments/$id" > /dev/null
     pass "72" "github deployments" "$repo accepted a Deployment with ref $ref and the probe was deleted again"
+  elif [ "$code" = 422 ]; then
+    # Diagnose the likely cause of "gh api .../deployments lists none": the ref.
+    code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[]}")
+    id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
+    if [ -n "$id" ] && [ "$code" = 201 ]; then
+      gh_call POST "/repos/$repo/deployments/$id/statuses" '{"state":"inactive"}' > /dev/null
+      gh_call DELETE "/repos/$repo/deployments/$id" > /dev/null
+      fail "72" "github deployments" "ref $ref is not a branch, tag or commit SHA, so GitHub answers 422: makam-deploy-status sends the image tag as ref and every deploy then goes unreported (logged only in deploy.log); GitHub accepts the plain commit SHA $rev, so the ref must be the revision"
+    else
+      fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}), also with the plain commit SHA: check the token's repository and Deployments: write"
+    fi
   else
     fail "72" "github deployments" "$repo refused the Deployment (HTTP $code${message:+, $message}): check the token's repository and Deployments: write"
   fi
