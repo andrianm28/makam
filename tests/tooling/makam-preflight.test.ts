@@ -150,11 +150,28 @@ function healthy(w: ReturnType<typeof world>) {
     w.bin,
     "curl",
     [
-      'case "$*" in',
-      '  *api-pay*) printf "%s" "${FAKE_SUMOPOD_CODE:-404}" ;;',
-      '  *webhooks*) printf "%s" "${FAKE_WEBHOOK_CODE:-401}" ;;',
-      '  *api.github.com*) printf "%s" "${FAKE_GITHUB_CODE:-200}" ;;',
+      'out=""; data=""; method=GET; url=""',
+      "while [ $# -gt 0 ]; do",
+      '  case "$1" in -o) out=$2; shift ;; --data) data=$2; shift ;; -X) method=$2; shift ;; http*) url=$1 ;; esac',
+      "  shift",
+      "done",
+      'body=""; code=000',
+      'case "$url" in',
+      '  *api-pay*) code=${FAKE_SUMOPOD_CODE:-404} ;;',
+      '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
+      "  *api.github.com*)",
+      '    case "$method $url" in',
+      '      "POST "*/deployments)',
+      '        # GitHub wants a branch, tag or commit SHA as ref; the image tag sha-<sha> is none of them.',
+      '        if [ "${FAKE_GH_REJECT_SHA_PREFIX:-0}" = 1 ] && [[ "$data" == *\"ref\":\"sha-* ]]; then',
+      '          code=422; body=\'{"message":"No ref found for: sha-0123"}\'',
+      '        else code=${FAKE_GITHUB_CODE:-201}; body=\'{"id": 42}\'; [ "$code" = 201 ] || body=\'{"message":"Bad credentials"}\'; fi ;;',
+      '      "POST "*/statuses) code=201 ;;',
+      '      "DELETE "*) code=204 ;;',
+      "    esac ;;",
       "esac",
+      '[ -z "$out" ] || [ "$out" = /dev/null ] || printf "%s" "$body" > "$out"',
+      'printf "%s" "$code"',
     ].join("\n"),
   );
   install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
@@ -431,5 +448,25 @@ describe("makam-preflight", () => {
 
     const local = preflight(healthy(world()), ["--webhook-url", "http://127.0.0.1:3100/api/webhooks/pembayaran"]);
     expect(local.calls).toContain("http://127.0.0.1:3100/api/webhooks/pembayaran");
+  });
+
+  it("creates a probe GitHub Deployment as makam-deploy would, marks it inactive and deletes it again", () => {
+    const ok = preflight(healthy(world()), ["--digest", DIGEST]);
+    expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*github deployments.*andrianm28\/makam/));
+    expect(ok.calls).toMatch(/curl .*-X POST .*https:\/\/api\.github\.com\/repos\/andrianm28\/makam\/deployments(\s|$)/);
+    expect(ok.calls).toMatch(/-X POST .*https:\/\/api\.github\.com\/repos\/andrianm28\/makam\/deployments\/42\/statuses/);
+    expect(ok.calls).toMatch(/-X DELETE .*https:\/\/api\.github\.com\/repos\/andrianm28\/makam\/deployments\/42/);
+    expect(ok.calls).not.toContain(SECRETS.MAKAM_GITHUB_TOKEN);
+    expect(ok.output).not.toContain(SECRETS.MAKAM_GITHUB_TOKEN);
+
+    const rejectedToken = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GITHUB_CODE: "401" });
+    expect(rejectedToken.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*401.*Bad credentials/));
+
+    const noToken = ENV_FILE.split("\n").filter((line) => !line.startsWith("MAKAM_GITHUB_TOKEN=")).join("\n");
+    const missing = preflight(healthy(world({ envFile: noToken })), ["--digest", DIGEST]);
+    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*MAKAM_GITHUB_TOKEN.*invisible/));
+
+    const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
+    expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*github deployments.*pull/));
   });
 });
