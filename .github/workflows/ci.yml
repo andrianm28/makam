@@ -67,6 +67,15 @@ jobs:
       - uses: ./.github/actions/chromium
       - run: npm run lint
       - run: npm run typecheck
+      # Test-tuned Postgres (ticket 102): a throwaway service container, so it
+      # may skip durability. Reloadable settings, so no restart. This is CI's
+      # test service only; staging and production Postgres are never tuned.
+      - name: Tune the test Postgres (no fsync)
+        run: |
+          for setting in fsync synchronous_commit full_page_writes; do
+            psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "alter system set $setting = off"
+          done
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "select pg_reload_conf()"
       - run: npm test
 
   secrets:
@@ -156,6 +165,13 @@ jobs:
           docker run --rm --network host -e APP_ENV=development -e DATABASE_URL "$RUNNING" node dist/migrate.mjs
           npx tsx scripts/migrations/seed-representative.ts
       - uses: ./.github/actions/chromium
+      # Test-tuned like `check`'s service (ticket 102): throwaway, CI only.
+      - name: Tune the test Postgres (no fsync)
+        run: |
+          for setting in fsync synchronous_commit full_page_writes; do
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "alter system set $setting = off"
+          done
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -c "select pg_reload_conf()"
       # Vitest's global setup migrates TEST_DATABASE_URL to this commit's
       # migrations (the upgrade), then the domain tests run on that schema.
       - name: Upgrade to this commit's migrations and run the domain tests
@@ -167,7 +183,12 @@ jobs:
     name: Build image (push to ghcr on main)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: check
+    # No `needs: check` (ticket 102): the image builds while the tests run, and
+    # every deploy and sign path still waits for `check`: e2e, scan and
+    # sourcemaps follow this job, deploy-gate lists `check` itself, and sign
+    # needs deploy-gate. Cost of the trade: an image for a commit whose tests
+    # fail is built (and pushed on main as sha-<commit>, which nothing deploys
+    # until sign moves `latest`).
     permissions:
       contents: read
       packages: write
