@@ -116,6 +116,10 @@ export type CliIo = { cwd: string; out: (line: string) => void; err: (line: stri
 /** The command line as a function of its arguments, returning the exit code. */
 export function renumberMergeCli(argv: string[], io: CliIo): number {
   const [branchRef, baseRef] = argv;
+  if (branchRef === undefined) {
+    io.err("usage: npx tsx scripts/migrations/renumber-merge.ts <branch-ref> [base-ref]");
+    return 64;
+  }
   try {
     const result = renumberForMerge({ cwd: io.cwd, branchRef: branchRef as string, baseRef });
     io.out(`Set aside ${result.setAside.length} migration file(s) in ${result.asideDir}`);
