@@ -105,8 +105,8 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'case "$*" in',
       '  s_client*) echo CERTIFICATE ;;',
-      '  *-checkend*) exit "${FAKE_CERT_CHECKEND:-0}" ;;',
-      '  *-enddate*) echo "notAfter=${FAKE_CERT_END:-Jan  1 00:00:00 2027 GMT}" ;;',
+      '  *-checkend*) cat > /dev/null; exit "${FAKE_CERT_CHECKEND:-0}" ;;',
+      '  *-enddate*) cat > /dev/null; echo "notAfter=${FAKE_CERT_END:-Jan  1 00:00:00 2027 GMT}" ;;',
       "esac",
     ].join("\n"),
   );

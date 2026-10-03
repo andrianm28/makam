@@ -26,12 +26,20 @@ set -euo pipefail
 
 MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
 ENV_NAME=""
+DIGEST=""
+EMAIL_TO=""
+SKIP_S3=0
+WEBHOOK_URL=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --env) ENV_NAME=${2:?}; shift 2 ;;
+    --digest) DIGEST=${2:?}; shift 2 ;;
+    --email-to) EMAIL_TO=${2:?}; shift 2 ;;
+    --skip-s3) SKIP_S3=1; shift ;;
+    --webhook-url) WEBHOOK_URL=${2:?}; shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
@@ -41,6 +49,12 @@ done
 DIR="$MAKAM_ROOT/$ENV_NAME"
 ENV_FILE="$DIR/$ENV_NAME.env"
 FAILS=0
+IMAGE=ghcr.io/andrianm28/makam
+IMAGE_REF=""
+PULLED=0
+
+# One setting of the env file; the file is never sourced and the value never printed.
+setting() { sed -n "s/^$1=//p" "$ENV_FILE" 2> /dev/null | tail -n 1 || true; }
 
 line() { printf '%s [%s] %s: %s\n' "$1" "$2" "$3" "$4"; }
 pass() { line PASS "$@"; }
@@ -108,7 +122,7 @@ check_dns_and_certificates() {
     else
       fail "02" "dns $host" "resolves to ${got:-nothing}, expected $expected (this host)"
     fi
-    end=$(openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -enddate 2> /dev/null | sed -n 's/^notAfter=//p') || end=""
+    end=$(openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -enddate 2> /dev/null | sed -n 's/^notAfter=//p') || true
     if openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -checkend $((days * 86400)) > /dev/null 2>&1; then
       pass "02" "certificate $host" "valid until $end (more than $days days)"
     else
@@ -117,12 +131,47 @@ check_dns_and_certificates() {
   done
 }
 
+# The digest to prove is --digest, else the one deployed.env records. The pull
+# uses the ghcr read token when the env file holds GHCR_READ_TOKEN (in a
+# throwaway Docker config that is removed again), else the host's own login.
+check_image_pull() {
+  local digest login_note config token
+  digest=$DIGEST
+  [ -n "$digest" ] || digest=$(sed -n 's/^MAKAM_DIGEST=//p' "$DIR/deployed.env" 2> /dev/null | tail -n 1) || digest=""
+  if [ -z "$digest" ]; then
+    fail "72" "ghcr pull" "no released digest known: pass --digest sha256:<digest of a released image> (the digest the promotion printed)"
+    return 0
+  fi
+  IMAGE_REF="$IMAGE@$digest"
+  DIGEST=$digest
+  config=""
+  login_note="the host's own ghcr login"
+  token=$(setting GHCR_READ_TOKEN)
+  if [ -n "$token" ]; then
+    config=$(mktemp -d)
+    login_note="the read token from $ENV_NAME.env"
+    if ! printf '%s' "$token" | DOCKER_CONFIG="$config" docker login ghcr.io -u andrianm28 --password-stdin > /dev/null 2>&1; then
+      rm -rf "$config"
+      fail "02, 72" "ghcr pull" "docker login ghcr.io refused GHCR_READ_TOKEN: create a token with read:packages (ticket 02)"
+      return 0
+    fi
+  fi
+  if DOCKER_CONFIG="${config:-${DOCKER_CONFIG:-$HOME/.docker}}" docker pull "$IMAGE_REF" > /dev/null 2>&1; then
+    PULLED=1
+    pass "02, 72" "ghcr pull" "pulled $IMAGE_REF with $login_note"
+  else
+    fail "02, 72" "ghcr pull" "could not pull $IMAGE_REF with $login_note: check the token's read:packages scope and that the digest exists"
+  fi
+  [ -z "$config" ] || rm -rf "$config"
+}
+
 #@FUNCS
 
 check_env_file || true
 check_docker
 check_resources
 check_dns_and_certificates
+check_image_pull
 #@CALLS
 
 echo
