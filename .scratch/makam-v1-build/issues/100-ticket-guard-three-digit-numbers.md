@@ -15,3 +15,7 @@ Ticket numbers have reached 100, but the ticket guard reads only two-digit names
 - [ ] Tested through the guard's own helpers: `100-x.md` is ticket 100, never 10; and the guard passes on the tree that holds tickets 100 and 101.
 
 ## Comments
+
+### 2026-10-03 builder
+
+The guard (`tests/support/ticket-workflow.ts`) now reads ticket numbers of two or more digits: new `ticketNumber(name)`, `TICKET_FILE_NAME` = `^\d{2,}-...`, index row link `\[(\d+)\]`; `tests/tooling/ticket-workflow.test.ts` reads the tree through `ticketNumber`. The old test that asserted a `100-*.md` file is refused was replaced by one asserting it is counted. One-digit names (`9-x.md`) are still refused. Tests/tooling: 21 files, 274 passed, 1 skipped; lint and typecheck clean. No spec gaps.
