@@ -163,6 +163,8 @@ def compare(prev, cur):
     causes = {}
     for k in {**pc, **cc}:
         causes[k] = {f: delta(pc.get(k, {}).get(f), cc.get(k, {}).get(f)) for f in ("units", "usd")}
+        if any(c.get(k, {}).get("usd") is None for c in (pc, cc)):
+            causes[k]["usd"] = None  # a side without a coordinator cost has no USD to compare
     if cur.get("coordinator_cumulative"):
         # the coordinator's cumulative USD is not a delta: leave out the total and the per-cause USD
         for v in causes.values():
