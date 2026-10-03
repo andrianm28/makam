@@ -14,15 +14,16 @@ import { z } from "zod";
 import { composeIdentity } from "@/composition/identity";
 import { createAdapters } from "@/composition/adapters";
 import { createDatabase, type Database } from "@/db/client";
+import { refusable } from "@/db/unit-of-work";
 import type { Actor } from "@/domain/identity";
-import { createKatalogLayanan, type Layanan } from "@/domain/layanan";
+import { buktiOf, createKatalogLayanan, type Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi, type TpuDki } from "@/domain/lokasi";
 import { createNazhirList, type Wakaf } from "@/domain/wakaf";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv } from "@/lib/env";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
-import { alasanBaris, barisBiayaSchema, barisLayananSchema, barisNazhirSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
+import { alasanBaris, barisBiayaSchema, barisKatalogSchema, barisLayananSchema, barisNazhirSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
 import { bacaCsv } from "./data-peluncuran/csv";
 import { cliFailure } from "./cli-failure";
 
@@ -182,8 +183,76 @@ async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekaran
   return hasil;
 }
 
+async function olahKatalog(
+  folder: string,
+  katalogLayanan: Pick<Layanan, "katalog" | "createLayanan" | "ubahLayanan" | "tambahVarian">,
+  aktor: Actor,
+  alasan: string,
+): Promise<Ringkasan> {
+  const hasil = kosong();
+  const csv = bacaBerkas(folder, "katalog-layanan.csv");
+  if (!csv) return hasil;
+  const ada = new Map((await katalogLayanan.katalog()).map((layanan) => [kunciNama(layanan.name), layanan]));
+  const terlihat = new Map<string, number>();
+  for (const baris of csv.baris) {
+    hasil.dibaca += 1;
+    const parsed = barisKatalogSchema.safeParse(baris.nilai);
+    if (!parsed.success) {
+      hasil.ditolak.push(`katalog-layanan.csv baris ${baris.nomor}: ${alasanBaris(parsed.error)}`);
+      continue;
+    }
+    const row = parsed.data;
+    const pertama = terlihat.get(kunciNama(row.name));
+    if (pertama !== undefined) {
+      hasil.ditolak.push(`katalog-layanan.csv baris ${baris.nomor}: Layanan "${row.name}" sudah muncul di baris ${pertama}`);
+      continue;
+    }
+    terlihat.set(kunciNama(row.name), baris.nomor);
+    const lama = ada.get(kunciNama(row.name));
+    if (!lama) {
+      const dibuat = await katalogLayanan.createLayanan(aktor, { ...row, bukti: buktiOf(row.jenis), reason: alasan });
+      if (!dibuat.ok) {
+        hasil.ditolak.push(`katalog-layanan.csv baris ${baris.nomor}: ${alasanModul(dibuat.reason)}`);
+        continue;
+      }
+      hasil.dibuat += 1;
+      continue;
+    }
+    // An existing Layanan keeps the name it has; the row may change its other fields and add variants (never remove one).
+    const { varian, ...isi } = row;
+    const fieldBerbeda =
+      lama.description !== isi.description ||
+      lama.jenis !== isi.jenis ||
+      lama.leadTimeDays !== isi.leadTimeDays ||
+      lama.bisaHariH !== isi.bisaHariH ||
+      lama.adaDiPetakKosong !== isi.adaDiPetakKosong ||
+      lama.teksLabel !== isi.teksLabel;
+    const kurang = varian.filter((nama) => !lama.varian.some((satu) => kunciNama(satu.name) === kunciNama(nama)));
+    if (!fieldBerbeda && kurang.length === 0) {
+      hasil.sama += 1;
+      continue;
+    }
+    const diubah = fieldBerbeda
+      ? await katalogLayanan.ubahLayanan(aktor, lama.id, { ...isi, name: lama.name, bukti: buktiOf(isi.jenis), reason: alasan })
+      : { ok: true as const };
+    let gagal: string | null = diubah.ok ? null : alasanModul(diubah.reason);
+    for (const nama of kurang) {
+      if (gagal) break;
+      const ditambah = await katalogLayanan.tambahVarian(aktor, lama.id, { name: nama, reason: alasan });
+      if (!ditambah.ok) gagal = `varian "${nama}": ${alasanModul(ditambah.reason)}`;
+    }
+    if (gagal) {
+      hasil.ditolak.push(`katalog-layanan.csv baris ${baris.nomor}: ${gagal}`);
+      continue;
+    }
+    hasil.diubah += 1;
+  }
+  return hasil;
+}
+
 async function olahLayanan(
   folder: string,
+  db: Database,
   katalogLayanan: Pick<Layanan, "katalog">,
   tariffs: Tariffs,
   aktor: Actor,
@@ -228,10 +297,22 @@ async function olahLayanan(
       continue;
     }
     const berlaku = row.berlakuMulai ?? wibDateOf(sekarang);
-    const dicatat = dkiSama ? { ok: true as const } : await tariffs.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: alasan });
-    const dicatatMitra = !dicatat.ok || mitraSama ? dicatat : await tariffs.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: alasan });
-    if (!dicatatMitra.ok) {
-      hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${alasanModul(dicatatMitra.reason, row.berlakuMulai)}`);
+    // The two prices of one row go in together: a refusal of either leaves neither, so a family is never quoted
+    // the new DKI price against the old Mitra Jasa rate.
+    const dicatat = await refusable(db, async (tx) => {
+      const dalam = tariffs.within(tx);
+      if (!dkiSama) {
+        const harga = await dalam.setHargaLayananDki(aktor, id, { amount: row.hargaDki, effectiveOn: berlaku, reason: alasan });
+        if (!harga.ok) return harga;
+      }
+      if (!mitraSama) {
+        const tarif = await dalam.setTarifMitraJasa(aktor, id, { amount: row.tarifMitraJasa, effectiveOn: berlaku, reason: alasan });
+        if (!tarif.ok) return tarif;
+      }
+      return { ok: true as const };
+    });
+    if (!dicatat.ok) {
+      hasil.ditolak.push(`layanan-dki.csv baris ${baris.nomor}: ${alasanModul(dicatat.reason, row.berlakuMulai)}`);
       continue;
     }
     if (dki || mitra) hasil.diubah += 1;
@@ -309,11 +390,14 @@ async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntim
   const tariffs = createTariffs({ db, clock: adapters.clock, audit, lokasi });
   const tpu = await olahTpu(sumber, lokasi, aktor);
   const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), alasan);
-  const layanan = await olahLayanan(sumber, createKatalogLayanan({ db }), tariffs, aktor, adapters.clock.now(), alasan);
+  const katalogLayanan = createKatalogLayanan({ db, clock: adapters.clock, audit });
+  const katalog = await olahKatalog(sumber, katalogLayanan, aktor, alasan);
+  const layanan = await olahLayanan(sumber, db, katalogLayanan, tariffs, aktor, adapters.clock.now(), alasan);
   const nazhir = await olahNazhir(sumber, createNazhirList({ db, clock: adapters.clock, audit }), aktor);
   return [
     { judul: "TPU DKI", ringkasan: tpu },
     { judul: "Biaya Pengurusan", ringkasan: biaya },
+    { judul: "Katalog Layanan", ringkasan: katalog },
     { judul: "Layanan DKI", ringkasan: layanan },
     { judul: "Nazhir", ringkasan: nazhir },
   ];

@@ -82,7 +82,7 @@ export async function insertVarian(
 }
 
 /** Admin Platform adds a fixed-price variant to a Layanan; audited. */
-export async function tambahVarian(deps: LayananDeps, by: Actor, layananId: string, input: NewVarian): Promise<TambahVarianResult> {
+export async function tambahVarian(deps: Pick<LayananDeps, "db" | "clock" | "audit">, by: Actor, layananId: string, input: NewVarian): Promise<TambahVarianResult> {
   // Defence in depth behind guarded(): the module checks the actor itself, before anything else.
   const refusal = writeRefusal(by, "layanan.kelola", layananKatalogResource());
   if (refusal) return refusal;

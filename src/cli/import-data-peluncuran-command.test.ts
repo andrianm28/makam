@@ -261,7 +261,7 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: katalog Layanan",
       adaDiPetakKosong: true,
       teksLabel: null,
     });
-    expect(layanan!.varian.map((varian) => varian.name)).toEqual(["Standar", "Menyeluruh"]);
+    expect(layanan!.varian.map((varian) => varian.name).sort()).toEqual(["Menyeluruh", "Standar"]);
     const menyeluruh = layanan!.varian.find((varian) => varian.name === "Menyeluruh")!;
     expect((await tariffs.hargaLayananDki(menyeluruh.id, wib("2026-10-01 09:00")))?.amount).toBe(300_000);
   });

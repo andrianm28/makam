@@ -4,6 +4,7 @@
  * naming its column, never half-read.
  */
 import { z } from "zod";
+import { jenisLayananValues } from "@/domain/layanan";
 import { RUPIAH_MAX } from "@/lib/rupiah";
 import { TPU_LIMITS } from "@/domain/lokasi";
 
@@ -113,3 +114,39 @@ export const barisNazhirSchema = z.object({
 });
 
 export type BarisNazhir = z.output<typeof barisNazhirSchema>;
+
+/** The variants of a Layanan, written in one cell separated by `|`: each trimmed, none blank, none twice. */
+const daftarVarian = z
+  .string()
+  .transform((nilai) => nilai.split("|").map((satu) => satu.trim().replace(/\s+/g, " ")))
+  .pipe(
+    z
+      .array(z.string().min(1, "varian tidak boleh kosong di antara tanda |").max(120))
+      .min(1)
+      .max(50)
+      .refine((nama) => new Set(nama.map((satu) => satu.toLowerCase())).size === nama.length, "varian muncul dua kali dalam satu Layanan"),
+  );
+
+export const barisKatalogSchema = z
+  .object({
+    layanan: z.string().min(1, "layanan wajib").max(120),
+    jenis: z.enum(jenisLayananValues, { error: `jenis harus salah satu dari: ${jenisLayananValues.join(", ")}` }),
+    deskripsi: z.string().max(500, "deskripsi maksimal 500 huruf"),
+    lead_time_hari: z.string().regex(/^\d+$/, "lead_time_hari harus bilangan bulat hari").transform(Number).pipe(z.number().max(365, "lead_time_hari maksimal 365")),
+    bisa_hari_h: yaTidak,
+    ada_di_petak_kosong: yaTidak,
+    teks_label: z.string().max(200),
+    varian: daftarVarian,
+  })
+  .transform((baris) => ({
+    name: baris.layanan,
+    jenis: baris.jenis,
+    description: baris.deskripsi,
+    leadTimeDays: baris.lead_time_hari,
+    bisaHariH: baris.bisa_hari_h,
+    adaDiPetakKosong: baris.ada_di_petak_kosong,
+    teksLabel: baris.teks_label === "" ? null : baris.teks_label,
+    varian: baris.varian,
+  }));
+
+export type BarisKatalog = z.output<typeof barisKatalogSchema>;

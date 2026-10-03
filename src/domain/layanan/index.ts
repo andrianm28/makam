@@ -56,6 +56,7 @@ import {
   ubahLayanan as ubahLayananEntry,
   type CreateLayananResult,
   type HapusLayananResult,
+  type KatalogDeps,
   type LayananTerbaca,
   type NewLayanan,
   type PerubahanLayanan,
@@ -803,11 +804,18 @@ function staffLayananReads(deps: LayananDeps, by: Actor): StaffLayananReads {
 }
 
 /**
- * The catalog read alone, for a caller that only needs to know which Layanan and variants exist (the launch
- * data import resolves a variant by its names): it needs the database and none of the order machinery.
+ * The catalog alone (read, create a Layanan, change one, add a variant), for a caller that keeps the catalog
+ * without the order machinery: the launch data import.
  */
-export function createKatalogLayanan(deps: Pick<LayananDeps, "db">): Pick<Layanan, "katalog"> {
-  return { katalog: () => katalog(deps.db) };
+export function createKatalogLayanan(
+  deps: KatalogDeps,
+): Pick<Layanan, "katalog" | "createLayanan" | "ubahLayanan" | "tambahVarian"> {
+  return {
+    katalog: () => katalog(deps.db),
+    createLayanan: (by, input) => createLayananEntry(deps, by, input),
+    ubahLayanan: (by, layananId, input) => ubahLayananEntry(deps, by, layananId, input),
+    tambahVarian: (by, layananId, input) => tambahVarian(deps, by, layananId, input),
+  };
 }
 
 export function createLayanan(deps: LayananDeps): Layanan {
