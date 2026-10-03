@@ -33,9 +33,10 @@ function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1]; bo
   if (!opts.bootstrap) commit(".claude/main-writers", "# nobody yet\n00NOBODY merge\n");
   git(dir, "push", "-q", "origin", "main");
   if (opts.branch) git(dir, "checkout", "-q", "-b", opts.branch);
-  const bin = fakeBin(tmpDir("gg-bin-", dirs), opts.tools ?? {});
+  const bin = fakeBin(tmpDir("gg-bin-", dirs), { "clean-scanner": {}, ...(opts.tools ?? {}) });
+  // Unless a test says otherwise the scan is a stub that finds nothing: Vitest never runs Docker or pulls an image.
   const bash = (command: string, env: Record<string, string> = {}) =>
-    runHook("guard-git.sh", { tool_name: "Bash", tool_input: { command }, cwd: dir }, { cwd: dir, env, path: `${bin}:${path.dirname(process.execPath)}:/usr/bin:/bin` });
+    runHook("guard-git.sh", { tool_name: "Bash", tool_input: { command }, cwd: dir }, { cwd: dir, env: { MAKAM_GITLEAKS_CMD: `${bin}/clean-scanner`, ...env }, path: `${bin}:${path.dirname(process.execPath)}:/usr/bin:/bin` });
   return { dir, bin, bash, commit };
 }
 
@@ -224,7 +225,7 @@ describe("guard-git hook, secrets in outgoing commits", () => {
 
   it("scans with the image CI uses and CI's arguments when no stub is given", () => {
     const { bash, bin } = repo({ branch: "ticket-5-x", tools: { docker: { exit: 0 } } });
-    expect(bash("git push -u origin ticket-5-x").status).toBe(0);
+    expect(bash("git push -u origin ticket-5-x", { MAKAM_GITLEAKS_CMD: "" }).status).toBe(0);
     const runs = readFileSync(`${bin}/docker.calls`, "utf8").split("\n").filter((l) => l.startsWith("run "));
     expect(runs).toHaveLength(1);
     expect(runs[0]).toContain(`${IMAGE} git . --config .gitleaks.toml --redact --no-banner`);
@@ -232,7 +233,7 @@ describe("guard-git hook, secrets in outgoing commits", () => {
 
   it("says plainly that the commits were not scanned when Docker is unavailable", () => {
     const { bash } = repo({ branch: "ticket-5-x", tools: { docker: { exit: 1 } } });
-    const r = bash("git push -u origin ticket-5-x");
+    const r = bash("git push -u origin ticket-5-x", { MAKAM_GITLEAKS_CMD: "" });
     expect(r.status).toBe(0);
     expect(r.stdout + r.stderr).toMatch(/NOT scanned/);
     expect(r.stdout + r.stderr).toMatch(/Docker/);

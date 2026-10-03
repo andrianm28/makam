@@ -32,7 +32,7 @@ function decide(text) {
   for (const words of all) noPullRequest(words);
   const sent = pushes(all, cwd);
   for (const push of sent) noPushToMain(push);
-  for (const cwdOfPush of new Set(sent.map((p) => p.cwd))) noSecrets(cwdOfPush);
+  for (const top of new Set(sent.map((p) => git(p, ["rev-parse", "--show-toplevel"]).trim()))) noSecrets(top);
 }
 
 const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
@@ -334,25 +334,40 @@ function changedOutsideDocs(push, src) {
     .filter((f) => f && !f.startsWith("docs/") && !f.startsWith(".scratch/") && f !== ".claude/main-writers");
 }
 
-/** CI runs gitleaks on `main` only, so a secret on a ticket branch would be published unscanned: scan before the push. */
-function noSecrets(cwd) {
-  const r = spawnSync("gitleaks", ["detect", "--source", ".", "--log-opts", "origin/main..HEAD", "--redact", "--no-banner"], {
-    cwd,
-    encoding: "utf8",
-  });
-  if (r.error?.code === "ENOENT") {
+// The image and arguments CI's "Secrets scan" job uses (.github/workflows/ci.yml): the same scan before the push.
+const GITLEAKS_IMAGE = "zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f";
+
+/**
+ * CI scans every ref of a full clone with gitleaks, and a secret on any branch turns `main` red, so scan before the push:
+ * the whole local repository (all refs this clone has: branches, remote-tracking refs, tags, and the unpushed commits), through Docker.
+ * MAKAM_GITLEAKS_CMD replaces `docker run` with an executable that is given the repository directory (tests); exit 1 is a finding,
+ * 125-127 means the scanner could not run (Docker missing, daemon down, image not pullable): then the push goes through with a plain notice.
+ */
+function noSecrets(top) {
+  const stub = process.env.MAKAM_GITLEAKS_CMD;
+  let r;
+  if (stub) r = spawnSync(stub, [top], { encoding: "utf8", timeout: 300000 });
+  else if (spawnSync("docker", ["info"], { stdio: "ignore", timeout: 30000 }).status !== 0) r = { status: 125 };
+  else {
+    r = spawnSync(
+      "docker",
+      ["run", "--rm", "-v", `${top}:/repo`, "-w", "/repo", GITLEAKS_IMAGE, "git", ".", "--config", ".gitleaks.toml", "--redact", "--no-banner"],
+      { encoding: "utf8", timeout: 300000 },
+    );
+  }
+  if (r.error || r.status === null || [125, 126, 127].includes(r.status)) {
     notes.push(
-      "guard-git: gitleaks is not installed here, so the outgoing commits were NOT scanned for secrets before this push (CI scans only `main`). " +
-        "Check the diff yourself (`git diff origin/main..HEAD`) for keys, tokens and passwords before relying on it.",
+      "guard-git: Docker or the gitleaks image is not available here, so the repository was NOT scanned for secrets before this push " +
+        "(main CI scans every branch and turns red on a finding). Check the diff yourself (`git diff origin/main..HEAD`) for keys, tokens and passwords.",
     );
     return;
   }
   if (r.status !== 0) {
     deny(
-      "gitleaks found a possible secret in the commits this push would send (or could not scan them). Output:\n" +
-        `${(r.stdout + r.stderr).trim().slice(0, 1500)}\n` +
-        "Remove the secret from the commits (a new commit does not remove it from history: amend or reset the unpushed commits), " +
-        "rotate it if it was real; if the scan itself failed, `git fetch origin main` and push again; for a false positive, add the accepted finding with a reason to `.gitleaks.toml` and push again.",
+      "gitleaks found a possible secret in this repository's history, the same scan main CI runs on every branch. Output:\n" +
+        `${((r.stdout ?? "") + (r.stderr ?? "")).trim().slice(0, 1500)}\n` +
+        "Remove the secret from the unpushed commits (a new commit does not remove it from history: amend or reset them) and rotate it if it was real. " +
+        "A test fixture that looks like a secret must be built at runtime, not committed; a false positive goes in `.gitleaks.toml` with a reason.",
     );
   }
 }
