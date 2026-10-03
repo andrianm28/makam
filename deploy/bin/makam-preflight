@@ -165,6 +165,23 @@ check_image_pull() {
   [ -z "$config" ] || rm -rf "$config"
 }
 
+# makam-verify-image decides; its exit code (77 unsigned / wrong key, 78 no key
+# installed) is turned into words.
+check_signature() {
+  local code=0
+  if [ "$PULLED" -ne 1 ]; then
+    skip "72" "image signature" "needs the pulled image (ghcr pull above)"
+    return 0
+  fi
+  "$MAKAM_ROOT/bin/makam-verify-image" --env "$ENV_NAME" --image "$IMAGE" --digest "$DIGEST" > /dev/null 2>&1 || code=$?
+  case "$code" in
+    0) pass "72" "image signature" "$DIGEST carries the production signature" ;;
+    77) fail "72" "image signature" "no valid production signature: unsigned, or signed with another key than $DIR/cosign.pub (makam-verify-image exit 77); promote the release first" ;;
+    78) fail "72" "image signature" "cosign is not installed or $DIR/cosign.pub is missing (exit 78): run deploy/install-host.sh and install the production public key" ;;
+    *) fail "72" "image signature" "makam-verify-image exited $code" ;;
+  esac
+}
+
 #@FUNCS
 
 check_env_file || true
@@ -172,6 +189,7 @@ check_docker
 check_resources
 check_dns_and_certificates
 check_image_pull
+check_signature
 #@CALLS
 
 echo

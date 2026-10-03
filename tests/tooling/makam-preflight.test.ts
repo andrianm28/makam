@@ -213,8 +213,7 @@ describe("makam-preflight", () => {
 
     const signed = preflight(healthy(world()), ["--digest", DIGEST]);
     expect(signed.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*image signature/));
-    expect(signed.calls).toContain(`cosign verify --key ${signed.calls.includes("prod/cosign.pub") ? "" : ""}`.trimEnd());
-    expect(signed.calls).toContain(`@${DIGEST}`);
+    expect(signed.calls).toMatch(new RegExp(`cosign verify --key \\S+/prod/cosign\\.pub ghcr\\.io/andrianm28/makam@${DIGEST}`));
 
     const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*image signature.*pull/));
