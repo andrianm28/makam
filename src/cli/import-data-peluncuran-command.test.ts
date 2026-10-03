@@ -5,6 +5,7 @@ import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { FakeClock } from "@/adapters/memory";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
+import { layananOnTestDatabase, catalogFixture } from "../../tests/support/layanan";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { signedInAdminPlatform } from "../../tests/support/identity";
 import { lokasiOnTestDatabase } from "../../tests/support/lokasi";
@@ -180,6 +181,44 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: Biaya Pengurusan"
     expect(hasil.output).toContain("biaya-pengurusan.csv baris 3: jumlah_rupiah: jumlah_rupiah harus bilangan bulat rupiah");
     expect(hasil.output).toContain("biaya-pengurusan.csv baris 4: tanggal_berlaku_lampau");
     expect(await tariffs.globalTariffHistory("biaya_pengurusan_berkas")).toEqual([]);
+  });
+});
+
+describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI dan tarif Mitra Jasa", () => {
+  const LAYANAN = "layanan,varian,harga_dki_rupiah,tarif_mitra_jasa_rupiah,berlaku_mulai\nPembersihan Makam,Reguler,250000,180000,\n";
+
+  /** The catalog with one Layanan, "Pembersihan Makam" with its variant "Reguler", on the test database. */
+  async function katalog() {
+    const setup = layananOnTestDatabase(db);
+    const { admin, varian } = await catalogFixture(setup);
+    const sekarang = wib("2026-10-01 09:00");
+    return {
+      varianId: varian!.id,
+      hargaDki: async () => (await setup.tariffs.hargaLayananDki(varian!.id, sekarang))?.amount ?? null,
+      tarifMitraJasa: async () => (await setup.tariffs.mitraJasaRate(admin, varian!.id, sekarang))?.amount ?? null,
+    };
+  }
+
+  it("dry-runs the DKI price and the Mitra Jasa rate of a catalog variant without entering them", async () => {
+    const { hargaDki, tarifMitraJasa } = await katalog();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "layanan-dki.csv": LAYANAN })], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Layanan DKI: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(await hargaDki()).toBeNull();
+    expect(await tarifMitraJasa()).toBeNull();
+  });
+
+  it("enters the DKI price and the Mitra Jasa rate through Tariffs with --tulis", async () => {
+    const { hargaDki, tarifMitraJasa } = await katalog();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "layanan-dki.csv": LAYANAN }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Layanan DKI: 1 baris dibaca, 1 dibuat, 0 diubah, 0 sama, 0 ditolak.");
+    expect(await hargaDki()).toBe(250_000);
+    expect(await tarifMitraJasa()).toBe(180_000);
   });
 });
 
