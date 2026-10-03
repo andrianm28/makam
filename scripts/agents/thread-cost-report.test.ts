@@ -60,4 +60,11 @@ describe("thread cost report: coordinator wake causes", () => {
     expect(c.watcher.share).toBeCloseTo(56.86, 1);
     expect(c.watcher.usd).toBeCloseTo(5.686, 2);
   });
+
+  it("takes its marker rules from --markers when given", () => {
+    const r = json([fx("sessions.json"), "--transcript", fx("coordinator.jsonl"), "--markers", fx("markers.json")]);
+    // the file replaces the report-back patterns: the "ticket 12" turn is now a report-back, the "done: <sha>" turn no longer is
+    expect(r.causes["report-back"]).toMatchObject({ units: 2500, wakes: 1 });
+    expect(r.causes.owner).toMatchObject({ units: 500, wakes: 1 });
+  });
 });
