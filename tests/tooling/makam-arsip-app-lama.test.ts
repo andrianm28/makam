@@ -272,7 +272,7 @@ describe("makam-arsip-app-lama's free-space guard", () => {
 describe("makam-arsip-app-lama's usage", () => {
   it.each(["--container", "--db", "--user"])("asks with the usage line when %s has no value", (option) => {
     const w = host();
-    const result = spawnSync("bash", [script, option], { encoding: "utf8", env: { PATH: `${w.bin}:/usr/bin:/bin`, MAKAM_ROOT: w.root } });
+    const result = spawnSync("bash", [script, option], { encoding: "utf8", env: { PATH: `${w.bin}:/usr/bin:/bin`, MAKAM_ROOT: w.root, NODE_ENV: "test" } });
     expect(result.status).toBe(64);
     expect(`${result.stdout}${result.stderr}`).toMatch(/usage:/);
   });

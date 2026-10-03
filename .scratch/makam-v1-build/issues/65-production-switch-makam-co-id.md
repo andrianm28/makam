@@ -127,3 +127,23 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   - **Count: 0 blocking / 2 should-fix / 2 nit. Worst: the runbook lacks the count-timing caveat the fix-pass entry says is there.**
 
   Read-only review; no fix pass done. One sub-agent per axis. Not blocking merge: no blocking item on either axis; the two Spec should-fix items are one-line doc edits.
+
+- 2026-10-03 — **Fix pass 2 on the re-review above (builder).** Branch `ticket-65-switch`, from re-review head 3725aed. Each change below is one red/green pair; each red was run and failed for its own behaviour (an assertion on the behaviour, not a broken helper).
+
+  **Should-fix**
+  - Spec, count-timing caveat missing from the runbook: **fixed** (step 2 of "Hari switch" now says the counts are taken just after the dump and a write in between fails the proof: rerun).
+  - Spec, archive criterion still says "uploads it to the backups bucket": **fixed** by a marker, wording kept: "(superseded 2026-10-03, owner: stays local, S3 is v2)"; a test pins both.
+  - Standards, red `8cb0b4bc` failed for a broken helper: **left**: history on the pushed branch is not rewritten; this pass has no such red, and the helper repair is already disclosed in the first fix-pass entry.
+  - Standards, bundled red commits (`e2bb295b`, `80d71083`, `71e919a9`): **left** for the same reason; this pass keeps one behaviour per pair, and a test that is green on arrival is not committed as a red.
+
+  **Nits**
+  - HSTS runbook step must re-run `install-host.sh` before `makam-switch --ke v1`: **fixed** (the step now says so; test pins the order).
+  - `${2:?}` in `makam-arsip-app-lama`: **fixed** (`--container`, `--db`, `--user` without a value print the usage, exit 64).
+  - Maintenance `/api/health` drops the security headers: **fixed** (repeated there; test).
+  - Plan-item punctuation in the script header: **fixed** (steps read as one list, a comment-only change).
+  - Two `case` patterns on `$MAKAM_ROOT`: **left**: they are not redundant when `MAKAM_ROOT` ends in a slash (`"$MAKAM_ROOT"/*` would be `//*`), so the second is the one that catches `/opt/makam-v1/` configured with a trailing slash.
+  - Earlier left items (duplicated `read` loops, the `DB_SIZE` guard) unchanged.
+
+  Also: a typecheck error in my own new test (`NODE_ENV` missing from a spawn env) was fixed in a test-only commit.
+
+  **HANDOFF** — Tests off a whole log: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files, 300 passed, 1 skipped, exit 0 (before the one-line typecheck fix, after which `makam-arsip-app-lama.test.ts` alone was re-run: 19 passed); `npm run lint` exit 0 (0 errors, warnings not mine); `npm run typecheck` exit 0. Next: owner's Hari switch after the gate.
