@@ -242,17 +242,21 @@ export async function olahKatalog(
       hasil.sama += 1;
       continue;
     }
-    const diubah = fieldBerbeda
-      ? await katalogLayanan.ubahLayanan(aktor, lama.id, { ...isi, name: lama.name, bukti: buktiOf(isi.jenis), reason: alasan })
-      : { ok: true as const };
-    let gagal: string | null = diubah.ok ? null : alasanModul(diubah.reason);
-    for (const nama of kurang) {
-      if (gagal) break;
-      const ditambah = await katalogLayanan.tambahVarian(aktor, lama.id, { name: nama, reason: alasan });
-      if (!ditambah.ok) gagal = `varian "${nama}": ${alasanModul(ditambah.reason)}`;
-    }
-    if (gagal) {
-      hasil.ditolak.push(`katalog-layanan.csv baris ${baris.nomor}: ${gagal}`);
+    // The Layanan's fields and its added variants are one row: a refusal of any leaves none of them.
+    const dicatat = await refusable(db, async (tx) => {
+      const dalam = katalogDi(tx);
+      if (fieldBerbeda) {
+        const diubah = await dalam.ubahLayanan(aktor, lama.id, { ...isi, name: lama.name, bukti: buktiOf(isi.jenis), reason: alasan });
+        if (!diubah.ok) return { ok: false as const, alasan: alasanModul(diubah.reason) };
+      }
+      for (const nama of kurang) {
+        const ditambah = await dalam.tambahVarian(aktor, lama.id, { name: nama, reason: alasan });
+        if (!ditambah.ok) return { ok: false as const, alasan: `varian "${nama}": ${alasanModul(ditambah.reason)}` };
+      }
+      return { ok: true as const };
+    });
+    if (!dicatat.ok) {
+      hasil.ditolak.push(`katalog-layanan.csv baris ${baris.nomor}: ${dicatat.alasan}`);
       continue;
     }
     hasil.diubah += 1;
