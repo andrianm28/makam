@@ -76,3 +76,43 @@ A pre-launch checklist for the Operator. Every value below is entered by Admin P
   Findings, Spec: (1) dry run — fixed as above. (2) natural key — fixed as above. (3) README — **fixed**: CSV UTF-8, Teks cells (leading zeros, dates, coordinates), the accepted kota/kabupaten spellings, `seed:admin` first, import order; the reader still takes UTF-8 only and does not detect an ANSI file (left: the README tells the owner which save option to pick). (4) slicing — left, as above. Nits: raw refusal codes — **fixed** (`alasanModul` words them, e.g. "berlaku_mulai 2026-09-01 sudah lewat"); `hapusNazhir` — fixed; partial Layanan write — gone with (1).
 
   HANDOFF: branch `ticket-06-data-peluncuran`, fix pass done. `npx vitest run src/cli src/domain/wakaf src/domain/layanan/katalog.test.ts src/domain/layanan/varian.test.ts tests/support/global-prune.test.ts`: 19 test files, 179 tests passed (own file `src/cli/import-data-peluncuran-command.test.ts`: 35). `npm run lint` exit 0 (6 pre-existing warnings), `npm run typecheck` exit 0. Full suite not run (orchestrator's).
+
+- 2026-10-03 — Re-review (Opus, money code) of the fix pass. HEAD `32e77f7`, fixed point `22c8745` (11 files, +508/−113). The reviewer re-ran the tests with Docker up: `npx vitest run src/cli src/domain/wakaf src/domain/layanan/katalog.test.ts src/domain/layanan/varian.test.ts tests/support/global-prune.test.ts`, exit 0, 19 test files, 179 tests passed (counts read off the whole log).
+
+  **Earlier findings: 13 of 15 FIXED**
+  - Standards should-fix 1, non-atomic DKI price + Mitra Jasa rate: **FIXED** in code. Both writes now go through `refusable(db, tx => tariffs.within(tx)…)` (`src/cli/import-data-peluncuran-command.ts:300-311`). The writes are still append-only dated versions, so no price in use is overwritten. The test does not pin it, see new finding 2.
+  - Standards should-fix 2, TPU key: **FIXED**. Matching and de-duplication use `kunciNama` (`command.ts:49,70-87`), and the stored name is kept.
+  - Standards should-fix 3, dry run skipped domain checks: **FIXED**. The dry run is the real run inside a transaction that is rolled back (`command.ts:485-497`). Every module, the audit included (`audit.staffWrite(db, …)`), is composed on `tx`, and nothing enqueues or writes files, so nothing leaks. The nested `refusable` becomes a savepoint. The amount ceiling is also checked in Zod (`src/cli/data-peluncuran/baris.ts:62-67`, `RUPIAH_MAX`).
+  - Standards should-fix 4, audit reason: **FIXED** (`command.ts:136-137`, test "names the staging allowance…"). TPU and Nazhir writes take no reason; that matches `import:katalog-lama` and is acceptable.
+  - Standards and Spec should-fix 5 and 4, horizontal slicing in `59764a4` / `974e06b` / `a68cb99`: **NOT FIXED**. The reason (pushed history is not rewritten) is accepted for the old commits. The fix pass repeats the problem, though (new finding 3).
+  - Nits: unused `hapusNazhir` **FIXED** (`src/domain/wakaf/index.ts:96-103`). `NazhirDeps` placement **FIXED** (`nazhir.ts:5-9`). Profile comparison written once **FIXED** (`command.ts:52`).
+  - Spec should-fix 1 and 2: **FIXED**, as Standards 3 and 2.
+  - Spec should-fix 3, README: **FIXED** (`docs/ops/data-peluncuran/README.md:7-11`: CSV UTF-8, Teks cells, kota spellings, `seed:admin` first). The reader still refuses nothing for an ANSI file. Since the README names the save option, that is accepted.
+  - Spec nits: raw codes **FIXED** (`alasanModul`, `command.ts:114`). `hapusNazhir` **FIXED**. Partial Layanan write **FIXED** (with Standards 1).
+  - The earlier "noted" item, an unset `APP_ENV` defaulting to development: left. It is the same in `import:katalog-lama`; reason accepted.
+
+  **Owner decisions**
+  - (a) The catalog is created through Layanan's public functions (`createKatalogLayanan`: `createLayanan` / `ubahLayanan` / `tambahVarian`, `src/domain/layanan/index.ts:810-819`), before the prices in the same run (`command.ts:393-395`). It is idempotent on the folded Layanan and variant names. Applied.
+  - (b) README lists Retribusi Pemda (IPTM) on the Tarif screen (`README.md:47,95`). Applied.
+
+  **New findings: 0 blocking / 4 should-fix / 6 nit**
+
+  Standards (0 / 3 / 5)
+  - should-fix: in `command.ts:235-246`, `ubahLayanan` commits before the `tambahVarian` loop and no transaction wraps them. Failure case: a variant is refused after the description changed. The row is reported "ditolak", yet half of it is written. Wrap the row in `refusable` as `olahLayanan` does.
+  - should-fix: the test "enters neither price when one of the row's two amounts is refused" (`test.ts:378-388`) feeds `100000000001`, which the row's Zod (`RUPIAH_MAX`) refuses before `refusable` is entered. Replacing `refusable` with two plain writes still passes, so the atomicity is untested. Force a second-write refusal through a seam, or rename the test for what it checks. The builder's entry says this ("second line of defence"), but the test name still claims atomicity.
+  - should-fix (horizontal slicing): red commit `56c6e09` tests 5 behaviours (second run, update, refusals, atomic pair, template-file list). It was committed after `8f57f29`, which already implemented the catalog and the atomic pair, so the atomic pair was test-after and its commit is wrongly labelled `test(red)`.
+  - nit: the `fieldBerbeda` cascade (`command.ts:223-229`) repeats the shape of `profilBerbeda` (`:52`).
+  - nit: `alasanModul` hard-codes "Rp 100.000.000.000" (`:121`) although `RUPIAH_MAX` exists.
+  - nit: the second parameter of `alasanModul` (`berlakuMulai`) serves one case only.
+  - nit: `varian.ts:85` writes out `Pick<LayananDeps,"db"|"clock"|"audit">` instead of using the new `KatalogDeps`.
+  - nit: `hasil!` (`:496`) relies on assignment inside a closure.
+
+  Spec (0 / 3 / 1; two of the three are the same as Standards)
+  - should-fix: "Domain tests … for each kind (create, idempotent re-run, refusal with its reason)". The catalog kind's refusal tests cover only CLI/Zod refusals; none covers a refusal from the Layanan module. Only `deskripsi` changes are tested. A change to `lead_time_hari`, `bisa_hari_h`, `ada_di_petak_kosong` or `teks_label` is untested (`test.ts:293,304-323`).
+  - should-fix: the catalog row half-written and reported "ditolak" (as under Standards).
+  - should-fix: slicing (as under Standards).
+  - nit: no dry-run test asserts that the Audit Log stays empty.
+
+  Worst finding. Standards: the half-written catalog row (not money). Spec: the catalog refusals that are untested at the module. Money handling (amounts, dates, no overwrite, atomic price pair, dry-run rollback) is sound in the code.
+
+  **Hard remaining: no.** Nothing is blocking. The four should-fix items are a small fix pass, or the orchestrator can defer them.
