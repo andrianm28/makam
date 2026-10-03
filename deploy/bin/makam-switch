@@ -43,7 +43,7 @@ TARGET=""
 CHECK=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --ke) TARGET=${2:?}; shift 2 ;;
+    --ke) [ $# -ge 2 ] || usage 64; TARGET=$2; shift 2 ;;
     --cek) CHECK=1; shift ;;
     -h|--help) usage 0 ;;
     *) echo "unknown argument: $1" >&2; usage 64 ;;
@@ -65,9 +65,19 @@ case "$TARGET" in
   pemeliharaan) BLOCK=$MAINT_BLOCK ;;
   *) usage 64 ;;
 esac
-[ -r "$BLOCK" ] || { echo "refusing: no block at $BLOCK" >&2; exit 78; }
+# The block's companion file: the proxy snippet for v1, the page for the
+# maintenance block. Everything this run installs must be readable before
+# anything is replaced, so a missing file cannot leave a half switch.
+if [ "$TARGET" = v1 ]; then
+  AUX_SRC="$SRC/makam-prod-proxy.conf"; AUX_DEST="$SNIPPET"
+else
+  AUX_SRC="$SRC/maintenance/index.html"; AUX_DEST="$WWW/index.html"
+fi
+for file in "$BLOCK" "$AUX_SRC"; do
+  [ -r "$file" ] || { echo "refusing: cannot read $file; nothing was changed" >&2; exit 78; }
+done
 
-if cmp -s "$BLOCK" "$SITE"; then
+if cmp -s "$BLOCK" "$SITE" && cmp -s "$AUX_SRC" "$AUX_DEST"; then
   echo "makam.co.id already serves $TARGET: nothing changed, nginx not reloaded"
   exit 0
 fi
@@ -78,28 +88,25 @@ BACKUP="$BACKUPS/makam.co.id.conf.$STAMP"
 # Two switches in one second must not overwrite each other's backup.
 n=1
 while [ -e "$BACKUP" ]; do BACKUP="$BACKUPS/makam.co.id.conf.$STAMP-$n"; n=$((n + 1)); done
-cp -p "$SITE" "$BACKUP"
-echo "backed up the current block to $BACKUP"
-# The block's companion file: the proxy snippet for v1, the page for the
-# maintenance block. A failed `nginx -t` puts it back as well, or removes it when
-# there was none before.
-if [ "$TARGET" = v1 ]; then
-  AUX_SRC="$SRC/makam-prod-proxy.conf"; AUX_DEST="$SNIPPET"; AUX_MODE=0644
+if [ -e "$SITE" ]; then
+  cp -p "$SITE" "$BACKUP"
+  echo "backed up the current block to $BACKUP"
 else
-  AUX_SRC="$SRC/maintenance/index.html"; AUX_DEST="$WWW/index.html"; AUX_MODE=0644
+  BACKUP=""
+  echo "no current block at $SITE: nothing to back up (a first install)"
 fi
 AUX_BACKUP=""
 if [ -e "$AUX_DEST" ]; then
-  AUX_BACKUP="$BACKUP.aux"
+  AUX_BACKUP="$BACKUPS/makam.co.id.conf.$STAMP.aux"
   cp -p "$AUX_DEST" "$AUX_BACKUP"
 fi
 install -m 0640 "$BLOCK" "$SITE"
 install -d -m 0755 "$(dirname "$AUX_DEST")"
-install -m "$AUX_MODE" "$AUX_SRC" "$AUX_DEST"
+install -m 0644 "$AUX_SRC" "$AUX_DEST"
 if ! nginx -t; then
-  cp -p "$BACKUP" "$SITE"
+  if [ -n "$BACKUP" ]; then cp -p "$BACKUP" "$SITE"; else rm -f "$SITE"; fi
   if [ -n "$AUX_BACKUP" ]; then cp -p "$AUX_BACKUP" "$AUX_DEST"; else rm -f "$AUX_DEST"; fi
-  echo "nginx -t failed: restored the previous block from $BACKUP and its companion file; nginx was not reloaded" >&2
+  echo "nginx -t failed: restored the previous block (${BACKUP:-none: first install}) and its companion file; nginx was not reloaded" >&2
   exit 1
 fi
 systemctl reload nginx
