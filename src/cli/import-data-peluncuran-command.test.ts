@@ -49,4 +49,22 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
     expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 1 akan dibuat, 0 diubah, 0 sama, 0 ditolak.");
     expect(await lokasi.tpuDkiList(admin)).toEqual([]);
   });
+
+  it("creates the TPU DKI with --tulis, as the owner typed it, and counts it", async () => {
+    const { lokasi, admin } = await modul();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "tpu-dki.csv": TPU_CONTOH }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("TPU DKI: 1 baris dibaca, 1 dibuat, 0 diubah, 0 sama, 0 ditolak.");
+    const [tpu] = await lokasi.tpuDkiList(admin);
+    expect(tpu).toMatchObject({
+      name: "TPU Utara",
+      address: "Jl. Contoh No. 1, Kelurahan Contoh",
+      city: "Kota Jakarta Utara",
+      pin: { lat: -6.12, lng: 106.88 },
+      dataSource: "Dinas (telepon)",
+      menerimaMakamBaru: true,
+    });
+  });
 });
