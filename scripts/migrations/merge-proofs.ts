@@ -5,7 +5,7 @@
  *   npx tsx scripts/migrations/merge-proofs.ts <aside-dir>
  */
 import { execFileSync } from "node:child_process";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { unmarkedDestructiveStatements, type DestructiveStatement } from "./destructive-ddl";
 
@@ -83,12 +83,16 @@ export type MergeProofsOptions = {
   newFiles: string[];
   /** Runs `npm run db:generate` and returns its output. */
   generate: () => string;
+  /** Main's `drizzle/meta/*_snapshot.json` by file name (the CLI reads them from the base commit); each must survive byte-equal. */
+  baseSnapshots?: Record<string, string>;
 };
 
 export type MergeProofsReport = {
   ok: boolean;
   /** Hand-written blocks of the branch the regenerated files lack: re-append them, then rerun the proofs. */
   reappend: string[];
+  /** Snapshots of main that are missing or changed in the merged tree (the 32-merge deletion the third proof catches). */
+  baseSnapshotProblems: string[];
   sql: { file: string; comparison: SqlComparison }[];
   secondGenerateClean: boolean;
   chain: SnapshotChain;
@@ -111,8 +115,13 @@ export function runMergeProofs(options: MergeProofsOptions): MergeProofsReport {
   const chain = checkSnapshotChain(options.drizzleDir);
   const sqlOk = options.newFiles.length === aside.length && sql.every((s) => s.comparison.unexpected.length === 0 && s.comparison.ordered);
   const destructive = options.newFiles.flatMap((file) => unmarkedDestructiveStatements(readFileSync(file, "utf8")).map((d) => ({ ...d, file })));
+  const baseSnapshotProblems = Object.entries(options.baseSnapshots ?? {}).flatMap(([name, content]) => {
+    const file = path.join(options.drizzleDir, "meta", name);
+    if (!existsSync(file)) return [`${name}: missing`];
+    return readFileSync(file, "utf8") === content ? [] : [`${name}: differs from main's`];
+  });
   const reappend = sql.flatMap((s) => s.comparison.handWritten);
-  return { ok: sqlOk && reappend.length === 0 && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, reappend, sql, secondGenerateClean, chain, destructive };
+  return { ok: sqlOk && reappend.length === 0 && baseSnapshotProblems.length === 0 && secondGenerateClean && chain.unexpected.length === 0 && destructive.length === 0, reappend, baseSnapshotProblems, sql, secondGenerateClean, chain, destructive };
 }
 
 function main(): void {
