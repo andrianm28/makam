@@ -137,3 +137,30 @@ describe("guard-git hook, the writers to main", () => {
     expect(bash("git push origin HEAD:main").status).toBe(2);
   });
 });
+
+describe("guard-git hook, secrets in outgoing commits", () => {
+  it("scans the commits a push sends and refuses the push on a finding", () => {
+    const { bash, bin } = repo({ branch: "ticket-5-x", tools: { gitleaks: { exit: 1 } } });
+    const r = bash("git push -u origin ticket-5-x");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/gitleaks/);
+    expect(r.stderr).toMatch(/\.gitleaks\.toml/);
+    expect(readFileSync(`${bin}/gitleaks.calls`, "utf8")).toContain("origin/main..HEAD");
+  });
+
+  it("lets a clean push through, and scans only pushes", () => {
+    const { bash, bin } = repo({ branch: "ticket-5-x", tools: { gitleaks: { exit: 0 } } });
+    bash("git status");
+    expect(existsSync(`${bin}/gitleaks.calls`)).toBe(false);
+    expect(bash("git push -u origin ticket-5-x").status).toBe(0);
+    expect(existsSync(`${bin}/gitleaks.calls`)).toBe(true);
+  });
+
+  it("says plainly that the commits were not scanned when gitleaks is not installed", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    const r = bash("git push -u origin ticket-5-x");
+    expect(r.status).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/gitleaks is not installed/);
+    expect(r.stdout + r.stderr).toMatch(/NOT scanned/);
+  });
+});
