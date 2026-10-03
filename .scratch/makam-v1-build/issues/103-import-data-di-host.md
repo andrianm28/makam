@@ -13,7 +13,7 @@ Ticket 06's launch-data importer (`src/cli/import-data-peluncuran.ts`) only runs
 - [x] `npm run build:worker` produces `dist/import-data-peluncuran.mjs`, self-contained like the other bundled CLIs.
 - [x] A test builds the bundle and runs it as the host does (`node dist/import-data-peluncuran.mjs`): usage without `--sumber`, a directory with no template file refused, and the staging and production allowances still refused by default before any database is touched.
 - [x] `--sumber` takes a directory copied into the container (it already takes a directory; the bundle reads nothing relative to its own location, so no `import.meta.url` path needs copying into `dist/`).
-- [x] The runbook documents the host steps: `docker compose … cp docs/ops/data-peluncuran web:/tmp/data-peluncuran`, the dry run, then `--tulis --izinkan-staging` (production: `--izinkan-production`), with the expected output.
+- [x] The runbook documents the host steps: the CSV folder put on the host and `docker compose … cp`-ed to `web:/tmp/data-peluncuran`, the dry run, then `--tulis --izinkan-staging` (production: `--izinkan-production`), with the expected output.
 
 ## Comments
 

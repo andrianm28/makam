@@ -468,8 +468,9 @@ $S exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran -
 # [import-data-peluncuran] Ditulis.
 # TPU DKI: 38 baris dibaca, 38 dibuat, 0 diubah, 0 sama, 0 ditolak.
 # ...
-# 4. Remove the copy.
+# 4. Remove the copies (container and host).
 $S exec -u root web rm -rf /tmp/data-peluncuran   # cp creates root-owned files
+rm -rf /opt/makam-v1/data-peluncuran
 ```
 
 The counts above are the folder's rows at ticket 103 on a stack that has never been imported ("akan dibuat"; a later run shows "sama"); yours follow the CSVs you
