@@ -1,6 +1,6 @@
 # Perpanjangan TPU (IPTM renewal)
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 47
 Spec: Domain modules > 8. Pengurusan (Perpanjangan TPU statuses, expiry date, past-grace check, PTSP rejection); 15. Notifications (IPTM expiry reminders); 14. Work Queues (Tier 3 past-grace TPU check, filing-only check and filing); stories 79, 80, 81, 82, 83
 
@@ -24,8 +24,8 @@ IPTM renewal for a Makam TPU. Reminders go to the Pemegang Hak 3 months and 1 mo
 
 ## Added (2026-10-03, owner decisions after the merge)
 
-- [ ] **Q1, fix now:** a Perpanjangan TPU no longer stores burial data it does not own. In an expand-only migration the burial columns of the Pengurusan order (`almarhum_name`, `tanggal_wafat`, `jenis_penguburan`, `kelayakan`) become nullable; a Perpanjangan TPU stores none of them (no copied Almarhum, no faked `kelayakan`, no `tumpang`), the other two kinds still require them (domain rule, tested), and every reader and screen handles their absence. Run the migration checker; a DROP NOT NULL needs no contract line, anything else destructive does.
-- [ ] **Q4, Telepon Pemesan:** when an IPTM reminder (3 months or 1 month before expiry) finds no email for the Pemegang Hak nor the Akun, it opens a Telepon Pemesan row for that Makam TPU (one open row per subject, as CONTEXT.md defines it) instead of only counting it as skipped; the row is not opened twice for the same reminder, and none once a Perpanjangan TPU is ordered.
+- [x] **Q1, fix now:** a Perpanjangan TPU no longer stores burial data it does not own. In an expand-only migration the burial columns of the Pengurusan order (`almarhum_name`, `tanggal_wafat`, `jenis_penguburan`, `kelayakan`) become nullable; a Perpanjangan TPU stores none of them (no copied Almarhum, no faked `kelayakan`, no `tumpang`), the other two kinds still require them (domain rule, tested), and every reader and screen handles their absence. Run the migration checker; a DROP NOT NULL needs no contract line, anything else destructive does.
+- [x] **Q4, Telepon Pemesan:** when an IPTM reminder (3 months or 1 month before expiry) finds no email for the Pemegang Hak nor the Akun, it opens a Telepon Pemesan row for that Makam TPU (one open row per subject, as CONTEXT.md defines it) instead of only counting it as skipped; the row is not opened twice for the same reminder, and none once a Perpanjangan TPU is ordered. A 3-month reminder row still open when the 1-month reminder fires opens nothing new; the 1-month reminder is covered once staff close it.
 - Q2 confirmed: the filing documents are the IPTM scan, Surat Kuasa bermaterai, KTP and KK. Q3 confirmed: the past-grace TPU check row is due 1 working day after the request.
 - Tests: a Perpanjangan TPU stores no Almarhum or burial type and the other kinds still refuse without them; the no-email reminder opens one Telepon Pemesan row.
 
@@ -183,3 +183,5 @@ Head 680c33c (local checkout was a stale 380e311; fast-forwarded to origin befor
 5. **Fixed.** `reads.ts` exports `blokMakamOf` (returns null without a query unless `kind === "perpanjangan_tpu"`); `pengajuan-iptm.ts` uses it in both places. Refactor, 8bc39fc. Nit: `reads.ts:150` now has two stacked doc comments; the older Tagihan comment is orphaned above the Blok helper.
 
 Broke nothing found. Blocking remaining: no.
+
+- 2026-10-03 — Merged to main by the merge thread. Two-axis review (711cbf0): 0 blocking, 3 should-fix + nits, all fixed in 680c33c and re-reviewed item by item on sonnet (e88168f, hard remaining no). Merge gate on the merged tree (migrations 0062–0063, no renumbering, clean db:generate): typecheck, lint, build, full suite 332 files / 2998 tests (1 skipped), exit 0. Open nit: orphaned doc comment above `blokMakamOf` in `src/domain/pengurusan/reads.ts:150`.
