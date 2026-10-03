@@ -81,3 +81,26 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   - **Count: 1 blocking / 3 should-fix / 2 nit. Worst: the damaged ticket structure.**
 
   Read-only review; no fix pass done. Reviewer-side notes: one sub-agent per axis, as the skill requires.
+
+- 2026-10-03 — **Fix pass on the review above (builder).** Branch `ticket-65-switch`, from review head 2a274e1. Owner decisions applied: HSTS in steps; the old app's archive stays local (S3 is v2, ticket 03: the archive AC's "uploads it to the backups bucket" is superseded by this decision, not reworded).
+
+  **Standards**
+  - blocking, ticket structure: **fixed** (first criterion restored on one line, byte-identical to `main`; Added has its own heading after the criteria).
+  - `makam-switch` partial restore: **fixed** (snippet and page are backed up and put back, or removed on a first install).
+  - first install / unreadable sources: **fixed** (all inputs checked readable before anything changes, exit 78 naming the file; no site file gives a note, not a bare error).
+  - `ENABLED` unused: **fixed** (the `sites-enabled` link is created when missing, and removed again if `nginx -t` fails).
+  - `rm -rf` of the env-overridable directories: **fixed** (empty, `/`, relative, `..` and anything under `$MAKAM_ROOT` are refused, exit 78, before any plan).
+  - old nginx blocks chosen by content only: **fixed** (file name `makam.co.id.conf.*` / `dev.makam.co.id.conf.*` and old upstream).
+  - empty `DB_SIZE` passes the guard: **left, already covered**: `require_free_space` refuses a size of 0 or unreadable (exit 78); a characterization test now pins it (green on arrival).
+  - nits: `--ke` without a value prints the usage (fixed); the duplicated `read` loops and dump pipelines (left: each is three lines and differs in what it filters; no third copy); plan-item capitalisation (left, cosmetic).
+
+  **Spec**
+  - blocking: same as above, **fixed**.
+  - staging headers: **fixed per owner**: HSTS `max-age=86400`, raised to `31536000` after two stable weeks (runbook, "Hari switch", step 8); production sends no noindex header (stays indexable).
+  - proof "equal": **fixed** (row counts must be equal, at least one table counted). Left as a runbook-level caveat: the counts are taken just after the dump, so rerun the archive if the old app took a write between them.
+  - `ENABLED`: **fixed** (above).
+  - nits: maintenance exceptions (ACME path, port 80 redirect) now stated in the block's comment and `X-Frame-Options` added, also inside the 503 location, since `add_header` there replaces the server-level headers (fixed); v1→v1 re-run with only the snippet changed now installs it, tests and reloads (covered, green on arrival).
+
+  **Also:** the production block defines its own upgrade map, `$makam_prod_connection_upgrade`, so it installs without the staging block and cannot clash with its map (fixed). `makam-arsip-app-lama` no longer takes `--bucket` (exit 64) and writes to `/opt/makam-v1/prod/backups/app-lama/`, outside `backups/db` so the 7-day pruning never reaches it; runbook updated. The red commit for that change had a broken test helper (red for the wrong reason); the green commit repairs the helper.
+
+  **HANDOFF** — Tests off a whole log: `npx vitest run tests/tooling tests/support/global-prune.test.ts` → 24 files, 293 passed, 1 skipped, exit 0; `npm run lint` exit 0 (0 errors, 6 warnings, not mine); `npm run typecheck` exit 0. Next: re-review, then the owner's Hari switch after the gate.
