@@ -6,7 +6,7 @@ Spec: `.scratch/agent-orchestration-skills/spec.md`.
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 - [ ] Whether a prompt that starts with `/<skill> <arguments>` expands into that skill when it is a `create_session` prompt, and when it is a Routine prompt delivered into an existing session; whether a plain sentence naming the skill makes the thread invoke it.
 - [ ] Whether checking out a branch that predates the skill removes it mid-session (the loaded body versus its references and hooks), and what a thread must therefore read before any checkout.
