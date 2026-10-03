@@ -95,11 +95,34 @@ check_resources() {
   fi
 }
 
+# DNS must already point at this host (the switch is only nginx, ticket 02), and
+# each name's certificate must have MAKAM_PREFLIGHT_CERT_DAYS (14) left.
+check_dns_and_certificates() {
+  local expected host got end days
+  expected=${MAKAM_PREFLIGHT_EXPECTED_IP:-103.92.214.243}
+  days=${MAKAM_PREFLIGHT_CERT_DAYS:-14}
+  for host in makam.co.id www.makam.co.id; do
+    got=$(getent ahostsv4 "$host" 2>/dev/null | awk 'NR == 1 { print $1 }')
+    if [ "$got" = "$expected" ]; then
+      pass "02" "dns $host" "$got"
+    else
+      fail "02" "dns $host" "resolves to ${got:-nothing}, expected $expected (this host)"
+    fi
+    end=$(openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -enddate 2> /dev/null | sed -n 's/^notAfter=//p') || end=""
+    if openssl s_client -connect "$host:443" -servername "$host" < /dev/null 2> /dev/null | openssl x509 -noout -checkend $((days * 86400)) > /dev/null 2>&1; then
+      pass "02" "certificate $host" "valid until $end (more than $days days)"
+    else
+      fail "02" "certificate $host" "expires ${end:-unknown} or cannot be read (less than $days days left); run certbot renew"
+    fi
+  done
+}
+
 #@FUNCS
 
 check_env_file || true
 check_docker
 check_resources
+check_dns_and_certificates
 #@CALLS
 
 echo
