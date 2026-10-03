@@ -17,4 +17,9 @@ describe("destructive DDL across every later migration", () => {
     expect(found).toHaveLength(1);
     expect(found[0]).toMatchObject({ file: "0019_drop.sql", statement: 'ALTER TABLE "tagihan" DROP COLUMN "catatan";' });
   });
+
+  it("leaves migrations numbered 0018 and earlier alone", () => {
+    const dir = folder({ "0018_old.sql": 'DROP TABLE "old";', "0019_ok.sql": 'ALTER TABLE "t" ADD COLUMN "c" text;' });
+    expect(unmarkedInMigrationsAfter(dir, 18)).toEqual([]);
+  });
 });
