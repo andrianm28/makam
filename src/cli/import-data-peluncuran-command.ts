@@ -57,6 +57,7 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
   const csv = bacaBerkas(folder, "tpu-dki.csv");
   if (!csv) return hasil;
   const ada = new Map((await lokasi.tpuDkiList(aktor)).map((tpu) => [tpu.name, tpu]));
+  const terlihat = new Map<string, number>();
   for (const baris of csv.baris) {
     hasil.dibaca += 1;
     const parsed = barisTpuSchema.safeParse(baris.nilai);
@@ -65,6 +66,12 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
       continue;
     }
     const tpu: BarisTpu = parsed.data;
+    const pertama = terlihat.get(tpu.name);
+    if (pertama !== undefined) {
+      hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: nama "${tpu.name}" sudah muncul di baris ${pertama}`);
+      continue;
+    }
+    terlihat.set(tpu.name, baris.nomor);
     const lama = ada.get(tpu.name);
     if (lama) {
       if (samaDenganTpu(lama, tpu)) {
@@ -94,6 +101,20 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor, tulis: bool
     hasil.dibuat += 1;
   }
   return hasil;
+}
+
+/** The report a run ends with: one line of counts per kind, then every refusal. Exit 1 when any row was refused. */
+function laporan(tulis: boolean, bagian: { judul: string; ringkasan: Ringkasan }[]): { exitCode: number; output: string } {
+  const ditolak = bagian.flatMap((satu) => satu.ringkasan.ditolak);
+  const baris = [
+    tulis ? "[import-data-peluncuran] Ditulis." : "[import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.",
+    ...bagian.map(({ judul, ringkasan: r }) =>
+      `${judul}: ${r.dibaca} baris dibaca, ${r.dibuat} ${tulis ? "dibuat" : "akan dibuat"}, ${r.diubah} ${tulis ? "diubah" : "akan diubah"}, ${r.sama} sama, ${r.ditolak.length} ditolak.`,
+    ),
+  ];
+  if (ditolak.length > 0) baris.push(`Ditolak (${ditolak.length}):`, ...ditolak.map((alasan) => `  - ${alasan}`));
+  if (!tulis) baris.push("Gunakan --tulis untuk menulisnya.");
+  return { exitCode: ditolak.length > 0 ? 1 : 0, output: baris.join("\n") };
 }
 
 /**
@@ -155,13 +176,7 @@ export async function importDataPeluncuranCommand(
         sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
       };
       const tpu = await olahTpu(sumber, lokasi, aktor, tulis);
-      return {
-        exitCode: 0,
-        output: [
-          tulis ? "[import-data-peluncuran] Ditulis." : "[import-data-peluncuran] Mode dry-run: tidak ada yang ditulis.",
-          `TPU DKI: ${tpu.dibaca} baris dibaca, ${tpu.dibuat} ${tulis ? "dibuat" : "akan dibuat"}, ${tpu.diubah} ${tulis ? "diubah" : "akan diubah"}, ${tpu.sama} sama, ${tpu.ditolak.length} ditolak.`,
-        ].join("\n"),
-      };
+      return laporan(tulis, [{ judul: "TPU DKI", ringkasan: tpu }]);
     } finally {
       await database.close();
     }
