@@ -125,3 +125,15 @@ describe("thread cost report: coordinator cost in a window", () => {
     expect(json(args).compare.total).toBeNull();
   });
 });
+
+describe("thread cost report: --compare without a coordinator cost", () => {
+  it("prints no per-cause USD delta lines when the coordinator has no cost_usd, and does not crash", () => {
+    const args = [fx("sessions-no-coordinator-cost.json"), "--transcript", fx("coordinator.jsonl"), "--compare", fx("previous.json")];
+    const r = run(args);
+    expect(r.code).toBe(0);
+    expect(r.err).toBe("");
+    expect(r.out).toContain("cause watcher");
+    expect(r.out).not.toMatch(/cause .*USD/);
+    expect(json(args).compare.causes.watcher.usd).toBeNull();
+  });
+});
