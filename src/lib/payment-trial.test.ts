@@ -19,6 +19,12 @@ describe("Pembayaran uji coba, as the browser learns it from /api/browser-config
     expect(await fetchPaymentTrial((async () => { throw new Error("offline"); }) as unknown as typeof fetch)).toBe(false);
   });
 
+  it("stays hidden when paymentTrial is not a boolean true, whatever else the body holds", async () => {
+    for (const body of [{ paymentTrial: "true" }, { paymentTrial: 1 }, { paymentTrial: null }, [true], "yes", null]) {
+      expect(await fetchPaymentTrial(answering(body))).toBe(false);
+    }
+  });
+
   it("asks the running server per visit, never a cached answer", async () => {
     let seen: RequestInit | undefined;
     await fetchPaymentTrial((async (_url: string, init?: RequestInit) => { seen = init; return { ok: true, json: async () => ({ paymentTrial: false }) }; }) as unknown as typeof fetch);

@@ -37,3 +37,16 @@ Spec gaps and decisions for the owner:
 - The ticket vocabulary has no "in-review"; `Status:` left untouched.
 - The runbook's older "Test payment" section names the webhook path `/api/webhooks/sumopod`; the real route is `/api/webhooks/pembayaran` (used in the new section). Not edited there.
 - "Trial" is inferred from the override host only: a production with the override on the sandbox but a live key would still show the banner; the preflight/runbook say to remove the override together with installing live keys.
+
+### Review 1 (2026-10-03, head 389f467)
+
+Standards: 0 blocking, 2 should-fix, 4 nit. Should-fix: (a) `src/lib/payment-trial.ts:12` reads the `/api/browser-config` JSON with an `as` cast; AGENTS.md says Zod at every boundary: use a `z.object({paymentTrial: z.boolean()})` safeParse. (b) `src/components/trial-payment-banner.tsx:15-20` fetch-in-useEffect differs from staging-banner's useSyncExternalStore; add a file comment saying why (value is runtime server state). Nits: `route.ts:7` comment overlong; `dokumen/[link]/page.tsx:178` long JSX line and import order (lines 24-25); repeated bg-warning class string (leave); notice lacks print:hidden but parent has it.
+
+Spec: 0 blocking, 1 should-fix, 2 nit. All six criteria met in code; should-fix: owner has not confirmed the banner/notice wording (stays open for the owner). Nits: older runbook "Test payment" section names wrong webhook path `/api/webhooks/sumopod` (real: `/api/webhooks/pembayaran`); Playwright could also cover Akun Saya and staff area. Builder's noted gap (live key + sandbox override left in still shows banner) judged non-blocking: banner follows where payments go; runbook and preflight say remove the override.
+
+### Fixes 1 (2026-10-03, builder)
+
+- Zod safeParse of the browser-config body in `payment-trial.ts`. Spec gap for process: the old cast already returned hidden for every malformed body, so the new test (non-boolean `paymentTrial`, array, string, null) was green before the change and no red commit was possible; it is committed with the refactor as a characterization test.
+- Banner comment explains the useEffect fetch (runtime server state); route.ts comment wrapped; page.tsx import order and long JSX line fixed.
+- Runbook webhook path: the "Test payment" section (docs/ops/runbook.md ~1590) already registers `/api/webhooks/pembayaran` and only mentions `/api/webhooks/sumopod` as ticket 04's wrong name; the route exists at `src/app/api/webhooks/pembayaran`. No edit needed. Remaining `sumopod` webhook mentions are in ADR 0002 and tickets 07/65 (nginx exemption history), untouched.
+- Skipped as told: Playwright extension, bg-warning extraction. Owner still to confirm wording.

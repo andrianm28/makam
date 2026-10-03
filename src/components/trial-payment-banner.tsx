@@ -10,6 +10,9 @@ import { fetchPaymentTrial } from "@/lib/payment-trial";
  * and statically rendered pages can't read the environment. Hidden until the
  * answer is in (and when it fails); in the page flow, pushing content down;
  * announced once (`role="status"`); no way to dismiss it.
+ *
+ * Unlike `StagingBanner` (a build-time value read through `useSyncExternalStore`),
+ * this value is runtime server state, so it is fetched in an effect.
  */
 export function TrialPaymentBanner() {
   const [shown, setShown] = useState(false);

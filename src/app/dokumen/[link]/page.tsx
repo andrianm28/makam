@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { z } from "zod";
+import { TrialPaymentNotice } from "@/components/trial-payment-notice";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cardSurface } from "@/components/ui/card";
@@ -19,10 +20,9 @@ import type { DokumenBuktiPencairan } from "@/domain/payouts";
 import type { DokumenBuktiPengembalianDana } from "@/domain/refunds";
 import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath, documentPdfPath } from "@/lib/document-links";
+import { paymentsAreTrial } from "@/lib/env";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
-import { TrialPaymentNotice } from "@/components/trial-payment-notice";
-import { paymentsAreTrial } from "@/lib/env";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
 import { bayarTagihan } from "./actions";
@@ -175,7 +175,9 @@ function TagihanView({
           Pembayaran sedang tidak bisa dimulai, coba lagi.
         </p>
       ) : null}
-      {notPayableBecause === null ? <BayarForm link={link} total={tagihan.total} trial={paymentsAreTrial()} /> : null}
+      {notPayableBecause === null ? (
+        <BayarForm link={link} total={tagihan.total} trial={paymentsAreTrial()} />
+      ) : null}
       {buktiLink ? (
         <div className="print:hidden">
           <a href={documentPagePath(buktiLink)} className={buttonVariants({ variant: "outline" })}>
