@@ -1797,7 +1797,12 @@ and the blocks under `/opt/makam-v1/nginx/`.
    `/opt/makam-notify` and the old nginx blocks under
    `/opt/makam-v1/nginx-backups/`. Nothing of `makam-v1`, `makam-prod` or staging
    is touched, and nothing is pruned.
-8. **The owner archives the `makam-app` GitHub repository** (Settings, Archive
+8. **HSTS, in steps.** The production block sends `Strict-Transport-Security`
+   with `max-age=86400` at the switch. After two stable weeks, raise it to one
+   year (`max-age=31536000`) in `deploy/nginx/makam.co.id.conf`, install it with
+   `makam-switch --ke v1`, and check the header with `curl -sI https://makam.co.id/`.
+   Production stays indexable: it must not send the staging block's `X-Robots-Tag`.
+9. **The owner archives the `makam-app` GitHub repository** (Settings, Archive
    this repository): read-only, not deleted.
 
 ## Staging is public (2026-09-25)
