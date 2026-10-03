@@ -128,6 +128,10 @@ export type ProofsCliIo = { cwd: string; out: (line: string) => void; err: (line
 
 /** The command line as a function of its arguments, returning the exit code. */
 export function mergeProofsCli(argv: string[], io: ProofsCliIo): number {
+  if (argv.length === 0) {
+    io.err("usage: npx tsx scripts/migrations/merge-proofs.ts <aside-dir> [base-ref]");
+    return 64;
+  }
   const [asideDir, baseRef = "HEAD"] = argv;
   const inBase = new Set(
     execFileSync("git", ["ls-tree", "-r", "--name-only", baseRef, "--", "drizzle"], { cwd: io.cwd, encoding: "utf8" }).split("\n").filter(Boolean),
