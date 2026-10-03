@@ -17,11 +17,12 @@ import { createDatabase } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { createKatalogLayanan, type Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi, type TpuDki } from "@/domain/lokasi";
+import { createNazhirList, type Wakaf } from "@/domain/wakaf";
 import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv } from "@/lib/env";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import type { Clock } from "@/ports/clock";
-import { alasanBaris, barisBiayaSchema, barisLayananSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
+import { alasanBaris, barisBiayaSchema, barisLayananSchema, barisNazhirSchema, barisTpuSchema, type BarisTpu } from "./data-peluncuran/baris";
 import { bacaCsv } from "./data-peluncuran/csv";
 import { cliFailure } from "./cli-failure";
 
@@ -217,6 +218,52 @@ async function olahLayanan(
   return hasil;
 }
 
+async function olahNazhir(
+  folder: string,
+  wakaf: Pick<Wakaf, "daftarNazhir" | "tambahNazhir" | "ubahNazhir">,
+  aktor: Actor,
+  tulis: boolean,
+): Promise<Ringkasan> {
+  const hasil = kosong();
+  const csv = bacaBerkas(folder, "nazhir.csv");
+  if (!csv) return hasil;
+  const kunci = (nama: string, kabKota: string) => `${kunciNama(nama)}|${kunciNama(kabKota)}`;
+  const ada = new Map((await wakaf.daftarNazhir(aktor)).map((nazhir) => [kunci(nazhir.nama, nazhir.kabKota), nazhir]));
+  const terlihat = new Map<string, number>();
+  for (const baris of csv.baris) {
+    hasil.dibaca += 1;
+    const parsed = barisNazhirSchema.safeParse(baris.nilai);
+    if (!parsed.success) {
+      hasil.ditolak.push(`nazhir.csv baris ${baris.nomor}: ${alasanBaris(parsed.error)}`);
+      continue;
+    }
+    const nazhir = parsed.data;
+    const kunciBaris = kunci(nazhir.nama, nazhir.kab_kota);
+    const pertama = terlihat.get(kunciBaris);
+    if (pertama !== undefined) {
+      hasil.ditolak.push(`nazhir.csv baris ${baris.nomor}: "${nazhir.nama}" di ${nazhir.kab_kota} sudah muncul di baris ${pertama}`);
+      continue;
+    }
+    terlihat.set(kunciBaris, baris.nomor);
+    const input = { nama: nazhir.nama, jenis: nazhir.jenis, kabKota: nazhir.kab_kota, kontak: nazhir.kontak, nomorBwi: nazhir.nomor_bwi };
+    const lama = ada.get(kunciBaris);
+    if (lama && lama.jenis === input.jenis && lama.kontak === input.kontak && lama.nomorBwi === input.nomorBwi) {
+      hasil.sama += 1;
+      continue;
+    }
+    if (tulis) {
+      const dicatat = lama ? await wakaf.ubahNazhir(aktor, { ...input, nazhirId: lama.id }) : await wakaf.tambahNazhir(aktor, input);
+      if (!dicatat.ok) {
+        hasil.ditolak.push(`nazhir.csv baris ${baris.nomor}: ${dicatat.reason}`);
+        continue;
+      }
+    }
+    if (lama) hasil.diubah += 1;
+    else hasil.dibuat += 1;
+  }
+  return hasil;
+}
+
 /** The report a run ends with: one line of counts per kind, then every refusal. Exit 1 when any row was refused. */
 function laporan(tulis: boolean, bagian: { judul: string; ringkasan: Ringkasan }[]): { exitCode: number; output: string } {
   const ditolak = bagian.flatMap((satu) => satu.ringkasan.ditolak);
@@ -306,10 +353,12 @@ export async function importDataPeluncuranCommand(
       const tpu = await olahTpu(sumber, lokasi, aktor, tulis);
       const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), tulis);
       const layanan = await olahLayanan(sumber, createKatalogLayanan({ db: database.db }), tariffs, aktor, adapters.clock.now(), tulis);
+      const nazhir = await olahNazhir(sumber, createNazhirList({ db: database.db, clock: adapters.clock, audit }), aktor, tulis);
       return laporan(tulis, [
         { judul: "TPU DKI", ringkasan: tpu },
         { judul: "Biaya Pengurusan", ringkasan: biaya },
         { judul: "Layanan DKI", ringkasan: layanan },
+        { judul: "Nazhir", ringkasan: nazhir },
       ]);
     } finally {
       await database.close();

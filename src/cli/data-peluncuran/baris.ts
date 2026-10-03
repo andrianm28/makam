@@ -98,3 +98,13 @@ export const barisLayananSchema = z
   }));
 
 export type BarisLayanan = z.output<typeof barisLayananSchema>;
+
+export const barisNazhirSchema = z.object({
+  nama: z.string().min(1, "nama wajib").max(200),
+  jenis: z.enum(["perorangan", "organisasi", "badan_hukum"], { error: 'jenis harus "perorangan", "organisasi", atau "badan_hukum"' }),
+  kab_kota: z.string().min(1, "kab_kota wajib").max(100),
+  kontak: z.string().min(1, "kontak wajib").max(200),
+  nomor_bwi: z.string().min(1, "nomor_bwi wajib").max(100),
+});
+
+export type BarisNazhir = z.output<typeof barisNazhirSchema>;
