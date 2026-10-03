@@ -137,7 +137,7 @@ log "archive proven: $BASE restored into a throwaway Postgres, every table with 
 # `docker ps --filter name=` matches substrings, so the prefix is checked again
 # here; the makam-app image is matched on its repository, any tag.
 CONTAINERS=()
-while IFS= read -r n; do case "$n" in makam-nonprod-*) CONTAINERS+=("$n") ;; esac; done < <(docker ps -a --filter name=makam-nonprod- --format '{{.Names}}')
+while IFS= read -r n; do case "$n" in makam-nonprod-*) CONTAINERS+=("$n") ;; esac; done < <(docker ps --filter name=makam-nonprod- --filter status=running --filter status=exited --filter status=created --filter status=paused --filter status=restarting --filter status=dead --format '{{.Names}}')
 VOLUMES=()
 while IFS= read -r n; do case "$n" in makam-nonprod-*) VOLUMES+=("$n") ;; esac; done < <(docker volume ls --filter name=makam-nonprod- --format '{{.Name}}')
 IMAGES=()
