@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { FakeClock } from "@/adapters/memory";
+import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { signedInAdminPlatform } from "../../tests/support/identity";
@@ -32,7 +33,7 @@ function folder(berkas: Record<string, string>): string {
 async function modul() {
   const test = lokasiOnTestDatabase(db);
   const admin = (await signedInAdminPlatform(test)).actor;
-  return { ...test, admin };
+  return { ...test, admin, tariffs: createTariffs({ db, clock: test.clock, audit: test.audit, lokasi: test.lokasi }) };
 }
 
 const TPU_HEADER = "nama,alamat,kota,lintang,bujur,sumber_data,menerima_makam_baru";
@@ -123,6 +124,32 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: TPU DKI", () => {
     expect(hasil.output).toContain('tpu-dki.csv baris 4: menerima_makam_baru: harus "ya" atau "tidak"');
     expect(hasil.output).toContain('tpu-dki.csv baris 5: nama "TPU Baik" sudah muncul di baris 2');
     expect((await lokasi.tpuDkiList(admin)).map((tpu) => tpu.name)).toEqual(["TPU Baik"]);
+  });
+});
+
+describe("npm run import:data-peluncuran -- --sumber <folder>: Biaya Pengurusan", () => {
+  const BIAYA = "jenis,jumlah_rupiah,berlaku_mulai\npemakaman,750000,\nberkas,350000,2026-10-15\n";
+
+  it("dry-runs the burial and filing-only Biaya Pengurusan without entering them", async () => {
+    const { tariffs } = await modul();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "biaya-pengurusan.csv": BIAYA })], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Biaya Pengurusan: 2 baris dibaca, 2 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(await tariffs.globalTariff("biaya_pengurusan_pemakaman", wib("2026-10-01 09:00"))).toBeNull();
+  });
+
+  it("enters both through Tariffs with --tulis, a blank date meaning the day of the import", async () => {
+    const { tariffs } = await modul();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "biaya-pengurusan.csv": BIAYA }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Biaya Pengurusan: 2 baris dibaca, 2 dibuat, 0 diubah, 0 sama, 0 ditolak.");
+    expect((await tariffs.globalTariff("biaya_pengurusan_pemakaman", wib("2026-10-01 09:00")))?.amount).toBe(750_000);
+    expect(await tariffs.globalTariff("biaya_pengurusan_berkas", wib("2026-10-01 09:00"))).toBeNull();
+    expect((await tariffs.globalTariff("biaya_pengurusan_berkas", wib("2026-10-15 09:00")))?.amount).toBe(350_000);
   });
 });
 
