@@ -15,7 +15,7 @@ At the switch, makam.co.id takes payments through SumoPod's sandbox, so no money
 - [x] On a Tagihan's Bayar step, while the sandbox is in use, a notice beside the Bayar button says the payment is a trial and no money moves.
 - [x] Neither can be dismissed; the banner pushes the page down instead of covering it, is readable on a phone and is announced once to screen readers (as ticket 66).
 - [x] The runbook's switch steps and the go-live checklist say how production runs on the sandbox (the payment base-URL override, the sandbox key and webhook secret, the sandbox webhook pointed at makam.co.id's payment webhook) and that installing the live keys and removing the override takes the banner and the notice away; `makam-preflight` names a production on the sandbox in one SKIP line.
-- [ ] Tests: the shown or hidden decision (production on the sandbox shows; production live, staging and development hide); a Playwright check that neither appears on the local stack.
+- [x] Tests: the shown or hidden decision (production on the sandbox shows; production live, staging and development hide); a Playwright check that neither appears on the local stack.
 
 ## Comments
 
@@ -58,3 +58,4 @@ Spec: 0 blocking, 1 should-fix, 2 nit. All six criteria met in code; should-fix:
 - Playwright not run: `npm run stack -- up --build -d` failed in the image build (`npm ci` crashed with "Exit handler never called", a network problem inside Docker here). The last criterion (Tests) stays unticked until the spec passes on a stack; `npm run clean` was run afterwards.
 
 - 2026-10-03 — Merged to main by the merge thread (af8db5f). Two-axis review complete (Standards + Spec): reviewed 0 blocking / 3 should-fix / 6 nit, re-reviewed 0 / 0 / 2 (sonnet, display-only change). **e2e first run in CI**: `e2e/trial-payment-banner.spec.ts` was not run locally, so the last AC (Tests) is ticked only after main CI's e2e job passes. The merge with main kept one coherent runbook passage for "Production on SumoPod's sandbox" (the owner's webhook decision, key rotation and `prod.env` values from the go-live docs, and this ticket's base-URL override, banner and notice and preflight SKIP line), nothing factual dropped. No migration, lockfile unchanged.
+- 2026-10-03 — e2e first run in CI passed: main CI run 37141299386, job "E2E (Playwright against the pushed image)" success on bc71fe2; the last AC (Tests) is ticked.
