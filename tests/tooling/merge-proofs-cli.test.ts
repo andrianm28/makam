@@ -78,3 +78,15 @@ describe("the merge-proofs command line on a hand-written block", () => {
     expect(out).not.toContain("PROOFS OK");
   });
 });
+
+describe("the merge-proofs command line against main's snapshots", () => {
+  it("exits 1 naming a snapshot of main that the merge deleted", () => {
+    const { cwd, asideDir } = mergeWorktree(sql, sql);
+    rmSync(path.join(cwd, "drizzle/meta/0000_snapshot.json"));
+
+    const { code, out } = run(cwd, [asideDir]);
+
+    expect(code).toBe(1);
+    expect(out).toContain("0000_snapshot.json: missing");
+  });
+});
