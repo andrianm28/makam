@@ -28,7 +28,7 @@ process.stdin.on("data", (c) => (raw += c)).on("end", () => {
   if (isReview && tier === "haiku") {
     process.stderr.write(
       "Review blocked: haiku never reviews (AGENTS.md model tiering: haiku only for doc sweeps and mechanical edits). " +
-      'Pass model "sonnet", or "opus" for money code.\n'
+      "Pass model \"sonnet\", or \"opus\" for money code.\n"
     );
     process.exit(2);
   }
