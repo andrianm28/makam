@@ -75,6 +75,6 @@ IFS=',' read -ra projects <<< "$SENTRY_PROJECT"
 for project in "${projects[@]}"; do
   echo "Uploading to $SENTRY_ORG/$project on $SENTRY_URL"
   docker run --rm -e SENTRY_AUTH_TOKEN -v "$work/maps:/work:ro" --entrypoint sentry-cli "$SENTRY_CLI" \
-    sourcemaps upload --url "$SENTRY_URL" --org "$SENTRY_ORG" --project "$project" --release "$RELEASE" /work
+    --url "$SENTRY_URL" sourcemaps upload --org "$SENTRY_ORG" --project "$project" --release "$RELEASE" /work
 done
 echo "Uploaded the source maps of $RELEASE"
