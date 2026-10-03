@@ -277,7 +277,7 @@ export interface LokasiModuleDeps {
 
 export interface Lokasi {
   /** Admin Platform starts a Lokasi Mitra's onboarding record (Belum Tayang), audited. */
-  createLokasiMitra(by: Actor, input: NewLokasiMitra): Promise<CreateLokasiMitraResult>;
+  createLokasiMitra(by: Actor, input: NewLokasiMitra, options?: { reason?: string }): Promise<CreateLokasiMitraResult>;
   /** Whether this Lokasi Mitra is Terverifikasi (listed); no actor, for public reads. False for an unknown id. */
   isTerverifikasi(lokasiId: string): Promise<boolean>;
   /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
@@ -489,7 +489,7 @@ export interface Lokasi {
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
   return {
-    createLokasiMitra: (by, input) => createLokasiMitra(deps, by, input),
+    createLokasiMitra: (by, input, options) => createLokasiMitra(deps, by, input, options),
     isTerverifikasi: (lokasiId) => isTerverifikasi(deps, lokasiId),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
     updateProfile: (by, lokasiId, input) => updateProfile(deps, by, lokasiId, input),

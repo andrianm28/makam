@@ -104,6 +104,7 @@ export async function createLokasiMitra(
   deps: LokasiDeps,
   by: Actor,
   input: NewLokasiMitra,
+  options: { reason?: string } = {},
 ): Promise<CreateLokasiMitraResult> {
   const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
   if (refusal) return refusal;
@@ -140,7 +141,7 @@ export async function createLokasiMitra(
         city: created.city,
         status: created.status,
       },
-      reason: null,
+      reason: options.reason ?? null,
     });
     return { ok: true, lokasiMitra: created } as const;
   });
