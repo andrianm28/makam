@@ -44,22 +44,29 @@ function bacaBerkas(folder: string, nama: string): ReturnType<typeof bacaCsv> | 
   return existsSync(path) ? bacaCsv(readFileSync(path, "utf8")) : null;
 }
 
-function samaDenganTpu(lama: TpuDki, baru: BarisTpu): boolean {
+/** The name a row is matched on, folded as the owning modules fold it (lower case, single spaces): case and spacing are the spreadsheet's, not the data's. */
+const kunciNama = (nama: string) => nama.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** Whether the TPU's own profile (not its new-plot flag) differs from the row. */
+function profilBerbeda(lama: TpuDki, baru: BarisTpu): boolean {
   return (
-    lama.address === baru.address &&
-    lama.city === baru.city &&
-    lama.dataSource === baru.dataSource &&
-    lama.menerimaMakamBaru === baru.menerimaMakamBaru &&
-    lama.pin?.lat === baru.pin?.lat &&
-    lama.pin?.lng === baru.pin?.lng
+    lama.address !== baru.address ||
+    lama.city !== baru.city ||
+    lama.dataSource !== baru.dataSource ||
+    lama.pin?.lat !== baru.pin?.lat ||
+    lama.pin?.lng !== baru.pin?.lng
   );
+}
+
+function samaDenganTpu(lama: TpuDki, baru: BarisTpu): boolean {
+  return !profilBerbeda(lama, baru) && lama.menerimaMakamBaru === baru.menerimaMakamBaru;
 }
 
 async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor): Promise<Ringkasan> {
   const hasil = kosong();
   const csv = bacaBerkas(folder, "tpu-dki.csv");
   if (!csv) return hasil;
-  const ada = new Map((await lokasi.tpuDkiList(aktor)).map((tpu) => [tpu.name, tpu]));
+  const ada = new Map((await lokasi.tpuDkiList(aktor)).map((tpu) => [kunciNama(tpu.name), tpu]));
   const terlihat = new Map<string, number>();
   for (const baris of csv.baris) {
     hasil.dibaca += 1;
@@ -69,21 +76,21 @@ async function olahTpu(folder: string, lokasi: Lokasi, aktor: Actor): Promise<Ri
       continue;
     }
     const tpu: BarisTpu = parsed.data;
-    const pertama = terlihat.get(tpu.name);
+    const pertama = terlihat.get(kunciNama(tpu.name));
     if (pertama !== undefined) {
       hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: nama "${tpu.name}" sudah muncul di baris ${pertama}`);
       continue;
     }
-    terlihat.set(tpu.name, baris.nomor);
-    const lama = ada.get(tpu.name);
+    terlihat.set(kunciNama(tpu.name), baris.nomor);
+    const lama = ada.get(kunciNama(tpu.name));
     if (lama) {
       if (samaDenganTpu(lama, tpu)) {
         hasil.sama += 1;
         continue;
       }
-      const { menerimaMakamBaru, ...profil } = tpu;
-      const profilBerubah = lama.address !== tpu.address || lama.city !== tpu.city || lama.dataSource !== tpu.dataSource || lama.pin?.lat !== tpu.pin?.lat || lama.pin?.lng !== tpu.pin?.lng;
-      const diubah = profilBerubah ? await lokasi.updateTpuDki(aktor, lama.id, profil) : { ok: true as const };
+      // The stored name stays as it was entered: only the match is folded, a renaming is a screen's job.
+      const { menerimaMakamBaru, ...profil } = { ...tpu, name: lama.name };
+      const diubah = profilBerbeda(lama, tpu) ? await lokasi.updateTpuDki(aktor, lama.id, profil) : { ok: true as const };
       const bendera = diubah.ok && lama.menerimaMakamBaru !== menerimaMakamBaru ? await lokasi.updateTpuDkiFlag(aktor, lama.id, { menerimaMakamBaru }) : diubah;
       if (!bendera.ok) {
         hasil.ditolak.push(`tpu-dki.csv baris ${baris.nomor}: ${alasanModul(bendera.reason)}`);
@@ -169,9 +176,6 @@ async function olahBiaya(folder: string, tariffs: Tariffs, aktor: Actor, sekaran
   }
   return hasil;
 }
-
-/** The name a Layanan or variant is matched on: case and surrounding spaces are the spreadsheet's, not the catalog's. */
-const kunciNama = (nama: string) => nama.trim().toLowerCase();
 
 async function olahLayanan(
   folder: string,
