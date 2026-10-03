@@ -11,7 +11,7 @@ function git(cwd: string, ...args: string[]): string {
   return execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
-type Repo = { dir: string; bin: string; bash: (command: string) => ReturnType<typeof runHook>; commit: (file: string, body?: string) => void };
+type Repo = { dir: string; bin: string; bash: (command: string, env?: Record<string, string>) => ReturnType<typeof runHook>; commit: (file: string, body?: string) => void };
 
 /** A clone of a bare origin with `main` pushed, checked out on `branch`; `tools` are fakes put first on PATH. */
 function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1] } = {}): Repo {
@@ -32,8 +32,8 @@ function repo(opts: { branch?: string; tools?: Parameters<typeof fakeBin>[1] } =
   git(dir, "push", "-q", "origin", "main");
   if (opts.branch) git(dir, "checkout", "-q", "-b", opts.branch);
   const bin = fakeBin(tmpDir("gg-bin-", dirs), opts.tools ?? {});
-  const bash = (command: string) =>
-    runHook("guard-git.sh", { tool_name: "Bash", tool_input: { command }, cwd: dir }, { cwd: dir, path: `${bin}:${path.dirname(process.execPath)}:/usr/bin:/bin` });
+  const bash = (command: string, env: Record<string, string> = {}) =>
+    runHook("guard-git.sh", { tool_name: "Bash", tool_input: { command }, cwd: dir }, { cwd: dir, env, path: `${bin}:${path.dirname(process.execPath)}:/usr/bin:/bin` });
   return { dir, bin, bash, commit };
 }
 
@@ -81,7 +81,8 @@ describe("guard-git hook, pushes to main", () => {
       expect(r.status, command).toBe(2);
       expect(r.stderr, command).toMatch(/main/);
       expect(r.stderr, command).toMatch(/merge thread/);
-      expect(r.stderr, command).toMatch(/makam-main-writer/);
+      expect(r.stderr, command).toMatch(/main-writers/);
+      expect(r.stderr, command).not.toMatch(/makam-main-writer/); // the self-declared marker is not advertised to a refused session
     }
   });
 
@@ -363,6 +364,47 @@ describe("guard-git hook, another repository named on the command line", () => {
     const ticket = repo({ branch: "ticket-5-x" });
     expect(ticket.bash(`git -C / -C ${onMain.dir} push`).status).toBe(2);
     expect(onMain.bash(`git -C ${path.dirname(ticket.dir)} -C ${path.basename(ticket.dir)} push`).status).toBe(0);
+  });
+});
+
+describe("guard-git hook, the allowlist of main writers", () => {
+  const SID = "cse_01TESTSESSIONID";
+
+  /** Lists `entries` in .claude/main-writers on origin/main, as the coordinator does before it starts the merge thread. */
+  function listOnMain(dir: string, entries: string): void {
+    mkdirSync(path.join(dir, ".claude"), { recursive: true });
+    writeFileSync(path.join(dir, ".claude/main-writers"), entries);
+    git(dir, "add", "-A");
+    git(dir, "commit", "-q", "-m", "list main writers");
+    git(dir, "push", "-q", "origin", "main");
+  }
+
+  it("lets a session push to main when its id is listed on origin/main, with no marker", () => {
+    const { dir, bash } = repo();
+    listOnMain(dir, "# who may push main\n01TESTSESSIONID merge the merge thread\n");
+    git(dir, "checkout", "-q", "-b", "merge/batch-1");
+    expect(bash("git push origin HEAD:main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(0);
+    // the same id under the other prefix the platform uses for a session
+    expect(bash("git push origin HEAD:main", { CLAUDE_CODE_REMOTE_SESSION_ID: "session_01TESTSESSIONID" }).status).toBe(0);
+  });
+
+  it("refuses a session that is not listed, whatever marker it wrote", () => {
+    const { dir, bash } = repo();
+    listOnMain(dir, "01SOMEONEELSE merge\n");
+    writeFileSync(path.join(dir, ".git/makam-main-writer"), "merge\n");
+    const r = bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/main-writers/);
+    expect(r.stderr).not.toMatch(/makam-main-writer/);
+  });
+
+  it("limits a session listed as docs to docs/ and .scratch/", () => {
+    const { dir, bash, commit } = repo();
+    listOnMain(dir, "01TESTSESSIONID docs the coordinator\n");
+    commit("docs/a.md");
+    expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(0);
+    commit("src/a.ts", "code");
+    expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(2);
   });
 });
 
