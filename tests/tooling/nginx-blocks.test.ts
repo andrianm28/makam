@@ -22,7 +22,8 @@ describe("the staging block", () => {
 describe("the production block for makam.co.id and www", () => {
   const block = read("deploy/nginx/makam.co.id.conf");
   const staging = read("deploy/nginx/dev.makam.co.id.conf");
-  const proxy = read("deploy/nginx/makam-staging-proxy.conf");
+  const stagingProxy = read("deploy/nginx/makam-staging-proxy.conf");
+  const proxy = read("deploy/nginx/makam-prod-proxy.conf");
 
   it("serves makam.co.id and www, over the existing Certbot certificate, and redirects http to https", () => {
     expect(block).toMatch(/server_name makam\.co\.id www\.makam\.co\.id;/);
@@ -32,13 +33,13 @@ describe("the production block for makam.co.id and www", () => {
     expect(block).toMatch(/location \^~ \/\.well-known\/acme-challenge\//);
   });
 
-  it("proxies to makam-prod web on 127.0.0.1:3100 and never to staging's port", () => {
-    expect(block).toContain("proxy_pass         http://127.0.0.1:3100;");
+  it("proxies every location to makam-prod web on 127.0.0.1:3100 and never to staging's port", () => {
+    expect(proxy).toContain("proxy_pass         http://127.0.0.1:3100;");
     expect(block).not.toContain("3110");
+    expect(block.match(/include snippets\/makam-prod-proxy\.conf;/g)).toHaveLength(3);
     // The same proxy lines as staging, apart from the port.
-    for (const line of proxy.split("\n").filter((l) => l.startsWith("proxy_") && !l.includes("proxy_pass"))) {
-      expect(block).toContain(line.replace(/\s+/g, " ").trim().split(" ")[0]);
-    }
+    const lines = (text: string) => text.split("\n").filter((l) => l && !l.startsWith("#"));
+    expect(lines(proxy).join("\n").replace("3100", "3110")).toBe(lines(stagingProxy).join("\n"));
   });
 
   it("keeps the staging block's body size and timeouts", () => {
