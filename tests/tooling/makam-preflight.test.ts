@@ -528,4 +528,15 @@ describe("makam-preflight", () => {
     const ticket = readFileSync(path.join(repo, ".scratch/makam-v1-build/issues/72-deploys-through-github-actions.md"), "utf8");
     expect(ticket).toMatch(/\*\*Rehearsal\*\*[^\n]*first step[^\n]*makam-preflight/);
   });
+
+  it("skips every S3 check by default because v1 goes live without S3, and runs them only with --met-s3", () => {
+    const byDefault = preflight(healthy(world()));
+    expect(byDefault.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3.*moved to v2.*2026-09-26.*--met-s3/));
+    expect(byDefault.lines.filter((line) => /s3 (probe|settings|backups|public|versioning|encryption)/.test(line))).toEqual([]);
+    expect(byDefault.calls).not.toContain("aws ");
+
+    const noS3 = ENV_FILE.split("\n").filter((line) => !line.startsWith("S3_")).join("\n");
+    const missing = preflight(healthy(world({ envFile: noS3 })), ["--met-s3"]);
+    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03\].*s3 settings.*S3_BUCKET_FILES/));
+  });
 });
