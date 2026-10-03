@@ -234,4 +234,14 @@ describe("the renumber command line's exit code", () => {
     expect(out).toMatch(/npm run db:generate/);
     expect(out).toMatch(/merge-proofs\.ts /);
   });
+
+  it("is 1 on a code conflict, which it names and leaves unresolved", () => {
+    const cwd = repoWithBranch("start\nbranch\n", "start\nmain\n");
+
+    const { code, out } = runCli(cwd, ["ticket-7"]);
+
+    expect(code).toBe(1);
+    expect(out).toMatch(/CODE CONFLICT.*src\/x\.ts/);
+    expect(read(cwd, "src/x.ts")).toMatch(/^<<<<<<< /m);
+  });
 });
