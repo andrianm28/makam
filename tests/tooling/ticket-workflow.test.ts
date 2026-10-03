@@ -109,7 +109,7 @@ function readTree(issues: URL = ISSUES): Tree {
       .filter((name) => TICKET_FILE_NAME.test(name) && name !== INDEX)
       .map((name) => {
         const text = readFileSync(new URL(name, issues), "utf8");
-        return { number: Number(name.slice(0, 2)), name, status: ticketStatus(text), comments: ticketComments(text) };
+        return { number: ticketNumber(name), name, status: ticketStatus(text), comments: ticketComments(text) };
       })
       .sort((a, b) => a.number - b.number);
     return { issueFiles, indexText: readFileSync(new URL(INDEX, issues), "utf8"), tickets, problem: null };
