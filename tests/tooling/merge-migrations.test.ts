@@ -125,4 +125,14 @@ describe("conflicts outside drizzle during the merge", () => {
     expect(result.unionResolved).toEqual([".scratch/feature/issues/01-x.md"]);
     expect(git(cwd, "diff", "--name-only", "--diff-filter=U").trim()).toBe("");
   });
+
+  it("reports a code conflict and leaves it untouched for a person to resolve", () => {
+    const cwd = conflicting("src/domain/x.ts");
+
+    const result = renumberForMerge({ cwd, branchRef: "ticket-3", baseRef: "HEAD" });
+
+    expect(result.codeConflicts).toEqual(["src/domain/x.ts"]);
+    expect(read(cwd, "src/domain/x.ts")).toMatch(/^<<<<<<< /m);
+    expect(git(cwd, "diff", "--name-only", "--diff-filter=U").trim()).toBe("src/domain/x.ts");
+  });
 });
