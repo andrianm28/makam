@@ -19,6 +19,72 @@ Make the repo self-sufficient for Claude Code cloud sessions: vendored skills, r
 - [ ] Verify in the first cloud session: Node 22 matches the Dockerfile; the hook exports `CHROMIUM_PATH` (system Chrome, else Playwright's Chromium) through `CLAUDE_ENV_FILE`, so the real PdfRenderer test runs; `next build` fetches fonts; `npm test` green; the image's Postgres 16 stays unused. Limits: 4 vCPU, 30 GB disk — one Docker stack per session, full e2e optional (CI runs it on `main`).
 
 
+## Added (2026-10-03, owner decision: the merge-time migration scripts go into the repo)
+
+The renumbering procedure is written in `docs/agents/orchestration.md` ("Renumbering a ticket's migration at merge time" and "The third proof"), but its helpers live only in the coordinator's scratchpad, so a merge thread in its own VM cannot run them and has to stop. Put them in the repo so the merge thread renumbers itself.
+
+- [ ] `scripts/migrations/` gains a merge-time renumber helper: given a branch, it sets aside the branch's added `drizzle/*.sql`, drops the branch's migrations and snapshots from the merge, restores `main`'s journal and snapshots, so `npm run db:generate` regenerates the branch's schema change under the next free number (the reference below does this in bash; follow the conventions of the existing `scripts/migrations/*.ts`, run with `npx tsx`).
+- [ ] The three proofs as one command: (1) the regenerated SQL is statement-identical to the branch's SQL, except a hand-written block the generator cannot produce (ticket 39's backfill), which the command reports so it is re-appended; (2) a second `npm run db:generate` reports no schema changes; (3) the whole snapshot chain resolves as a program: every `prevId` is another snapshot's `id`, and only the known pre-existing gaps (0018, 0021, 0024) may dangle; plus the destructive-DDL checker on the new file.
+- [ ] Ticket-file conflicts (`.scratch/**/*.md`) resolve by union (both sides kept); any other conflict is reported, never auto-resolved.
+- [ ] Tests in `tests/tooling/` on a small fixture of drizzle files: a clean renumber; a branch whose number `main` took; a dangling `prevId` outside the known gaps fails; a hand-written block is reported.
+- [ ] `docs/agents/orchestration.md` and `docs/agents/project-instructions.md` name the command; the merge thread then renumbers itself (remove "stop and report").
+
+Reference (coordinator's scratchpad, as used for tickets 35, 39, 46–58):
+
+```bash
+# merge-mig.sh
+#!/bin/bash
+# usage: merge-mig.sh <branch>   (run in /home/user/merge-stack2 on merge-batch3)
+set -u
+B=$1; S=<scratchpad>/mig-$B; rm -rf $S; mkdir -p $S
+BASE=$(git rev-parse HEAD)
+mine=$(git diff --name-only --diff-filter=A origin/main...origin/$B -- 'drizzle/*.sql')
+for f in $mine; do git show origin/$B:$f > $S/$(basename $f); done
+git merge --no-commit --no-ff origin/$B >/dev/null 2>&1
+# resolve non-drizzle conflicts by union only for ticket md; report others
+for f in $(git diff --name-only --diff-filter=U); do
+  case $f in
+    drizzle/*) : ;;
+    .scratch/*.md) python3 <scratchpad>/union.py $f; git add $f;;
+    *) echo "CODE CONFLICT: $f";;
+  esac
+done
+# drop the branch's own migrations and snapshots, restore HEAD's meta by name
+for f in $mine; do git rm -q -f --cached $f 2>/dev/null; rm -f $f; n=$(basename $f | cut -c1-4); done
+for snap in $(git diff --name-only origin/main...origin/$B -- 'drizzle/meta/*_snapshot.json'); do git rm -q -f --cached $snap 2>/dev/null; rm -f $snap; done
+git checkout $BASE -- drizzle/meta/_journal.json
+for snap in $(git ls-tree --name-only $BASE drizzle/meta/ | grep snapshot); do git checkout $BASE -- $snap; done
+echo "remaining unmerged:"; git diff --name-only --diff-filter=U
+```
+
+```bash
+# proof.sh
+#!/bin/bash
+# usage: proof.sh <new sql> <branch sql copy>
+cd /home/user/merge-stack2
+echo "diff vs branch sql:"; diff "$1" "$2" && echo IDENTICAL
+echo "second generate:"; npm run db:generate 2>&1 | grep -i "nothing to migrate\|No schema changes\|Your SQL"
+node -e '
+const fs=require("fs");const d="drizzle/meta/";const ids={},prev={};
+for(const f of fs.readdirSync(d).filter(f=>/_snapshot.json$/.test(f))){const j=JSON.parse(fs.readFileSync(d+f));ids[j.id]=f;prev[f]=j.prevId}
+const dang=Object.keys(prev).filter(f=>!ids[prev[f]]).map(f=>f.slice(0,4)).sort();
+console.log("dangling:",dang.join(","));
+const sql=fs.readdirSync("drizzle").filter(f=>f.endsWith(".sql")).length;
+const jr=JSON.parse(fs.readFileSync(d+"_journal.json")).entries.length;
+console.log("sql",sql,"journal",jr);'
+npx tsx scripts/migrations/check-destructive-ddl.ts "$1"; echo "ddl exit=$?"
+git status --short drizzle
+```
+
+```python
+# union.py (ticket-file conflicts: keep both sides)
+import sys,re
+for p in sys.argv[1:]:
+    s=open(p).read()
+    s=re.sub(r"<<<<<<< [^\n]*\n(.*?)=======\n(.*?)>>>>>>> [^\n]*\n",lambda m:m.group(2)+m.group(1),s,flags=re.S)
+    open(p,"w").write(s)
+```
+
 ## Comments
 
 - 2026-09-27 — **Owner decision: keep the vendored copies** (asked and answered this session). The evidence now says the plugin covers them: `.claude/settings.json` registers the `mattpocock` marketplace and enables `mattpocock-skills@mattpocock`, and in this session `ask-matt` and `resolving-merge-conflicts` both resolved from the plugin's synced path (`~/.agents/skills/…`), never from `.claude/skills/`. The owner still wants `.claude/skills/` in the repo as a fallback, so this acceptance criterion stays open on purpose — not because the plugin is missing. Delete the vendored copies (keeping `.claude/hooks/` and `.claude/settings.json`) and switch AGENTS.md to name `mattpocock-skills:<skill>` whenever the owner decides the fallback is no longer worth its drift.
@@ -61,3 +127,4 @@ Still open for the owner:
 - 2026-09-26 — Orchestrator, cloud session 2: the environment's network policy blocks `registry.npmjs.org` (403 for every package, so `npm ci` fails) and Docker Hub (`registry-1.docker.io`); the owner must allow them under the environment's Network access. The hook's `dockerd` died with "timeout waiting for containerd" while a second manual start worked, so the hook should retry `dockerd` once. GitHub run-log ZIPs (`results-receiver.actions.githubusercontent.com`) are blocked too; `get_job_logs` works. The mattpocock-skills plugin still did not load (`ListPlugins` empty, synced bucket empty; cloud sessions ignore the repo's `enabledPlugins` per the docs), so the vendored `.claude/skills/` stay. Details in `handoff-cloud.md`.
 - 2026-09-26 17:40 UTC — Orchestrator, cloud session 3: **still not ready.** `registry.npmjs.org` → 403 `x-deny-reason: host_not_allowed` ("Host not in allowlist"), so no `node_modules`; Docker Hub (`registry-1.docker.io`) → proxy CONNECT 403. Docker daemon itself is up (Server 29.3.1) this time, but without a Postgres image tests can't run. `mattpocock-skills:*` still absent (`installed_plugins.json` empty, synced bucket empty); vendored `.claude/skills/` stay. CI remains the only test loop; owner again asked to change the environment's Network access.
 - 2026-09-26 17:50 UTC — Orchestrator, cloud session 3: owner asked to install the Matt skills from the official source. `ListPlugins` is still empty (the directory plugin "Skills For Real Engineers", `plugin_01KkxAY5pNrRrp5B5eT1Vbws`, shows `enabled: false` for this account; install card shown). Installed instead with the CLI from the official repo: `claude plugin marketplace add mattpocock/skills` + `claude plugin install mattpocock-skills@mattpocock --scope project` → v1.2.3 enabled, 38 SKILL.md in `~/.claude/plugins/cache/mattpocock`. It lives in this container only and the running session doesn't load it (`Skill mattpocock-skills:tdd` → unknown skill); it needs a session restart, and a fresh container needs it again (account enable or a hook step). The CLI's rewrite of `.claude/settings.json` was formatting only and was reverted. Vendored `.claude/skills/` stay until a session shows `mattpocock-skills:*`.
+- 2026-10-03 — Cloud facts now settled by the docs (cloud-environments, re-checked 2026-10-03) and by ten cloud sessions of the Projects pilot: a cloud session does not install the plugins a repository turns on under `enabledPlugins`, so the vendored `.claude/skills/` stay (owner decision of 2026-09-27 stands); cloud sessions run `npm ci` through the SessionStart hook, build, and pass the full suite (332 files, 2998 tests on 2026-10-03). Owner decision 2026-10-03: this ticket also carries the merge-time migration scripts (Added section).
