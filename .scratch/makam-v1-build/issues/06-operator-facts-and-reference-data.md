@@ -38,3 +38,33 @@ A pre-launch checklist for the Operator. Every value below is entered by Admin P
   - Not verified against staging or production (no access).
 
   HANDOFF: branch `ticket-06-data-peluncuran`, importer + template done. `npx vitest run src/cli src/domain/wakaf/nazhir.test.ts src/domain/layanan/katalog.test.ts tests/support/global-prune.test.ts`: 15 test files, 133 tests passed (own file `src/cli/import-data-peluncuran-command.test.ts`: 25 tests). `npm run lint` exit 0 (6 pre-existing warnings), `npm run typecheck` exit 0. Full suite not run (orchestrator's). Review on Opus (prices and rates).
+
+- 2026-10-03 — Review (Opus, money code) of the Added section's template + importer, HEAD `6073a09`, fixed point `4fab4b1` (merge-base with `main`; 15 files, +1076). Tests re-run by the reviewer: `npx vitest run src/cli src/domain/wakaf/nazhir.test.ts src/domain/layanan/katalog.test.ts tests/support/global-prune.test.ts`, exit 0: 15 test files, 133 tests passed.
+
+  **Standards** (0 blocking / 5 should-fix / 3 nit)
+  - should-fix — `src/cli/import-data-peluncuran-command.ts:206-213`: the DKI price and the Mitra Jasa rate are two separate writes with no transaction, although `Tariffs.within(tx)` / `inTransaction` exist. If `setHargaLayananDki` commits and `setTarifMitraJasa` then refuses, the new DKI price is live for orders while the old Mitra Jasa rate still applies, and the row is reported "ditolak" even though half of it was written. Write the pair atomically.
+  - should-fix — `command.ts:62,72,78`: TPU rows are matched and de-duplicated on the exact `name`. Lokasi's key is folded (trim, lower case, single spaces; `src/domain/lokasi/tpu.ts:88-90`). The CLI already folds Layanan and Nazhir names with `kunciNama`. Failure case: the stored "TPU Karet Bivak" plus a CSV row "TPU Karet bivak" with a corrected address gives "akan dibuat" in the dry run, then `nama_sudah_ada` under `--tulis`. The correction is never applied and every run exits 1, so the import is not idempotent on its natural key.
+  - should-fix — `command.ts:111-115,135-153`: the domain checks (a past `berlaku_mulai`, giving `tanggal_berlaku_lampau` from `src/domain/tariffs/money.ts:15`; the `rupiahSchema` upper bound) run only under `--tulis`. The dry run reports such a row as "akan dibuat/diubah, 0 ditolak". The operator sees the refusal only on the production write, after the other rows are already written. Validate these rows in the dry run too (Zod refine on the row, or a domain check function that doesn't write).
+  - should-fix — `command.ts:109,145`: the audit reason is the fixed string `ALASAN_IMPOR`. The precedent (`import-katalog-lama-command.ts:21-24,52-53`) names the staging or production allowance in the reason of every write. A production price change is recorded under whichever Admin Platform account is found first (`:344-356`), and nothing in the Audit Log shows it came from `--izinkan-production`.
+  - should-fix (horizontal slicing) — red commit `59764a4` tests five behaviours at once (Nazhir idempotence, Nazhir refusals, Excel CSV, the example rows, the missing folder). `974e06b` (staging + production) and `a68cb99` (DKI price + Mitra Jasa rate) each pair two behaviours.
+  - nit — `src/domain/wakaf/index.ts:97-104`: `createNazhirList` also exposes `hapusNazhir`, which nothing uses (Speculative Generality).
+  - nit — `src/domain/wakaf/nazhir.ts:5-8`: the `NazhirDeps` export sits between two import blocks.
+  - nit — `command.ts:47-56` vs `:86`: the TPU profile comparison is written out twice.
+  - Noted, not counted: an unset `APP_ENV` defaults to development, so a production `DATABASE_URL` with no `APP_ENV` skips the production flag. `import:katalog-lama` has the same behaviour.
+  - Verified fine: tariffs are append-only versions (`src/domain/tariffs/version-writes.ts:35`). A changed amount adds a new dated version and never overwrites a price in use. Amounts are whole rupiah ("750.000" and "Rp" are refused). Duplicates within a file are refused. Writes go only through public domain functions. Zod checks argv, env and every row. There is no `new Date()`. Tests read state back through public queries.
+
+  **Spec** (0 blocking / 4 should-fix / 3 nit)
+  - should-fix — "a dry run by default that prints … every row it refuses, with the reason": domain refusals appear only with `--tulis` (same root cause as Standards #3). README:35 says "Tidak boleh tanggal lampau", yet the dry run accepts a past date. The test covers this only with `--tulis` (`test.ts:178,184`).
+  - should-fix — "idempotent on a natural key so a second run changes nothing": the TPU key differs from the domain's key (Standards #2). The duplicate check within a file misses case variants too.
+  - should-fix — "a README in Bahasa Indonesia that says what each column means": the README doesn't yet let the owner export the CSV without help.
+    - It never mentions encoding: the reader is UTF-8 only, while Excel's plain "CSV" save is ANSI, so the owner should pick "CSV UTF-8".
+    - It doesn't warn that Excel reformats dates, a leading 0 in `kontak`, and `-6.1200` in an Indonesian locale unless the cells are set to Teks.
+    - It gives no list of accepted `kab/kota` spellings.
+    - It doesn't say that `seed:admin` must run first (the importer refuses without it, `command.ts:347`).
+  - should-fix (horizontal slicing) — commit `59764a4`, as under Standards.
+  - nit — refusal reasons reach the owner as raw codes (`tanggal_berlaku_lampau`, `nama_sudah_ada`, `tpu_tidak_valid`; `command.ts:90,100,148`).
+  - nit — scope: the unused `hapusNazhir` (as under Standards).
+  - nit — the reported partial Layanan write is finished on a re-run (it goes away if Standards #1 is fixed).
+  - Complete: one CSV per kind, each with a header and one example row. Every column is explained, with the ticket item each file answers. The single-record items point to screens that exist (`src/app/staf/admin-platform/{pengaturan-operator,tarif,layanan}`) and to `seed:admin`. The example rows pass a dry run (`test.ts:341-353`). Each kind has create, re-run and refusal tests against Postgres. The staging and production flags are enforced. The builder's four spec gaps are genuine gaps, not narrowing.
+
+  Worst finding: Standards, the non-atomic DKI price + Mitra Jasa rate write. Spec, the dry run not showing domain refusals (past date).
