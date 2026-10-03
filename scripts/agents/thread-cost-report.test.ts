@@ -137,3 +137,14 @@ describe("thread cost report: --compare without a coordinator cost", () => {
     expect(json(args).compare.causes.watcher.usd).toBeNull();
   });
 });
+
+describe("thread cost report: ticket from a title", () => {
+  it("reads a ticket only from a ticket-looking token (aos-05, #87, ticket 87), never from a bare number such as 'retry 3'", () => {
+    const r = json([fx("titles.json")]);
+    const ticket = (id: string) => r.threads.find((t: { session_id: string }) => t.session_id === id).ticket;
+    expect(ticket("t1")).toBe("unknown");
+    expect(ticket("t2")).toBe("87");
+    expect(ticket("t3")).toBe("91");
+    expect(ticket("t4")).toBe("aos-05");
+  });
+});
