@@ -30,3 +30,12 @@ The Vitest suite is about 65 % of a main run's 23 minutes. Three of the research
 - A is kept in the test database itself: a statement-level insert trigger on each `public` table records the table in `makam_test_support.dirty` (schema outside `public`, so it is never truncated and never listed). It sees every connection, including a CLI a test spawns. The record has no unique key, so two concurrent transactions inserting into one table never wait on each other. Global setup drops the record at the start of each run, so a database an earlier run used is emptied in full once.
 - B in CI cannot pass server flags to a `services:` container, so a step runs `alter system set … = off` and `pg_reload_conf()` (all three are reloadable).
 - D trades CI minutes for wall clock: on a commit whose tests fail an image is still built, and on `main` pushed as `sha-<commit>`; nothing deploys it, because `latest` only moves in `sign`.
+
+### Timings (local, 4 vCPU sandbox, Postgres 18.6 in Docker via `TEST_DATABASE_URL`, one run each, logs kept whole)
+
+| | Files | Tests | Wall | Vitest "Duration" |
+|---|---|---|---|---|
+| Before (merge of `research-bun-analysis`, default Postgres settings) | 343 | 3192 passed, 1 skipped | **1454 s (24.2 min)** | 1446 s (tests 79 %, import 20 %) |
+| After (A + B; D is CI-only) | 345 | 3199 passed, 1 skipped | **1103 s (18.4 min)** | 1102 s (tests 72 %, import 27 %) |
+
+−351 s (−24 %) locally; the 2 extra files and 7 extra tests are this ticket's own. Less than the research's estimate (it expected A alone to save 300–500 s): the truncate cost was lower than estimated, and the box was also running one other task for part of the "before" run. D is not measurable locally: by the research's job timings it takes the image build (3.5 min) off the critical path of a main run.
