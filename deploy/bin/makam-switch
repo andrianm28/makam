@@ -101,9 +101,18 @@ if [ -e "$AUX_DEST" ]; then
   cp -p "$AUX_DEST" "$AUX_BACKUP"
 fi
 install -m 0640 "$BLOCK" "$SITE"
+# nginx reads sites-enabled: a site file without its link would report success
+# and serve nothing new.
+LINKED=0
+if [ ! -e "$ENABLED" ] && [ ! -L "$ENABLED" ]; then
+  ln -s "$SITE" "$ENABLED"
+  LINKED=1
+  echo "linked $ENABLED to $SITE (sites-enabled had no link)"
+fi
 install -d -m 0755 "$(dirname "$AUX_DEST")"
 install -m 0644 "$AUX_SRC" "$AUX_DEST"
 if ! nginx -t; then
+  if [ "$LINKED" = 1 ]; then rm -f "$ENABLED"; fi
   if [ -n "$BACKUP" ]; then cp -p "$BACKUP" "$SITE"; else rm -f "$SITE"; fi
   if [ -n "$AUX_BACKUP" ]; then cp -p "$AUX_BACKUP" "$AUX_DEST"; else rm -f "$AUX_DEST"; fi
   echo "nginx -t failed: restored the previous block (${BACKUP:-none: first install}) and its companion file; nginx was not reloaded" >&2
