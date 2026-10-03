@@ -56,13 +56,23 @@ function mergeInProgress(cwd: string): boolean {
   }
 }
 
+/** Resolves a ref to a commit id; `--end-of-options` keeps a ref that looks like an option from being read as one. */
+function resolveCommit(cwd: string, ref: string): string {
+  try {
+    return git(cwd, ["rev-parse", "--verify", "--end-of-options", `${ref}^{commit}`]).trim();
+  } catch {
+    throw new Error(`"${ref}" is not a commit in this repository`);
+  }
+}
+
 export function renumberForMerge(options: RenumberOptions): RenumberResult {
-  const { cwd, branchRef } = options;
+  const { cwd } = options;
   const baseRef = options.baseRef ?? "HEAD";
   if (git(cwd, ["status", "--porcelain"]).trim() !== "") {
     throw new Error("the merge worktree has uncommitted changes; commit or stash them first (the helper deletes and restores drizzle paths)");
   }
-  const base = git(cwd, ["rev-parse", baseRef]).trim();
+  const base = resolveCommit(cwd, baseRef);
+  const branchRef = resolveCommit(cwd, options.branchRef);
   const asideDir = options.asideDir ?? mkdtempSync(path.join(tmpdir(), "makam-mig-aside-"));
   mkdirSync(asideDir, { recursive: true });
 
