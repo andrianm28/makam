@@ -170,3 +170,5 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   - **Count: 0 blocking / 0 should-fix / 3 nit** (the earlier bundled-red process finding stays as an accepted deferral).
 
   **Summary:** earlier findings fixed 6/9 (4 should-fix and 5 nits of re-review 1; the 3 not fixed are reasoned deferrals judged acceptable); new 0 blocking / 0 should-fix / 3 nit; hard remaining: no. Ready to merge on both axes. Read-only review; only this entry committed.
+
+- 2026-10-03 — Added (production switch files) merged to main by the merge thread (57381410). Two-axis review complete (Standards + Spec), re-review 2 clean (0 blocking / 0 should-fix / 3 nit). The merge with main resolved two conflicts as a pure union, with the coordinator's go-ahead: `deploy/install-host.sh` (the install line now lists `makam-preflight` from ticket 72 and `makam-switch` plus `makam-arsip-app-lama` from this ticket) and `docs/ops/runbook.md` (the preflight section and "Hari switch" both kept, no content dropped). Status unchanged (`ready-for-human`): the owner runs the switch. No migration, lockfile unchanged.

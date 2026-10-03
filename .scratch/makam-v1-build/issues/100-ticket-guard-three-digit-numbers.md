@@ -1,6 +1,6 @@
 # The ticket guard reads three-digit ticket numbers
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: —
 Spec: AGENTS.md, Working agreements (the index and the review record are machine-checked); the owner's `/to-tickets` of 2026-10-03
 
@@ -10,9 +10,9 @@ Ticket numbers have reached 100, but the ticket guard reads only two-digit names
 
 ## Acceptance criteria
 
-- [ ] A ticket file numbered 100 or above is read under its full number and counted; two-digit names are read exactly as today.
-- [ ] Its `Status:` is checked against `00-index.md`, and the index's summary sentence counts it, like any other ticket.
-- [ ] Tested through the guard's own helpers: `100-x.md` is ticket 100, never 10; and the guard passes on the tree that holds tickets 100 and 101.
+- [x] A ticket file numbered 100 or above is read under its full number and counted; two-digit names are read exactly as today.
+- [x] Its `Status:` is checked against `00-index.md`, and the index's summary sentence counts it, like any other ticket.
+- [x] Tested through the guard's own helpers: `100-x.md` is ticket 100, never 10; and the guard passes on the tree that holds tickets 100 and 101.
 
 ## Comments
 
@@ -27,3 +27,5 @@ The guard (`tests/support/ticket-workflow.ts`) now reads ticket numbers of two o
 **Spec: 0 blocking / 0 should-fix / 1 nit.** AC1–AC3 met; scope clean (tickets 101, other tickets, index rows and summary sentence untouched since fb90a143). Nit: no unit test pins the summary sentence's parenthetical list with a three-digit number; it is covered only by the real-tree check.
 
 No fix pass and no re-review: nothing blocking or should-fix. The nits are left as they are.
+
+- 2026-10-03 — Merged to main by the merge thread (a6d6b06). Two-axis review complete (Standards + Spec): 0 blocking / 0 should-fix / 4 nit. No migration, lockfile unchanged.
