@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { FakeClock } from "@/adapters/memory";
+import { createNazhirList } from "@/domain/wakaf";
 import { createTariffs } from "@/domain/tariffs";
 import { wib } from "@/lib/time/jakarta";
 import { layananOnTestDatabase, catalogFixture } from "../../tests/support/layanan";
@@ -244,6 +245,39 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI
 
     expect(hasil.exitCode).toBe(1);
     expect(hasil.output).toContain('layanan-dki.csv baris 2: varian "Platinum" dari Layanan "Pembersihan Makam" tidak ada di katalog Layanan');
+  });
+});
+
+describe("npm run import:data-peluncuran -- --sumber <folder>: Nazhir", () => {
+  const NAZHIR_HEADER = "nama,jenis,kab_kota,kontak,nomor_bwi";
+  const NAZHIR = `${NAZHIR_HEADER}\nNazhir Sejahtera,badan_hukum,Kota Jakarta Selatan,021-5550100,BWI-001\n`;
+
+  async function daftar() {
+    const { audit, clock: jam, admin } = await modul();
+    const wakaf = createNazhirList({ db, clock: jam, audit });
+    return { admin, nazhir: () => wakaf.daftarNazhir(admin) };
+  }
+
+  it("dry-runs the Nazhir list without adding anyone", async () => {
+    const { nazhir } = await daftar();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "nazhir.csv": NAZHIR })], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Nazhir: 1 baris dibaca, 1 akan dibuat, 0 akan diubah, 0 sama, 0 ditolak.");
+    expect(await nazhir()).toEqual([]);
+  });
+
+  it("adds each Nazhir to the Wakaf list with --tulis", async () => {
+    const { nazhir } = await daftar();
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "nazhir.csv": NAZHIR }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(0);
+    expect(hasil.output).toContain("Nazhir: 1 baris dibaca, 1 dibuat, 0 diubah, 0 sama, 0 ditolak.");
+    expect(await nazhir()).toMatchObject([
+      { nama: "Nazhir Sejahtera", jenis: "badan_hukum", kabKota: "Kota Jakarta Selatan", kontak: "021-5550100", nomorBwi: "BWI-001" },
+    ]);
   });
 });
 
