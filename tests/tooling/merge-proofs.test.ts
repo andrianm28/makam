@@ -125,4 +125,14 @@ describe("the three proofs as one run", () => {
     expect(report.destructive).toEqual([]);
     expect(report.ok).toBe(true);
   });
+
+  it("is not OK while the branch has a hand-written block the regenerated file lacks: re-append it, then rerun", () => {
+    const backfill = 'UPDATE "feat" SET "id" = 0 WHERE "id" IS NULL;';
+    const bp = "\n--> statement-breakpoint\n";
+
+    const report = runMergeProofs({ ...setup({ generated: sql, branch: `${sql}${bp}${backfill}` }), generate: () => "nothing to migrate" });
+
+    expect(report.reappend).toEqual([backfill]);
+    expect(report.ok).toBe(false);
+  });
 });
