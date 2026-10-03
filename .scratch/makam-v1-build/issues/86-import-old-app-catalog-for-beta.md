@@ -10,7 +10,13 @@ The v1 beta for UAT is seeded with the frozen Laravel app's cemetery catalog (re
 
 ## Acceptance criteria
 
-_Rewritten 2026-09-27 after the research of the same day (see `## Comments`): the original lines promised what the old app's data cannot give. The lines below are what the tool does._
+_Rewritten 2026-09-27 after the research of the same day (see `## Added (2026-10-03, owner decision: the example catalog goes to production)
+
+- [ ] `import:katalog-lama` accepts production only behind an explicit flag (`--izinkan-produksi`) and still refuses it without; the rows stay data contoh and Belum Tayang there as everywhere.
+- [ ] It runs on the VPS without a Node toolchain on the host: bundled into the runtime image like the worker and migrate bundles, or as one documented one-off container command against the image.
+- [ ] The runbook's importer section matches the code (it says the tool refuses staging, which contradicts `--izinkan-staging`), and this ticket's unticked AC4 (idempotent re-run, `--izinkan-staging`) is checked against the tests: ticked if they prove it, otherwise built test-first.
+
+## Comments`): the original lines promised what the old app's data cannot give. The lines below are what the tool does._
 
 - [x] An ops command (like `seed:admin`) reads, read-only, a **catalog export file** the old app's owner produced with one documented `psql` query (never a connection of its own): name, address, city, coordinates / Google Maps URL, the source's own facility labels, and its indicative price ranges. It creates Lokasi Mitra and their Jenis Makam with a first tariff version **only where the source holds a real price**; a range the source only estimated is reported and asked about, never entered as a Tarif.
 - [x] **Photos are not imported.** The old app's `primary_photo_path` is a storage path of four stock photos reused across every row (research §1.4: "none of the four photos depicts any of these cemeteries"), and v1 keeps photos in the private FileStore written by a Kunjungan Verifikasi or a Blok site plan. The beta is on free stock photos (ADR 0002); copying files out of the old app is a separate decision.
