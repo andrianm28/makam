@@ -163,6 +163,9 @@ function healthy(w: ReturnType<typeof world>) {
       '[ "${FAKE_BACKUP_CODE:-0}" = 0 ] || { echo "backup refused" >&2; exit "$FAKE_BACKUP_CODE"; }',
       `d="${w.root}/prod/backups/db"`,
       'echo dump > "$d/makam-20261003T000000Z.dump.enc"; echo counts > "$d/makam-20261003T000000Z.counts.enc"',
+      // The nightly timer finishing inside the same window: not this run's.
+      'if [ "${FAKE_CRON_DUMP:-0}" = 1 ]; then echo dump > "$d/makam-20261003T000100Z.dump.enc"; echo counts > "$d/makam-20261003T000100Z.counts.enc"; fi',
+      'echo "dumped makam-prod-postgres-1 (makam, 1 MB) to $d/makam-20261003T000000Z.dump.enc, pruned dumps older than 7d" >&2',
     ].join("\n"),
   );
   install(
@@ -579,5 +582,14 @@ describe("makam-preflight", () => {
     expect(interrupted.code).toBe(143);
     expect(interrupted.calls).toMatch(/-X DELETE .*deployments\/42/);
     expect(interrupted.leftovers).toEqual([]);
+  });
+
+  it("removes only the Dump and counts file its own backup wrote, never one the nightly timer wrote meanwhile", () => {
+    const w = healthy(world());
+    const dir = path.join(w.root, "prod", "backups", "db");
+    const result = preflight(w, [], { FAKE_CRON_DUMP: "1" });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03, 72\].*backup and restore.*makam-20261003T000000Z\.dump\.enc/));
+    expect(result.calls).toMatch(/makam-restore-test --env prod --dump \S+makam-20261003T000000Z\.dump\.enc/);
+    expect(readdirSync(dir).sort()).toEqual(["makam-20261003T000100Z.counts.enc", "makam-20261003T000100Z.dump.enc"]);
   });
 });
