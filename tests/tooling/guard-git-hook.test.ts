@@ -196,6 +196,56 @@ describe("guard-git hook, bootstrap of the main-writers list", () => {
   });
 });
 
+describe("guard-git hook, secrets in outgoing commits", () => {
+  const IMAGE = "zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f";
+  /** A repo whose scanner is a stub the hook runs instead of Docker (MAKAM_GITLEAKS_CMD), recording the directory it was asked to scan. */
+  function withScanner(exit: number) {
+    const r = repo({ branch: "ticket-5-x", tools: { scanner: { exit } } });
+    const push = (command = "git push -u origin ticket-5-x") => r.bash(command, { MAKAM_GITLEAKS_CMD: `${r.bin}/scanner` });
+    return { ...r, push, calls: () => (existsSync(`${r.bin}/scanner.calls`) ? readFileSync(`${r.bin}/scanner.calls`, "utf8") : "") };
+  }
+
+  it("blocks the push when the scanner reports a finding, and says how to clear it", () => {
+    const { push, calls, dir } = withScanner(1);
+    const r = push();
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/gitleaks/);
+    expect(r.stderr).toMatch(/\.gitleaks\.toml/);
+    expect(calls()).toContain(dir);
+  });
+
+  it("lets a clean push through, and scans only pushes", () => {
+    const { push, calls, bash } = withScanner(0);
+    bash("git status", { MAKAM_GITLEAKS_CMD: "/nonexistent" });
+    expect(calls()).toBe("");
+    expect(push().status).toBe(0);
+    expect(calls()).not.toBe("");
+  });
+
+  it("scans with the image CI uses and CI's arguments when no stub is given", () => {
+    const { bash, bin } = repo({ branch: "ticket-5-x", tools: { docker: { exit: 0 } } });
+    expect(bash("git push -u origin ticket-5-x").status).toBe(0);
+    const runs = readFileSync(`${bin}/docker.calls`, "utf8").split("\n").filter((l) => l.startsWith("run "));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toContain(`${IMAGE} git . --config .gitleaks.toml --redact --no-banner`);
+  });
+
+  it("says plainly that the commits were not scanned when Docker is unavailable", () => {
+    const { bash } = repo({ branch: "ticket-5-x", tools: { docker: { exit: 1 } } });
+    const r = bash("git push -u origin ticket-5-x");
+    expect(r.status).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/NOT scanned/);
+    expect(r.stdout + r.stderr).toMatch(/Docker/);
+  });
+
+  it("treats a scanner that could not run (exit 125) as unavailable, not as a finding", () => {
+    const { push } = withScanner(125);
+    const r = push();
+    expect(r.status).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/NOT scanned/);
+  });
+});
+
 describe("guard-git hook, failing closed", () => {
   it("refuses what it cannot read, with a way forward", () => {
     for (const input of ["not json", JSON.stringify({ tool_input: {} })]) {
