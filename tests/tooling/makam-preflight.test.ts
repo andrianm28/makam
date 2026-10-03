@@ -74,6 +74,13 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'case "$1" in',
       '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
+      '  pull) exit "${FAKE_PULL:-0}" ;;',
+      "  login) cat > /dev/null ;;",
+      '  image) echo "${FAKE_REVISION:-' + REVISION + '}" ;;',
+      '  run) case "$*" in',
+      '        *env-check.mjs*) echo "${FAKE_ENVCHECK_OUT:-environment is complete for production}"; exit "${FAKE_ENVCHECK_CODE:-0}" ;;',
+      '        *email-check.mjs*) echo "${FAKE_EMAIL_OUT:-Email uji accepted}"; exit "${FAKE_EMAIL_CODE:-0}" ;;',
+      "      esac ;;",
       '  compose) exit "${FAKE_DOCKER_COMPOSE:-0}" ;;',
       "esac",
       "exit 0",
@@ -102,6 +109,13 @@ function healthy(w: ReturnType<typeof world>) {
       '  *-enddate*) echo "notAfter=${FAKE_CERT_END:-Jan  1 00:00:00 2027 GMT}" ;;',
       "esac",
     ].join("\n"),
+  );
+  copyFileSync(path.join(repo, "deploy/bin/makam-verify-image"), path.join(w.bin, "makam-verify-image"));
+  writeFileSync(path.join(w.root, "prod", "cosign.pub"), "fake public key\n");
+  install(
+    w.bin,
+    "cosign",
+    'if [ "${FAKE_COSIGN_SIGNED:-1}" = 1 ]; then exit 0; fi; echo "no matching signatures" >&2; exit 1',
   );
   return w;
 }
@@ -176,5 +190,20 @@ describe("makam-preflight", () => {
     const fine = preflight(healthy(world()));
     expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*dns makam\.co\.id/));
     expect(fine.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02\].*certificate www\.makam\.co\.id.*Jan  1 00:00:00 2027 GMT/));
+  });
+
+  it("pulls the released digest with the ghcr read token, and fails when there is no digest or the pull is refused", () => {
+    const none = preflight(healthy(world()));
+    expect(none.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*ghcr pull.*--digest/));
+
+    const refused = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
+    expect(refused.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 72\].*ghcr pull.*ghcr\.io\/andrianm28\/makam@sha256:b{64}/));
+
+    const pulled = preflight(healthy(world()), ["--digest", DIGEST]);
+    expect(pulled.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 72\].*ghcr pull/));
+    expect(pulled.calls).toContain("docker login ghcr.io");
+    expect(pulled.calls).toContain(`docker pull ghcr.io/andrianm28/makam@${DIGEST}`);
+    expect(pulled.calls).not.toContain(SECRETS.GHCR_READ_TOKEN);
+    expect(pulled.output).not.toContain(SECRETS.GHCR_READ_TOKEN);
   });
 });
