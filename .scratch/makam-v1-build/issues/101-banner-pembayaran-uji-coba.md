@@ -10,11 +10,11 @@ At the switch, makam.co.id takes payments through SumoPod's sandbox, so no money
 
 ## Acceptance criteria
 
-- [ ] On makam.co.id, while production's payments go to SumoPod's sandbox, every page (public site, Masuk, Akun Saya, the staff area) shows a banner in Bahasa Indonesia saying payments are a trial and no money moves; it never shows when production pays live, nor on staging (which keeps its own banner) or in development. The wording is proposed in this ticket's Comments and confirmed by the owner.
-- [ ] Shown or hidden is decided at runtime from production's payment configuration, never at build time: one image serves staging and production, and statically rendered pages show it too (as ticket 66 decided for the staging banner).
-- [ ] On a Tagihan's Bayar step, while the sandbox is in use, a notice beside the Bayar button says the payment is a trial and no money moves.
-- [ ] Neither can be dismissed; the banner pushes the page down instead of covering it, is readable on a phone and is announced once to screen readers (as ticket 66).
-- [ ] The runbook's switch steps and the go-live checklist say how production runs on the sandbox (the payment base-URL override, the sandbox key and webhook secret, the sandbox webhook pointed at makam.co.id's payment webhook) and that installing the live keys and removing the override takes the banner and the notice away; `makam-preflight` names a production on the sandbox in one SKIP line.
+- [x] On makam.co.id, while production's payments go to SumoPod's sandbox, every page (public site, Masuk, Akun Saya, the staff area) shows a banner in Bahasa Indonesia saying payments are a trial and no money moves; it never shows when production pays live, nor on staging (which keeps its own banner) or in development. The wording is proposed in this ticket's Comments and confirmed by the owner.
+- [x] Shown or hidden is decided at runtime from production's payment configuration, never at build time: one image serves staging and production, and statically rendered pages show it too (as ticket 66 decided for the staging banner).
+- [x] On a Tagihan's Bayar step, while the sandbox is in use, a notice beside the Bayar button says the payment is a trial and no money moves.
+- [x] Neither can be dismissed; the banner pushes the page down instead of covering it, is readable on a phone and is announced once to screen readers (as ticket 66).
+- [x] The runbook's switch steps and the go-live checklist say how production runs on the sandbox (the payment base-URL override, the sandbox key and webhook secret, the sandbox webhook pointed at makam.co.id's payment webhook) and that installing the live keys and removing the override takes the banner and the notice away; `makam-preflight` names a production on the sandbox in one SKIP line.
 - [ ] Tests: the shown or hidden decision (production on the sandbox shows; production live, staging and development hide); a Playwright check that neither appears on the local stack.
 
 ## Comments
@@ -50,3 +50,9 @@ Spec: 0 blocking, 1 should-fix, 2 nit. All six criteria met in code; should-fix:
 - Banner comment explains the useEffect fetch (runtime server state); route.ts comment wrapped; page.tsx import order and long JSX line fixed.
 - Runbook webhook path: the "Test payment" section (docs/ops/runbook.md ~1590) already registers `/api/webhooks/pembayaran` and only mentions `/api/webhooks/sumopod` as ticket 04's wrong name; the route exists at `src/app/api/webhooks/pembayaran`. No edit needed. Remaining `sumopod` webhook mentions are in ADR 0002 and tickets 07/65 (nginx exemption history), untouched.
 - Skipped as told: Playwright extension, bg-warning extraction. Owner still to confirm wording.
+
+### Owner confirmation and e2e (2026-10-03, ticket thread)
+
+- The owner confirmed both texts as proposed, through the option tool on 2026-10-03: banner "PEMBAYARAN UJI COBA — pembayaran di Makam.co.id saat ini masih percobaan, tidak ada uang yang berpindah." and Bayar notice "Pembayaran ini uji coba: tidak ada uang yang berpindah.". The wording criterion is met and ticked.
+- The runbook's "Test payment" section already registers `/api/webhooks/pembayaran`; it names `/api/webhooks/sumopod` only to say ticket 04's checklist was wrong, so no edit was needed.
+- Playwright not run: `npm run stack -- up --build -d` failed in the image build (`npm ci` crashed with "Exit handler never called", a network problem inside Docker here). The last criterion (Tests) stays unticked until the spec passes on a stack; `npm run clean` was run afterwards.
