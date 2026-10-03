@@ -513,4 +513,18 @@ describe("makam-preflight", () => {
       }
     }
   });
+
+  it("is installed on the host by deploy/install-host.sh and documented in the runbook next to the rehearsal, and the ticket's Rehearsal item names it as the first step", () => {
+    const installer = readFileSync(path.join(repo, "deploy/install-host.sh"), "utf8");
+    expect(installer).toContain("deploy/bin/makam-preflight");
+
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Staging is public"));
+    expect(section).toContain("makam-preflight --env prod");
+    expect(section).toContain("--email-to");
+    expect(section).toContain("--skip-s3");
+
+    const ticket = readFileSync(path.join(repo, ".scratch/makam-v1-build/issues/72-deploys-through-github-actions.md"), "utf8");
+    expect(ticket).toMatch(/\*\*Rehearsal\*\*[^\n]*first step[^\n]*makam-preflight/);
+  });
 });
