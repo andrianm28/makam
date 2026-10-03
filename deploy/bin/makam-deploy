@@ -253,7 +253,7 @@ else
   "$VERIFY_IMAGE" --env "$ENV_NAME" --image "$IMAGE" --digest "$DIGEST" >> "$LOG" 2>&1 || verify_status=$?
   if [ "$verify_status" -ne 0 ]; then
     log "ERROR refusing $IMAGE@$DIGEST: signature check exited $verify_status; nothing changed"
-    status state failure "$TAG is unsigned or signed with another key; not deployed"
+    # No Deployment yet (begin comes after this check), so this refusal is log-only.
     exit 77
   fi
   log "signature ok for $DIGEST"
@@ -266,7 +266,7 @@ fi
 
 log "deploy $IMAGE@$DIGEST ($TAG, revision ${REV:-unknown}); running: ${PREVIOUS:-(none)} ${PREVIOUS_DIGEST:-(none)}"
 status begin --digest "$DIGEST" --tag "$TAG" --description "Deploy $TAG to $PROJECT"
-status state in_progress "migrate and restart $PROJECT on $TAG"
+status state --state in_progress --description "migrate and restart $PROJECT on $TAG"
 export MAKAM_TAG="$TAG" MAKAM_DIGEST="$DIGEST" MAKAM_DEPLOY_REF=":$TAG@$DIGEST" MAKAM_RELEASE="${REV:-$TAG}"
 
 # 3. A production snapshot, before the migration.
@@ -275,7 +275,7 @@ export MAKAM_TAG="$TAG" MAKAM_DIGEST="$DIGEST" MAKAM_DEPLOY_REF=":$TAG@$DIGEST" 
 # 4. Migrate with the new image. web/worker are not touched unless this succeeds.
 if ! compose run --rm --quiet-pull migrate >> "$LOG" 2>&1; then
   log "ERROR migrate failed for $TAG; web/worker left running ${PREVIOUS:-(none)}; nothing restarted"
-  status state failure "migrate failed on $TAG; ${PREVIOUS:-(nothing)} still running"
+  status state --state failure --description "migrate failed on $TAG; ${PREVIOUS:-(nothing)} still running"
   exit 1
 fi
 log "migrate ok"
@@ -283,7 +283,7 @@ log "migrate ok"
 # 5. Restart web and worker on the verified digest.
 if ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
   log "ERROR up failed for $TAG; rolling back to ${PREVIOUS:-(none)}"
-  status state failure "up failed on $TAG; rolling back to ${PREVIOUS:-(none)}"
+  status state --state failure --description "up failed on $TAG; rolling back to ${PREVIOUS:-(none)}"
   roll_back || exit 2
   exit 1
 fi
@@ -295,7 +295,7 @@ deadline=$(( $(date +%s) + HEALTH_WAIT ))
 while [ "$(date +%s)" -lt "$deadline" ]; do
   if curl -fs -m 5 -o /dev/null "http://127.0.0.1:$WEB_PORT/api/health"; then
     log "healthy on $TAG ($DIGEST)"
-    status state success "$TAG ($DIGEST) healthy"
+    status state --state success --description "$TAG ($DIGEST) healthy"
     release
     prune
     exit 0
@@ -303,7 +303,7 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   sleep "$HEALTH_INTERVAL"
 done
 log "ERROR $TAG deployed but /api/health is not 200 after ${HEALTH_WAIT}s; rolling back to ${PREVIOUS:-(none)}"
-status state failure "$TAG ($DIGEST) never became healthy; rolling back to ${PREVIOUS:-(none)}"
+status state --state failure --description "$TAG ($DIGEST) never became healthy; rolling back to ${PREVIOUS:-(none)}"
 # Exit 1: the deploy failed and the previous digest is running again. Exit 2 is
 # reserved for a roll back that failed as well, so a timer or a monitor can tell
 # "recovered on its own" from "something is still broken".

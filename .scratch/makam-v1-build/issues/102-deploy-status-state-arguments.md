@@ -34,3 +34,11 @@ Make the calls and the script agree, and keep the best-effort rule: a missing to
 - `gh api 'repos/andrianm28/makam/deployments?environment=staging'` returns `[]`. Until 2026-10-03, `staging.env` also had no `MAKAM_GITHUB_TOKEN`. It now has one (the same fine-grained token as production, Deployments: write), so after this fix the next staging deploy should create a Deployment with states.
 - The installed `/opt/makam-v1/bin/makam-deploy` is byte-identical to `main`'s `deploy/bin/makam-deploy` at `414d608b`.
 - After the merge, the host needs `deploy/install-host.sh` from an updated `main` checkout, so the fixed scripts reach `/opt/makam-v1/bin`. Then: a staging deploy, the "Smoke test staging" workflow for its digest, and "Promosikan ke produksi".
+
+### Build (2026-10-03)
+
+- `deploy/bin/makam-deploy`: the five remaining state calls now use `state --state <s> --description "<text>"`. The unsigned refusal (before `begin`) is **log-only**: it has no Deployment to update, and a stale `.deployment-id` from the previous run would have received a false `failure` on the wrong Deployment. deploy.log already gets the `ERROR refusing ...` line.
+- `deploy/bin/makam-deploy-status`: header documents exactly the accepted args; `begin` removes the old `.deployment-id` first (a failed begin no longer lets this run's states land on the previous Deployment); the "deployment N: state" log line is written only when the POST succeeded.
+- Found and fixed: `makam-deploy-status` was committed as mode 100644 (not executable), so `status()`'s `[ -x ... ]` check could skip it silently wherever the installer keeps the mode. Now 100755.
+- Tests: `tests/tooling/makam-deploy-status.test.ts` (fake curl; begin+success, in_progress, failure, positional form is a 64, non-2xx and no token exit 0 without usage text, stale id, makam-deploy call shapes). `npx vitest run tests/tooling`: 25 files, 340 tests passed; lint and typecheck exit 0.
+- Unverified: a real run on the host and the live GitHub API; the installed copy in /opt/makam-v1 must be refreshed by the usual install step.

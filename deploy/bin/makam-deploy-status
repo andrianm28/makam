@@ -3,8 +3,11 @@
 # deploy is visible in the repository (the commit page, the environment) and not
 # only in deploy.log on the host.
 #
-#   makam-deploy-status --env staging begin   <digest> <tag>   # create the Deployment
-#   makam-deploy-status --env staging state   <in_progress|success|failure> "<description>"
+#   makam-deploy-status --env staging begin --digest <digest> --tag <tag> [--description "<text>"]
+#   makam-deploy-status --env staging state --state <in_progress|success|failure> [--description "<text>"]
+#
+# begin creates the Deployment; state adds a status to it. Every other form is a
+# bad usage (exit 64).
 #
 # Needs a fine-grained token with exactly one permission: "Deployments" write on
 # this repository. It lives in <root>/<env>/<env>.env as MAKAM_GITHUB_TOKEN, on
@@ -26,7 +29,7 @@ TAG=""
 STATE=""
 DESCRIPTION=""
 
-usage() { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -80,6 +83,7 @@ call() {
 }
 
 if [ "$ACTION" = begin ]; then
+  rm -f "$ID_FILE" # a failed begin must not leave the previous run's Deployment to receive this run's states
   body=$(jq -nc --arg ref "$TAG" --arg env "$ENVIRONMENT" --arg digest "$DIGEST" --arg desc "$DESCRIPTION" \
     '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [],
       payload: {image_digest: $digest, description: $desc},
@@ -111,6 +115,8 @@ case "$STATE" in
 esac
 body=$(jq -nc --arg state "$target" --arg desc "$DESCRIPTION" --arg url "$url" \
   '{state: $state, log_url: $url, description: $desc}')
-call POST "/repos/$REPOSITORY/deployments/$id/statuses" "$body" > /dev/null \
-  || quiet "could not record status $target for deployment $id"
-quiet "deployment $id: $target ($DESCRIPTION)"
+if call POST "/repos/$REPOSITORY/deployments/$id/statuses" "$body" > /dev/null; then
+  quiet "deployment $id: $target ($DESCRIPTION)"
+else
+  quiet "could not record status $target for deployment $id"
+fi
