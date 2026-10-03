@@ -51,3 +51,18 @@ describe("haiku", () => {
   });
 });
 
+describe("a review named anywhere in the call", () => {
+  it("is a review wherever the word stands in the title, description or prompt", () => {
+    expect(agent({ model: "haiku", description: "Code review of Billing", prompt: "x" }).status).toBe(2);
+    expect(agent({ model: "sonnet", description: "Check the refund diff", prompt: "review the Payouts code" }).status).toBe(2);
+    expect(agent({ model: "haiku", description: "Check src/lib", prompt: "Please review the helpers" }).status).toBe(2);
+    expect(createSession({ title: "Merge-check ticket 12", prompt: "re-review the Tagihan change", model: "claude-sonnet-5-5" }).status).toBe(2);
+    expect(agent({ model: "opus", description: "Check the refund diff", prompt: "review the Payouts code" }).status).toBe(0);
+  });
+
+  it("does not turn a build or fix on money code into a review because its prompt mentions the review", () => {
+    expect(createSession({ title: "Fix ticket 61: Billing", prompt: "address the review findings", model: "claude-sonnet-5-5" }).status).toBe(0);
+    expect(agent({ description: "Build ticket 61 Billing", prompt: "after review, merge", model: "sonnet" }).status).toBe(0);
+  });
+});
+
