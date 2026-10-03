@@ -267,6 +267,62 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: katalog Layanan",
   });
 });
 
+describe("npm run import:data-peluncuran -- --sumber <folder>: katalog Layanan, a second run and refusals", () => {
+  const HEADER = "layanan,jenis,deskripsi,lead_time_hari,bisa_hari_h,ada_di_petak_kosong,teks_label,varian";
+  const BARIS = "Pembersihan Makam,pembersihan,Membersihkan dan merapikan makam.,3,tidak,ya,,Standar";
+
+  async function isi() {
+    const { clock: jam, audit } = await modul();
+    return createKatalogLayanan({ db, clock: jam, audit });
+  }
+
+  it("changes nothing on a second run, adds only the variant a row newly lists, and never removes one", async () => {
+    const katalog = await isi();
+    await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${BARIS}\n` }), "--tulis"], env(), { clock: clock() });
+
+    const ulang = await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${BARIS}\n` }), "--tulis"], env(), { clock: clock() });
+    expect(ulang.output).toContain("Katalog Layanan: 1 baris dibaca, 0 dibuat, 0 diubah, 1 sama, 0 ditolak.");
+
+    const lebih = folder({ "katalog-layanan.csv": `${HEADER}\n${BARIS.replace("Standar", "Menyeluruh")}\n` });
+    const tambah = await importDataPeluncuranCommand(["--sumber", lebih, "--tulis"], env(), { clock: clock() });
+    expect(tambah.output).toContain("Katalog Layanan: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    const [layanan] = await katalog.katalog();
+    expect(layanan!.varian.map((varian) => varian.name).sort()).toEqual(["Menyeluruh", "Standar"]);
+  });
+
+  it("updates the description of an existing Layanan matched by name, whatever the case", async () => {
+    const katalog = await isi();
+    await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${BARIS}\n` }), "--tulis"], env(), { clock: clock() });
+    const baru = BARIS.replace("pembersihan makam", "x").replace("Pembersihan Makam", "PEMBERSIHAN makam").replace("Membersihkan dan merapikan makam.", "Deskripsi baru.");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": `${HEADER}\n${baru}\n` }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.output).toContain("Katalog Layanan: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
+    expect(await katalog.katalog()).toMatchObject([{ name: "Pembersihan Makam", description: "Deskripsi baru." }]);
+  });
+
+  it("refuses an unknown jenis, a repeated variant and a repeated Layanan, each with its reason", async () => {
+    const katalog = await isi();
+    const salah = [
+      HEADER,
+      "A,kremasi,x,3,tidak,ya,,Satu",
+      "B,bunga,x,3,tidak,ya,,Satu | satu",
+      "C,bunga,x,3,tidak,ya,,Satu",
+      "c,bunga,x,3,tidak,ya,,Dua",
+      "",
+    ].join("\n");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "katalog-layanan.csv": salah }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("Katalog Layanan: 4 baris dibaca, 1 dibuat, 0 diubah, 0 sama, 3 ditolak.");
+    expect(hasil.output).toContain("katalog-layanan.csv baris 2: jenis: jenis harus salah satu dari: bunga, nisan, pembersihan, perawatan, laporan");
+    expect(hasil.output).toContain("katalog-layanan.csv baris 3: varian: varian muncul dua kali dalam satu Layanan");
+    expect(hasil.output).toContain('katalog-layanan.csv baris 5: Layanan "c" sudah muncul di baris 4');
+    expect((await katalog.katalog()).map((layanan) => layanan.name)).toEqual(["C"]);
+  });
+});
+
 describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI dan tarif Mitra Jasa", () => {
   const LAYANAN = "layanan,varian,harga_dki_rupiah,tarif_mitra_jasa_rupiah,berlaku_mulai\nPembersihan Makam,Reguler,250000,180000,\n";
 
@@ -317,6 +373,18 @@ describe("npm run import:data-peluncuran -- --sumber <folder>: harga Layanan DKI
     expect(berubah.output).toContain("Layanan DKI: 1 baris dibaca, 0 dibuat, 1 diubah, 0 sama, 0 ditolak.");
     expect(await hargaDki()).toBe(250_000);
     expect(await tarifMitraJasa()).toBe(190_000);
+  });
+
+  it("enters neither price when one of the row's two amounts is refused", async () => {
+    const { hargaDki, tarifMitraJasa } = await katalog();
+    const salah = LAYANAN.replace("180000", "100000000001");
+
+    const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "layanan-dki.csv": salah }), "--tulis"], env(), { clock: clock() });
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("layanan-dki.csv baris 2: tarif_mitra_jasa_rupiah");
+    expect(await hargaDki()).toBeNull();
+    expect(await tarifMitraJasa()).toBeNull();
   });
 
   it("refuses a variant the catalog does not have, naming the Layanan and the variant", async () => {
@@ -408,11 +476,11 @@ describe("npm run import:data-peluncuran: reading the spreadsheet's CSV", () => 
     expect(hasil.exitCode).toBe(2);
   });
 
-  it("refuses a folder with none of the four template files, naming them", async () => {
+  it("refuses a folder with none of the five template files, naming them", async () => {
     const hasil = await importDataPeluncuranCommand(["--sumber", folder({ "catatan.txt": "x" })], env(), { clock: clock() });
 
     expect(hasil.exitCode).toBe(1);
-    expect(hasil.output).toContain("tpu-dki.csv, biaya-pengurusan.csv, layanan-dki.csv, nazhir.csv");
+    expect(hasil.output).toContain("tpu-dki.csv, biaya-pengurusan.csv, katalog-layanan.csv, layanan-dki.csv, nazhir.csv");
   });
 });
 
