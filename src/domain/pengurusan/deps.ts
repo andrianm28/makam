@@ -54,7 +54,7 @@ export interface PengurusanDeps {
   identity: Pick<Identity, "accountByEmail" | "staffAccounts">;
   /** The Tasks the confirmation creates, inside its own transaction so a rollback takes the task with it. */
   fieldwork: Pick<Fieldwork, "createTugasLapangan" | "within">;
-  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit" | "iptmTerbit">;
+  notifikasi: Pick<Notifications, "pengurusanDikonfirmasi" | "tagihanTerbit" | "iptmTerbit" | "tutupTeleponPemesanSubjek">;
   /**
    * A paid order cancelled before the IPTM is filed becomes a refund request (ticket 46): the full
    * amount before Dimakamkan, everything but the Biaya Pengurusan from then on. Refunds approves and

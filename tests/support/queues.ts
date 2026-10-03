@@ -81,6 +81,7 @@ export function queuesOnTestDatabase(db: Database) {
         return { ok: true };
       },
       iptmTerbit: async () => ({ ok: true }),
+      tutupTeleponPemesanSubjek: async () => undefined,
     },
     refunds: refundsMenunggu.refunds,
   });

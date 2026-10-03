@@ -129,6 +129,8 @@ export async function placePerpanjanganTpu(
   try {
     return await refusable(deps.db, async (tx) => {
       const nomor = await deps.billing.within(tx).nextNomorPemesanan();
+      // The reminder's call row has served its purpose once the renewal is ordered.
+      await deps.notifikasi.tutupTeleponPemesanSubjek("makam_tpu", makam.id, "Perpanjangan TPU sudah dipesan", tx);
       await tx.insert(pengurusanTpu).values({
         nomor,
         kind: "perpanjangan_tpu",

@@ -288,3 +288,21 @@ export function staffRoleOf(by: Actor): StaffRole {
   if (!role) throw new Error("a call is only ever logged by a staff member");
   return role;
 }
+
+/**
+ * Closes the open "Telepon Pemesan" row of one subject because what it asked for has happened (a Makam TPU's renewal was
+ * ordered, so nobody needs to phone the Pemegang Hak about it). No call is logged: `hasil` stays empty and `catatan` says
+ * why. Nothing to close is not an error; a closed row stays closed.
+ */
+export async function tutupTeleponPemesanSubjek(db: Database, now: Date, subjectKind: string, subjectId: string, catatan: string): Promise<void> {
+  await db
+    .update(notificationsTeleponPemesan)
+    .set({ ditutupPada: now, catatan })
+    .where(
+      and(
+        eq(notificationsTeleponPemesan.subjectKind, subjectKind),
+        eq(notificationsTeleponPemesan.subjectId, subjectId),
+        isNull(notificationsTeleponPemesan.ditutupPada),
+      ),
+    );
+}
