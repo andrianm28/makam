@@ -10,20 +10,20 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
 
 ## Acceptance criteria
 
-- [ ] **Open question answered before the switch**: must any data from the old app (users, orders, Lokasi, payments) be carried over or archived? The Operator's answer, and any carry-over or archive done, is recorded in `## Added (2026-10-03, owner decisions: the switch files)
+- [ ] **Open question answered before the switch**: must any data from the old app (users, orders, Lokasi, payments) be carried over or archived? The Operator's answer, and any carry-over or archive done, is recorded in `## Comments``, including what happens to old-app SumoPod payments still open at the switch (ticket 04).
+- [ ] **Human confirmation gate**: a named human confirms in `## Comments` that v1 is ready to replace the old app and the question above is answered.
+- [ ] `makam-prod` deployed from ghcr with live SumoPod key, secret and webhook URL installed on the switch day only.
+- [ ] **Switch**: the current `makam.co.id` / `www` block is backed up verbatim, replaced by one proxying to `makam-prod` `web` (127.0.0.1:3100), keeping the Certbot certificate; `nginx -t` passes before reload.
+- [ ] **Rollback** (changed by the owner, 2026-10-03: the old app is switched off at the switch): a documented, tested step replaces the `makam.co.id` block with a static maintenance page and reloads nginx; after the first release, rollback is the previous v1 digest (`rollback.yml`).
+- [ ] After the switch, `https://makam.co.id/api/health` reports DB and worker heartbeat, the SumoPod webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1, and the uptime alarm watches production.
+
+## Added (2026-10-03, owner decisions: the switch files)
 
 - [ ] `deploy/nginx/makam.co.id.conf`: the production server block for `makam.co.id` and `www`, proxying to `makam-prod` `web` on 127.0.0.1:3100, keeping the existing Certbot certificate paths and the staging block's headers, body size and timeouts; the webhook route `/api/webhooks/pembayaran` reachable without any auth.
 - [ ] `deploy/nginx/maintenance/`: a static maintenance page (Bahasa Indonesia, no external assets) and the block that serves it for every path with 503 and `Retry-After`, `/api/health` answering a 503 JSON body.
 - [ ] `deploy/bin/makam-switch --ke v1|pemeliharaan` (and `--cek`): backs up the current block verbatim with a timestamp, installs the chosen block, runs `nginx -t` before the reload and restores the backup if it fails; idempotent; prints what it did. Switch-day rollback is `makam-switch --ke pemeliharaan`.
 - [ ] `deploy/bin/makam-arsip-app-lama`: dumps the old app's database, encrypts the dump with the backup key, uploads it to the backups bucket, restores it into a throwaway Postgres container and row-counts it as proof; only then prints the cleanup plan (the old app's containers, volumes, images, `/home/ubuntu/makam-app`, `/opt/makam-notify`, the old nginx blocks) and runs it with `--hapus` after a typed confirmation word; touches nothing of `makam-v1`, `makam-prod` or staging, and removes by name only.
 - [ ] Runbook section "Hari switch", in order: preflight (`makam-preflight`, ticket 72), archive, promotion, `makam-switch --ke v1`, the checks of this ticket, the fallback; the owner archives the `makam-app` GitHub repository (read-only).
-
-## Comments`, including what happens to old-app SumoPod payments still open at the switch (ticket 04).
-- [ ] **Human confirmation gate**: a named human confirms in `## Comments` that v1 is ready to replace the old app and the question above is answered.
-- [ ] `makam-prod` deployed from ghcr with live SumoPod key, secret and webhook URL installed on the switch day only.
-- [ ] **Switch**: the current `makam.co.id` / `www` block is backed up verbatim, replaced by one proxying to `makam-prod` `web` (127.0.0.1:3100), keeping the Certbot certificate; `nginx -t` passes before reload.
-- [ ] **Rollback** (changed by the owner, 2026-10-03: the old app is switched off at the switch): a documented, tested step replaces the `makam.co.id` block with a static maintenance page and reloads nginx; after the first release, rollback is the previous v1 digest (`rollback.yml`).
-- [ ] After the switch, `https://makam.co.id/api/health` reports DB and worker heartbeat, the SumoPod webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1, and the uptime alarm watches production.
 
 ## Comments
 
