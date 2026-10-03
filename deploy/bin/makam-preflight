@@ -61,9 +61,23 @@ check_env_file() {
   pass "02, 72" "env file" "$ENV_FILE exists, mode 0600"
 }
 
+check_docker() {
+  if docker info > /dev/null 2>&1; then
+    pass "02" "docker daemon" "answers"
+  else
+    fail "02" "docker daemon" "docker info fails; start Docker (systemctl start docker) and check this user is in the docker group"
+  fi
+  if docker compose version > /dev/null 2>&1; then
+    pass "02" "compose plugin" "docker compose is installed"
+  else
+    fail "02" "compose plugin" "docker compose version fails; install the docker-compose-plugin package"
+  fi
+}
+
 #@FUNCS
 
 check_env_file || true
+check_docker
 #@CALLS
 
 echo
