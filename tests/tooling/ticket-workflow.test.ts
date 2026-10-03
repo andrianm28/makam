@@ -306,6 +306,15 @@ describe("the ticket number a file name carries", () => {
   });
 });
 
+describe("the index rows", () => {
+  it("reads the row of ticket 100 under its full number, with its Status and file", () => {
+    const rows = indexRows("| [100](100-catalog.md) | Catalog | resolved | — |\n| [07](07-production.md) | Seven | ready-for-agent | — |\n");
+    expect(rows.get(100)).toEqual({ file: "100-catalog.md", status: "resolved" });
+    expect(rows.get(7)).toEqual({ file: "07-production.md", status: "ready-for-agent" });
+    expect(rows.size).toBe(2);
+  });
+});
+
 describe("the ticket-file naming rule", () => {
   it("counts a ticket file numbered 100 as a ticket file, and finds nothing to refuse", () => {
     const names = [INDEX, "07-production.md", "100-catalog.md"];
