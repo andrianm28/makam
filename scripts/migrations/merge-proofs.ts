@@ -15,6 +15,8 @@ import { unmarkedDestructiveStatements, type DestructiveStatement } from "./dest
 export const KNOWN_SNAPSHOT_GAPS = ["0018", "0021", "0024"];
 const ROOT_PREV_ID = "00000000-0000-0000-0000-000000000000";
 
+const snapshotSchema = z.object({ id: z.string(), prevId: z.string() });
+
 export type SnapshotChain = {
   /** Snapshot numbers whose prevId is not another snapshot's id, sorted. */
   dangling: string[];
@@ -26,7 +28,11 @@ export function checkSnapshotChain(drizzleDir: string): SnapshotChain {
   const metaDir = path.join(drizzleDir, "meta");
   const snapshots = readdirSync(metaDir)
     .filter((f) => f.endsWith("_snapshot.json"))
-    .map((f) => ({ number: f.slice(0, 4), ...(JSON.parse(readFileSync(path.join(metaDir, f), "utf8")) as { id: string; prevId: string }) }));
+    .map((f) => {
+      const parsed = snapshotSchema.safeParse(JSON.parse(readFileSync(path.join(metaDir, f), "utf8")));
+      if (!parsed.success) throw new Error(`${f}: not a snapshot with a string id and prevId`);
+      return { number: f.slice(0, 4), ...parsed.data };
+    });
   const ids = new Set(snapshots.map((s) => s.id));
   const dangling = snapshots
     .filter((s) => s.prevId !== ROOT_PREV_ID && !ids.has(s.prevId))
