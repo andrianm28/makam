@@ -136,3 +136,18 @@ describe("conflicts outside drizzle during the merge", () => {
     expect(git(cwd, "diff", "--name-only", "--diff-filter=U").trim()).toBe("src/domain/x.ts");
   });
 });
+
+describe("a merge that fails for a reason other than conflicts", () => {
+  it("rethrows git's error and leaves main's drizzle files alone, instead of carrying on to delete and restore", () => {
+    const cwd = fixtureRepo();
+    git(cwd, "checkout", "-q", "-b", "ticket-4");
+    addMigration(cwd, "0001_feat", 'CREATE TABLE "feat" ("id" int);');
+    commit(cwd, "ticket");
+    git(cwd, "checkout", "-q", "main");
+    git(cwd, "config", "merge.verifySignatures", "true");
+
+    expect(() => renumberForMerge({ cwd, branchRef: "ticket-4", baseRef: "HEAD" })).toThrow(/signature|merge/i);
+    expect(journalTags(cwd)).toEqual(["0000_init"]);
+    expect(existsSync(path.join(cwd, "drizzle/0000_init.sql"))).toBe(true);
+  });
+});
