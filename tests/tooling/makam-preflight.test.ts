@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,6 +137,16 @@ function healthy(w: ReturnType<typeof world>) {
       "esac",
     ].join("\n"),
   );
+  install(
+    w.bin,
+    "makam-backup-db",
+    [
+      '[ "${FAKE_BACKUP_CODE:-0}" = 0 ] || { echo "backup refused" >&2; exit "$FAKE_BACKUP_CODE"; }',
+      `d="${w.root}/prod/backups/db"`,
+      'echo dump > "$d/makam-20261003T000000Z.dump.enc"; echo counts > "$d/makam-20261003T000000Z.counts.enc"',
+    ].join("\n"),
+  );
+  install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
   return w;
 }
 
@@ -327,5 +337,24 @@ describe("makam-preflight", () => {
 
     const skipped = preflight(healthy(world()), ["--skip-s3"]);
     expect(skipped.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03\].*backup encryption key/));
+  });
+
+  it("takes a backup, restore-tests exactly that Dump, and leaves no Dump of its own behind", () => {
+    const w = healthy(world());
+    writeFileSync(path.join(w.root, "prod", "backups", "db", "makam-20261001T000000Z.dump.enc"), "last night");
+    const ok = preflight(w);
+    expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[03, 72\].*backup and restore/));
+    expect(ok.calls).toContain("makam-backup-db --env prod");
+    expect(ok.calls).toMatch(/makam-restore-test --env prod --dump \S+\/prod\/backups\/db\/makam-20261003T000000Z\.dump\.enc/);
+    expect(readdirSync(path.join(w.root, "prod", "backups", "db"))).toEqual(["makam-20261001T000000Z.dump.enc"]);
+
+    const noBackup = preflight(healthy(world()), [], { FAKE_BACKUP_CODE: "78" });
+    expect(noBackup.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03, 72\].*backup and restore.*makam-backup-db.*78/));
+    expect(noBackup.calls).not.toContain("makam-restore-test");
+
+    const badRestore = healthy(world());
+    const failed = preflight(badRestore, [], { FAKE_RESTORE_CODE: "1" });
+    expect(failed.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[03, 72\].*backup and restore.*makam-restore-test.*1/));
+    expect(readdirSync(path.join(badRestore.root, "prod", "backups", "db"))).toEqual([]);
   });
 });
