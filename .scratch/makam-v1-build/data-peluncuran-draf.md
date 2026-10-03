@@ -1,5 +1,20 @@
 # Draf data peluncuran (tiket 06): untuk dikonfirmasi owner
 
+## Putaran 1 diterapkan (2026-10-03, jawaban owner lewat koordinator)
+
+Dry run ulang (Postgres lokal, Admin Platform pertama dari `seed:admin`): **hanya baris uang yang ditolak** (13: 2 Biaya Pengurusan, 11 harga Layanan DKI, semua karena jumlah rupiah kosong). TPU 38 baris, 0 ditolak; katalog 6 baris, 0 ditolak; Nazhir 0 baris.
+
+**Keputusan owner:**
+- TPU: 29 TPU inferensi dan 10 TPU "unknown" tetap di luar draf (pertanyaan 1, 2); TPU Kampung Bayur dihapus (3); empat pin tak terverifikasi tetap kosong (4); Jeruk Purut tetap "ya" (5); satu flag status, pin Jakarta Satu sebagai pendekatan, dataset resmi menyusul (6, 7, 8: tanpa perubahan).
+- Layanan: Bunga menjadi dua Layanan, "Karangan Bunga Papan" dan "Paket Bunga Tabur", masing-masing varian "Standar", lead time 1 hari, hari-H ya, bukan untuk petak kosong. Batu Nisan tetap empat varian. Pembersihan Makam: Standar | Menyeluruh, 3 hari. Perawatan Rumput & Taman: Standar, 3 hari. Laporan Foto/Video: Foto | Foto & Video, 2 hari. Kolom `bisa_hari_h`, `ada_di_petak_kosong`, label dan deskripsi seperti draf. (Pertanyaan 9 sampai 17 terjawab.) Dua deskripsi Bunga baru saya tulis sendiri dengan gaya yang sama.
+- `layanan-dki.csv`: 11 baris, satu per varian, jumlah kosong. Biaya Pengurusan menunggu putaran 2. Nazhir tetap hanya baris judul (Admin Platform nanti, pertanyaan 21).
+
+**Pertanyaan yang tersisa (putaran 2):** semuanya uang. (a) Harga DKI dan tarif Mitra Jasa untuk 11 varian: Karangan Bunga Papan Standar; Paket Bunga Tabur Standar; Granit Hitam 60 x 80 cm; Granit Abu-abu 80 x 100 cm; Marmer Putih 60 x 80 cm; Marmer Krem 80 x 100 cm; Pembersihan Standar dan Menyeluruh; Perawatan Standar; Laporan Foto dan Foto & Video (22 jumlah) beserta `berlaku_mulai`. (b) Biaya Pengurusan pemakaman dan berkas, beserta `berlaku_mulai`. Pertanyaan 18 sampai 20 di bawah menjadi (a) dan (b).
+
+Bagian di bawah ini adalah laporan putaran 0 (draf awal); angka di dalamnya sudah digantikan oleh bagian ini.
+
+---
+
 Disusun 2026-10-03 di cabang `data-peluncuran-draf`. Ini **draf**: owner memutuskan setiap nilai, terutama setiap jumlah uang. Tidak ada jumlah rupiah yang saya isi; nilai contoh template (750000, 350000, 250000, 180000) tidak dibawa. Uji coba impor: `npm run import:data-peluncuran -- --sumber docs/ops/data-peluncuran` pada Postgres lokal yang sudah dimigrasi dan punya Admin Platform pertama (`npm run seed:admin`). Hasil: **12 baris ditolak**, tidak ada yang ditulis (keluar kode 1, seperti dirancang bila ada penolakan).
 
 ## Ringkasan per berkas
