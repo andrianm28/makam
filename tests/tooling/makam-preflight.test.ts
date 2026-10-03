@@ -401,4 +401,20 @@ describe("makam-preflight", () => {
     const down = preflight(healthy(world()), [], { FAKE_SUMOPOD_CODE: "502" });
     expect(down.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod api key.*502/));
   });
+
+  it("fails when the SumoPod webhook secret is not set or is not a Svix secret, without printing it", () => {
+    const set = preflight(healthy(world()));
+    expect(set.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*sumopod webhook secret.*whsec_/));
+    expect(set.output).not.toContain(SECRETS.SUMOPOD_WEBHOOK_SECRET);
+
+    const without = ENV_FILE.split("\n").filter((line) => !line.startsWith("SUMOPOD_WEBHOOK_SECRET=")).join("\n");
+    expect(preflight(healthy(world({ envFile: without }))).lines).toContainEqual(
+      expect.stringMatching(/^FAIL .*\[04\].*sumopod webhook secret.*not set/),
+    );
+
+    const wrong = ENV_FILE.replace(SECRETS.SUMOPOD_WEBHOOK_SECRET, "plainsecret");
+    const bad = preflight(healthy(world({ envFile: wrong })));
+    expect(bad.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[04\].*sumopod webhook secret.*whsec_/));
+    expect(bad.output).not.toContain("plainsecret");
+  });
 });
