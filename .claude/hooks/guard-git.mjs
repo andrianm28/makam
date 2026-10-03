@@ -24,9 +24,9 @@ function decide(text) {
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
   const all = allCommands(command);
   for (const words of all) noPullRequest(words);
-  const sent = pushes(all);
-  for (const push of sent) noPushToMain(push, cwd);
-  if (sent.length) noSecrets(cwd);
+  const sent = pushes(all, cwd);
+  for (const push of sent) noPushToMain(push);
+  for (const push of sent) noSecrets(push);
 }
 
 const SHELLS = new Set(["bash", "sh", "zsh", "dash", "ksh"]);
@@ -168,22 +168,27 @@ function withoutRedirects(words) {
 }
 
 /** The `git push` invocations in a command line: { all, deletes, refspecs } (refspecs after the remote). */
-function pushes(all) {
+function pushes(all, cwd) {
   const found = [];
   for (const raw of all) {
     const words = program(withoutRedirects(raw));
     if (words[0] !== "git") continue;
-    let i = 0;
-    // Skip git's own options (-C dir, -c k=v, --git-dir=...) up to the subcommand.
-    for (i++; i < words.length && words[i].startsWith("-"); i++) if (["-C", "-c"].includes(words[i])) i++;
+    // git's own options up to the subcommand: -C dir (each relative to the one before), -c k=v, --git-dir.
+    const push = { all: false, refspecs: [], cwd, gitDir: null };
+    let i = 1;
+    for (; i < words.length && words[i].startsWith("-"); i++) {
+      const w = words[i];
+      if (w === "-C") push.cwd = path.resolve(push.cwd, words[++i] ?? ".");
+      else if (w === "-c") i++;
+      else if (w === "--git-dir") push.gitDir = words[++i];
+      else if (w.startsWith("--git-dir=")) push.gitDir = w.slice("--git-dir=".length);
+    }
     if (words[i] !== "push") continue;
-    const push = { all: false, deletes: false, refspecs: [] };
     const positional = [];
     for (i++; i < words.length; i++) {
       const w = words[i];
       if (PUSH_FLAGS_WITH_VALUE.has(w)) i++;
       else if (w === "--all" || w === "--mirror") push.all = true;
-      else if (w === "--delete" || w === "-d") push.deletes = true;
       else if (!w.startsWith("-")) positional.push(w);
     }
     push.refspecs = positional.slice(1); // the first positional is the remote
@@ -192,8 +197,14 @@ function pushes(all) {
   return found;
 }
 
-function currentBranch(cwd) {
-  return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+/** Runs git in the repository a push names (-C, --git-dir), not the hook's own directory. */
+function git(push, args) {
+  const opts = push.gitDir ? [`--git-dir=${push.gitDir}`] : [];
+  return execFileSync("git", [...opts, ...args], { cwd: push.cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
+function currentBranch(push) {
+  return git(push, ["rev-parse", "--abbrev-ref", "HEAD"]).trim();
 }
 
 /** A refspec as { src, dst }: what is sent and which remote branch it lands on, as short names. */
@@ -207,15 +218,15 @@ function parseRefspec(refspec, branch) {
 }
 
 /** AGENTS.md: only the merge thread (and the coordinator, for docs) pushes to `main`. */
-function noPushToMain(push, cwd) {
-  const branch = currentBranch(cwd);
+function noPushToMain(push) {
+  const branch = currentBranch(push);
   const specs = push.refspecs.length ? push.refspecs.map((r) => parseRefspec(r, branch)) : [{ src: "HEAD", dst: branch }];
   const toMain = specs.filter((x) => x.dst === "main" || x.dst.includes("*")); // a wildcard may match main
   if (push.all || toMain.length) {
-    const writer = mainWriter(cwd);
+    const writer = mainWriter(push);
     if (writer === "merge") return;
     if (writer === "docs") {
-      const outside = toMain.flatMap((x) => changedOutsideDocs(cwd, x.src));
+      const outside = toMain.flatMap((x) => changedOutsideDocs(push, x.src));
       if (!outside.length) return;
       deny(
         `you are marked as the coordinator, who may push only docs to \`main\` (docs/ and .scratch/), but the commits this push sends also change: ${outside.slice(0, 5).join(", ")}. ` +
@@ -231,10 +242,9 @@ function noPushToMain(push, cwd) {
 }
 
 /** Who the session says it is: `merge` (the merge thread) or `docs` (the coordinator), from a marker in the git dir. */
-function mainWriter(cwd) {
+function mainWriter(push) {
   try {
-    const gitDir = execFileSync("git", ["rev-parse", "--git-dir"], { cwd, encoding: "utf8" }).trim();
-    const value = readFileSync(path.resolve(cwd, gitDir, "makam-main-writer"), "utf8").trim();
+    const value = readFileSync(path.resolve(push.cwd, git(push, ["rev-parse", "--git-dir"]).trim(), "makam-main-writer"), "utf8").trim();
     return value === "merge" || value === "docs" ? value : null;
   } catch {
     return null;
@@ -242,21 +252,21 @@ function mainWriter(cwd) {
 }
 
 /** Files the commits being pushed change, outside docs/ and .scratch/: from where `src` forked off the remote `main` (three dots), renames counted as a delete and an add. */
-function changedOutsideDocs(cwd, src) {
+function changedOutsideDocs(push, src) {
   if (!src) return ["(a deletion of main)"];
   try {
-    execFileSync("git", ["rev-parse", "--verify", "-q", "origin/main"], { cwd, stdio: "ignore" });
+    git(push, ["rev-parse", "--verify", "-q", "origin/main"]);
   } catch {
     deny("there is no `origin/main` here to compare the push with. Run `git fetch origin main` and repeat the push.");
   }
-  const files = execFileSync("git", ["diff", "--name-only", "--no-renames", `origin/main...${src}`], { cwd, encoding: "utf8" })
+  return git(push, ["diff", "--name-only", "--no-renames", `origin/main...${src}`])
     .split("\n")
-    .filter(Boolean);
-  return files.filter((f) => !f.startsWith("docs/") && !f.startsWith(".scratch/"));
+    .filter((f) => f && !f.startsWith("docs/") && !f.startsWith(".scratch/"));
 }
 
 /** CI runs gitleaks on `main` only, so a secret on a ticket branch would be published unscanned: scan before the push. */
-function noSecrets(cwd) {
+function noSecrets(push) {
+  const { cwd } = push;
   const r = spawnSync("gitleaks", ["detect", "--source", ".", "--log-opts", "origin/main..HEAD", "--redact", "--no-banner"], {
     cwd,
     encoding: "utf8",
