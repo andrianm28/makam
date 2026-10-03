@@ -18,9 +18,11 @@
 # Read-only, except for objects it names itself and removes again: the S3 probe
 # object, the GitHub probe Deployment and the Dump its own backup writes. One
 # thing is not removed: makam-backup-db prunes Dumps older than 7 days, as it does
-# on every run, so a preflight can age out the oldest night's Dump. It never prints a secret value: env
-# file settings are read with sed (the file is never sourced), handed to the one
-# command that needs them, and only names or reasons are written out. The
+# on every run, so a preflight can age out the oldest night's Dump.
+#
+# It never prints a secret value: env file settings are read with sed (the file
+# is never sourced), handed to the one command that needs them, and only names or
+# reasons are written out. The
 # existing scripts and CLIs do the work (makam-diskcheck, makam-verify-image,
 # makam-backup-db, makam-restore-test, email-check, env-check); this script
 # only calls them and reads their exit codes.
@@ -434,25 +436,25 @@ check_smtp() {
 # in neither the argument list nor the output. The path can be overridden with
 # MAKAM_PREFLIGHT_SUMOPOD_PATH if SumoPod documents a better read-only call.
 sumopod_get() {
-  local key=$1
+  local key=$1 url=$2
   printf 'X-Api-Key: %s\n' "$key" > "$HEADER_FILE"
   local code
-  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$HEADER_FILE" "$SUMOPOD_URL" 2> /dev/null) || code="no answer"
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X GET -H "@$HEADER_FILE" "$url" 2> /dev/null) || code="no answer"
   : > "$HEADER_FILE"
   printf '%s' "$code"
 }
 
 check_sumopod_key() {
-  local base code control
+  local base code control url
   base=$(setting SUMOPOD_BASE_URL)
   base=${base:-https://api-pay.sumopod.com}
-  SUMOPOD_URL="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
-  code=$(sumopod_get "$(setting SUMOPOD_API_KEY)")
+  url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
+  code=$(sumopod_get "$(setting SUMOPOD_API_KEY)" "$url")
   case "$code" in
     200|404)
       # A 404 may come from a wrong path before authentication ever runs, so the
       # same call with a deliberately wrong key has to be refused.
-      control=$(sumopod_get "makam-preflight-wrong-key")
+      control=$(sumopod_get "makam-preflight-wrong-key" "$url")
       case "$control" in
         401|403) pass "04" "sumopod api key" "authenticated on a read-only call to $base (HTTP $code); the same call with a wrong key was refused (HTTP $control)" ;;
         *) skip "04" "sumopod api key" "path unverified: HTTP $code with your key, but the same call with a wrong key answered HTTP $control, so it does not prove the key; confirm the key with a sandbox payment (runbook, \"Test payment\") or set MAKAM_PREFLIGHT_SUMOPOD_PATH" ;;

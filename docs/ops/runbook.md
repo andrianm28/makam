@@ -1783,7 +1783,7 @@ What it checks, and what runs it:
 | backups bucket, backup encryption key | `head-bucket` with the `S3_BACKUPS_*` key; `/opt/makam-v1/prod/backup-passphrase` present, non-empty, 0600 | 03 |
 | backup, then restore test | `makam-backup-db --env prod` then `makam-restore-test --env prod --dump <that Dump>`; the Dump it made is removed again | 03, 72 |
 | SMTP | `email-check` in the image | 04 |
-| SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
+| SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; then the same call with a wrong key must be refused, else the line is a SKIP "path unverified"; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
 | GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (ref `sha-<revision>`), set inactive, deleted | 72 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
 
