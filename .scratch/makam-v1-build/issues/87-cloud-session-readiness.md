@@ -184,3 +184,25 @@ Item → green commit (red commit just before it):
 **Spec gaps and decisions for the owner:** item 8's "pair by journal order" changes nothing in practice: drizzle tags are number-prefixed and journal order follows the number, so the existing number-first sort already pairs correctly whatever the random suffix; a characterization test (`35d0efb`, already green, not a red) pins it. Say so if you still want the journal read. The CLIs were also run for real under tsx (usage, exit 64) but not against a live merge with `db:generate`.
 
 HANDOFF — head after this entry's commit. `npm run lint` and `npm run typecheck` exit 0; full `npm test`, read off the whole log: Test Files 335 passed (335), Tests 3033 passed | 1 skipped (3034). Status untouched.
+
+### Re-review (2026-10-03, reviewer thread, sonnet)
+
+Head c898419, diff `f49fa43..HEAD` (7 files). `npx vitest run tests/tooling`, read off the whole log: Test Files 19 passed (19), Tests 226 passed | 1 skipped (227), exit 0. Real CLI runs under tsx: no args, `-x` → usage + exit 64 (both scripts).
+
+1. **Fixed.** `renumber-merge.ts` rethrows unless `MERGE_HEAD` exists after a failed merge; `git status --porcelain` non-empty is refused up front. Red `aa22ca1`/`44a175c` before green `8c487d3`/`33e384d`.
+2. **Fixed.** `merge-proofs.ts` `runMergeProofs`: `ok` requires `reappend.length === 0`; CLI prints the block, "RE-APPEND … then rerun", exit 1. Red `bf5ae0b`→`802ddcc`, `0b4a921`→`a8adbd2`.
+3. **Fixed.** `renumberMergeCli` catches, prints, returns 1. `e2fba1f` claim checked: the `could not restore` guard exists at f49fa43 (`renumber-merge.ts:96`), so the throw test was characterization; the CLI half was red (`renumberMergeCli` did not exist). Claim true.
+4. **Fixed.** Exit 0/1/64 tested through `renumberMergeCli` and `mergeProofsCli` (`merge-migrations.test.ts:203-262`, `merge-proofs-cli.test.ts:58-104`). Each red precedes its fix.
+5. **Fixed.** `refSchema` + `argsSchema` (Zod, no leading dash, ≤2 args) in both CLIs; refs resolved by `rev-parse --verify --end-of-options <ref>^{commit}` and the ids used afterwards.
+6. **Fixed.** `baseSnapshots` byte-equal check, CLI reads them from the base commit (`7a21c63`, `004b3af`); the 32-merge deletion is covered.
+7. **Fixed.** `compareMigrationSql` is an ordered multiset (`without`, `ordered`, `identical`); duplicates and reordering fail. `aa9eae8` was a fixture fix after the green, disclosed.
+8. **Partly.** CLI shape, header, Zod JSON validation fixed. Pairing: kept sorted-by-number instead of journal order; sound, because drizzle tags are number-prefixed, and `35d0efb` is a true characterization test (test + header only, no logic change). Spec nit not literally followed, decision surfaced to the owner by the builder; non-blocking.
+9. **Fixed.** `orchestration.md` now says "statement-identical (whitespace aside)", statement by statement and in order.
+
+**New gaps (non-blocking):**
+- `renumberForMerge` checks only `status --porcelain`: a leftover `MERGE_HEAD` with a clean index (earlier empty `--no-commit` merge) makes the new merge fail with "not concluded", which `mergeInProgress` then treats as a conflict and carries on. A pre-check "MERGE_HEAD absent" would close it. Narrow, and later proofs would still catch a wrong tree.
+- `merge-proofs` base snapshots come from `[base-ref]` default HEAD; if the merge is committed before the proofs run, HEAD is the merge commit and the snapshot proof is vacuous. Header/doc should say "run before committing the merge".
+- A bad `[base-ref]` in `merge-proofs` throws from `git ls-tree` (non-zero, stack trace, not 64). Fail-safe.
+No path found that exits 0 with an unresolved state.
+
+Blocking remaining: no. Standards: 1 partly (item 8, nit); Spec: clean.
