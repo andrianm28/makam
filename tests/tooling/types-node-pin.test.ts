@@ -23,6 +23,11 @@ function declaredMajor(range: string): string {
   return major;
 }
 
+/** The Node major of the Dockerfile's `FROM node:` line (first only, for now). */
+function dockerNodeMajor(dockerfile: string): string {
+  return dockerfile.match(/^FROM node:(\d+)[-.@\s]/m)![1]!;
+}
+
 describe("@types/node follows the runtime's Node major", () => {
   it("Dependabot's npm entry ignores semver-major updates of @types/node", () => {
     const ignore = npmEntry().match(/^ {4}ignore:\s*\n((?: {6,}.*\n?|\s*#.*\n?)+)/m);
@@ -33,15 +38,20 @@ describe("@types/node follows the runtime's Node major", () => {
   });
 
   it("package.json's @types/node major equals the Dockerfile's node: major", () => {
-    const docker = read("Dockerfile").match(/^FROM node:(\d+)[-.@\s]/m);
-    expect(docker, "Dockerfile node: base image").not.toBeNull();
+    const docker = dockerNodeMajor(read("Dockerfile"));
     const declared = (JSON.parse(read("package.json")) as { devDependencies?: Record<string, string>; dependencies?: Record<string, string> });
     const range = declared.devDependencies?.["@types/node"] ?? declared.dependencies?.["@types/node"];
     expect(range, "@types/node declared").toBeDefined();
-    expect(declaredMajor(range!)).toBe(docker![1]);
+    expect(declaredMajor(range!)).toBe(docker);
   });
 
   it.each(["22", ">=22", "22.x", "^22.20.4", "~22.0.0", ">= 22.12.0"])("reads the major of the range %s", (range) => {
     expect(declaredMajor(range)).toBe("22");
+  });
+
+  it("every FROM node: line of the Dockerfile has to name the same major", () => {
+    const stages = "FROM node:22-bookworm-slim AS base\nFROM base AS deps\nFROM node:24-bookworm-slim AS runner\n";
+    expect(() => dockerNodeMajor(stages)).toThrow(/22.*24/);
+    expect(dockerNodeMajor("FROM node:22-bookworm-slim@sha256:abc AS base\nFROM node:22.12 AS b\n")).toBe("22");
   });
 });
