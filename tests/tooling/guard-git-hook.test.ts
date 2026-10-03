@@ -332,3 +332,17 @@ describe("guard-git hook, commands inside a command", () => {
   });
 });
 
+describe("guard-git hook, refspec forms that reach main", () => {
+  it("refuses a wildcard refspec and the short heads/ spelling", () => {
+    const { bash } = repo({ branch: "ticket-5-x" });
+    for (const command of [
+      "git push origin 'refs/heads/*:refs/heads/*'",
+      "git push origin '+refs/heads/*:refs/heads/*'",
+      "git push origin HEAD:heads/main",
+      "git push origin 'ticket-*:*'",
+    ]) {
+      expect(bash(command).status, command).toBe(2);
+    }
+  });
+});
+
