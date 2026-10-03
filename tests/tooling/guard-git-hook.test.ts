@@ -406,5 +406,34 @@ describe("guard-git hook, the allowlist of main writers", () => {
     commit("src/a.ts", "code");
     expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(2);
   });
+
+  it("reads the list from origin/main, not from a file the session edited", () => {
+    const { dir, bash } = repo();
+    mkdirSync(path.join(dir, ".claude"), { recursive: true });
+    writeFileSync(path.join(dir, ".claude/main-writers"), "01TESTSESSIONID merge\n");
+    git(dir, "add", "-A");
+    git(dir, "commit", "-q", "-m", "list myself, unpushed");
+    expect(bash("git push origin main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(2);
+  });
+
+  it("fetches origin/main when the session is not on the list it has, so a merge thread listed a minute ago is let in", () => {
+    const { dir, bash } = repo();
+    const origin = git(dir, "remote", "get-url", "origin").trim();
+    const other = tmpDir("gg-coord-", dirs);
+    git(other, "clone", "-q", origin, ".");
+    git(other, "config", "user.email", "t@example.com");
+    git(other, "config", "user.name", "t");
+    listOnMain(other, "01TESTSESSIONID merge\n");
+    expect(bash("git push origin HEAD:main", { CLAUDE_CODE_REMOTE_SESSION_ID: SID }).status).toBe(0);
+  });
+
+  it("without a session id falls back to the marker and says that it did", () => {
+    const { dir, bash } = repo();
+    writeFileSync(path.join(dir, ".git/makam-main-writer"), "merge\n");
+    const r = bash("git push origin main");
+    expect(r.status).toBe(0);
+    expect(r.stdout + r.stderr).toMatch(/CLAUDE_CODE_REMOTE_SESSION_ID is not set/);
+    expect(r.stdout + r.stderr).toMatch(/self-declared/);
+  });
 });
 
