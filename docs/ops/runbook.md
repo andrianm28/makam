@@ -296,8 +296,8 @@ Admin Platform, past TOTP, and every write it makes is audited under that Akun.
 Which Entri Audit entries that is, exactly:
 
 - `lokasi.buat` and `lokasi.ubah_profil` (creating the Lokasi Mitra and its
-  profile) take **no reason** — the Lokasi module's own signature has none, so
-  those two entries are the import only by their actor and their subject;
+  profile) take the import's reason, which the Lokasi module records when its
+  caller gives one;
 - `lokasi.tandai_data_contoh` (the example-data mark, see below) takes the
   import's reason plus what the source said;
 - `tarif.buat_jenis_makam` and `tarif.ubah_biaya_pemakaman` take the import's
