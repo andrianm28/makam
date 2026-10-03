@@ -251,7 +251,7 @@ s3api() {
   local endpoint=()
   [ -z "$(setting S3_ENDPOINT)" ] || endpoint=(--endpoint-url "$(setting S3_ENDPOINT)")
   AWS_ACCESS_KEY_ID=$key_id AWS_SECRET_ACCESS_KEY=$secret AWS_DEFAULT_REGION=$(setting S3_REGION) \
-    AWS_EC2_METADATA_DISABLED=true aws s3api "$1" ${endpoint[@]+"${endpoint[@]}"} "${@:2}"
+    AWS_EC2_METADATA_DISABLED=true aws s3api "$1" "${endpoint[@]}" "${@:2}"
 }
 
 # A probe object is put, read back and deleted in the files bucket with the app's
