@@ -187,11 +187,7 @@ function healthy(w: ReturnType<typeof world>) {
       "  *api.github.com*)",
       '    case "$method $url" in',
       `      "POST "*/deployments) ${INTERRUPT_AT("gh-create")}`,
-      '        # GitHub wants a branch, tag or commit SHA as ref; the image tag sha-<sha> is none of them.',
-      "        shaRef=0; case \"$data\" in *'\"ref\":\"sha-'*) shaRef=1 ;; esac",
-      '        if [ "${FAKE_GH_REJECT_SHA_PREFIX:-0}" = 1 ] && [ "$shaRef" = 1 ]; then',
-      "          code=422; body='{\"message\":\"No ref found for: sha-0123\"}'",
-      "        else code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"Bad credentials\"}'; fi ;;",
+      "        code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"'\"${FAKE_GITHUB_MESSAGE:-Bad credentials}\"'\"}' ;;",
       `      "POST "*/statuses) ${INTERRUPT_AT("statuses")}; code=\${FAKE_GH_STATUS_CODE:-201} ;;`,
       '      "DELETE "*) code=${FAKE_GH_DELETE_CODE:-204} ;;',
       "    esac ;;",
@@ -504,13 +500,19 @@ describe("makam-preflight", () => {
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*github deployments.*pull/));
   });
 
-  it("explains why no Deployments are listed when GitHub accepts the commit SHA but not the sha-<sha> image tag makam-deploy-status sends", () => {
-    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_REJECT_SHA_PREFIX: "1" });
-    expect(result.lines).toContainEqual(
-      expect.stringMatching(/^FAIL .*\[72\].*github deployments.*sha-0123456789abcdef.*not a branch, tag or commit SHA.*makam-deploy-status.*accepts the plain commit SHA/),
-    );
-    // The probe made with the plain SHA is cleaned up too.
+  it("sends the bare revision as the Deployment ref, never the sha- image tag, and passes when GitHub accepts it", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST]);
+    expect(result.calls).toContain(`"ref":"${REVISION}"`);
+    expect(result.calls).not.toContain('"ref":"sha-');
+    expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*github deployments.*ref 0123456789abcdef/));
     expect(result.calls).toMatch(/-X DELETE .*deployments\/42/);
+  });
+
+  it("fails a Deployment probe GitHub refuses with 422 generically, with the HTTP code and message and no second probe", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GITHUB_CODE: "422", FAKE_GITHUB_MESSAGE: "Validation Failed" });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*refused.*HTTP 422, Validation Failed/));
+    expect(result.lines.join("\n")).not.toMatch(/sha-|plain commit SHA/);
+    expect(result.calls.match(/-X POST [^\n]*\/deployments(\s|$)/g)).toHaveLength(1);
   });
 
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
@@ -641,7 +643,7 @@ describe("makam-preflight", () => {
     expect(section).toMatch(/public access, versioning and encryption[^.]*console[^.]*unless[^.]*read-capable key/i);
   });
 
-  it("fails with a clear reason when the image carries no revision label instead of probing the ref sha-", () => {
+  it("fails with a clear reason when the image carries no revision label instead of probing a Deployment", () => {
     const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_REVISION: "" });
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*no org\.opencontainers\.image\.revision label/));
     expect(result.calls).not.toMatch(/-X POST .*\/deployments(\s|$)/);
