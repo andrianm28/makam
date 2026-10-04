@@ -39,17 +39,31 @@ jobs:
     outputs:
       digest: ${{ steps.verified.outputs.digest }}
       sha: ${{ steps.verified.outputs.sha }}
+      tag: ${{ steps.tag.outputs.tag }}
     steps:
       - name: Only the repository owner may promote
         if: github.actor != github.repository_owner
+        env:
+          ACTOR: ${{ github.actor }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          echo "refusing: ${{ github.actor }} is not the owner of ${{ github.repository }}" >&2
+          echo "refusing: $ACTOR is not the owner of $GH_REPO" >&2
           exit 1
       - name: The release tag, typed again
         id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
-          expected="v$(TZ=Asia/Jakarta date +%Y.%m.%d)-$(gh release list --limit 200 --json tagName --jq '[.[] | select(.tagName | startswith("v"))] | length + 1')"
-          if [ "${{ inputs.release_tag }}" != "$expected" ]; then
+          today="${TODAY_WIB:-$(TZ=Asia/Jakarta date +%Y.%m.%d)}"
+          # N counts the published v releases created today in WIB (createdAt is
+          # UTC, so add 7 hours before taking the date). A draft left by a failed
+          # run does not count: re-running with the same tag completes it.
+          count=$(gh release list --limit 200 --json tagName,createdAt,isDraft \
+            | jq --arg today "$today" '[.[] | select((.isDraft | not) and (.tagName | startswith("v")) and ((.createdAt | fromdateiso8601 + 25200 | strftime("%Y.%m.%d")) == $today))] | length')
+          expected="v$today-$((count + 1))"
+          if [ "$RELEASE_TAG_INPUT" != "$expected" ]; then
             echo "refusing: the release tag must be typed exactly as $expected" >&2
             exit 1
           fi
@@ -58,22 +72,27 @@ jobs:
         id: verified
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          staging=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=staging&per_page=20" \
-            --jq '[.[] | select(.payload.image_digest != null)] | .[0] // empty')
+          staging=$(gh api "repos/$GH_REPO/deployments?environment=staging&per_page=20" \
+            | jq -c '[.[] | select(.payload.image_digest != null)] | .[0] // empty')
           [ -n "$staging" ] || { echo "refusing: staging has no recorded deployment" >&2; exit 1; }
           digest=$(printf '%s' "$staging" | jq -r '.payload.image_digest')
           id=$(printf '%s' "$staging" | jq -r '.id')
           sha=$(printf '%s' "$staging" | jq -r '.ref')
-          statuses=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$id/statuses")
+          statuses=$(gh api "repos/$GH_REPO/deployments/$id/statuses")
           echo "Staging deployment $id: $digest (from $sha)"
           printf '%s' "$statuses" | jq -r '.[] | "  \(.state): \(.description // "")"'
-          printf '%s' "$statuses" | jq -e 'any(.[]; .state == "success")' > /dev/null \
-            || { echo "refusing: staging has no successful status, so it is not healthy" >&2; exit 1; }
+          # Healthy is the host's own word: makam-deploy writes
+          # "<tag> (<digest>) healthy" with state success once the release is up.
+          # The smoke status alone never counts.
+          printf '%s' "$statuses" \
+            | jq -e --arg digest "$digest" 'any(.[]; .state == "success" and ((.description // "") | endswith(" (" + $digest + ") healthy")))' > /dev/null \
+            || { echo "refusing: the staging host has not reported $digest healthy" >&2; exit 1; }
           # The smoke test records its own status on the same deployment, naming
           # the digest in the description. Promotion refuses a digest without one.
           printf '%s' "$statuses" \
-            | jq -e --arg digest "$digest" 'any(.[]; .state == "success" and (.description // "" | startswith("smoke test against dev.makam.co.id for " + $digest)))' > /dev/null \
+            | jq -e --arg digest "$digest" 'any(.[]; .state == "success" and ((.description // "") | startswith("smoke test against dev.makam.co.id for " + $digest)))' > /dev/null \
             || { echo "refusing: $digest has no passed staging smoke test; run the \"Smoke test staging\" workflow" >&2; exit 1; }
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
@@ -92,35 +111,64 @@ jobs:
     env:
       DIGEST: ${{ needs.check.outputs.digest }}
       RELEASE_TAG: ${{ needs.check.outputs.tag }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/ghcr-login
+      # 1. A DRAFT first: nothing is public, and no tag exists, until the digest
+      #    carries the production signature. A re-run finds the draft (or the
+      #    published release) and goes on from there.
+      - name: The draft release and its notes
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ needs.check.outputs.sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          err=$(mktemp)
+          if view=$(gh release view "$RELEASE_TAG" --json isDraft 2> "$err"); then
+            echo "Release $RELEASE_TAG already exists; not creating it again"
+            echo "published=$(printf '%s' "$view" | jq -r 'if .isDraft then "false" else "true" end')" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! grep -qi "not found" "$err"; then
+            echo "refusing: looking up release $RELEASE_TAG failed:" >&2
+            cat "$err" >&2
+            exit 1
+          fi
+          # Only published releases are history; --notes-start-tag with no
+          # previous release is an error, and the first promotion has none.
+          previous=$(gh release list --limit 50 --json tagName,isDraft \
+            | jq -r --arg tag "$RELEASE_TAG" '[.[] | select((.isDraft | not) and .tagName != $tag)] | .[0].tagName // empty')
+          notes_args=(--generate-notes)
+          if [ -n "$previous" ]; then
+            notes_args+=(--notes-start-tag "$previous")
+          fi
+          gh release create "$RELEASE_TAG" \
+            --draft \
+            --target "$SHA" \
+            --title "$RELEASE_TAG" \
+            "${notes_args[@]}" \
+            --notes "$REASON
+
+          Production digest: \`$DIGEST\`, built from \`$SHA\`, signed with the production key."
+          echo "published=false" >> "$GITHUB_OUTPUT"
+          echo "Created the draft $RELEASE_TAG for $DIGEST"
+      # 2. The production signature.
       - name: cosign (the production key)
         uses: ./.github/actions/cosign-sign
         with:
           image: ghcr.io/${{ github.repository }}@${{ needs.check.outputs.digest }}
           private-key: ${{ secrets.COSIGN_PROD_PRIVATE_KEY }}
           password: ${{ secrets.COSIGN_PROD_PASSWORD }}
-      - name: The release tag and its notes
+      # 3. Publish: the tag now exists and the host may deploy the digest.
+      - name: Publish the release
+        if: steps.draft.outputs.published != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ needs.check.outputs.sha }}
         run: |
-          previous=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')
-          notes_args=(--generate-notes)
-          # --notes-start-tag with no previous release is an error, and the first
-          # promotion has none.
-          if [ -n "$previous" ] && [ "$previous" != "$RELEASE_TAG" ]; then
-            notes_args+=(--notes-start-tag "$previous")
-          fi
-          gh release create "$RELEASE_TAG" \
-            --target "$SHA" \
-            --title "$RELEASE_TAG" \
-            "${notes_args[@]}" \
-            --notes "${{ inputs.reason }}
-            
-            Production digest: \`$DIGEST\`, built from \`$SHA\`, signed with the production key."
-          echo "Created $RELEASE_TAG for $DIGEST"
+          gh release edit "$RELEASE_TAG" --draft=false
+          echo "Published $RELEASE_TAG for $DIGEST"
           echo "The production host now deploys this digest: it is signed with the production key."
           echo "Roll back with .github/workflows/rollback.yml, or on the host:"
           echo "  /opt/makam-v1/bin/makam-deploy --env prod --digest <previous digest>"
