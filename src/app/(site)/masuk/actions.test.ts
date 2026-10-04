@@ -124,7 +124,7 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     try {
       const live = new SmtpEmailSender(
         { host: relay.host, port: relay.port, user: RELAY_USER, password: RELAY_PASSWORD, from: { address: "no-reply@makam.co.id", name: "Makam.co.id" } },
-        { trustedCertificate: relay.certificate },
+        { trustedCertificate: relay.certificate, resolver: { resolveMx: async () => [{ exchange: "mx.makam.co.id" }], resolveAddresses: async () => [] } },
       );
       const email = server.runtime().adapters.email as FakeEmailSender;
       send = vi.spyOn(email, "send").mockImplementation((message) => live.send(message));

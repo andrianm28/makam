@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Resolver } from "node:dns/promises";
 import { createTransport, type Transporter } from "nodemailer";
 import type { SmtpSettings } from "@/lib/env";
 import { EmailSendError, type EmailMessage, type EmailSender } from "@/ports/email-sender";
@@ -8,7 +9,52 @@ const CONNECT_TIMEOUT_MS = 15_000;
 /** Idle limit once connected (e.g. while a PDF is uploading). */
 const SOCKET_TIMEOUT_MS = 30_000;
 
+/** A DNS lookup gives up after this long, and the send then goes ahead (fail open). */
+const DNS_TIMEOUT_MS = 5_000;
+const RESERVED_TLDS = new Set(["invalid", "test", "example", "localhost"]);
+const NO_SUCH_NAME = new Set(["ENOTFOUND", "ENODATA"]);
+
+/** The two DNS questions the recipient check asks. */
+export interface RecipientResolver {
+  resolveMx(domain: string): Promise<{ exchange: string }[]>;
+  /** A and AAAA records together. */
+  resolveAddresses(domain: string): Promise<string[]>;
+}
+
+function withTimeout<T>(work: Promise<T>): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(Object.assign(new Error("dns timeout"), { code: "ETIMEOUT" })), DNS_TIMEOUT_MS);
+  });
+  return Promise.race([work, timeout]).finally(() => clearTimeout(timer));
+}
+
+function systemResolver(): RecipientResolver {
+  const resolver = new Resolver({ timeout: DNS_TIMEOUT_MS, tries: 1 });
+  const settled = async (lookup: Promise<string[]>) =>
+    lookup.catch((error: unknown) => {
+      if (NO_SUCH_NAME.has((error as { code?: string })?.code ?? "")) return [] as string[];
+      throw error;
+    });
+  return {
+    resolveMx: (domain) => withTimeout(resolver.resolveMx(domain)),
+    resolveAddresses: (domain) =>
+      withTimeout(
+        Promise.all([settled(resolver.resolve4(domain)), settled(resolver.resolve6(domain))]).then(([a, b]) => [...a, ...b]),
+      ),
+  };
+}
+
+function domainOf(to: string): string | undefined {
+  const at = to.lastIndexOf("@");
+  if (at < 0) return undefined;
+  const domain = to.slice(at + 1).replace(/[>\s"]+$/g, "").trim().toLowerCase().replace(/\.$/, "");
+  return /^[a-z0-9.-]+$/.test(domain) && domain.includes(".") ? domain : undefined;
+}
+
 export interface SmtpEmailSenderOptions {
+  /** DNS lookups for the recipient check; tests inject a fake. Defaults to the system resolver with a 5 s limit. */
+  resolver?: RecipientResolver;
   /**
    * An extra certificate (PEM) to trust, for tests against a local relay with
    * a self-signed certificate. Verification stays on either way. Never set in
@@ -30,9 +76,11 @@ export class SmtpEmailSender implements EmailSender {
   readonly #transport: Transporter;
   readonly #from: SmtpSettings["from"];
   readonly #messageIdDomain: string;
+  readonly #resolver: RecipientResolver;
 
   constructor(settings: SmtpSettings, options: SmtpEmailSenderOptions = {}) {
     this.#from = settings.from;
+    this.#resolver = options.resolver ?? systemResolver();
     this.#messageIdDomain = settings.from.address.split("@").pop()!.toLowerCase();
     this.#transport = createTransport({
       host: settings.host,
@@ -56,7 +104,15 @@ export class SmtpEmailSender implements EmailSender {
     });
   }
 
+  async #deliverable(to: string): Promise<boolean> {
+    const domain = typeof to === "string" ? domainOf(to) : undefined;
+    if (domain === undefined) return true;
+    if (RESERVED_TLDS.has(domain.split(".").pop()!)) return false;
+    return !(await lookupSaysNothing.call(this.#resolver, domain));
+  }
+
   async send(message: EmailMessage): Promise<{ messageId: string }> {
+    if (!(await this.#deliverable(message.to))) throw new EmailSendError("rejected", { code: "ENORECIPIENT" });
     const messageId = `<${randomUUID()}@${this.#messageIdDomain}>`;
     try {
       await this.#transport.sendMail({
@@ -77,6 +133,20 @@ export class SmtpEmailSender implements EmailSender {
       throw toEmailSendError(error);
     }
     return { messageId };
+  }
+}
+
+/** Only a definitive "no such domain" refuses; any other lookup failure lets the send go ahead. */
+async function lookupSaysNothing(this: RecipientResolver, domain: string): Promise<boolean> {
+  try {
+    if ((await this.resolveMx(domain)).length > 0) return false;
+  } catch (error) {
+    if (!NO_SUCH_NAME.has((error as { code?: string })?.code ?? "")) return false;
+  }
+  try {
+    return (await this.resolveAddresses(domain)).length === 0;
+  } catch (error) {
+    return NO_SUCH_NAME.has((error as { code?: string })?.code ?? "");
   }
 }
 
