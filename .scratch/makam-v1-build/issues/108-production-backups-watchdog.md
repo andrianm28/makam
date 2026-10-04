@@ -1,6 +1,6 @@
 # Production backups, restore test and health watchdog
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (go-live blocker by owner decision 2026-10-04)
 Spec: ticket 64 (backups of makam-staging and makam-prod); `docs/ops/runbook.md` "Backups", "Uptime alarm"; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -50,3 +50,14 @@ Tests (counts read off whole logs):
 - `npx vitest run` on `systemd-units`, `makam-restore-test-volume`, `db-backup` (real Docker), `nginx-blocks`, `image-retention`, `makam-preflight` and `katalog-lama-runbook`: exit 0, 7 files, 137 tests passed. `db-backup` again after the cleanup change: exit 0, 12 passed.
 - `tests/tooling/ticket-workflow.test.ts` after this entry: exit 0, 62 passed.
 - `npm run lint` exit 0 (0 errors, 6 warnings, all in `src/`, none in the files of this ticket) and `npm run typecheck` exit 0, both on the final tree. No `npm run build`: the ticket needs none.
+
+### Review and merge (2026-10-04, orchestrator; fixed point origin/main 0fd6bf41, head be0c0db8)
+
+Two-axis review: the Standards and Spec reviewers (sonnet) ran in parallel, from the build workflow. Both reported **Hard: 0** on the first round, and every acceptance criterion was MET. The builder's tests were read from a whole log. Merged in batch MB1 with 106, 107 and 108.
+
+Follow-ups (soft, deliberately left):
+- **Stale comments:** `makam-diskcheck`/`makam-healthcheck` header comments and the staging health unit's "one check covers the whole host" are out of date.
+- **Runbook:** `list-timers 'makam-prod-*'` will also match `makam-prod-deploy.timer`; name the four timers instead.
+- **Tests:** one recorded call-order assertion (daemon-reload before enable).
+- **Disclosed extras beyond the ACs:** restore-test cleanup with `docker rm -fv` and its volume test. The gate needs a non-blank MAKAM_DIGEST.
+- **Owner decision (rehearsal order):** the prod timers exist only after the first prod deploy plus a re-run of install-host.sh. G1 in the approved plan already orders it that way, and 113 documents it.

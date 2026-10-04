@@ -1,6 +1,6 @@
 # Preflight and deploy hardening for the first production deploy
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (pairs with 108; blocks the rehearsal, 72)
 Spec: ticket 72 (rehearsal: a preflight with no FAIL); `docs/ops/runbook.md` "Production preflight"; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -52,3 +52,18 @@ Builder (sonnet), branch `ticket-107-preflight-deploy-hardening`, from origin/ma
 - **Not verified on a host.** `systemctl is-enabled`'s output and 106's `/api/health` field are fakes in the tests (systemd's documented behaviour and ticket 106's text). Nothing here ran against real units, ghcr, GitHub or a stack.
 
 **Counts** (read off whole logs): `npx vitest run tests/tooling/makam-preflight.test.ts tests/tooling/makam-deploy.test.ts` gives 2 files, 88 tests passed, exit 0. `npx vitest run tests/tooling/image-retention.test.ts tests/tooling/ticket-workflow.test.ts tests/tooling/makam-deploy-status.test.ts` gives 3 files, 81 tests passed, exit 0. `npm run lint` exit 0 (0 errors, the 6 existing warnings, none in these files). `npm run typecheck` exit 0.
+
+### Review and merge (2026-10-04, orchestrator; fixed point origin/main 0fd6bf41, head 04feac7a)
+
+Two-axis review: the Standards and Spec reviewers (sonnet) ran in parallel, from the build workflow. Both reported **Hard: 0** on the first round, and every acceptance criterion was MET. The builder's tests were read from a whole log. Merged in batch MB1 with 106, 107 and 108.
+
+Follow-ups (soft, deliberately left):
+- **Tests:**
+  - Call-shaped assertions on the pull and sleep order.
+  - A sleep-count comparison (makam-preflight.test.ts:349).
+  - The fake `sleep` hard-codes `/usr/bin/sleep`.
+- **Text:**
+  - The preflight header says FAIL where a SKIP applies.
+  - "Retry up to 3 times" is built as 3 pulls in all (2 retries, waiting 10 s then 30 s), recorded under Decisions.
+  - The new text cites "ADR 0006: 1 at the switch, 3 later", which becomes true with 113's amendment.
+- **Rehearsal order:** the same as 108.

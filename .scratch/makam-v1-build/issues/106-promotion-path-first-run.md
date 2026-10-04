@@ -1,6 +1,6 @@
 # Promotion and rollback work on their first run
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (blocks the first promotion: 72, 65)
 Spec: ticket 72 (signed deploys, promotion, rollback); `docs/ops/runbook.md` "Promoting to production", "Rolling back"; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -71,3 +71,18 @@ None blocking. For awareness (not changed, outside this ticket):
 - A staging Deployment whose digest failed and rolled back stays the newest, so promotion refuses until a healthy digest is deployed (as designed); promoting the digest staging still runs needs it redeployed once.
 
 **Tests** (read off whole logs): `npx vitest run` on `tests/tooling/promote-workflow.test.ts`, `staging-smoke-record.test.ts`, `ci-workflow.test.ts`, `src/app/api/health/route.test.ts` and the runbook readers (`nginx-blocks`, `makam-preflight`, `katalog-lama-runbook`, `makam-deploy-status`, `image-retention`): 9 files, 156 tests, all passed, exit 0 (43 in promote-workflow, 21 in staging-smoke-record). `npm run lint` 0 errors (6 warnings, all in files this ticket does not touch), `npm run typecheck` clean. No build was run (nothing here needs one). **Unverified**: nothing ran on GitHub, so the first real `deployment_status` run, `generate-notes` with a start tag, and publishing a draft by id are checked only against the documented API and the fake `gh`.
+
+### Review and merge (2026-10-04, orchestrator; fixed point origin/main 0fd6bf41, head 79aaea80)
+
+Two-axis review: the Standards and Spec reviewers (sonnet) ran in parallel, from the build workflow. Both reported **Hard: 0** on the first round, and every acceptance criterion was MET. The builder's tests were read from a whole log. Merged in batch MB1 with 106, 107 and 108.
+
+Follow-ups (soft, deliberately left):
+- **Tests:**
+  - A few assertions check that a command ran, or check the shape of workflow text (promote-workflow.test.ts:127, staging-smoke-record.test.ts:54,87,91,141).
+  - The reader, runner and fake gh in `tests/support/workflow.ts` has no test of its own.
+  - The jq "payload object or string" helper is copied into three workflows.
+- **Runbook drift:** the refusal order, the after-rollback note, and the claim that `release` equals the ref.
+- **`makam-deploy`'s automatic rollback** exports `sha-<commit>` as MAKAM_RELEASE, so the smoke records `failure` after an automatic rollback.
+- **The failed digest's Deployment stays newest** after an automatic rollback, so promotion refuses until a healthy redeploy (113 to document).
+- **nginx comments** still say the public health JSON carries only ok, database and worker.
+- **First run on GitHub:** the actionlint image pin first runs in main CI. Generate-notes with a start tag, publish-draft-by-id and the first deployment_status run are proven against fakes only, so the first promotion is their first real run.
