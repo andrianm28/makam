@@ -1,29 +1,30 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { Resolver } from "node:dns/promises";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { emailSenderContract, SAMPLE_PDF, type DeliveredEmail } from "@/adapters/email-sender.contract";
-import type { SmtpSettings } from "@/lib/env";
 import { EmailSendError } from "@/ports/email-sender";
-import { mailEverywhere } from "../../../tests/support/mail-domain-resolver";
 import {
-  RELAY_PASSWORD,
+  liveSenderFor,
   RELAY_USER,
   startSilentServer,
   startTestSmtpRelay,
   type AcceptedMessage,
-  type TestSmtpRelay,
 } from "../../../tests/support/smtp-relay";
 import type { MailDomainResolver } from "./mail-domain";
-import { SmtpEmailSender, type SmtpEmailSenderOptions } from "./smtp-email-sender";
 
-function settingsFor(relay: { host: string; port: number }, overrides: Partial<SmtpSettings> = {}): SmtpSettings {
-  return {
-    host: relay.host,
-    port: relay.port,
-    user: RELAY_USER,
-    password: RELAY_PASSWORD,
-    from: { address: "no-reply@makam.co.id", name: "Makam.co.id" },
-    ...overrides,
-  };
-}
+/**
+ * No test in this file may depend on the network's DNS. Under this guard the system resolver, which a sender uses when
+ * a test gives it none, answers "no such domain" to every name: a test that forgets its own resolver then fails the
+ * same way on every runner, instead of passing or failing with what the runner's DNS happens to say about its recipient.
+ */
+beforeEach(() => {
+  const noSuchDomain = Object.assign(new Error("query failed: ENOTFOUND"), { code: "ENOTFOUND" });
+  vi.spyOn(Resolver.prototype, "resolveMx").mockRejectedValue(noSuchDomain);
+  vi.spyOn(Resolver.prototype, "resolve4").mockRejectedValue(noSuchDomain);
+  vi.spyOn(Resolver.prototype, "resolve6").mockRejectedValue(noSuchDomain);
+});
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 type MxRecord = { exchange: string; priority: number };
 /** What a lookup of one record type gives: the records, or a failure with the c-ares code the resolver would report. */
@@ -57,19 +58,6 @@ function dnsWith(zone: Record<string, DnsEntry>): MailDomainResolver {
   };
 }
 
-/** The live adapter pointed at a local relay whose self-signed certificate it is told to trust. */
-function senderFor(
-  relay: TestSmtpRelay,
-  overrides: Partial<SmtpSettings> = {},
-  options: Partial<SmtpEmailSenderOptions> = {},
-) {
-  return new SmtpEmailSender(settingsFor(relay, overrides), {
-    trustedCertificate: relay.certificate,
-    resolver: mailEverywhere,
-    ...options,
-  });
-}
-
 function asDelivered(message: AcceptedMessage): DeliveredEmail {
   const { parsed } = message;
   const to = Array.isArray(parsed.to) ? parsed.to[0] : parsed.to;
@@ -89,7 +77,7 @@ function asDelivered(message: AcceptedMessage): DeliveredEmail {
 emailSenderContract("SumoPod SMTP adapter against a local TLS relay", async () => {
   const relay = await startTestSmtpRelay();
   return {
-    sender: senderFor(relay),
+    sender: liveSenderFor(relay),
     delivered: async () => relay.accepted.map(asDelivered),
     refuseNextSend: () => relay.refuseNextRecipient(),
     close: () => relay.close(),
@@ -111,7 +99,7 @@ describe("SumoPod SMTP adapter", () => {
   it("sends over implicit TLS, logged in, from Makam.co.id <no-reply@makam.co.id> with a Message-ID on makam.co.id", async () => {
     const tlsRelay = await relay();
 
-    const { messageId } = await senderFor(tlsRelay).send({
+    const { messageId } = await liveSenderFor(tlsRelay).send({
       to: "pemesan@contoh.co.id",
       subject: "Bukti BKT-2026-000045",
       text: "Terlampir Bukti pembayaran Anda.",
@@ -134,7 +122,7 @@ describe("SumoPod SMTP adapter", () => {
 
   it("verifies the relay's certificate: an untrusted one is refused before anything is sent", async () => {
     const tlsRelay = await relay();
-    const sender = new SmtpEmailSender(settingsFor(tlsRelay)); // no trusted certificate given
+    const sender = liveSenderFor({ host: tlsRelay.host, port: tlsRelay.port }); // no trusted certificate given
 
     const failure = await sender.send({ to: "a@contoh.co.id", subject: "x", text: "x" }).catch((error: unknown) => error);
 
@@ -146,7 +134,7 @@ describe("SumoPod SMTP adapter", () => {
   it("never falls back to plaintext: a relay without TLS gets nothing", async () => {
     const plainRelay = await relay({ tls: false });
 
-    const failure = await senderFor(plainRelay)
+    const failure = await liveSenderFor(plainRelay)
       .send({ to: "a@contoh.co.id", subject: "x", text: "x" })
       .catch((error: unknown) => error);
 
@@ -158,7 +146,7 @@ describe("SumoPod SMTP adapter", () => {
   it("a refused login throws EmailSendError (rejected) naming no credential", async () => {
     const tlsRelay = await relay();
 
-    const failure = await senderFor(tlsRelay, { password: "wrong-password-xyz" })
+    const failure = await liveSenderFor(tlsRelay, { password: "wrong-password-xyz" })
       .send({ to: "a@contoh.co.id", subject: "x", text: "x" })
       .catch((error: unknown) => error);
 
@@ -174,7 +162,7 @@ describe("SumoPod SMTP adapter", () => {
     const tlsRelay = await relay();
     tlsRelay.refuseNextRecipient();
 
-    const failure = await senderFor(tlsRelay)
+    const failure = await liveSenderFor(tlsRelay)
       .send({ to: "tidak-ada@contoh.co.id", subject: "Undangan Staf", text: "Undangan untuk 0812-3456-7890" })
       .catch((error: unknown) => error);
 
@@ -190,7 +178,7 @@ describe("SumoPod SMTP adapter", () => {
     await closed.close();
     cleanups.pop();
 
-    await expect(senderFor(closed).send({ to: "a@contoh.co.id", subject: "x", text: "x" })).rejects.toMatchObject({
+    await expect(liveSenderFor(closed).send({ to: "a@contoh.co.id", subject: "x", text: "x" })).rejects.toMatchObject({
       name: "EmailSendError",
       kind: "unavailable",
     });
@@ -201,7 +189,7 @@ describe("SumoPod SMTP adapter", () => {
     cleanups.push(() => silent.close());
     const startedAt = performance.now();
 
-    const failure = await new SmtpEmailSender(settingsFor(silent))
+    const failure = await liveSenderFor(silent)
       .send({ to: "a@contoh.co.id", subject: "x", text: "x" })
       .catch((error: unknown) => error);
 
@@ -215,9 +203,9 @@ describe("SumoPod SMTP adapter", () => {
       vi.spyOn(console, method).mockImplementation(() => {}),
     );
 
-    await senderFor(tlsRelay).send({ to: "pemesan@contoh.co.id", subject: "Kode Masuk", text: "Kode Masuk: 123456" });
+    await liveSenderFor(tlsRelay).send({ to: "pemesan@contoh.co.id", subject: "Kode Masuk", text: "Kode Masuk: 123456" });
     tlsRelay.refuseNextRecipient();
-    await senderFor(tlsRelay)
+    await liveSenderFor(tlsRelay)
       .send({ to: "pemesan@contoh.co.id", subject: "Kode Masuk", text: "Kode Masuk: 123456" })
       .catch(() => {});
 
@@ -242,7 +230,7 @@ describe("SumoPod SMTP adapter", () => {
       "KELUARGA@Contoh.Makam.INVALID",
       "keluarga@contoh.makam.invalid.",
     ])("a Kode Masuk to %s is refused as rejected before the relay is contacted", async (to) => {
-      const failure = await senderFor(await absentRelay())
+      const failure = await liveSenderFor(await absentRelay())
         .send({ to, subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" })
         .catch((error: unknown) => error);
 
@@ -254,7 +242,7 @@ describe("SumoPod SMTP adapter", () => {
       const acceptingRelay = await relay();
 
       await expect(
-        senderFor(acceptingRelay).send({ to: "keluarga@contoh.makam.invalid", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" }),
+        liveSenderFor(acceptingRelay).send({ to: "keluarga@contoh.makam.invalid", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" }),
       ).rejects.toMatchObject({ name: "EmailSendError", kind: "rejected" });
 
       expect(acceptingRelay.accepted).toEqual([]);
@@ -265,7 +253,7 @@ describe("SumoPod SMTP adapter", () => {
       async (to) => {
         const acceptingRelay = await relay();
 
-        await senderFor(acceptingRelay).send({ to, subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
+        await liveSenderFor(acceptingRelay).send({ to, subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
 
         expect(acceptingRelay.accepted.map((message) => message.envelopeTo)).toEqual([[to]]);
       },
@@ -277,7 +265,7 @@ describe("SumoPod SMTP adapter", () => {
       ["the domain publishes a null MX, which says it takes no mail, whatever else it has", { "tidak-ada.co.id": { mx: [{ exchange: "", priority: 0 }], a: ["192.0.2.7"] } }],
       ["the domain publishes a null MX written as the root", { "tidak-ada.co.id": { mx: [{ exchange: ".", priority: 0 }] } }],
     ])("a Kode Masuk is refused as rejected before the relay is contacted when %s", async (_why, zone) => {
-      const failure = await senderFor(await absentRelay(), {}, { resolver: dnsWith(zone) })
+      const failure = await liveSenderFor(await absentRelay(), {}, { resolver: dnsWith(zone) })
         .send({ to: "keluarga@tidak-ada.co.id", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" })
         .catch((error: unknown) => error);
 
@@ -292,7 +280,7 @@ describe("SumoPod SMTP adapter", () => {
     ])("a Kode Masuk to a domain with %s is sent", async (_what, entry) => {
       const acceptingRelay = await relay();
 
-      await senderFor(acceptingRelay, {}, { resolver: dnsWith({ "keluarga.co.id": entry }) }).send({
+      await liveSenderFor(acceptingRelay, {}, { resolver: dnsWith({ "keluarga.co.id": entry }) }).send({
         to: "pemesan@keluarga.co.id",
         subject: "Kode Masuk",
         text: "Kode Masuk Anda: 123456",
@@ -304,7 +292,7 @@ describe("SumoPod SMTP adapter", () => {
     it("looks the domain up as DNS spells it: in lower case and in ASCII", async () => {
       const acceptingRelay = await relay();
       const resolver = dnsWith({ "keluarga.co.id": { a: ["192.0.2.7"] }, "xn--m-eha.co.id": { a: ["192.0.2.8"] } });
-      const sender = senderFor(acceptingRelay, {}, { resolver });
+      const sender = liveSenderFor(acceptingRelay, {}, { resolver });
 
       await sender.send({ to: "pemesan@KELUARGA.Co.Id", subject: "Satu", text: "1" });
       await sender.send({ to: "pemesan@mü.co.id", subject: "Dua", text: "2" });
@@ -317,7 +305,7 @@ describe("SumoPod SMTP adapter", () => {
       async (code) => {
         const acceptingRelay = await relay();
 
-        await senderFor(acceptingRelay, {}, { resolver: dnsWith({ "keluarga.co.id": dnsDown(code) }) }).send({
+        await liveSenderFor(acceptingRelay, {}, { resolver: dnsWith({ "keluarga.co.id": dnsDown(code) }) }).send({
           to: "pemesan@keluarga.co.id",
           subject: "Kode Masuk",
           text: "Kode Masuk Anda: 123456",
@@ -334,7 +322,7 @@ describe("SumoPod SMTP adapter", () => {
     ])("a Kode Masuk goes out when %s: one failed lookup keeps the check from saying no", async (_what, entry) => {
       const acceptingRelay = await relay();
 
-      await senderFor(acceptingRelay, {}, { resolver: dnsWith({ "keluarga.co.id": entry }) }).send({
+      await liveSenderFor(acceptingRelay, {}, { resolver: dnsWith({ "keluarga.co.id": entry }) }).send({
         to: "pemesan@keluarga.co.id",
         subject: "Kode Masuk",
         text: "Kode Masuk Anda: 123456",
@@ -347,7 +335,7 @@ describe("SumoPod SMTP adapter", () => {
       const acceptingRelay = await relay();
       const silent = () => new Promise<never>(() => {});
 
-      await senderFor(
+      await liveSenderFor(
         acceptingRelay,
         {},
         { resolver: { resolveMx: silent, resolve4: silent, resolve6: silent }, addressCheckTimeoutMs: 50 },
