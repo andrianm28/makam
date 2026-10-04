@@ -20,6 +20,8 @@ type Workflow = { jobs: Record<string, Job> };
 
 const promoteText = readFileSync(path.join(repo, ".github/workflows/promote.yml"), "utf8");
 const rollbackText = readFileSync(path.join(repo, ".github/workflows/rollback.yml"), "utf8");
+const smokeText = readFileSync(path.join(repo, ".github/workflows/staging-smoke.yml"), "utf8");
+const smokeWorkflow = parse(smokeText) as Workflow;
 const promote = parse(promoteText) as Workflow;
 const rollback = parse(rollbackText) as Workflow;
 
@@ -31,7 +33,7 @@ function step(w: Workflow, job: string, name: string): Step {
 
 // Runs a step's script the way GitHub does (bash -eo pipefail) with a fake gh
 // whose body is given, and returns what it wrote.
-function run(s: Step, ghBody: string, env: Record<string, string> = {}) {
+function run(s: Step, ghBody: string, env: Record<string, string> = {}, today?: string) {
   const root = mkdtempSync(path.join(tmpdir(), "makam-promote-"));
   dirs.push(root);
   mkdirSync(path.join(root, "bin"));
@@ -41,6 +43,11 @@ function run(s: Step, ghBody: string, env: Record<string, string> = {}) {
   writeFileSync(calls, "");
   writeFileSync(path.join(root, "bin/gh"), `#!/usr/bin/env bash\necho "$*" >> "${calls}"\n${ghBody}\n`);
   chmodSync(path.join(root, "bin/gh"), 0o755);
+  if (today) {
+    // The step asks `TZ=Asia/Jakarta date +%Y.%m.%d` for the Jakarta day.
+    writeFileSync(path.join(root, "bin/date"), `#!/usr/bin/env bash\necho ${today}\n`);
+    chmodSync(path.join(root, "bin/date"), 0o755);
+  }
   const r = spawnSync("bash", ["-eo", "pipefail", "-c", s.run ?? "exit 99"], {
     encoding: "utf8",
     env: {
@@ -60,16 +67,17 @@ afterEach(() => {
   while (dirs.length) rmSync(dirs.pop()!, { recursive: true, force: true });
 });
 
-type Rel = { tagName: string; createdAt: string; isDraft: boolean };
-const rel = (tagName: string, createdAt: string, isDraft = false): Rel => ({ tagName, createdAt, isDraft });
+type Rel = { tagName: string; publishedAt: string; isDraft: boolean };
+const rel = (tagName: string, publishedAt: string, isDraft = false): Rel => ({ tagName, publishedAt, isDraft });
 const listing = (rels: Rel[]) => `cat <<'JSON'\n${JSON.stringify(rels)}\nJSON`;
 
 describe("Promosikan ke produksi: the expected release tag", () => {
   const tagStep = () => step(promote, "check", "The release tag, typed again");
-  const typed = (tag: string) => ({ RELEASE_TAG_INPUT: tag, TODAY_WIB: "2026.10.03" });
+  const typed = (tag: string) => ({ RELEASE_TAG_INPUT: tag });
+  const day = "2026.10.03";
 
   it("is -1 when no release was created today", () => {
-    const r = run(tagStep(), listing([]), typed("v2026.10.03-1"));
+    const r = run(tagStep(), listing([]), typed("v2026.10.03-1"), day);
     expect(r.status).toBe(0);
     expect(r.output).toContain("tag=v2026.10.03-1");
   });
@@ -81,26 +89,26 @@ describe("Promosikan ke produksi: the expected release tag", () => {
       rel("v2026.10.03-3", "2026-10-03T06:00:00Z", true),
       rel("v2026.10.02-1", "2026-10-02T03:00:00Z"),
     ];
-    const r = run(tagStep(), listing(rels), typed("v2026.10.03-3"));
+    const r = run(tagStep(), listing(rels), typed("v2026.10.03-3"), day);
     expect(r.status).toBe(0);
     expect(r.output).toContain("tag=v2026.10.03-3");
   });
 
   it("ignores a tag that does not start with v", () => {
-    const r = run(tagStep(), listing([rel("nightly-1", "2026-10-03T03:00:00Z")]), typed("v2026.10.03-1"));
+    const r = run(tagStep(), listing([rel("nightly-1", "2026-10-03T03:00:00Z")]), typed("v2026.10.03-1"), day);
     expect(r.status).toBe(0);
   });
 
   it("refuses a typed tag that is not the expected one", () => {
-    const r = run(tagStep(), listing([]), typed("v2026.10.03-2"));
+    const r = run(tagStep(), listing([]), typed("v2026.10.03-2"), day);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("v2026.10.03-1");
     expect(r.output).toBe("");
   });
 
-  it("counts a release created at 18:00 UTC on the 3rd on the 4th (01:00 WIB)", () => {
+  it("counts a release published at 18:00 UTC on the 3rd on the 4th (01:00 WIB)", () => {
     const rels = [rel("v2026.10.04-1", "2026-10-03T18:00:00Z")];
-    const r = run(tagStep(), listing(rels), { RELEASE_TAG_INPUT: "v2026.10.04-2", TODAY_WIB: "2026.10.04" });
+    const r = run(tagStep(), listing(rels), { RELEASE_TAG_INPUT: "v2026.10.04-2" }, "2026.10.04");
     expect(r.status).toBe(0);
     expect(r.output).toContain("tag=v2026.10.04-2");
   });
@@ -139,6 +147,14 @@ describe("Promosikan ke produksi: healthy means the host says so, and the smoke 
     expect(check([smoke(), healthy(OTHER)]).status).toBe(1);
   });
 
+  it("a later smoke failure cancels an earlier smoke success (the newest smoke status decides)", () => {
+    expect(check([smoke(DIGEST, "failure"), smoke(), healthy()]).status).toBe(1);
+  });
+
+  it("a later smoke success stands over an earlier failure", () => {
+    expect(check([smoke(), smoke(DIGEST, "failure"), healthy()]).status).toBe(0);
+  });
+
   it("refuses a failed smoke test even when the host is healthy", () => {
     expect(check([smoke(DIGEST, "failure"), healthy()]).status).toBe(1);
   });
@@ -164,15 +180,27 @@ describe("Promosikan ke produksi: the release is a draft until the production si
 
   const draftStep = () => steps[create];
   const env = { RELEASE_TAG: "v2026.10.03-2", DIGEST, SHA: "abc1234", REASON: "perbaikan $(touch pwned)" };
-  const ghFor = (view: string) =>
-    `case "$*" in\n"release view"*) ${view};;\n"release list"*) cat <<'JSON'\n${JSON.stringify([
-      rel("v2026.10.03-2", "2026-10-03T05:00:00Z", true),
+  // `gh release view` cannot see a draft: the fake fails it, so only the list
+  // and the API may be used to find one.
+  type Existing = { draft: boolean; body: string } | null;
+  const ghFor = (existing: Existing, listError = "") => {
+    const listed = [
       rel("v2026.10.03-9", "2026-10-03T05:00:00Z", true),
       rel("v2026.10.03-1", "2026-10-03T03:00:00Z"),
-    ])}\nJSON\n;;\nesac`;
+      ...(existing ? [rel("v2026.10.03-2", "2026-10-03T05:00:00Z", existing.draft)] : []),
+    ];
+    const api = existing ? [{ tag_name: "v2026.10.03-2", draft: existing.draft, body: existing.body }] : [];
+    return `case "$*" in
+"release view"*) echo "release not found" >&2; exit 1;;
+"release list"*) ${listError ? `echo "${listError}" >&2; exit 1` : `cat <<'JSON'\n${JSON.stringify(listed)}\nJSON`};;
+"api"*releases*) cat <<'JSON'\n${JSON.stringify(api)}\nJSON
+;;
+esac`;
+  };
+  const notes = (d: string) => `perbaikan\n\nProduction digest: \`${d}\`, built from \`abc1234\`, signed with the production key.`;
 
   it("creates a draft naming the digest, from the previous published release only", () => {
-    const r = run(draftStep(), ghFor('echo "release not found" >&2; exit 1'), env);
+    const r = run(draftStep(), ghFor(null), env);
     expect(r.status).toBe(0);
     expect(r.calls).toContain("release create v2026.10.03-2");
     expect(r.calls).toContain("--draft");
@@ -181,23 +209,31 @@ describe("Promosikan ke produksi: the release is a draft until the production si
     expect(r.calls).toContain("perbaikan $(touch pwned)");
   });
 
-  it("a re-run finds the draft and does not create it again", () => {
-    const r = run(draftStep(), ghFor('echo \'{"isDraft":true}\''), env);
+  it("a re-run finds the draft that names this digest and does not create it again", () => {
+    const r = run(draftStep(), ghFor({ draft: true, body: notes(DIGEST) }), env);
     expect(r.status).toBe(0);
     expect(r.calls).not.toContain("release create");
     expect(r.output).toContain("published=false");
   });
 
   it("a re-run finds the published release and leaves publishing to nobody", () => {
-    const r = run(draftStep(), ghFor('echo \'{"isDraft":false}\''), env);
+    const r = run(draftStep(), ghFor({ draft: false, body: notes(DIGEST) }), env);
     expect(r.status).toBe(0);
     expect(r.calls).not.toContain("release create");
     expect(r.output).toContain("published=true");
     expect(steps[publish].if).toContain("published");
   });
 
-  it("stops on a lookup error that is not 'not found'", () => {
-    const r = run(draftStep(), ghFor('echo "HTTP 500: boom" >&2; exit 1'), env);
+  it.each([true, false])("refuses to go on with a release (draft: %s) whose notes name another digest", (draft) => {
+    const r = run(draftStep(), ghFor({ draft, body: notes(OTHER) }), env);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("does not name");
+    expect(r.stderr).toContain(DIGEST);
+    expect(r.output).toBe("");
+  });
+
+  it("stops on a lookup error", () => {
+    const r = run(draftStep(), ghFor(null, "HTTP 500: boom"), env);
     expect(r.status).toBe(1);
     expect(r.stderr).toContain("HTTP 500: boom");
     expect(r.calls).not.toContain("release create");
@@ -208,6 +244,7 @@ describe("the promotion workflows: shape", () => {
   const all: [string, string, Workflow][] = [
     ["promote.yml", promoteText, promote],
     ["rollback.yml", rollbackText, rollback],
+    ["staging-smoke.yml", smokeText, smokeWorkflow],
   ];
 
   it.each(all)("%s: every step that calls gh has GH_TOKEN and GH_REPO", (_n, _t, w) => {
