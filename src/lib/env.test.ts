@@ -6,6 +6,7 @@ import {
   readRuntimeEnv,
   readSentryEnv,
   paymentsAreTrial,
+  pricesMayBeExamples,
   showsStagingBanner,
   SUMOPOD_LIVE_BASE_URL,
   SUMOPOD_SANDBOX_BASE_URL,
@@ -376,5 +377,27 @@ describe("Pembayaran uji coba: production paying through SumoPod's sandbox", () 
 
   it("is not a trial when the host only looks like the sandbox", () => {
     expect(paymentsAreTrial({ APP_ENV: "production", SUMOPOD_BASE_URL: "https://api-pay-sandbox.sumopod.com.evil.example" })).toBe(false);
+  });
+});
+
+describe("Harga contoh: where the prices a page shows may still be example prices (the beta)", () => {
+  it("may be examples on production while its payments are a trial", () => {
+    expect(pricesMayBeExamples({ APP_ENV: "production", SUMOPOD_BASE_URL: SUMOPOD_SANDBOX_BASE_URL })).toBe(true);
+  });
+
+  it("are the Operator's own on production paying live, with the override unset or on the live host", () => {
+    expect(pricesMayBeExamples({ APP_ENV: "production" })).toBe(false);
+    expect(pricesMayBeExamples({ APP_ENV: "production", SUMOPOD_BASE_URL: SUMOPOD_LIVE_BASE_URL })).toBe(false);
+  });
+
+  it("may be examples on staging, development and test", () => {
+    for (const APP_ENV of ["staging", "development", "test"]) {
+      expect(pricesMayBeExamples({ APP_ENV }), APP_ENV).toBe(true);
+    }
+  });
+
+  it("never reads a missing or unknown environment as live", () => {
+    expect(pricesMayBeExamples({})).toBe(true);
+    expect(pricesMayBeExamples({ APP_ENV: "prod" })).toBe(true);
   });
 });

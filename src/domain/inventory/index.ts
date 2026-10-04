@@ -278,7 +278,7 @@ export interface Inventory {
   akhiriHakPakaiManual(by: Actor, lokasiId: string, input: unknown): Promise<AkhiriHakPakaiManualResult>;
   /** The Admin Lokasi records a Berakhir Hak Pakai's Pembongkaran, which makes its plot Tersedia again; audited (ticket 42). */
   catatPembongkaran(by: Actor, lokasiId: string, input: unknown): Promise<CatatPembongkaranResult>;
-  /** Every Kedaluwarsa Hak Pakai of that Lokasi still in its Masa Tenggang: the Antrean Lokasi's row (ticket 42). No actor. */
+  /** Every Kedaluwarsa Hak Pakai of that Lokasi the Admin Lokasi has yet to decide on, inside its Masa Tenggang or past it: the Antrean Lokasi's row (ticket 42). No actor. */
   hakPakaiMasaTenggang(lokasiId: string): Promise<HakPakaiMasaTenggang[]>;
   /** Aktif or Kedaluwarsa fixed-term Hak Pakai ending within `hari` days or already past, for the expiry reminders (ticket 42). No actor. */
   hakPakaiMenjelangAkhir(now: Date, hari: number): Promise<HakPakaiMenjelangAkhir[]>;

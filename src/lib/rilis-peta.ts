@@ -5,11 +5,13 @@
  * running environment has open is read in `./rilis` (server side only).
  *
  * Ticket numbers are the spec's Release plan: Rilis 2 is 35, 39, 41, 42, 59 and 84,
- * Rilis 3 is 43-48, 55-57 and the TPU parts of 51-53 and 58; everything else,
- * Layanan Makam at a Lokasi Mitra (49-54) included, is Rilis 1. Ticket 35's "Makamkan di sini" routes are
- * under `perpanjangan_lanjutan` here; tickets 39 and 84 have no route or tick of their own on `main` yet: when they land, their
- * routes join it too, and the guard test
- * (`rilis-guard.test.ts`) fails until they do.
+ * Rilis 3 is 43-48, 55-58 and the TPU parts of 51-53; everything else,
+ * Layanan Makam at a Lokasi Mitra (49-54) included, is Rilis 1. The routes of tickets 35, 39 and 41
+ * (burial under an existing Hak Pakai, Pengembalian and Ganti Pemegang Hak, the Perpanjangan berkas and
+ * Permohonan) and the two Hak Pakai ticks of ticket 42 are under `perpanjangan_lanjutan` below; ticket 59's
+ * tick is under `lokasi_ditangguhkan`. Ticket 84 (the Pintu Masuk cell) has no route or tick of its own: it is a kind
+ * of cell in the Denah editor, whose pages are Rilis 1, so nothing here closes it. A page or tick the map does
+ * not cover fails the guard test (`rilis-guard.test.ts`) until it is added.
  */
 
 export type Rilis = 1 | 2 | 3;
@@ -17,7 +19,7 @@ export type Rilis = 1 | 2 | 3;
 export const fiturRilis = {
   /** Everything the first release carries (ADR 0005 and ADR 0006 included). */
   inti: 1,
-  /** Perpanjangan continued: berkas and Permohonan, and the Hak Pakai reminders and expiry (41, 42, 39; 35 when it lands). */
+  /** Perpanjangan continued: berkas and Permohonan, the Hak Pakai reminders and expiry, burial under an existing Hak Pakai, Pengembalian and Ganti Pemegang Hak (41, 42, 35, 39). */
   perpanjangan_lanjutan: 2,
   /** Ditangguhkan / Berhenti of a Lokasi Mitra (59). */
   lokasi_ditangguhkan: 2,

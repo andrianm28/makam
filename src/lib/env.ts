@@ -399,6 +399,16 @@ export function paymentsAreTrial(source: EnvSource = process.env): boolean {
   return new URL(override).host === new URL(SUMOPOD_SANDBOX_BASE_URL).host;
 }
 
+/**
+ * Whether the prices a page shows may still be example prices, "harga contoh" (the beta, ticket 112): every
+ * environment but a production that pays live. Staging, development and test hold example data by nature, and
+ * production does while its payments are a trial (`paymentsAreTrial`). A missing or unknown `APP_ENV` reads as
+ * "may be examples", never as live, so a misread can only add a label and never hide one.
+ */
+export function pricesMayBeExamples(source: EnvSource = process.env): boolean {
+  return source.APP_ENV !== "production" || paymentsAreTrial(source);
+}
+
 export type SentryEnv = z.infer<typeof sentryEnvSchema>;
 export type RuntimeEnv = z.infer<typeof runtimeEnvSchema>;
 export type EmailEnv = z.infer<typeof emailEnvSchema>;

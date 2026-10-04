@@ -45,12 +45,16 @@ export interface HakPakaiMasaTenggang {
   endDate: string;
   /** The last day a Perpanjangan is accepted. */
   masaTenggangBerakhir: string;
+  /** Today (WIB) is after that day: no Perpanjangan is accepted any more and ending the Hak Pakai is what is left to decide. */
+  lewatMasaTenggang: boolean;
 }
 
 /**
- * Every Kedaluwarsa Hak Pakai of a Lokasi Mitra still inside its Masa Tenggang (today, WIB, no later than
- * the end date plus the Lokasi's Masa Tenggang). It leaves the list when a Perpanjangan is paid (the Hak
- * Pakai is Aktif again) or the Hak Pakai is ended; no other state change touches it.
+ * Every Kedaluwarsa Hak Pakai of a Lokasi Mitra the Admin Lokasi has yet to decide on: inside its Masa Tenggang
+ * (today, WIB, no later than the end date plus the Lokasi's Masa Tenggang) or past it, marked `lewatMasaTenggang`.
+ * The end of the Masa Tenggang does not take it off the list (owner decision 2026-10-02). It leaves the list
+ * when a Perpanjangan is paid (the Hak Pakai is Aktif again) or the Hak Pakai is ended; no other state change
+ * touches it, and time alone never does.
  */
 export async function hakPakaiMasaTenggang(deps: InventoryDeps, lokasiId: string): Promise<HakPakaiMasaTenggang[]> {
   const aturan = await deps.lokasi.aturanPerpanjanganOf(lokasiId);
@@ -65,10 +69,9 @@ export async function hakPakaiMasaTenggang(deps: InventoryDeps, lokasiId: string
   for (const row of rows) {
     const endDate = wibDateOf(row.endDate!);
     const masaTenggangBerakhir = addWibDateMonths(endDate, aturan.masaTenggangMonths);
-    if (hariIni > masaTenggangBerakhir) continue;
     const hak = await hakPakaiUntukPerpanjangan(deps, row.id);
     const label = labelSatuanHakPakai({ nomorKavling: hak?.nomorKavling ?? null, petakNomor: hak?.petakNomor ?? [] });
-    hasil.push({ hakPakaiId: row.id, label, endDate, masaTenggangBerakhir });
+    hasil.push({ hakPakaiId: row.id, label, endDate, masaTenggangBerakhir, lewatMasaTenggang: hariIni > masaTenggangBerakhir });
   }
   return hasil;
 }

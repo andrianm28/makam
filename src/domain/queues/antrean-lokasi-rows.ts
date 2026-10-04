@@ -133,9 +133,10 @@ export const petakPerluVerifikasiRowType: AntreanLokasiRowType = {
 
 /**
  * "Hak Pakai dalam masa tenggang" (Lainnya): every Kedaluwarsa Hak Pakai of that Lokasi Mitra
- * still inside its Masa Tenggang, so its Admin Lokasi decides whether to end it (story 130,
- * ticket 42). It closes when a Perpanjangan is paid (the Hak Pakai is Aktif again), when the
- * Admin Lokasi ends it, and when the Masa Tenggang is over. No deadline: the spec gives it none.
+ * its Admin Lokasi has yet to decide on, so it decides whether to end it (story 130, ticket 42).
+ * It closes when a Perpanjangan is paid (the Hak Pakai is Aktif again) or when the Admin Lokasi
+ * ends it; the end of the Masa Tenggang does not close it (owner decision 2026-10-02), the row
+ * then says the Masa Tenggang is over. No deadline: the spec gives it none.
  */
 export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
   key: "hak_pakai_masa_tenggang",
@@ -148,7 +149,7 @@ export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
       label: "Hak Pakai dalam masa tenggang",
       subjectKind: "hak_pakai",
       subjectId: satu.hakPakaiId,
-      subjectLabel: `${satu.label} · berakhir ${formatTanggal(satu.endDate)}, masa tenggang sampai ${formatTanggal(satu.masaTenggangBerakhir)}`,
+      subjectLabel: `${satu.label} · berakhir ${formatTanggal(satu.endDate)}, masa tenggang ${satu.lewatMasaTenggang ? "berakhir" : "sampai"} ${formatTanggal(satu.masaTenggangBerakhir)}`,
       href: `/staf/admin-lokasi/${lokasiId}/hak-pakai/${satu.hakPakaiId}`,
       deadline: null,
     }));

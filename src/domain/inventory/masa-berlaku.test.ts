@@ -81,7 +81,7 @@ describe("a fixed-term Hak Pakai reaching its end date", () => {
 });
 
 describe("Hak Pakai in masa tenggang", () => {
-  it("is listed for the Admin Lokasi from Kedaluwarsa until the Masa Tenggang ends (3 months by default)", async () => {
+  it("is listed for the Admin Lokasi from Kedaluwarsa on, and says it is not yet past its Masa Tenggang (3 months by default)", async () => {
     const setup = inventoryOnTestDatabase(db);
     const admin = (await signedInAdminPlatform(setup)).actor;
     const f = await petakTerisi(setup, admin);
@@ -93,12 +93,42 @@ describe("Hak Pakai in masa tenggang", () => {
     setup.clock.set(wib("2026-10-06 09:00"));
     await setup.inventory.kedaluwarsaTick(setup.clock.now());
     expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toEqual([
-      { hakPakaiId: f.hakPakaiId, label: expect.stringContaining("Petak"), endDate: "2026-10-05", masaTenggangBerakhir: "2027-01-05" },
+      { hakPakaiId: f.hakPakaiId, label: expect.stringContaining("Petak"), endDate: "2026-10-05", masaTenggangBerakhir: "2027-01-05", lewatMasaTenggang: false },
     ]);
 
+    // The last day of the Masa Tenggang still counts as inside it.
     setup.clock.set(wib("2027-01-05 20:00"));
-    expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toHaveLength(1);
+    expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toEqual([expect.objectContaining({ hakPakaiId: f.hakPakaiId, lewatMasaTenggang: false })]);
+  });
+
+  it("stays after the Masa Tenggang ends, marked as past it, until the Admin Lokasi acts (owner decision 2026-10-02)", async () => {
+    const setup = inventoryOnTestDatabase(db);
+    const admin = (await signedInAdminPlatform(setup)).actor;
+    const f = await petakTerisi(setup, admin);
+    setup.clock.set(wib("2026-10-06 09:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+
     setup.clock.set(wib("2027-01-06 08:00"));
+    expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toEqual([
+      { hakPakaiId: f.hakPakaiId, label: expect.stringContaining("Petak"), endDate: "2026-10-05", masaTenggangBerakhir: "2027-01-05", lewatMasaTenggang: true },
+    ]);
+    // Time alone never takes it away: a year on it is still there, and still Kedaluwarsa.
+    setup.clock.set(wib("2028-01-06 08:00"));
+    expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toEqual([expect.objectContaining({ hakPakaiId: f.hakPakaiId, lewatMasaTenggang: true })]);
+    expect(await statusHak(setup, f)).toBe("kedaluwarsa");
+  });
+
+  it("closes when the Admin Lokasi ends a Hak Pakai that is already past its Masa Tenggang", async () => {
+    const setup = inventoryOnTestDatabase(db);
+    const admin = (await signedInAdminPlatform(setup)).actor;
+    const f = await petakTerisi(setup, admin);
+    setup.clock.set(wib("2026-10-06 09:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+    setup.clock.set(wib("2027-03-01 09:00"));
+    expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toHaveLength(1);
+
+    const hasil = await setup.inventory.akhiriHakPakaiManual(f.adminLokasi, f.lokasiMitra.id, { hakPakaiId: f.hakPakaiId, alasan: "Masa tenggang lewat, keluarga tidak menjawab" });
+    expect(hasil).toEqual({ ok: true });
     expect(await setup.inventory.hakPakaiMasaTenggang(f.lokasiMitra.id)).toEqual([]);
   });
 

@@ -3,9 +3,12 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
-import type { AllInPrice } from "@/domain/tariffs";
+import { barisHargaTpu, catatanHargaContoh, jalanMasukTpuUntuk, LABEL_HARGA_CONTOH, type BarisHargaTpu } from "@/lib/content-pages";
+import { pricesMayBeExamples } from "@/lib/env";
 import { formatTanggalPanjang } from "@/lib/format-tanggal";
+import { rilisAktif } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
+import { SEGERA_HADIR } from "@/lib/makam-keluarga-content";
 import { serverRuntime } from "@/server/runtime";
 
 export const metadata: Metadata = {
@@ -29,27 +32,33 @@ const langkahSendiri: { judul: string; isi: string }[] = [
   },
 ];
 
-function PriceRow({ label, price }: { label: string; price: AllInPrice | null }) {
+function PriceRow({ baris }: { baris: BarisHargaTpu }) {
   return (
     <li className="flex items-baseline justify-between gap-2 py-1">
-      <span>{label}</span>
-      <span className="font-medium">{price ? formatRupiah(price.total) : "Belum tersedia"}</span>
+      <span>{baris.label}</span>
+      <span className="text-right">
+        <span className="font-medium">{baris.total === null ? "Belum tersedia" : formatRupiah(baris.total)}</span>
+        {baris.contoh ? <span className="ml-2 text-small text-muted-foreground">{LABEL_HARGA_CONTOH}</span> : null}
+      </span>
     </li>
   );
 }
 
 /**
  * "Pengurusan di TPU DKI" (spec, content pages): the free DIY guide first, then
- * what our help costs, then the three ways in. Saat Duka at a TPU is the wizard's
- * own TPU section (ticket 44), so that entry opens it; Perpanjangan TPU and
- * filing-only Pengurusan IPTM (tickets 48 and 47) each say they are not open yet
- * instead of linking nowhere.
+ * what our help costs, then the three ways in. Each way in links its flow once the
+ * release opens it (`jalanMasukTpuUntuk`) and says "Segera hadir." until then; the
+ * Biaya Pengurusan carry "harga contoh" while prices may still be examples
+ * (`pricesMayBeExamples`, the beta).
  */
 export default async function PengurusanTpuPage() {
   await connection(); // the prices come from the database, so this page is never prerendered
   const { tariffs, adapters, operatorSettings } = serverRuntime();
   const [pricing, settings] = await Promise.all([tariffs.tpuPricing(adapters.clock.now()), operatorSettings.current()]);
   const cs: CsContact | null = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
+  const hargaContoh = pricesMayBeExamples();
+  const barisHarga = barisHargaTpu(pricing, hargaContoh);
+  const jalanMasuk = jalanMasukTpuUntuk(rilisAktif());
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10">
@@ -88,11 +97,13 @@ export default async function PengurusanTpuPage() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4 text-body">
           <ul className="flex flex-col divide-y">
-            <PriceRow label="Mengatur pemakaman, lalu mengurus IPTM" price={pricing.pengurusanPemakaman} />
-            <PriceRow label="Hanya mengurus IPTM (keluarga sudah memakamkan sendiri)" price={pricing.pengurusanBerkas} />
-            <PriceRow label="Retribusi Pemda (IPTM)" price={pricing.retribusiIptm} />
+            {barisHarga.map((baris) => (
+              <PriceRow key={baris.kunci} baris={baris} />
+            ))}
           </ul>
-          {pricing.pengurusanPemakaman ? (
+          {barisHarga.some((baris) => baris.contoh) ? (
+            <p className="text-small text-muted-foreground">{catatanHargaContoh}</p>
+          ) : pricing.pengurusanPemakaman ? (
             <p className="text-small text-muted-foreground">
               Harga ini berlaku sejak {formatTanggalPanjang(pricing.pengurusanPemakaman.inForceSince)}.
             </p>
@@ -118,23 +129,23 @@ export default async function PengurusanTpuPage() {
       <Card>
         <CardHeader>
           <CardTitle>Tiga jalan masuk lewat Makam.co.id</CardTitle>
-          <CardDescription>Perpanjang IPTM dan mengurus berkas sendiri menyusul.</CardDescription>
+          <CardDescription>Pilih yang sesuai dengan keadaan keluarga Anda.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 text-body">
-          <p>
-            <Link href="/pesan-makam/saat-duka?jenis=tpu_dki" className="font-medium text-brand underline underline-offset-4">
-              Saat Duka di TPU
-            </Link>{" "}
-            — kami siapkan pemakamannya bersama TPU lalu mengurus IPTM-nya.
-          </p>
-          <p>
-            <span className="font-medium">Perpanjang IPTM</span> — memperpanjang izin makam yang akan berakhir. Segera
-            hadir.
-          </p>
-          <p>
-            <span className="font-medium">Sudah dimakamkan? Kami urus IPTM-nya</span> — kalau keluarga sudah memakamkan
-            sendiri, Anda hanya perlu berkas ini saja. Segera hadir.
-          </p>
+          {jalanMasuk.map((jalan) => (
+            <p key={jalan.kunci}>
+              {jalan.href ? (
+                <Link href={jalan.href} className="font-medium text-brand underline underline-offset-4">
+                  {jalan.label}
+                </Link>
+              ) : (
+                <span className="font-medium">{jalan.label}</span>
+              )}{" "}
+              — {jalan.ringkas}
+              {jalan.href ? null : ` ${SEGERA_HADIR}`}
+              {jalan.batas ? <span className="mt-1 block text-small text-muted-foreground">{jalan.batas}</span> : null}
+            </p>
+          ))}
           {cs ? (
             <p className="text-small text-muted-foreground">
               Sudah siap lebih dulu? Hubungi CS di{" "}

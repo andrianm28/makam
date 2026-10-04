@@ -119,8 +119,8 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
   });
 
-  it("lists a Hak Pakai in masa tenggang under Lainnya, and closes it when the Admin Lokasi ends it", async () => {
-    const setup = setupAntrean();
+  /** An occupied Petak whose 5-year Hak Pakai, from a burial on 2021-10-01, ends on 2026-10-01 (its Masa Tenggang, 3 months by default, ends on 2027-01-01). */
+  async function hakPakaiBerakhir20261001(setup: AntreanLokasiSetup) {
     const fixture = await saatDukaFixture(setup);
     const [blok] = await setup.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
     const [petak] = (await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
@@ -130,8 +130,13 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
       pemegangHak: { name: "Budi Santoso", phoneNumber: "081234567890" },
     });
     if (!diisi.ok || !diisi.hakPakaiId) throw new Error("clearPetak refused");
-    // A 5-year Hak Pakai from a burial on 2021-10-01 ends on 2026-10-01.
     await setup.inventory.catatPemakaman(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId: diisi.hakPakaiId, almarhumName: "Siti Aminah", tanggal: "2021-10-01" });
+    return { fixture, hakPakaiId: diisi.hakPakaiId };
+  }
+
+  it("lists a Hak Pakai in masa tenggang under Lainnya, and closes it when the Admin Lokasi ends it", async () => {
+    const setup = setupAntrean();
+    const { fixture, hakPakaiId } = await hakPakaiBerakhir20261001(setup);
 
     setup.clock.set(wib("2026-10-01 12:00"));
     await setup.inventory.kedaluwarsaTick(setup.clock.now());
@@ -141,11 +146,34 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     await setup.inventory.kedaluwarsaTick(setup.clock.now());
     const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
     expect(lain).toEqual([
-      expect.objectContaining({ type: "hak_pakai_masa_tenggang", label: "Hak Pakai dalam masa tenggang", subjectKind: "hak_pakai", subjectId: diisi.hakPakaiId, deadline: null, href: `/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${diisi.hakPakaiId}` }),
+      expect.objectContaining({ type: "hak_pakai_masa_tenggang", label: "Hak Pakai dalam masa tenggang", subjectKind: "hak_pakai", subjectId: hakPakaiId, deadline: null, href: `/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${hakPakaiId}` }),
     ]);
     expect(lain[0]?.subjectLabel).toContain("1 Oktober 2026");
+    expect(lain[0]?.subjectLabel).toContain("masa tenggang sampai 1 Januari 2027");
 
-    await setup.inventory.akhiriHakPakaiManual(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId: diisi.hakPakaiId, alasan: "Tidak diperpanjang" });
+    await setup.inventory.akhiriHakPakaiManual(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId, alasan: "Tidak diperpanjang" });
+    expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
+  });
+
+  it("keeps the Hak Pakai in masa tenggang row after the Masa Tenggang ends, until the Admin Lokasi ends the Hak Pakai (owner decision 2026-10-02)", async () => {
+    const setup = setupAntrean();
+    const { fixture, hakPakaiId } = await hakPakaiBerakhir20261001(setup);
+    setup.clock.set(wib("2026-10-02 09:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+
+    // The Masa Tenggang ended on 2027-01-01: the day after, and months later, the row is still the Admin Lokasi's to decide.
+    for (const hariIni of ["2027-01-02 09:00", "2027-06-15 09:00"]) {
+      setup.clock.set(wib(hariIni));
+      const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
+      expect(lain, hariIni).toEqual([
+        expect.objectContaining({ type: "hak_pakai_masa_tenggang", label: "Hak Pakai dalam masa tenggang", subjectKind: "hak_pakai", subjectId: hakPakaiId, deadline: null, href: `/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${hakPakaiId}` }),
+      ]);
+      // It says the Masa Tenggang is over, not that it runs on.
+      expect(lain[0]?.subjectLabel, hariIni).toContain("masa tenggang berakhir 1 Januari 2027");
+      expect(lain[0]?.subjectLabel, hariIni).not.toContain("masa tenggang sampai");
+    }
+
+    await setup.inventory.akhiriHakPakaiManual(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId, alasan: "Masa tenggang lewat, tidak diperpanjang" });
     expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
   });
 
