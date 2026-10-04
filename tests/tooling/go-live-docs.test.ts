@@ -442,10 +442,13 @@ describe('the runbook "Promoting to production" and the host\'s automatic rollba
     expect(prose).toContain("--force");
   });
 
-  it("says /api/health reads sha-<commit> after an automatic rollback, so release equals the Deployment's ref only after a normal deploy", () => {
-    const reading = section(runbook, "Reading a deploy in GitHub");
-    expect(flat(reading)).toMatch(/automatic roll ?back/i);
-    expect(flat(reading)).toMatch(/release[^.]*reads `sha-<commit>`/);
+  // Ticket 113 wrote that /api/health read `sha-<commit>` after an automatic rollback, which was
+  // how makam-deploy behaved; ticket 114 made the rollback run the restored release under its
+  // bare commit, as any deploy does, and the runbook says so.
+  it("says /api/health reports the bare commit of the restored release after an automatic rollback, not sha-<commit>", () => {
+    const reading = flat(section(runbook, "Reading a deploy in GitHub"));
+    expect(reading).toMatch(/automatic roll ?back[^.]*bare commit/i);
+    expect(reading).not.toMatch(/release[^.]*reads `sha-<commit>`/);
   });
 });
 

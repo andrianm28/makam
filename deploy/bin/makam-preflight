@@ -575,13 +575,19 @@ remove_probe_deployment() {
 # is the image's commit SHA, the revision label (GitHub takes a branch, tag or
 # commit SHA as a ref, and the image tag sha-<revision> is none of them: ticket
 # 102). This probe does the same call (a transient "preflight" environment), then
-# marks it inactive and deletes it.
+# marks it inactive and deletes it. It needs jq, as makam-deploy-status does: the
+# reply is one line of JSON that names the creator's own id after the Deployment's,
+# and only a parser tells the two apart (ticket 114).
 check_github_deployments() {
   local repo rev code id message=""
   repo=$(setting MAKAM_GITHUB_REPOSITORY)
   repo=${repo:-andrianm28/makam}
   if [ -z "$(setting MAKAM_GITHUB_TOKEN)" ]; then
     fail "72" "github deployments" "MAKAM_GITHUB_TOKEN is not set in $ENV_FILE: makam-deploy-status then does nothing, so every deploy is invisible in GitHub (fine-grained token, Deployments: write, this repository only)"
+    return 0
+  fi
+  if ! command -v jq > /dev/null 2>&1; then
+    fail "72" "github deployments" "jq is not installed: makam-deploy-status reads GitHub's replies with it and does nothing without it, so every deploy is invisible in GitHub, and this probe could not read the id it must delete (apt install jq)"
     return 0
   fi
   if [ "$PULLED" -ne 1 ]; then
@@ -596,7 +602,9 @@ check_github_deployments() {
   new_tmp
   BODY_FILE=$REPLY
   code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
-  id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
+  # The Deployment's own, top-level id. A pattern over the line took the last "id" on it,
+  # the creator's (the owner's user id), so the probe was neither marked inactive nor deleted.
+  id=$(jq -r '(.id // empty) | select(type == "number" and . > 0 and . == floor) | tostring' "$BODY_FILE" 2> /dev/null | head -n 1) || id=""
   message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
   if [ -n "$id" ] && [ "$code" = 201 ]; then
     PENDING_DEPLOY_ID=$id
@@ -606,6 +614,8 @@ check_github_deployments() {
     else
       fail "72" "github deployments" "$repo accepted a Deployment with ref $rev, but $REMOVE_PROBLEM"
     fi
+  elif [ "$code" = 201 ]; then
+    fail "72" "github deployments" "$repo accepted a Deployment (HTTP 201), but its reply has no id the probe can remove it by: delete the one in the preflight environment by hand in GitHub, Deployments"
   elif [ "$code" = 422 ]; then
     fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}): GitHub knows no commit $rev in $repo; was the image built from a commit that is pushed there?"
   else

@@ -14,7 +14,9 @@
 # Order, and what a failure leaves running:
 #   1. pull the image           fails -> nothing touched (3 tries, 10 s and 30 s apart)
 #   2. verify the signature     unsigned or wrongly signed -> nothing touched
-#   3. pg_dump (prod only)      fails -> nothing touched
+#   3. pg_dump (prod only)      fails -> nothing touched. A host whose makam-prod stack
+#                               has never run has no Postgres yet: it is started first
+#                               and waited for, so the first deploy is snapshotted too
 #   4. run --rm migrate         fails -> nothing restarted; old web/worker keep running
 #   5. up -d --wait             fails -> automatic roll back to the previous digest
 #                               (its pull of that digest is tried 3 times as well)
@@ -137,6 +139,7 @@ compose() {
 }
 current_tag() { sed -n 's/^MAKAM_TAG=//p' "$DEPLOYED_FILE" | tail -n 1; }
 current_digest() { sed -n 's/^MAKAM_DIGEST=//p' "$DEPLOYED_FILE" | tail -n 1; }
+current_release() { sed -n 's/^MAKAM_RELEASE=//p' "$DEPLOYED_FILE" | tail -n 1; }
 revision_of() { docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$1" 2>/dev/null || true; }
 digest_of() { docker image inspect --format '{{range .RepoDigests}}{{println .}}{{end}}' "$1" 2>/dev/null | head -n 1 | sed -n 's/.*@//p'; }
 record_release() {
@@ -187,8 +190,10 @@ roll_back() {
     log "ERROR no previous digest recorded, nothing to roll back to; $TAG is running and unhealthy"
     return 1
   fi
+  # MAKAM_RELEASE is the bare commit, as on any deploy (web, worker and GlitchTip
+  # name the release by it; /api/health reports it), never the tag sha-<commit>.
   export MAKAM_TAG="$PREVIOUS" MAKAM_DIGEST="$PREVIOUS_DIGEST" \
-    MAKAM_DEPLOY_REF=":$PREVIOUS@$PREVIOUS_DIGEST" MAKAM_RELEASE="$PREVIOUS"
+    MAKAM_DEPLOY_REF=":$PREVIOUS@$PREVIOUS_DIGEST" MAKAM_RELEASE="$PREVIOUS_RELEASE"
   if ! pull_with_retries "$IMAGE@$PREVIOUS_DIGEST" 2> /dev/null \
     || ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
     log "ERROR roll back to $PREVIOUS_DIGEST failed; $TAG ($DIGEST) is still running"
@@ -220,9 +225,25 @@ snapshot() {
   local dir="$DIR/backups/db" file
   mkdir -p "$dir"
   chmod 0700 "$dir"
+  # On a host where makam-prod has never run there is no Postgres container to
+  # dump (the first production deploy). Start it, and wait until it is healthy:
+  # an empty database dumps fine, so the first deploy has its snapshot too, and
+  # nobody starts Postgres by hand. This runs after MAKAM_TAG and the rest are
+  # exported, because Compose wants MAKAM_TAG even to start Postgres, and the
+  # first deployed.env is empty. A Postgres that already runs is left alone.
+  if ! running postgres; then
+    log "postgres is not running in $PROJECT (a first deploy?); starting it and waiting until it is healthy"
+    if ! compose up -d --wait --wait-timeout 120 postgres >> "$LOG" 2>&1; then
+      log "ERROR postgres would not start; refusing to migrate production"
+      status state --state failure --description "postgres did not start for $TAG; ${PREVIOUS:-(nothing)} still running"
+      exit 1
+    fi
+    log "postgres is up and healthy"
+  fi
   file="$dir/makam-$(date -u +%Y%m%dT%H%M%SZ).dump"
   if ! compose exec -T postgres pg_dump -U makam -d makam -Fc > "$file" 2>> "$LOG"; then
     log "ERROR pg_dump failed; refusing to migrate production"
+    status state --state failure --description "pg_dump failed on $TAG; ${PREVIOUS:-(nothing)} still running"
     rm -f "$file"
     exit 1
   fi
@@ -257,6 +278,12 @@ fi
 
 PREVIOUS=$(current_tag)
 PREVIOUS_DIGEST=$(current_digest)
+# The commit the running release was deployed under (what its deploy exported as
+# MAKAM_RELEASE), for a roll back to run it under again. A record that names none
+# falls back to the commit its tag names; sha- is never part of a commit.
+PREVIOUS_RELEASE=$(current_release)
+PREVIOUS_RELEASE=${PREVIOUS_RELEASE:-$PREVIOUS}
+PREVIOUS_RELEASE=${PREVIOUS_RELEASE#sha-}
 # What deployed.env said before this run, so a roll back can put it back.
 PREVIOUS_RECORD=$(cat "$DEPLOYED_FILE")
 
@@ -320,7 +347,10 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   sleep "$HEALTH_INTERVAL"
 done
 log "ERROR $TAG deployed but /api/health is not 200 after ${HEALTH_WAIT}s; rolling back to ${PREVIOUS:-(none)}"
-status state --state failure --description "$TAG ($DIGEST) never became healthy; rolling back to ${PREVIOUS:-(none)}"
+# 140 characters is all GitHub takes of a status description, and this one named
+# the digest as well (about 200): the tag says which release, the Deployment's
+# payload already holds the digest.
+status state --state failure --description "$TAG never became healthy; rolling back to ${PREVIOUS:-(none)}"
 # Exit 1: the deploy failed and the previous digest is running again. Exit 2 is
 # reserved for a roll back that failed as well, so a timer or a monitor can tell
 # "recovered on its own" from "something is still broken".

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,18 +62,37 @@ function fakeCosign() {
  * A fake `docker`: records every call and answers the three things the deploy
  * script asks of an image (its revision label, its digest, whether it is there).
  * A digest is derived from the ref, so two tags are two digests. `up` counts its
- * calls, so a test can let the first `up` succeed and the roll back's fail.
+ * calls, so a test can let the first `up` succeed and the roll back's fail, and
+ * notes the MAKAM_RELEASE it was run with (`<log>.releases`).
+ *
+ * Like Compose, it refuses any `compose` command that has no MAKAM_TAG, from the
+ * process or from deployed.env: x-app's image names it, so even starting Postgres
+ * needs it (docker-compose.prod.yml). FAKE_POSTGRES_ABSENT=1 is a host whose
+ * makam-prod stack has never run: no Postgres container until a `up ... postgres`
+ * starts one, and `exec postgres pg_dump` fails like Compose's "not running".
  */
 function fakeDocker() {
   return [
     "#!/usr/bin/env bash",
     'echo "docker $*" >> "$FAKE_DOCKER_LOG"',
+    'case "$*" in compose*)',
+    '  deployed=""; prev=""',
+    '  for a in "$@"; do [ "$prev" = --env-file ] && deployed=$a; prev=$a; done',
+    '  if [ -z "${MAKAM_TAG:-}" ] && ! grep -q "^MAKAM_TAG=" "$deployed" 2> /dev/null; then',
+    '    echo "required variable MAKAM_TAG is missing a value: MAKAM_TAG is required even when MAKAM_DEPLOY_REF is set" >&2; exit 1',
+    "  fi ;; esac",
     'case "$*" in',
-    "  *'image inspect'*'org.opencontainers.image.revision'*) echo '0123456789abcdef0123456789abcdef01234567' ;;",
+    "  *'image inspect'*'org.opencontainers.image.revision'*)",
+    '    ref="${*##* }"',
+    // FAKE_REVISION_FROM_TAG=1: an image tagged sha-<commit> carries that commit as its revision label, as CI builds it. Without it every image says the same commit.
+    '    if [ "${FAKE_REVISION_FROM_TAG:-0}" = 1 ] && [ "${ref#*:sha-}" != "$ref" ]; then echo "${ref##*:sha-}"; else echo \'0123456789abcdef0123456789abcdef01234567\'; fi ;;',
     "  *'image inspect'*'RepoDigests'*)",
     '    ref="${*##* }"',
     "    echo \"$IMAGE@sha256:$(printf '%s' \"$ref\" | sha256sum | cut -c1-64)\" ;;",
     "  *'image inspect'*) exit 0 ;;",
+    '  *"ps --status running -q postgres"*)',
+    '    [ "${FAKE_POSTGRES_ABSENT:-0}" = 1 ] && [ ! -e "$FAKE_DOCKER_LOG.postgres" ] && exit 0',
+    "    echo 'container-id' ;;",
     "  *'ps --status running -q'*) echo 'container-id' ;;",
     // FAKE_PULL_FAIL_FIRST=N fails the first N pulls (of refs containing FAKE_PULL_FAIL_MATCH, all by default), as ghcr's TLS handshake timeout does now and then.
     "  'pull '*)",
@@ -84,8 +103,18 @@ function fakeDocker() {
     "    esac ;;",
     "  *'image ls'*) [ -r \"${FAKE_DOCKER_IMAGES:-/nonexistent}\" ] && cat \"$FAKE_DOCKER_IMAGES\" ;;",
     '  *"run --rm --quiet-pull migrate"*) [ "${FAKE_MIGRATE_OK:-1}" = 1 ] || exit 1 ;;',
+    // Starting Postgres alone (FAKE_POSTGRES_START_OK=0: it never becomes healthy) is not one of the stack's `up` calls, so it is not counted below.
+    '  *"up -d --wait"*postgres*)',
+    '    [ "${FAKE_POSTGRES_START_OK:-1}" = 1 ] || { echo "container makam-prod-postgres-1 is unhealthy" >&2; exit 1; }',
+    '    touch "$FAKE_DOCKER_LOG.postgres" ;;',
+    '  *"exec -T postgres pg_dump"*)',
+    '    if [ "${FAKE_POSTGRES_ABSENT:-0}" = 1 ] && [ ! -e "$FAKE_DOCKER_LOG.postgres" ]; then echo "service \\"postgres\\" is not running" >&2; exit 1; fi',
+    '    [ "${FAKE_DUMP_OK:-1}" = 1 ] || { echo "pg_dump: error: connection to server failed" >&2; exit 1; }',
+    "    echo 'PGDMP fake dump' ;;",
     '  *"up -d --wait"*)\n'
       + '    up=$(cat "$FAKE_DOCKER_LOG.up" 2>/dev/null || echo 0); up=$((up + 1)); echo "$up" > "$FAKE_DOCKER_LOG.up"\n'
+      + '    echo "${MAKAM_RELEASE:-}" >> "$FAKE_DOCKER_LOG.releases"\n'
+      + '    [ "${FAKE_UP_FAIL_ONLY:-0}" != "$up" ] || exit 1\n'
       + '    [ "${FAKE_UP_OK:-1}" = 1 ] || exit 1\n'
       + '    [ "${FAKE_UP_FAIL_AFTER:-0}" -eq 0 ] 2>/dev/null || [ "$up" -le "${FAKE_UP_FAIL_AFTER:-0}" ] || exit 1 ;;',
     "  *) exit 0 ;;",
@@ -136,6 +165,17 @@ function install(bin: string, name: string, body: string): void {
   chmodSync(path.join(bin, name), 0o755);
 }
 
+/** A production host whose docker, curl and cosign are fakes. */
+function production(extra = ""): ReturnType<typeof host> {
+  const world = host("prod", extra);
+  writeFileSync(path.join(world.root, "prod", "cosign.pub"), "-----BEGIN PUBLIC KEY-----\nfake\n");
+  install(world.bin, "cosign", fakeCosign());
+  install(world.bin, "docker", fakeDocker());
+  install(world.bin, "curl", fakeCurl());
+  install(world.bin, "sleep", fakeSleep());
+  return world;
+}
+
 /** Runs a script with only the fakes on PATH, and returns its code, output and calls. */
 function run(
   script: string,
@@ -149,6 +189,7 @@ function run(
   // works, the roll back's does not" without counting the previous deploy.
   rmSync(`${log}.up`, { force: true });
   rmSync(`${log}.pulls`, { force: true });
+  rmSync(`${log}.releases`, { force: true });
   const env: NodeJS.ProcessEnv = {
     PATH: `${path.join(world.root, "bin")}:/usr/bin:/bin`,
     MAKAM_ROOT: world.root,
@@ -468,6 +509,160 @@ describe("makam-deploy", () => {
   });
 });
 
+describe("makam-deploy on a host whose makam-prod stack has never run (the first production deploy)", () => {
+  const SECOND_DIGEST = `sha256:${"b".repeat(64)}`;
+  const snapshots = (world: { root: string }): string[] =>
+    readdirSync(path.join(world.root, "prod", "backups", "db")).filter((name) => name.endsWith(".dump"));
+  /** The `compose ... up -d --wait ... postgres` line: Postgres alone, waited for until it is healthy. */
+  const startsPostgres = /^docker compose .* up -d --wait .*postgres$/m;
+
+  it("starts Postgres itself, waits for it to be healthy, and snapshots the empty database before it migrates", () => {
+    const world = production();
+    const result = run(deployScript, ["--env", "prod", "--digest", DIGEST], world, { FAKE_POSTGRES_ABSENT: "1" });
+    expect(result.code).toBe(0);
+    const start = result.calls.search(startsPostgres);
+    expect(start, "Postgres was never started").toBeGreaterThan(-1);
+    // A snapshot taken after the migration would be worthless, and one before Postgres runs cannot be taken.
+    expect(start).toBeLessThan(result.calls.indexOf("pg_dump"));
+    expect(result.calls.indexOf("pg_dump")).toBeLessThan(result.calls.indexOf("run --rm --quiet-pull migrate"));
+    expect(snapshots(world)).toHaveLength(1);
+    expect(readFileSync(path.join(world.root, "prod", "backups", "db", snapshots(world)[0]), "utf8")).toContain("PGDMP");
+    expect(result.deployLog()).not.toContain("pg_dump failed");
+    expect(result.deployLog()).toMatch(/postgres is not running.*starting it/);
+  });
+
+  it("does not need a MAKAM_TAG in deployed.env: Compose gets the tag of the release being deployed", () => {
+    const world = production();
+    // The first deploy starts from an empty deployed.env, and Compose refuses every command without a MAKAM_TAG (the fake docker does too).
+    const result = run(deployScript, ["--env", "prod", "--digest", DIGEST], world, { FAKE_POSTGRES_ABSENT: "1" });
+    expect(result.code).toBe(0);
+    expect(result.output + result.deployLog()).not.toContain("MAKAM_TAG is required");
+    expect(readFileSync(path.join(world.root, "prod", "deployed.env"), "utf8")).toContain(`MAKAM_DIGEST=${DIGEST}`);
+  });
+
+  it("leaves Postgres alone on every later deploy: it is running, so the deploy only snapshots and migrates, as before", () => {
+    const world = production();
+    const first = run(deployScript, ["--env", "prod", "--digest", DIGEST], world, { FAKE_POSTGRES_ABSENT: "1" });
+    expect(first.code).toBe(0);
+    const second = run(deployScript, ["--env", "prod", "--digest", SECOND_DIGEST], world, { FAKE_POSTGRES_ABSENT: "1" });
+    expect(second.code).toBe(0);
+    expect(second.calls).not.toMatch(startsPostgres);
+    expect(second.calls.indexOf("pg_dump")).toBeGreaterThan(-1);
+    expect(second.calls.indexOf("pg_dump")).toBeLessThan(second.calls.indexOf("run --rm --quiet-pull migrate"));
+    // deploy.log keeps every run's lines: only the second run's are read here.
+    expect(second.deployLog().slice(first.deployLog().length)).not.toMatch(/starting it|postgres is not running/);
+  });
+
+  it("still takes the snapshot of a stack that already runs without starting anything (every other test's host)", () => {
+    const world = production();
+    const result = run(deployScript, ["--env", "prod", "--tag", TAG_ONE], world);
+    expect(result.code).toBe(0);
+    expect(result.calls).not.toMatch(startsPostgres);
+    expect(snapshots(world)).toHaveLength(1);
+  });
+
+  it("refuses to migrate when Postgres will not start, and says so", () => {
+    const world = production();
+    const result = run(deployScript, ["--env", "prod", "--digest", DIGEST], world, {
+      FAKE_POSTGRES_ABSENT: "1",
+      FAKE_POSTGRES_START_OK: "0",
+    });
+    expect(result.code).toBe(1);
+    expect(result.calls).not.toContain("migrate");
+    expect(result.calls).not.toContain("pg_dump");
+    expect(result.deployLog()).toMatch(/ERROR postgres would not start; refusing to migrate production/);
+    expect(snapshots(world)).toEqual([]);
+    expect(readFileSync(path.join(world.root, "prod", "deployed.env"), "utf8")).not.toContain(DIGEST);
+  });
+
+  it("still refuses to migrate, and leaves no empty dump behind, when the dump itself fails", () => {
+    const world = production();
+    const result = run(deployScript, ["--env", "prod", "--tag", TAG_ONE], world, { FAKE_DUMP_OK: "0" });
+    expect(result.code).toBe(1);
+    expect(result.calls).not.toContain("migrate");
+    expect(result.deployLog()).toMatch(/ERROR pg_dump failed; refusing to migrate production/);
+    expect(snapshots(world)).toEqual([]);
+  });
+
+  it("is explained in the runbook: the rehearsal and the Hari switch start no Postgres by hand", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const rehearsal = runbook.slice(runbook.indexOf("## Rehearsal of the first production deploy"), runbook.indexOf("## Hari switch"));
+    const switchDay = runbook.slice(runbook.indexOf("## Hari switch"), runbook.indexOf("## Staging is public"));
+    // Prose is re-wrapped by editors, so it is read as one line.
+    expect(rehearsal.replace(/\s+/g, " ")).toContain("starts Postgres itself");
+    expect(rehearsal.replace(/\s+/g, " ")).toContain("MAKAM_TAG");
+    expect(switchDay.replace(/\s+/g, " ")).toContain("starts Postgres itself");
+    // What the owner types: no command in either section starts Postgres, or sets a MAKAM_TAG to do so.
+    for (const [name, text] of [["rehearsal", rehearsal], ["Hari switch", switchDay]]) {
+      const typed = [...text.matchAll(/```[a-z]*\n([\s\S]*?)```/g)].map((block) => block[1]).join("\n");
+      expect(typed, `${name}: a command was found`).toContain("makam-deploy --env prod");
+      expect(typed, name).not.toMatch(/up -d[^\n]*postgres/);
+      expect(typed, name).not.toMatch(/MAKAM_TAG=/);
+    }
+  });
+});
+
+describe("makam-deploy after an automatic roll back", () => {
+  /** A host whose docker, curl and cosign are fakes. */
+  function staging(): ReturnType<typeof host> {
+    const world = host("staging");
+    writeFileSync(path.join(world.root, world.env, "cosign.pub"), "-----BEGIN PUBLIC KEY-----\nfake\n");
+    install(world.bin, "cosign", fakeCosign());
+    install(world.bin, "docker", fakeDocker());
+    install(world.bin, "curl", fakeCurl());
+    install(world.bin, "sleep", fakeSleep());
+    return world;
+  }
+  /** The MAKAM_RELEASE each `up` of the run was given, in order. */
+  const releases = (world: { root: string }): string[] =>
+    readFileSync(path.join(world.root, "calls.log.releases"), "utf8").trim().split("\n");
+  const commit = (tag: string): string => tag.slice("sha-".length);
+  // Each image says it was built from the commit its tag names, as CI builds them.
+  const asCiBuildsThem = { FAKE_REVISION_FROM_TAG: "1" };
+
+  it("runs the restored release with its bare commit as the release, as on a deploy, and not with its sha-<commit> tag", () => {
+    const world = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, asCiBuildsThem).code).toBe(0);
+    expect(releases(world)).toEqual([commit(TAG_ONE)]);
+
+    const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, { ...asCiBuildsThem, FAKE_HEALTH_OK: "0" });
+    expect(second.code).toBe(1);
+    expect(second.deployLog()).toMatch(/rolled back to sha-1111111111111111111111111111111111111111/);
+    // The new release's commit first, then the commit of the one put back: neither is a tag, and the second is not the failed release's.
+    expect(releases(world)).toEqual([commit(TAG_TWO), commit(TAG_ONE)]);
+    expect(readFileSync(path.join(world.root, world.env, "deployed.env"), "utf8")).toContain(`MAKAM_RELEASE=${commit(TAG_ONE)}\n`);
+  });
+
+  it("does the same when the new release never came up at all", () => {
+    const world = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, asCiBuildsThem).code).toBe(0);
+    const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, { ...asCiBuildsThem, FAKE_UP_FAIL_ONLY: "1" });
+    expect(second.code).toBe(1);
+    expect(releases(world)).toEqual([commit(TAG_TWO), commit(TAG_ONE)]);
+  });
+
+  it("falls back to the commit its tag names when the record it restores names no release", () => {
+    const world = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, asCiBuildsThem).code).toBe(0);
+    const deployedEnv = path.join(world.root, world.env, "deployed.env");
+    writeFileSync(deployedEnv, readFileSync(deployedEnv, "utf8").replace(/^MAKAM_RELEASE=.*\n/m, ""));
+    const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, { ...asCiBuildsThem, FAKE_HEALTH_OK: "0" });
+    expect(second.code).toBe(1);
+    expect(releases(world)).toEqual([commit(TAG_TWO), commit(TAG_ONE)]);
+  });
+
+  it("is explained in the runbook: the bare commit, not the tag, after an automatic roll back", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8").replace(/\s+/g, " ");
+    const reading = runbook.slice(runbook.indexOf("## Reading a deploy in GitHub"), runbook.indexOf("## The staging smoke gate"));
+    const rehearsal = runbook.slice(runbook.indexOf("## Rehearsal of the first production deploy"), runbook.indexOf("## Hari switch"));
+    expect(reading).toMatch(/automatic rollback.*bare commit/);
+    for (const [name, text] of [["Reading a deploy in GitHub", reading], ["the rehearsal", rehearsal]]) {
+      expect(text, name).not.toContain("MAKAM_RELEASE=<tag>");
+      expect(text, name).not.toMatch(/`release` reads `sha-<commit>`/);
+    }
+  });
+});
+
 describe("makam-deploy reports to GitHub through makam-deploy-status", () => {
   const statusScript = path.join(repo, "deploy/bin/makam-deploy-status");
   /** A fake curl that records the body of every GitHub call; FAKE_GITHUB_CODE=422 makes GitHub refuse. */
@@ -478,13 +673,14 @@ describe("makam-deploy reports to GitHub through makam-deploy-status", () => {
     '    body=$(cat); echo "$*" "$body" >> "$FAKE_DOCKER_LOG.github"',
     '    if [ "${FAKE_GITHUB_CODE:-201}" != 201 ]; then echo "curl: (22) The requested URL returned error: ${FAKE_GITHUB_CODE}" >&2; exit 22; fi',
     "    echo '{\"id\":4242}' ;;",
-    "  *) exit 0 ;;",
+    // Anything else is the health check, which FAKE_HEALTH_OK = 0 fails.
+    '  *) [ "${FAKE_HEALTH_OK:-1}" = 1 ] || exit 22 ;;',
     "esac",
     "",
   ].join("\n");
 
-  function staging() {
-    const world = host("staging", "MAKAM_GITHUB_TOKEN=ghp_fake\n");
+  function reporting(env: "staging" | "prod") {
+    const world = host(env, "MAKAM_GITHUB_TOKEN=ghp_fake\n");
     writeFileSync(path.join(world.root, world.env, "cosign.pub"), "-----BEGIN PUBLIC KEY-----\nfake\n");
     install(world.bin, "cosign", fakeCosign());
     install(world.bin, "docker", fakeDocker());
@@ -500,6 +696,10 @@ describe("makam-deploy reports to GitHub through makam-deploy-status", () => {
     };
     return { world, sent };
   }
+  const staging = () => reporting("staging");
+  /** The JSON each GitHub call carried: the Deployment's first, then one per status. */
+  const descriptions = (calls: string[]): string[] =>
+    calls.map((call) => String((JSON.parse(call.slice(call.indexOf("{"))) as { description: unknown }).description));
 
   it("needs jq on the machine that runs these tests", () => {
     expect(spawnSync("jq", ["--version"]).status, "install jq: makam-deploy-status needs it").toBe(0);
@@ -543,6 +743,72 @@ describe("makam-deploy reports to GitHub through makam-deploy-status", () => {
     const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_COSIGN_SIGNED: "0" });
     expect(result.code).toBe(77);
     expect(sent()).toEqual([]);
+  });
+
+  it("a healthy deploy's success status ends in (<digest>) healthy, which promote.yml reads, and fits GitHub's 140 characters", () => {
+    const { world, sent } = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+    const calls = sent();
+    const digest = (JSON.parse(calls[0].slice(calls[0].indexOf("{"))) as { payload: { image_digest: string } }).payload.image_digest;
+    const success = descriptions(calls).at(-1) as string;
+    expect(success).toBe(`${TAG_ONE} (${digest}) healthy`);
+    expect(success.length).toBeLessThanOrEqual(140);
+  });
+
+  // The failure descriptions name the tag and what happened. A POST whose description is
+  // over 140 characters is refused by GitHub, and then the deploy's outcome is never recorded.
+  it.each([
+    ["never becomes healthy and is rolled back", { FAKE_HEALTH_OK: "0" }, /never became healthy.*rolling back to/],
+    ["does not come up and is rolled back", { FAKE_UP_FAIL_ONLY: "1" }, /up failed.*rolling back to/],
+    ["fails to migrate", { FAKE_MIGRATE_OK: "0" }, /migrate failed.*still running/],
+  ])("a deploy that %s records a failure that fits 140 characters, whole, naming the new tag and the one running", (_what, flags, wording) => {
+    const { world, sent } = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+    const before = sent().length;
+    const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, flags);
+    expect(second.code).toBe(1);
+    const recorded = descriptions(sent().slice(before));
+    for (const description of recorded) expect(description.length, description).toBeLessThanOrEqual(140);
+    const failure = recorded.at(-1) as string;
+    expect(failure).toMatch(wording);
+    expect(failure).toContain(TAG_TWO);
+    expect(failure).toContain(TAG_ONE);
+    // Short enough as it is, not cut by the status script to fit.
+    expect(failure).not.toContain("...");
+    expect(second.deployLog()).not.toContain("could not record status");
+  });
+
+  it("a production snapshot that fails records failure on the Deployment, whose status would otherwise stay in progress for good", () => {
+    const { world, sent } = reporting("prod");
+    const result = run(deployScript, ["--env", "prod", "--tag", TAG_ONE], world, { FAKE_DUMP_OK: "0" });
+    expect(result.code).toBe(1);
+    expect(result.calls).not.toContain("migrate");
+    const calls = sent();
+    expect(calls.slice(1).map((c) => /"state":"(\w+)"/.exec(c)?.[1])).toEqual(["in_progress", "failure"]);
+    const failure = descriptions(calls).at(-1) as string;
+    expect(failure).toMatch(/pg_dump failed/);
+    expect(failure).toContain(TAG_ONE);
+    expect(failure.length).toBeLessThanOrEqual(140);
+  });
+
+  it("a Postgres that will not start on a first production deploy records failure too", () => {
+    const { world, sent } = reporting("prod");
+    const result = run(deployScript, ["--env", "prod", "--digest", DIGEST], world, {
+      FAKE_POSTGRES_ABSENT: "1",
+      FAKE_POSTGRES_START_OK: "0",
+    });
+    expect(result.code).toBe(1);
+    expect(sent().slice(1).map((c) => /"state":"(\w+)"/.exec(c)?.[1])).toEqual(["in_progress", "failure"]);
+    const failure = descriptions(sent()).at(-1) as string;
+    expect(failure).toMatch(/postgres did not start/);
+    expect(failure.length).toBeLessThanOrEqual(140);
+  });
+
+  it("is explained in the runbook where the statuses are described: the 140-character limit", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8").replace(/\s+/g, " ");
+    const reading = runbook.slice(runbook.indexOf("## Reading a deploy in GitHub"), runbook.indexOf("## The staging smoke gate"));
+    expect(reading).toMatch(/140 characters/);
+    expect(reading).toContain("(<digest>) healthy");
   });
 });
 
