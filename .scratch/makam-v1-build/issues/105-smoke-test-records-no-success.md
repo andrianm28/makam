@@ -1,0 +1,49 @@
+# The staging smoke test never records a pass, so promotion always refuses
+
+Status: resolved
+Blocked by: none (it blocks the first promotion: 65, 72)
+Spec: ticket 72 (staging smoke test recorded against the digest; promotion needs a passed smoke test); `docs/ops/runbook.md` "Promoting to production"; found on 2026-10-04 while running the first promotion
+
+## What to build
+
+`.github/workflows/staging-smoke.yml`, step "Record the result against the digest", posts the smoke result as a status on the staging Deployment for that digest. `promote.yml` refuses any digest without a `success` status whose description starts `smoke test against dev.makam.co.id for <digest>`.
+
+The step begins `[ "$RESULT" = success ] || state=failure`, so on a pass `state` is never set. GitHub then rejects the status: `gh: Validation Failed (HTTP 422) … "field":"state","message":"state is not included in the list"`. A failing run records `failure` correctly, but a passing run fails at its last step and records nothing. So no digest can ever be promoted.
+
+Record `success` when the job passed and `failure` otherwise, with the description `promote.yml` expects.
+
+## Acceptance criteria
+
+- [ ] A passing smoke run records a `success` status on the staging Deployment for its digest, with the description `smoke test against dev.makam.co.id for <digest>: success`. The step itself ends green.
+- [ ] A failing smoke run still records `failure` with the same description shape.
+- [ ] The description stays a prefix match for `promote.yml`'s check (`startswith("smoke test against dev.makam.co.id for " + $digest)`).
+- [ ] A test fails if the step can post an empty or unknown `state` again. For example, a tooling test runs the step's shell with `RESULT=success` and `RESULT=failure` against a fake `gh` and checks the state each one posts. Follow the style of the tooling tests in `tests/tooling/`.
+
+## Comments
+
+### Evidence (2026-10-04, orchestrator on the VPS)
+
+- Run 37168614156 (`workflow_dispatch`, 01:38Z): the Playwright smoke passed (`RESULT: success`, digest `sha256:7c07a86b…`), then "Record the result against the digest" failed with the HTTP 422 above.
+- Run 37150149670 had failed earlier for another reason: staging served an empty browser DSN. That is fixed on the host; `NEXT_PUBLIC_SENTRY_DSN` is now in `staging.env`.
+- Ticket 102 is merged and works on the host: staging Deployment 6832434792 has `in_progress` and then `success`, with `ref` as the bare SHA.
+
+### Build (2026-10-04, builder)
+
+- `staging-smoke.yml`, step "Record the result against the digest": `[ "$RESULT" = success ] || state=failure` became `if [ "$RESULT" = success ]; then state=success; else state=failure; fi`. Nothing else in the workflow changed; the description is unchanged, so it stays a prefix match for `promote.yml`.
+- New `tests/tooling/staging-smoke-record.test.ts` reads the step's `run:` block from the workflow as text (`yaml` is not a direct dependency) and runs it with a fake `gh` on PATH. RESULT=success posts `state=success` and `...for <digest>: success`; RESULT=failure and cancelled post `state=failure` with the same shape; the step exits 0. The test failed on the old script (red) before the fix.
+- Spec gaps: none. Unverified: a real GitHub run.
+
+### Review and merge (2026-10-04, orchestrator on the VPS; fixed point origin/main 0291d9f0, head 6dffe77b)
+
+Two-axis review, both axes as parallel reviewers (sonnet); the new test ran 4/4.
+- **Spec**: AC1–AC4 MET. End to end, the `running` step, the record step and `promote.yml`'s check all take the newest staging Deployment with `payload.image_digest`, and the job has `deployments: write`, so a pass lands on the Deployment `promote.yml` checks. Hard: 0, soft: 2.
+- **Standards**: Hard: 0, soft: 4.
+
+Follow-ups, deliberately left (soft):
+- The test's YAML text extraction assumes 6-space step indentation and a hard-coded 10-space de-indent, and its "script is found" check is weak. It should throw when the step name is missing and assert on `$RESULT` and `/statuses`.
+- A script that dies before calling `gh` gives an unclear ENOENT.
+- The test inherits the real PATH and environment.
+- The fallback branch's message says "as a comment" (pre-existing, unreachable).
+- Not yet run on GitHub; the next smoke run after the deploy proves it.
+
+Unblocks the first promotion (65, 72).

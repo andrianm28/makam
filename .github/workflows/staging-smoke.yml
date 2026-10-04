@@ -94,7 +94,7 @@ jobs:
           DIGEST: ${{ steps.running.outputs.digest }}
           RESULT: ${{ job.status }}
         run: |
-          [ "$RESULT" = success ] || state=failure
+          if [ "$RESULT" = success ]; then state=success; else state=failure; fi
           id=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=staging&per_page=20" \
             --jq "[.[] | select(.payload.image_digest == \"$DIGEST\")] | .[0].id // empty")
           if [ -z "$id" ]; then
