@@ -20,16 +20,20 @@ describe("GET /api/health", () => {
 
   describe("the release this process runs", () => {
     afterEach(() => {
-      delete process.env.SENTRY_RELEASE;
-      delete process.env.RILIS_TERBUKA;
+      vi.unstubAllEnvs();
     });
 
     it("names the running commit and the open Rilis so a promotion can be checked from outside", async () => {
-      process.env.SENTRY_RELEASE = "abc1234def5678";
-      process.env.RILIS_TERBUKA = "2";
+      vi.stubEnv("SENTRY_RELEASE", "abc1234def5678");
+      vi.stubEnv("RILIS_TERBUKA", "2");
       const body = await (await GET()).json();
       expect(body.release).toBe("abc1234def5678");
       expect(body.rilisTerbuka).toBe(2);
+    });
+
+    it.each([["with spaces", "abc 123"], ["too long", "a".repeat(100)]])("reports no commit when the value is invalid (%s)", async (_n, value) => {
+      vi.stubEnv("SENTRY_RELEASE", value);
+      expect((await (await GET()).json()).release).toBeNull();
     });
 
     it("reports no commit when none was set and the Rilis the environment defaults to", async () => {
