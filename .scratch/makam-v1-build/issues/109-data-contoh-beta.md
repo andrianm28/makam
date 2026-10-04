@@ -259,3 +259,121 @@ Answers to the round 1 review above, item by item. Each fix went test first (a f
 3. A price in force is never let go of by the registry: not by `cabut`, not by cleanup.
 
 **Tests** (read from whole logs). `npx vitest run` over `src/domain/data-contoh`, `src/domain/audit`, `src/cli/data-contoh-command.test.ts`, `src/cli/seed-contoh-publik-command.test.ts`, `src/app/api/browser-config`, `src/lib/payment-trial.test.ts`, `tests/tooling/makam-preflight.test.ts`, `data-contoh-bundle.test.ts`, `katalog-lama-runbook.test.ts`, `image-retention.test.ts`, `ticket-workflow.test.ts`: 11 files, 226 tests, exit 0, 169 s, read from the whole log (the Data Contoh domain file alone ran 20 tests, the Audit Log file 10, the preflight file 62). `npm run lint` exit 0 (the same 6 warnings, none in a file this ticket touches), `npm run typecheck` exit 0. No `npm run build`, no full suite, no Playwright.
+
+### Review (2026-10-04, round 2; fixed point 7415fdf7, head a74063ea)
+
+Two review reports, pasted verbatim by the fix pass. Only their heading levels are lowered, so the entry stays inside `## Comments` (`tests/support/ticket-workflow.ts` ends a Comments section at the next `## ` heading).
+
+#### Standards
+
+Re-review of fix pass 1 (58afbe37, a74063ea). The fixed point 7415fdf7 resolves and is an ancestor of origin/main (now c04dd9c9). `git diff 7415fdf7...a74063ea --stat` is non-empty: 38 files.
+
+**Tests were not run.** The brief asks for `npx vitest run`, but this reviewer is limited to read-only git and grep and may not run tests, so no exit code was read. The orchestrator should run these and read the exit code:
+- /home/ubuntu/makam-t109/src/cli/data-contoh-command.test.ts
+- /home/ubuntu/makam-t109/src/domain/data-contoh/data-contoh.test.ts
+- /home/ubuntu/makam-t109/src/domain/audit/audit-log.test.ts
+- /home/ubuntu/makam-t109/src/app/api/browser-config/route.test.ts
+- /home/ubuntu/makam-t109/src/lib/payment-trial.test.ts
+- /home/ubuntu/makam-t109/tests/tooling/makam-preflight.test.ts
+- /home/ubuntu/makam-t109/tests/tooling/data-contoh-bundle.test.ts
+
+The builder reports 226 tests, exit 0; that is not verified here.
+
+1. **OK.** `pengaturanOperatorBolehDiisi` is gone; grep finds no reference in src, tests, e2e or scripts. The production case now drives the command and checks the outcome (/home/ubuntu/makam-t109/src/cli/data-contoh-command.test.ts:115-128): `jalan([...SET, "--tulis", "--izinkan-production"], produksi)`, then `expect(await setup.operatorSettings.current()).toBeNull()` (:124). The guard is inline at /home/ubuntu/makam-t109/src/cli/data-contoh-command.ts:277: `if (perintah.appEnv !== "production")`. Deleting it would fill Pengaturan Operator and fail :124.
+
+2. **OK.** `cabutEntri` now refuses a price that is still in force, whoever asks (/home/ubuntu/makam-t109/src/domain/data-contoh/index.ts:327-329): `const berlaku = await masihBerlaku(row); if (berlaku) return { ok: false, …`. Also fixed:
+   - A cut-short row whose price is in force is now finished, not retired (index.ts:421-427).
+   - The fee fixture records an example fee a killed run entered but never recorded (command :146-154, :166-171).
+   - New tests: data-contoh.test.ts:138 and :168, and data-contoh-command.test.ts:291.
+
+   One leftover, listed under soft below.
+
+3. **BELUM.** Ticket /home/ubuntu/makam-t109/.scratch/makam-v1-build/issues/109-data-contoh-beta.md:242 says "H2, amounts not approved: open, the owner's." The AC (:48) requires approval "before merge". origin/main's copy of the ticket records no approval either.
+
+4. **BELUM.** Ticket :243 says "H3, banner wording not confirmed: open, the owner's." `BARIS_DATA_CONTOH` is unchanged (/home/ubuntu/makam-t109/src/lib/payment-trial.ts:35).
+
+5. **OK.** The Audit Log now stamps the run's reason on any entry without one (/home/ubuntu/makam-t109/src/domain/audit/index.ts:436): `reason: entry.reason ?? deps.alasanBawaan ?? null`. Other parts of the fix:
+   - Wired at command :372: `susunModul(env, database, options.clock, perintah.alasan)`.
+   - Marking a fixture finished now writes its own Entri Audit, `data_contoh.selesai` (index.ts:373-392).
+   - Outcome tests at command test :115-128 and :196 check every new entry's reason.
+   - Every reason `seedOneLokasi` passes is the run's own `alasan`.
+
+**Soft (leftover from item 2's crash and concurrent-run clauses)**
+- /home/ubuntu/makam-t109/src/cli/data-contoh-command.ts:146-154: only `tanam` applies the rule that adopts an unrecorded example fee. `rencanaCabut` and `cabut` (index.ts:395-397) look only at registry rows. Two ways to reach the bad state:
+  - A run is killed between `setGlobalTariff` and `catatInduk` (command :172-179), and the next command is `cabut --tulis`, not another `tanam`.
+  - Two overlapping runs each enter a version. The loser's `buang` (index.ts:443-447) retires the winner's row, because the loser's own version has superseded it.
+
+  Either way `cabut` exits 0 while the Rp 100.000 example fee is still in force. The rule also sits in the CLI rather than the module. Fix: put the check in `rencanaCabut` so `cabut` refuses too, or at least have the runbook say to rerun `tanam` before `cabut`.
+
+Findings: 3. Worst: items 3 and 4; the owner has not recorded approval of the amounts or of the banner wording. Hard violations: yes (owner actions needed before merge; no AGENTS.md rule broken).
+
+Hard: 2, soft: 1
+
+#### Spec
+
+Worktree `/home/ubuntu/makam-t109`; every path below is relative to it. The fixed point `7415fdf7` resolves. `git diff 7415fdf7...a74063ea` is non-empty: 38 files, 5 commits. Read-only review: no tests run, and the worktree is clean.
+
+##### Re-review items
+1. **OK.** The test now checks the outcome: command-test:115-128 runs `tanam --tulis --izinkan-production` (stagingEnv, APP_ENV=production, sandbox URL), then `expect(await setup.operatorSettings.current()).toBeNull()` (:124). `pengaturanOperatorBolehDiisi` no longer exists anywhere, and the guard is inline at command:277.
+2. **BELUM (narrowed).**
+   - Fixed: `cabutEntri` refuses a `tarif_global` row that is still in force, whoever calls it (index.ts:326-329, "masih berlaku, belum digantikan versi asli").
+   - Fixed: a cut-short fee row whose price is in force is finished, not retired (index.ts:421-427).
+   - Tests: domain-test:138-166 and :168-190, command-test:291-305.
+   - Still open, both named in the item:
+     - **Crash between `setGlobalTariff` (command:172) and `catatInduk` (:179).** Only a later `tanam` adopts the fee (command:166-170). `cabut` (command:321-332), `hargaBerlaku` (index.ts:362-370) and `aktif()` (:502-505) see registry rows only. If `cabut --tulis` is the next command, it exits 0 with Rp 100.000 still in force, `contohAktif` is false and the preflight PASSes. The runbook promises recovery "by the next `tanam`" (runbook.md:485) and "Exit 0 only when nothing contoh is left active" (:491). The command test covers only a second `tanam`.
+     - **Concurrent runs.** `masihBerlaku` (index.ts:312-319) accepts any later version as the successor, not only a real one. The losing run's `buang` (:443-447) retires whatever row holds the code. So it retires the winning run's fee row, because the loser's own contoh version superseded that row's version.
+3. **BELUM.** "H2, amounts not approved: open, the owner's." (ticket :242).
+4. **BELUM.** "H3, banner wording not confirmed: open, the owner's." (ticket :243; `BARIS_DATA_CONTOH` at payment-trial.ts:35).
+5. **OK.**
+   - The reason now reaches every write: `reason: entry.reason ?? deps.alasanBawaan ?? null` (audit/index.ts:436), on the one Audit Log every module is built with (seed-contoh-publik-command.ts:488).
+   - The finishing mark is audited as `data_contoh.selesai` (index.ts:373-393).
+   - command-test:196-205 (staging) and :115-128 (production) check that every new Entri Audit has the exact reason. Since a reason is now threaded through, the owner does not need to accept the gap.
+
+##### Acceptance criteria
+- **Registry: MET.** The module, its schema and migration 0064, with a partial unique index on active `kode`. `catat` is idempotent (domain-test:42). Listed at AGENTS.md:24.
+- **CLI: MET.**
+  - Bundle: build-worker.mjs:17, plus the bundle test.
+  - Dry run unless `--tulis`; each environment needs its own flag, checked before any DB access (command:99-104).
+  - `seed:admin` required (:272-273, :330-331); reasons on every write (item 5).
+- **tanam: MET.**
+  - Five Lokasi go through the publish gate (command-test:319).
+  - Layanan get Lokasi prices (:248); the platform fee is entered only when none is set (command:166-171).
+  - Staff are on `.invalid` addresses (rilis1.ts:33,103).
+  - No Pengaturan Operator on production (item 1); twice changes nothing (command-test:277-289).
+- **cabut: PARTIAL** (item 2).
+  - Lokasi are hidden and staff deactivated (domain-test:259, command-test:360-376).
+  - It refuses while a contoh price is in force (domain-test:302, :323; command-test:333).
+  - Open orders are reported (domain-test:366).
+  - Exit 0 is wrong only in the item 2 paths.
+- **status: MET** (command:136-140, command-test:237).
+- **Marking: PARTIAL** (item 4).
+  - Names, Blok names included, are marked (rilis1.ts:85-106; command-test:78-85).
+  - `contohAktif` is true, false or null, with a 2 s limit (route.ts:26-44; route tests :56-88).
+- **Preflight: MET** (makam-preflight:672-694; preflight-test:916-968).
+- **Tests: MET.**
+  - Domain: :120, :259, :302.
+  - Command: :89, :146, :347.
+  - e2e: extended but not run (needs a stack).
+- **Amounts: NOT MET** (item 3).
+
+##### Money-code checks
+- **cabut never lets go of a price without a real successor:** holds for every registry row (index.ts:326-329, :479-482). Not met in the item 2 paths.
+- **No real Pencairan without staff action: MET.** `tanam` creates no Pemesanan or Tagihan; Fieldwork only reads Billing; the transfer needs `pencairan.kelola` (payouts/transfer.ts:188).
+- **Every write audited with the command and environment: MET** (item 5).
+- **Production refused without `--izinkan-production`: MET** (command:99-101; command-test:89-101; bundle test :44-51).
+- **tanam idempotent: MET.**
+- **Preflight FAILs on a non-sandbox host while contoh data is active: MET** when the stack answers (:691). An unrecorded fee (item 2) reads as PASS.
+- **Migration expand-only: MET.** One CREATE TABLE and two indexes. The snapshot adds only that table, and the fix pass did not touch the migration.
+
+##### Findings
+**HARD**
+- **H1 (item 2 residual).** An unrecorded contoh fee is found only by a later `tanam`, and `buang` can retire another run's fee row. Fix: let `cabut` (dry run and `--tulis`) run `diEnterOlehTanam` on the fee in force and exit 1, or record it first; let `buang` retire only the row its own run recorded.
+- **H2 (item 3).** Amounts are not approved by the owner.
+- **H3 (item 4).** The banner wording is not confirmed by the owner.
+
+**SOFT**
+- None new.
+
+Findings: 3. Worst (Spec): after a `tanam` killed between entering the contoh fee and recording it, `cabut --tulis` exits 0 and the preflight PASSes with Rp 100.000 still in force. Hard violations: yes (must fix before merge; none breaks an AGENTS.md rule).
+
+Hard: 3, soft: 0
