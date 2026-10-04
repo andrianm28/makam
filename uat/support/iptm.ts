@@ -13,6 +13,13 @@ import { langkah } from "./langkah";
 
 const halamanAdmin = (nomor: string) => `/staf/admin-platform/pengurusan/${nomor}`;
 
+/**
+ * After a Lunas the order is still Menunggu Pembayaran until the worker's minute tick (`pengurusan.pembayaran_berkas`)
+ * sees the paid Tagihan and moves it to Diproses, making the Ambil surat pengantar Tugas in the same step. The pages
+ * show the new state only after that, so a step that follows a payment polls (a reload every few seconds) for this long.
+ */
+export const TUNGGU_TICK_MS = 3 * 60_000;
+
 /** "Sudah dimakamkan? Kami urus IPTM-nya": the filing-only order of the signed-in Pemesan. Returns the Nomor Pemesanan. */
 export async function pesanPengurusanIptm(pemesan: Page): Promise<string> {
   return langkah(pemesan, "Sudah dimakamkan? Kami urus IPTM-nya: isi data pengajuan, Pesan pengurusan IPTM", async () => {
@@ -47,11 +54,8 @@ export async function unggahBerkasPengajuan(pemesan: Page, nomor: string): Promi
   });
 }
 
-/**
- * Admin Platform's "Dokumen lengkap" (the documents pass, so the pay-first Tagihan is issued), then the Pemesan
- * opens the Tagihan and pays it through the sandbox. Returns the Tagihan's path.
- */
-export async function periksaDokumenLaluBayar(pemesan: Page, admin: Page, nomor: string): Promise<string> {
+/** Admin Platform's "Dokumen lengkap" (the documents pass, so the pay-first Tagihan is issued); the Pemesan then sees the Tagihan, Menunggu Pembayaran. */
+export async function periksaDokumen(pemesan: Page, admin: Page, nomor: string): Promise<void> {
   await langkah(admin, `Admin Platform ${nomor}: Dokumen lengkap, Tagihan bayar-dulu terbit`, async () => {
     await admin.goto(halamanAdmin(nomor));
     await admin.getByRole("button", { name: "Dokumen lengkap" }).click();
@@ -61,15 +65,37 @@ export async function periksaDokumenLaluBayar(pemesan: Page, admin: Page, nomor:
     await pemesan.goto(`/pengurusan/${nomor}`);
     await expect(pemesan.getByRole("link", { name: /Buka Tagihan/ }).first()).toBeVisible({ timeout: 30_000 });
   });
+}
+
+/** `periksaDokumen`, then the Pemesan opens the Tagihan and pays it through the sandbox. Returns the Tagihan's path. */
+export async function periksaDokumenLaluBayar(pemesan: Page, admin: Page, nomor: string): Promise<string> {
+  await periksaDokumen(pemesan, admin, nomor);
   return bukaTagihanDanBayar(pemesan);
 }
 
-/** Admin Platform files the IPTM ("IPTM diajukan"; the Petugas Lapangan for the original papers is optional and left out). */
+/** Waits for the minute tick after a Lunas: the order reads "Sudah Lunas" and the Ambil surat pengantar Tugas was made by itself. */
+export async function tungguDiproses(admin: Page, nomor: string): Promise<void> {
+  await langkah(admin, `Admin Platform ${nomor}: Sudah Lunas, Tugas Ambil surat pengantar dibuat otomatis (tick per menit)`, async () => {
+    await expect(async () => {
+      await admin.goto(halamanAdmin(nomor));
+      await expect(admin.getByText(/Sudah Lunas\. Tugas ambil surat pengantar sudah dibuat otomatis/)).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: TUNGGU_TICK_MS, intervals: [5_000] });
+  });
+}
+
+/**
+ * Admin Platform files the IPTM ("IPTM diajukan"; the Petugas Lapangan for the original papers is optional and left out).
+ * The button comes when the order is Diproses (a minute or so after Lunas) or Perlu Perbaikan, so the page is reloaded until it shows.
+ */
 export async function ajukanIptm(admin: Page, nomor: string): Promise<void> {
   await langkah(admin, `Admin Platform ${nomor}: IPTM diajukan`, async () => {
-    await admin.goto(halamanAdmin(nomor));
-    await admin.getByRole("button", { name: "IPTM diajukan" }).click();
-    await expect(admin.getByRole("button", { name: "IPTM diajukan" })).toHaveCount(0, { timeout: 30_000 });
+    const tombol = admin.getByRole("button", { name: "IPTM diajukan" });
+    await expect(async () => {
+      await admin.goto(halamanAdmin(nomor));
+      await expect(tombol).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: TUNGGU_TICK_MS, intervals: [5_000] });
+    await tombol.click();
+    await expect(tombol).toHaveCount(0, { timeout: 30_000 });
   });
 }
 

@@ -1,6 +1,7 @@
 import { bukaTagihanDanBayar, konfirmasiTpuSaatDuka, pesanTpuSaatDuka } from "../support/alur";
+import { angkaDiHalaman } from "../support/bayar";
 import { DATA, kunjungi, nomorPemesananDi, tanggalWib } from "../support/halaman";
-import { ajukanIptm, catatPutusanPtsp, pesanPengurusanIptm, periksaDokumenLaluBayar, terbitkanIptm, unggahBerkasPengajuan } from "../support/iptm";
+import { TUNGGU_TICK_MS, ajukanIptm, catatPutusanPtsp, pesanPengurusanIptm, periksaDokumen, periksaDokumenLaluBayar, terbitkanIptm, tungguDiproses, unggahBerkasPengajuan } from "../support/iptm";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -32,13 +33,17 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
     await manual(admin, "Nama dan kontak Admin Platform yang mengambil baris terlihat di halaman keluarga", "dibaca owner pada screenshot halaman pengurusan");
   });
 
-  test("R3-46.1 dan R3-53.1 Pesanan TPU terbayar dibatalkan sebelum IPTM Diajukan: Dibatalkan dan permintaan refund", async ({ sebagai }) => {
+  test("R3-46.1 dan R3-53.1 Pesanan TPU terbayar dibatalkan sebelum IPTM Diajukan: Dibatalkan, Layanan hari-H dibatalkan dan permintaan refund sebesar seluruh pembayaran", async ({ sebagai }) => {
     const pemesan = await sebagai("pemesan");
     const nomor = await pesanTpuSaatDuka(pemesan, { layananHariH: true });
     await konfirmasiTpuSaatDuka(await sebagai("admin-platform"), nomor);
-    await langkah(pemesan, "Pesanan kedua dikonfirmasi: Layanan hari-H di pesanan", async () => {
+    let total = "";
+    await langkah(pemesan, "Pesanan kedua dikonfirmasi: Layanan hari-H di pesanan, total Tagihan dicatat", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
       await expect(pemesan.getByRole("heading", { name: "Layanan hari-H" })).toBeVisible({ timeout: 30_000 });
+      const teks = await pemesan.getByTestId("tagihan-konfirmasi").innerText();
+      total = angkaDiHalaman(teks.split("sebesar")[1] ?? "")[0] ?? "";
+      expect(total, "total Tagihan terbaca dari halaman pesanan").not.toBe("");
     });
     await bukaTagihanDanBayar(pemesan);
     await langkah(pemesan, "Batalkan pengurusan sebelum IPTM Diajukan", async () => {
@@ -46,10 +51,23 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
       await pemesan.getByRole("button", { name: "Batalkan pengurusan" }).click();
       await expect(pemesan.getByText("Dibatalkan").first()).toBeVisible({ timeout: 30_000 });
     });
+    // The order page no longer lists the hari-H jobs once it is Dibatalkan; the same jobs are on the Layanan page of the same Nomor Pemesanan.
+    await langkah(pemesan, "R3-53.1: setiap Layanan hari-H pesanan itu Dibatalkan (tak ada yang Sedang Dikerjakan)", async () => {
+      await pemesan.goto(`/layanan/${nomor}`);
+      const pekerjaan = pemesan.locator("li").filter({ has: pemesan.locator("h3") });
+      await expect(pekerjaan.first()).toBeVisible({ timeout: 30_000 });
+      const jumlah = await pekerjaan.count();
+      await expect(pekerjaan.filter({ hasText: "Dibatalkan" }), "setiap pekerjaan Layanan hari-H berstatus Dibatalkan").toHaveCount(jumlah);
+    });
+    await langkah(pemesan, "R3-46.1: permintaan refund menunggu rekening, sebesar seluruh pembayaran (belum Dimakamkan)", async () => {
+      await pemesan.goto(`/pengurusan/${nomor}`);
+      const teks = await pemesan.getByText(/Dana sebesar/).first().innerText();
+      expect.soft(angkaDiHalaman(teks)[0], "jumlah pengembalian sama dengan total Tagihan yang dibayar").toBe(total);
+    });
     const admin = await sebagai("admin-platform");
     await kunjungi(admin, "Pengembalian dana: permintaan refund pesanan yang dibatalkan", "/staf/admin-platform/pengembalian", /Pengembalian/);
     await expect.soft(admin.getByText(nomor).first()).toBeVisible();
-    await manual(admin, "Jumlah refund benar: seluruh pembayaran sebelum Dimakamkan; Layanan hari-H dikembalikan kecuali Sedang Dikerjakan", "dihitung owner dari rincian Tagihan dan screenshot");
+    await manual(admin, "Rincian refund: Biaya Pengurusan ikut dikembalikan sebelum Dimakamkan, Layanan hari-H dikembalikan kecuali yang Sedang Dikerjakan", "dibaca owner pada baris Pengembalian dan rincian Tagihan (screenshot); jumlah totalnya sudah dicek runner");
   });
 
   test("R3-47.1 Pengurusan IPTM (hanya pengajuan): dokumen lengkap, Tagihan bayar-dulu dibayar, baru lalu Tugas Ambil surat pengantar, IPTM Terbit mengisi Makam TPU", async ({ sebagai }) => {
@@ -62,15 +80,14 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
       await expect(pemesan.getByRole("link", { name: /Buka Tagihan/ })).toHaveCount(0);
     });
-    await langkah(admin, "Sebelum Lunas: Tugas Ambil surat pengantar belum dibuat", async () => {
+    await periksaDokumen(pemesan, admin, nomor);
+    await langkah(admin, "Tagihan terbit, belum dibayar: Tugas Ambil surat pengantar belum dibuat", async () => {
       await admin.goto(`/staf/admin-platform/pengurusan/${nomor}`);
-      await expect.soft(admin.getByText(/Tugas ambil surat pengantar/)).toHaveCount(0);
+      await expect(admin.getByText(/Tugas ambil surat pengantar dibuat otomatis setelah Lunas/)).toBeVisible();
     });
-    await periksaDokumenLaluBayar(pemesan, admin, nomor);
-    await langkah(admin, "Sudah Lunas: Tugas Ambil surat pengantar dibuat otomatis", async () => {
-      await admin.goto(`/staf/admin-platform/pengurusan/${nomor}`);
-      await expect(admin.getByText(/Sudah Lunas\. Tugas ambil surat pengantar sudah dibuat otomatis/)).toBeVisible();
-    });
+    await bukaTagihanDanBayar(pemesan);
+    // Only now, after the minute tick that sees the Lunas, is the Tugas made.
+    await tungguDiproses(admin, nomor);
     await ajukanIptm(admin, nomor);
     // Valid for two more months: inside the three months before expiry that R3-48.1 renews from.
     await terbitkanIptm(admin, nomor, tanggalWib(60));
@@ -139,13 +156,15 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
       await admin.locator('input[name="berlakuSampai"]').first().fill(tanggalWib(61));
       await admin.locator('input[name="alasan"]').first().fill("Uji UAT: disamakan dengan foto IPTM");
       await admin.getByRole("button", { name: "Simpan koreksi" }).click();
-      await expect(admin.getByRole("button", { name: "Simpan koreksi" })).toBeEnabled({ timeout: 30_000 });
+      await expect(admin.getByText("Tanggal berakhir IPTM dikoreksi.")).toBeVisible({ timeout: 30_000 });
     });
     await periksaDokumenLaluBayar(pemesan, admin, nomor);
-    await langkah(pemesan, "Dibayar: Sudah dibayar menunggu pengajuan; lama terbit 5 hari kerja tampil", async () => {
-      await pemesan.goto(`/pengurusan/${nomor}`);
+    await langkah(pemesan, "Dibayar: Sudah dibayar menunggu pengajuan (tick per menit); lama terbit 5 hari kerja tampil", async () => {
+      await expect(async () => {
+        await pemesan.goto(`/pengurusan/${nomor}`);
+        await expect(pemesan.getByText("Sudah dibayar, menunggu pengajuan").first()).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: TUNGGU_TICK_MS, intervals: [5_000] });
       await expect(pemesan.getByTestId("lama-terbit")).toContainText("5 hari kerja");
-      await expect(pemesan.getByText("Sudah dibayar, menunggu pengajuan").first()).toBeVisible();
     });
     await ajukanIptm(admin, nomor);
     await terbitkanIptm(admin, nomor, tanggalWib(61 + 3 * 365));

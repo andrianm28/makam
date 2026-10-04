@@ -17,8 +17,8 @@ export interface Kata {
   negatif?: true;
 }
 
-/** A string literal (group `s`) or a regular expression literal (group `r`). */
-const LITERAL = String.raw`(?:"(?<s>(?:[^"\\\n]|\\.)*)"|\/(?<r>(?:[^/\\\n*]|\\.)(?:[^/\\\n]|\\.)*)\/[a-z]*)`;
+/** A string literal (capture group 1) or a regular expression literal (capture group 2); no rule has a group before it. */
+const LITERAL = String.raw`(?:"((?:[^"\\\n]|\\.)*)"|\/((?:[^/\\\n*]|\\.)(?:[^/\\\n]|\\.)*)\/[a-z]*)`;
 
 const ATURAN: [JenisKata, RegExp][] = [
   ["role", new RegExp(String.raw`getByRole\(\s*"[a-z]+"\s*,\s*\{[^}]*?\bname:\s*${LITERAL}`, "g")],
@@ -27,7 +27,7 @@ const ATURAN: [JenisKata, RegExp][] = [
   ["testid", new RegExp(String.raw`getByTestId\(\s*${LITERAL}`, "g")],
   ["alt", new RegExp(String.raw`getByAltText\(\s*${LITERAL}`, "g")],
   ["opsi", new RegExp(String.raw`pilihOpsi\(\s*[A-Za-z0-9_$]+\s*,\s*${LITERAL}`, "g")],
-  ["field", /\[name="(?<s>[^"]+)"\]/g],
+  ["field", /\[name="([^"]+)"\]/g],
 ];
 
 /** The words in a regular expression's source when it is plain words (alternatives allowed), nothing otherwise. */
@@ -49,7 +49,7 @@ export function kataPencarian(kode: string): Kata[] {
   const ditemukan: { indeks: number; kata: Kata[] }[] = [];
   for (const [jenis, pola] of ATURAN) {
     for (const cocok of kode.matchAll(pola)) {
-      const { s, r } = cocok.groups ?? {};
+      const [, s, r] = cocok;
       const kata = s !== undefined ? [tanpaEscape(s)] : r !== undefined ? kataDariPola(r) : [];
       const sesudah = kode.slice(cocok.index + cocok[0].length).split(/[;\n]/, 1)[0];
       const negatif = /toHaveCount\(0\)|\.not\.toBeVisible\(/.test(sesudah);
