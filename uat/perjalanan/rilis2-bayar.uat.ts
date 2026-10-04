@@ -1,6 +1,6 @@
-import { perpanjangDanBayar, pilihMasaLaluTagihan, bukaTagihanDanBayar } from "../support/alur";
+import { ajukanPermohonanBerkas, bukaTagihanDanBayar, perpanjangDanBayar, pilihMasaLaluTagihan, setujuiPermohonan } from "../support/alur";
 import { bayarDenganQris } from "../support/bayar";
-import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, jpegContoh, kirimLaluMuatUlang, lokasiIdDariNama, nomorPemesananDi, tanggalWib } from "../support/halaman";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, kirimLaluMuatUlang, lokasiIdDariNama, nomorPemesananDi, tanggalWib } from "../support/halaman";
 import { baca, simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -67,35 +67,14 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
     const hakPakai = dariEnv("UAT_HAK_PAKAI_TANPA_EMAIL");
     test.skip(!hakPakai, "Isi UAT_HAK_PAKAI_TANPA_EMAIL: id Hak Pakai tanpa email tercatat (P8c)");
     const pemesan = await sebagai("pemesan");
-    await langkah(pemesan, "Perpanjang lewat berkas: jalur KTP, unggah, Ajukan permohonan", async () => {
-      await pemesan.goto(`/perpanjangan/${hakPakai}/berkas`);
-      await pemesan.getByRole("navigation", { name: "Jalur permohonan" }).getByRole("link", { name: /KTP/i }).first().click().catch(() => undefined);
-      await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
-      await pemesan.locator('input[name="nomorTelepon"]').fill(DATA.telepon());
-      for (const kolom of await pemesan.locator('input[type="file"]').all()) await kolom.setInputFiles(jpegContoh());
-      await pemesan.getByRole("button", { name: "Ajukan permohonan" }).click();
-      await expect(pemesan).toHaveURL(/\/perpanjangan\/permohonan\/[0-9a-f-]{36}/, { timeout: 30_000 });
-      simpan("perpanjangan.permohonan", new URL(pemesan.url()).pathname);
-    });
+    // The path is named in the address and checked on the page (`ajukanPermohonanBerkas`), not clicked in the nav, where a miss was swallowed.
+    const permohonan = await ajukanPermohonanBerkas(pemesan, hakPakai!, "ktp");
+    simpan("perpanjangan.permohonan", permohonan);
     const admin = await sebagai("admin-lokasi");
     const lokasiId = baca("saatduka.lokasiId") ?? (await lokasiIdDariNama(admin, DATA.lokasiSaatDuka()));
-    await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan, Setujui permohonan", async () => {
-      await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
-      await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
-      // This request's own row (its link ends in the request's id), not the soonest due one, which may be another family's.
-      const permohonanId = wajib("perpanjangan.permohonan", "R2-41.1").split("/").pop();
-      await admin.locator(`a[href$="/perpanjangan/${permohonanId}"]`).click();
-      // The click is a client navigation and count() does not wait: wait for the approval card before looking for its optional date.
-      await expect(admin.getByTestId("setujui-permohonan")).toBeVisible();
-      const berakhir = admin.locator('input[name="endDate"]');
-      if (await berakhir.count()) await berakhir.fill(tanggalWib(30));
-      // The module requires a reason (setujuiPermohonanSchema), though its textarea is not marked required.
-      await admin.getByLabel("Alasan (dicatat di Audit Log)").fill("Uji UAT: berkas KTP sesuai");
-      await admin.getByTestId("setujui-permohonan").click();
-      await expect(admin.getByTestId("setujui-permohonan")).toHaveCount(0, { timeout: 30_000 });
-    });
+    await setujuiPermohonan(admin, lokasiId, permohonan);
     await langkah(pemesan, "Pemohon: pilih masa, Lanjut ke Tagihan", async () => {
-      await pemesan.goto(wajib("perpanjangan.permohonan", "R2-41.1"));
+      await pemesan.goto(permohonan);
       await pilihMasaLaluTagihan(pemesan);
     });
     await bukaTagihanDanBayar(pemesan);

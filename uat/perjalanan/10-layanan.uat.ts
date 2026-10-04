@@ -1,6 +1,6 @@
 import { bukaDataSaatDuka, perpanjangDanBayar } from "../support/alur";
 import { angkaDiHalaman, bayarDenganQris } from "../support/bayar";
-import { DATA, ambilSemuaBuktiKamera, bukaBarisAntreanLokasi, envOpsional, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
+import { DATA, ambilSemuaBuktiKamera, bukaBarisAntreanLokasi, envOpsional, isiDataPemesan, kirimLaluMuatUlang, lokasiIdDariNama, nomorPemesananDi, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -131,8 +131,9 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
     await langkah(admin, "Admin Lokasi: konfirmasi pesanan (Petak Makam dan waktu pemakaman), Tagihan terbit", async () => {
       await pilihOpsi(admin, "Petak Makam");
       await admin.getByLabel("Pemakaman", { exact: true }).fill(`${tanggalWib(1)}T10:00`);
-      await admin.getByRole("button", { name: "Konfirmasi pesanan" }).click();
-      await expect(admin.getByRole("button", { name: "Konfirmasi pesanan" })).toHaveCount(0, { timeout: 30_000 });
+      await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Konfirmasi pesanan" }));
+      // The card closes once the order is Dikonfirmasi; a refusal leaves it (and its message) on the page.
+      await expect(admin.getByRole("button", { name: "Konfirmasi pesanan" }), "Pesanan tidak terkonfirmasi").toHaveCount(0);
     });
     await langkah(pemesan, "Tagihan: bayar-belakang (dibayar setelah pemakaman) dan memuat baris Layanan hari-H", async () => {
       await pemesan.goto(`/pesanan/${nomor}`);

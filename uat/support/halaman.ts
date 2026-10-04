@@ -80,6 +80,14 @@ export function persis(teks: string): RegExp {
   return new RegExp(teks.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 }
 
+/**
+ * What the `aria-label` of a Petak's button on the Denah holds when the Petak can be picked: the label ends in the status ("A-01, Makam
+ * Biasa, Tersedia", src/app/pesan-makam/terencana/denah-picker.tsx). The status of one that cannot be is "Tidak Tersedia", which holds the
+ * same word, so a pattern of the bare word is satisfied by a Petak that cannot be picked: a positive check on it passes when it should
+ * fail, and a negative one fails on a correct page. Use this for every check of that status.
+ */
+export const PETAK_TERSEDIA = /(?<!tidak )tersedia/i;
+
 /** The WIB calendar date `hari` days from today, "YYYY-MM-DD". */
 export function tanggalWib(hari = 0, sekarang: Date = new Date()): string {
   return wibDateOf(new Date(sekarang.getTime() + hari * 86_400_000));
@@ -167,17 +175,33 @@ export function nomorTagihanDi(teks: string): string | undefined {
   return /TGH\/\d{4}\/\d{6}/.exec(teks)?.[0];
 }
 
+/** The attribute `kirimLaluMuatUlang` puts on the form it submits, to find the form again while its button has another name. */
+const PENANDA_FORM_DIKIRIM = "data-uat-kirim";
+
 /**
  * Submits a form through its button and waits for the Server Action to answer, then reloads, so what follows reads the page as
  * the server now has it. "The button is gone" alone proves nothing: while the action runs the button is renamed ("Mencatat…",
  * "Menyimpan…"), so a count of 0 passes at once even when the action is then refused.
+ *
+ * A refusal is the `role="alert"` message the app draws inside the form it refused, so that is where this looks for one: never at the
+ * alerts of the whole page, because Next's route announcer is a `role="alert"` node on every page (in a shadow root) that holds the
+ * new page's title after a client navigation, and a look at the page fails on a correct app. The form is marked before the click,
+ * since the button is renamed while the action runs and a locator built from its name would then find no form and pass at once.
+ * It sees what the page has drawn when the answer arrives; what the caller reads after the reload is the proof of the outcome.
  */
 export async function kirimLaluMuatUlang(page: Page, tombol: Locator): Promise<void> {
+  const dalamForm = await tombol.evaluate((elemen, penanda) => {
+    const form = elemen.closest("form");
+    form?.setAttribute(penanda, "");
+    return form !== null;
+  }, PENANDA_FORM_DIKIRIM);
+  if (!dalamForm) throw new Error("kirimLaluMuatUlang: tombol ini bukan tombol sebuah form, jadi penolakannya tidak bisa dicari di form-nya");
   await Promise.all([
     page.waitForResponse((jawaban) => jawaban.request().method() === "POST" && Boolean(jawaban.request().headers()["next-action"]), { timeout: 30_000 }),
     tombol.click(),
   ]);
-  await expect(page.getByRole("alert").filter({ hasText: /\S/ }), "aksi ditolak").toHaveCount(0);
+  const penolakan = await page.locator(`form[${PENANDA_FORM_DIKIRIM}]`).getByRole("alert").filter({ hasText: /\S/ }).allInnerTexts();
+  expect(penolakan, "aksi ditolak").toEqual([]);
   await page.reload();
 }
 

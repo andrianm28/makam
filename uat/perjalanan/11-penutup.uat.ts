@@ -1,4 +1,4 @@
-import { DATA, bukaBarisAntreanLokasi, lokasiIdDariNama, persis } from "../support/halaman";
+import { DATA, PETAK_TERSEDIA, bukaBarisAntreanLokasi, lokasiIdDariNama } from "../support/halaman";
 import { baca, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -20,7 +20,8 @@ test.describe("§10 Penutup", { tag: ["@rilis1"] }, () => {
       // "Ajukan Pembatalan" is a link on the Hak Pakai's card in Akun Saya's Makam tab (ticket 38, spec story 102); the order page
       // only reads out a request once one exists (its "pembatalan-terencana" section holds no link).
       await pemesan.goto("/akun/makam");
-      const kartu = pemesan.locator("li").filter({ hasText: persis(DATA.lokasiTerencana()) }).filter({ hasText: persis(DATA.petakTerencana()) });
+      // The card's first line reads "<Lokasi> · <Petak>"; the whole line, so the card of the "<nama> (Contoh)" Lokasi is not taken for this one.
+      const kartu = pemesan.locator("li").filter({ has: pemesan.getByText(`${DATA.lokasiTerencana()} · ${DATA.petakTerencana()}`, { exact: true }) });
       await kartu.getByTestId("tautan-pembatalan").click();
       await expect(pemesan.getByRole("heading", { name: "Pembatalan Hak Pakai" })).toBeVisible();
       await pemesan.getByTestId("ajukan-pembatalan").click();
@@ -41,10 +42,11 @@ test.describe("§10 Penutup", { tag: ["@rilis1"] }, () => {
     const page = await anonim();
     await langkah(page, "Denah publik: Petak Tersedia lagi", async () => {
       await page.goto("/pesan-makam/terencana");
-      await page.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
+      // The whole name: the list also carries "<nama> (Contoh)" for each Lokasi.
+      await page.getByRole("link", { name: DATA.lokasiTerencana(), exact: true }).first().click();
       const petak = page.locator(`button[aria-label^="${DATA.petakTerencana()}"]`);
       await expect(petak).toBeVisible({ timeout: 30_000 });
-      await expect.soft(petak).toHaveAttribute("aria-label", /Tersedia/i);
+      await expect.soft(petak).toHaveAttribute("aria-label", PETAK_TERSEDIA);
     });
     await manual(page, "Catat tanggal uji di docs/ops/runbook.md (Test payment SumoPod sandbox); centang AC tiket 61 dan 'What is NOT proved'", `Nomor Pemesanan uji ${wajib("terencana.nomor", "§2 Terencana")}`);
     await manual(page, "Simpan semua screenshot dalam satu folder dan rekap webhook (dashboard SumoPod)", "folder bukti run ini; rekap webhook dari dashboard");

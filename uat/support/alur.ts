@@ -1,11 +1,11 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { bayarDenganQris } from "./bayar";
-import { DATA, isiDataPemesan, nomorPemesananDi, persis, pilihLayananCheckout, tanggalWib } from "./halaman";
+import { DATA, isiDataPemesan, jpegContoh, kirimLaluMuatUlang, nomorPemesananDi, persis, pilihLayananCheckout, tanggalWib } from "./halaman";
 import { langkah } from "./langkah";
 import { mintaKodeMasuk } from "./masuk";
 import { emailPersona, type NamaPersona } from "./persona";
 
-/* Flows more than one journey walks: Perpanjangan to Lunas, the anonymous Kirim pesanan, and the Saat Duka TPU order. */
+/* Flows more than one journey walks: Perpanjangan to Lunas, the document request of a Perpanjangan (the Pemesan's file, Admin Lokasi's approval), the anonymous Kirim pesanan, and the Saat Duka TPU order. */
 
 /**
  * On a Perpanjangan page (/perpanjangan/<hakPakaiId>): the code to the Pemegang Hak's email when asked,
@@ -54,6 +54,54 @@ export async function bukaTagihanDanBayar(page: Page): Promise<string> {
   });
   await bayarDenganQris(page, url);
   return url;
+}
+
+/**
+ * The Antrean Lokasi row of one Perpanjangan request: its link is that request's review page, so the id at the end of the request's
+ * own path (what `ajukanPermohonanBerkas` returns) finds it among the older rows an earlier run left open.
+ */
+export function barisPermohonan(admin: Page, permohonan: string): Locator {
+  return admin.locator(`a[href$="/perpanjangan/${permohonan.split("/").pop()}"]`);
+}
+
+/**
+ * The Pemesan's file request to extend a Hak Pakai by documents, by the path (`jalur`, as the page's `?jalur=` names it).
+ * Returns the request page's path.
+ */
+export async function ajukanPermohonanBerkas(pemesan: Page, hakPakai: string, jalur: "ktp" | "ahli_waris" | "klaim"): Promise<string> {
+  return langkah(pemesan, `Perpanjang lewat berkas: jalur ${jalur}, unggah semua berkas, Ajukan permohonan`, async () => {
+    // The paths are links only for a Hak Pakai that fits more than one (KTP and ahli waris); a claim has no links, its form at once.
+    // So the address names the path, and since the page falls back to the first path it offers, the path it shows is checked.
+    await pemesan.goto(`/perpanjangan/${hakPakai}/berkas?jalur=${jalur}`);
+    await expect(pemesan.locator('input[name="jalur"]')).toHaveValue(jalur);
+    await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
+    await pemesan.locator('input[name="nomorTelepon"]').fill(DATA.telepon());
+    for (const kolom of await pemesan.locator('input[type="file"]').all()) await kolom.setInputFiles(jpegContoh());
+    await pemesan.getByRole("button", { name: "Ajukan permohonan" }).click();
+    await expect(pemesan).toHaveURL(/\/perpanjangan\/permohonan\/[0-9a-f-]{36}/, { timeout: 30_000 });
+    return new URL(pemesan.url()).pathname;
+  });
+}
+
+/**
+ * Admin Lokasi opens the "Periksa dokumen Perpanjangan" row of the request at `permohonan` and approves it, leaving the recorded name and
+ * phone as they are. The module requires a reason (`setujuiPermohonanSchema`) though its textarea is not marked required, so one is always
+ * written; the end date is filled only when the form asks for it (a Hak Pakai flagged Perlu Verifikasi that has none).
+ */
+export async function setujuiPermohonan(admin: Page, lokasiId: string, permohonan: string): Promise<void> {
+  await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan, Setujui permohonan", async () => {
+    await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
+    await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
+    // This request's own row (its link ends in the request's id), not the soonest due one, which may be another family's.
+    await barisPermohonan(admin, permohonan).click();
+    // The click is a client navigation and count() does not wait: wait for the approval card before looking for its optional date.
+    await expect(admin.getByTestId("setujui-permohonan")).toBeVisible();
+    const berakhir = admin.locator('input[name="endDate"]');
+    if (await berakhir.count()) await berakhir.fill(tanggalWib(30));
+    await admin.getByLabel("Alasan (dicatat di Audit Log)").fill("Uji UAT: berkas sesuai");
+    await admin.getByTestId("setujui-permohonan").click();
+    await expect(admin.getByTestId("setujui-permohonan")).toHaveCount(0, { timeout: 30_000 });
+  });
 }
 
 /**
@@ -140,7 +188,8 @@ export async function konfirmasiTpuSaatDuka(admin: Page, nomor: string): Promise
     if (await petugas.count()) await petugas.selectOption({ index: 1 }).catch(() => undefined);
     await admin.locator('input[name="kontakTpuName"]').fill("Petugas TPU Uji");
     await admin.locator('input[name="kontakTpuPhone"]').fill("081234500002");
-    await admin.getByRole("button", { name: "Konfirmasi pemakaman" }).click();
-    await expect(admin.getByRole("button", { name: "Konfirmasi pemakaman" })).toHaveCount(0, { timeout: 30_000 });
+    await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Konfirmasi pemakaman" }));
+    // The card gives way to "Sudah dikonfirmasi" once the order is confirmed; a refusal leaves it (and its message) on the page.
+    await expect(admin.getByRole("button", { name: "Konfirmasi pemakaman" }), "Konfirmasi pemakaman tidak tercatat").toHaveCount(0);
   });
 }

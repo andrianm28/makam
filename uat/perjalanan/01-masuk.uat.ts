@@ -53,7 +53,7 @@ test.describe("§1 Masuk dan identitas", { tag: ["@rilis1"] }, () => {
       await jedaKode().sebelumMintaKode();
       await page.getByRole("button", { name: "Kirim Kode Masuk" }).click();
       // The app's gagal-kirim state reads "Kode belum bisa dikirim lewat email. Silakan coba lagi."
-      await expect(page.getByText(/gagal kirim|belum bisa dikirim/i)).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(/belum bisa dikirim/i)).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(/Application error|Internal Server Error|Terjadi kesalahan/i)).toHaveCount(0);
     });
   });

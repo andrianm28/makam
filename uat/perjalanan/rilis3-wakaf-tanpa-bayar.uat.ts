@@ -10,9 +10,9 @@ import { expect, test } from "../support/uji";
  * fills each by its kind). What only a mailbox shows is a `manual` step.
  */
 
-/** Fills and sends the Wakaf form as the signed-in Pemesan for land in `kabupatenKota`. */
-async function ajukanWakaf(pemesan: Page, kabupatenKota: string): Promise<void> {
-  await langkah(pemesan, `Pengajuan Wakaf: tanah di ${kabupatenKota}`, async () => {
+/** Fills and sends the Wakaf form as the signed-in Pemesan for land in `kabupatenKota`. Returns the Nomor Pengajuan of this submission. */
+async function ajukanWakaf(pemesan: Page, kabupatenKota: string): Promise<string> {
+  return langkah(pemesan, `Pengajuan Wakaf: tanah di ${kabupatenKota}`, async () => {
     await pemesan.goto("/wakaf-tanah");
     await isiKolom(pemesan, "Nama Anda (Wakif)", "Uji UAT Wakif");
     await isiKolom(pemesan, "Nomor telepon", DATA.telepon());
@@ -25,6 +25,10 @@ async function ajukanWakaf(pemesan: Page, kabupatenKota: string): Promise<void> 
     await isiKolom(pemesan, "Bukti kepemilikan", "Sertipikat uji UAT");
     await pemesan.getByRole("button", { name: /Kirim/ }).last().click();
     await expect(pemesan.getByText("Pengajuan wakaf diterima")).toBeVisible({ timeout: 30_000 });
+    // The form sends the Wakif to /wakaf-tanah?nomor=<Nomor Pengajuan>, the page that says "diterima".
+    const nomor = new URL(pemesan.url()).searchParams.get("nomor");
+    if (!nomor) throw new Error(`Tidak ada Nomor Pengajuan di ${pemesan.url()}`);
+    return nomor;
   });
 }
 
@@ -35,20 +39,21 @@ test.describe("Rilis 3 Wakaf [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }
     const publik = await anonim();
     await kunjungi(publik, "Halaman Wakaf Tanah: proses dan batasannya", "/wakaf-tanah", "Wakaf Tanah");
     const pemesan = await sebagai("pemesan");
-    await ajukanWakaf(pemesan, "Kabupaten Bantul");
+    const nomor = await ajukanWakaf(pemesan, "Kabupaten Bantul");
     await langkah(pemesan, "Di luar Jabodetabek: status Dirujuk dengan penunjuk KUA dan BWI", async () => {
-      // The confirmation page carries the pointer only; the status word "Dirujuk" is on the Wakaf tab of Akun Saya.
+      // The confirmation page carries the pointer only; the status word "Dirujuk" is on the Wakaf tab of Akun Saya, in the title of this
+      // Pengajuan's own card ("<Nomor Pengajuan> · <status>"): the tab lists the ones earlier runs left too, and some of them are Dirujuk as well.
       await expect(pemesan.getByText(/KUA/).first()).toBeVisible();
       await expect(pemesan.getByText(/BWI/).first()).toBeVisible();
       await pemesan.goto("/akun/wakaf");
-      await expect(pemesan.getByText("Dirujuk").first()).toBeVisible();
+      await expect(pemesan.getByText(`${nomor} · Dirujuk`).first()).toBeVisible();
     });
     await manual(publik, "Halaman Wakaf Tanah menjelaskan prosesnya, bahwa tanah diserahkan langsung ke Nazhir dan platform tidak menerima tanah atau uang; Kode Masuk diminta saat Kirim bila belum masuk", "dibaca owner pada screenshot halaman; jalur tamu dengan Kode Masuk dicoba owner sekali");
   });
 
   test("R3-58.2 Admin Platform menangani Pengajuan Wakaf: cocokkan Nazhir, jadwalkan Survei Wakaf, ubah status; Wakif membatalkan sampai Menunggu Ikrar; tidak ada Tagihan", async ({ sebagai }) => {
     const pemesan = await sebagai("pemesan");
-    await ajukanWakaf(pemesan, "Kota Depok");
+    const nomor = await ajukanWakaf(pemesan, "Kota Depok");
     const admin = await sebagai("admin-platform");
     await kunjungi(admin, "Admin Platform: daftar Pengajuan Wakaf", "/staf/admin-platform/wakaf");
     await langkah(admin, "Buka Pengajuan Wakaf uji: Wakif dan tanah, Catatan, Riwayat status", async () => {
@@ -77,7 +82,7 @@ test.describe("Rilis 3 Wakaf [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }
     });
     await langkah(pemesan, "Wakif: tab Wakaf di Akun Saya memuat pengajuan itu; tidak ada Tagihan", async () => {
       await pemesan.goto("/akun/wakaf");
-      await expect(pemesan.getByText("Survei Dijadwalkan").first()).toBeVisible({ timeout: 30_000 });
+      await expect(pemesan.getByText(`${nomor} · Survei Dijadwalkan`).first()).toBeVisible({ timeout: 30_000 });
       await expect(pemesan.getByText(/TGH\/\d{4}\/\d{6}/)).toHaveCount(0);
     });
     await manual(admin, "Status berikutnya: Menunggu Ikrar, Proses Sertipikat, Selesai (scan AIW atau sertipikat), Ditolak, Dibatalkan; catatan untuk Wakif terpisah dari catatan internal dan laporan survei", "dikerjakan owner pada pengajuan uji; urutan dibaca di Riwayat status");

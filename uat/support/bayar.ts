@@ -69,15 +69,12 @@ export async function bayarDenganQris(page: Page, tagihanUrl: string): Promise<n
     await page.waitForTimeout(3_000);
     await simulasi.click();
     // The sandbox simulates at once and sends the browser back to this Tagihan's page (2026-10-04). Whether it already reads Lunas is for the next
-    // step, which reloads until it does; an older checkout stayed on its page and said it was waiting for confirmation.
+    // step, which reloads until it does.
     await expect
-      .soft.poll(
-        async () => {
-          if (!checkoutSandboxSumopod(page.url())) return new URL(page.url()).pathname === tagihanUrl;
-          return page.getByText(/waiting for confirmation|menunggu konfirmasi/i).isVisible().catch(() => false);
-        },
-        { message: "setelah Simulate Payment peramban kembali ke halaman Tagihan (atau checkout menunggu konfirmasi)", timeout: 30_000 },
-      )
+      .soft.poll(() => !checkoutSandboxSumopod(page.url()) && new URL(page.url()).pathname === tagihanUrl, {
+        message: "setelah Simulate Payment peramban kembali ke halaman Tagihan",
+        timeout: 30_000,
+      })
       .toBe(true);
   });
 

@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
-import { DATA, envOpsional, isiDataPemesan, jpegContoh, kunjungi, lokasiIdDariNama, nomorPemesananDi, tanggalWib } from "../support/halaman";
+import { ajukanPermohonanBerkas, barisPermohonan, setujuiPermohonan } from "../support/alur";
+import { DATA, PETAK_TERSEDIA, envOpsional, isiDataPemesan, jpegContoh, kunjungi, lokasiIdDariNama, nomorPemesananDi, tanggalWib } from "../support/halaman";
 import { baca } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -31,14 +32,6 @@ async function lokasiB(admin: Page): Promise<string> {
   return baca("saatduka.lokasiId") ?? (await lokasiIdDariNama(admin, DATA.lokasiSaatDuka()));
 }
 
-/**
- * The Antrean Lokasi row of one Perpanjangan request: its link is that request's review page, so the id at the end of the request's
- * own path (what `ajukanPermohonanBerkas` returns) finds it among the older rows an earlier run left open.
- */
-function barisPermohonan(admin: Page, permohonan: string): Locator {
-  return admin.locator(`a[href$="/perpanjangan/${permohonan.split("/").pop()}"]`);
-}
-
 /** The link of the Antrean Lokasi row captioned `label` that is about `subjek`: the caption is a line above the link, and the link names only the Petak or Kavling. */
 function barisAntrean(admin: Page, label: string, subjek: string): Locator {
   return admin.locator('[data-slot="card"]').filter({ hasText: label }).filter({ hasText: subjek }).getByRole("link").first();
@@ -47,36 +40,6 @@ function barisAntrean(admin: Page, label: string, subjek: string): Locator {
 /** The Petak or Kavling a Hak Pakai request page is about ("Makam A-01"), as its Antrean row names it. */
 async function unitPermintaan(pemesan: Page): Promise<string> {
   return (await pemesan.getByTestId("permintaan-petak").innerText()).replace(/^Makam\s+/, "").trim();
-}
-
-/**
- * The Pemesan's file request to extend a Hak Pakai by documents, by the path (`jalur`, as the page's `?jalur=` names it).
- * Returns the request page's path.
- */
-async function ajukanPermohonanBerkas(pemesan: Page, hakPakai: string, jalur: "ktp" | "ahli_waris" | "klaim"): Promise<string> {
-  return langkah(pemesan, `Perpanjang lewat berkas: jalur ${jalur}, unggah semua berkas, Ajukan permohonan`, async () => {
-    // The paths are links only for a Hak Pakai that fits more than one (KTP and ahli waris); a claim has no links, its form at once.
-    // So the address names the path, and since the page falls back to the first path it offers, the path it shows is checked.
-    await pemesan.goto(`/perpanjangan/${hakPakai}/berkas?jalur=${jalur}`);
-    await expect(pemesan.locator('input[name="jalur"]')).toHaveValue(jalur);
-    await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
-    await pemesan.locator('input[name="nomorTelepon"]').fill(DATA.telepon());
-    for (const kolom of await pemesan.locator('input[type="file"]').all()) await kolom.setInputFiles(jpegContoh());
-    await pemesan.getByRole("button", { name: "Ajukan permohonan" }).click();
-    await expect(pemesan).toHaveURL(/\/perpanjangan\/permohonan\/[0-9a-f-]{36}/, { timeout: 30_000 });
-    return new URL(pemesan.url()).pathname;
-  });
-}
-
-/** Admin Lokasi opens the "Periksa dokumen Perpanjangan" row of the request at `permohonan` and approves it, leaving the recorded name, phone and end date as they are. */
-async function setujuiPermohonan(admin: Page, lokasiId: string, permohonan: string): Promise<void> {
-  await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan, Setujui permohonan", async () => {
-    await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
-    await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
-    await barisPermohonan(admin, permohonan).click();
-    await admin.getByTestId("setujui-permohonan").click();
-    await expect(admin.getByTestId("setujui-permohonan")).toHaveCount(0, { timeout: 30_000 });
-  });
 }
 
 test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () => {
@@ -155,7 +118,7 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
         await blok.nth(urutan).click();
         const tombol = publik.locator(`button[aria-label^="${petak}, "]`);
         ditemukan += await tombol.count();
-        for (const satu of await tombol.all()) await expect(satu).not.toHaveAttribute("aria-label", /Tersedia/i);
+        for (const satu of await tombol.all()) await expect(satu).not.toHaveAttribute("aria-label", PETAK_TERSEDIA);
       }
       expect(ditemukan, `Petak ${petak} ada di Denah ${DATA.lokasiTerencana()}`).toBeGreaterThan(0);
     });
