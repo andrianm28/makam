@@ -1,6 +1,6 @@
 # UAT kit: a Rilis 2/3 checklist and a Playwright runner for the staging UAT
 
-Status: in-progress
+Status: resolved
 Blocked by: none
 Spec: `.scratch/makam-v1-build/uat-rilis-1-checklist.md`; Release plan (Rilis 2 = 35, 39, 41, 42, 59, 84; Rilis 3 = 43–48, 55–57, 58 and the TPU parts of 51–53); ADR 0006; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -223,3 +223,20 @@ Builder, slice 2 (branch `ticket-110-uat-kit-slice-2`, base ea371143). Not money
 5. §11 (a) and (b) leave an unpaid order each: Saat Duka's Tagihan lapses 3×24 h after the burial, Terencana's after 24 h (which frees the Petak `UAT_PETAK_TERENCANA_LAYANAN` again; until then a re-run needs another Petak).
 
 **HANDOFF (builder, slice 2)**: files: `uat/perjalanan/rilis2-tanpa-bayar.uat.ts`, `rilis3-tpu-`, `rilis3-mitra-jasa-`, `rilis3-wakaf-tanpa-bayar.uat.ts`, `uat/support/{pembayar,kata-selektor,iptm,halaman,alur,persona,keadaan}.ts`, `uat/README.md`, the Rilis 2/3 checklist, `tests/uat/*`. Next agent: shake-out on a local stack (`--grep "R3-47|R3-48"` first, they pay), then staging with the owner reading codes; fix selectors in the new journeys, whose controls were read from source only (the Wakaf form's field types, the Admin Platform job and Keluhan pages, the Denah editor, the Pemegang Hak's persetujuan page). Unverified: every journey.
+
+### Review and merge of slice 2 (2026-10-04, orchestrator; fixed point ea371143, head 4c3dd9bb)
+
+- **Two-axis review:** the Standards and Spec reviewers (sonnet) ran in parallel. Both reported **Hard: 0** on the first round. Merged in batch MB7.
+- **Delivered:**
+  - the [TANPA-BAYAR] Rilis 2/3 journeys;
+  - the three [BAYAR] items left from slice 1 (R3-47.1, R3-47.2, R3-48.1), now scripted;
+  - the slice-1 soft findings, addressed.
+- **The kit is complete,** so this ticket is resolved. Running the UAT and signing it off are gates G2 and G4 of the plan, not this ticket.
+
+Soft follow-ups (found offline; the first staging run will show them, and they get fixed there):
+- About ten slice-2 journeys cannot pass as written: unscoped `getByRole("alert")`, heading roles, one strict match. `serial` mode then skips the rest of their file.
+- R2-35.6, R2-42.2 and R2-84.1 (and most of R3-57.2) assert only that a page loads; their claim sits in `manual()` steps.
+- Some journeys can pass without the item's effect: R2-35.3, R2-39.3, the Nazhir match, R2-35.5, R3-45.2, R3-46.3.
+- R3-43.2 follows the page ("Pemerintah Provinsi"), not ticket 43's "Pemprov DKI Jakarta".
+- `tests/uat/kata-di-sumber.test.ts` matches words anywhere in `src/` and runs in `npm test`.
+- Duplicated literals and long lines in the new journeys.
