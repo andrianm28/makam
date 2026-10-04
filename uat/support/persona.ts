@@ -41,6 +41,11 @@ export function emailPersona(nama: NamaPersona, env: Record<string, string | und
   return email.toLowerCase();
 }
 
+/** Whether the environment holds this persona's email: a journey that needs a persona the owner did not provide skips, and says so. */
+export function punyaPersona(nama: NamaPersona, env: Record<string, string | undefined> = process.env): boolean {
+  return Boolean(env[PERSONA[nama].env]?.trim());
+}
+
 /** Where a persona's session is kept between runs. */
 export function berkasSesi(sesiDir: string, nama: NamaPersona): string {
   return join(sesiDir, `${nama}.json`);

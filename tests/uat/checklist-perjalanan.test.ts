@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
+import { blokDescribe, tagDiBlok } from "../../uat/support/pembayar";
 
 /*
  * Gate G2 reads "every [BAYAR] item green on staging before the switch" off the
@@ -17,18 +18,21 @@ interface Uji {
   berkas: string;
   judul: string;
   badan: string;
+  /** The tags of the describe block the journey sits in ("@rilis2", "@bayar", ...). */
+  tag: string[];
 }
 
-/** Every `test("…", …)` of the journeys, with the text up to the next one. */
+/** Every `test("…", …)` of the journeys, with the text up to the next one and the tags of its describe block. */
 function ujiPerjalanan(): Uji[] {
   const dir = path.join(AKAR, "uat/perjalanan");
   const hasil: Uji[] = [];
   for (const berkas of readdirSync(dir).filter((nama) => nama.endsWith(".uat.ts"))) {
-    const teks = readFileSync(path.join(dir, berkas), "utf8");
-    const bagian = teks.split(/\n\s*test\(/).slice(1);
-    for (const badan of bagian) {
-      const judul = /^\s*"([^"]+)"|^\s*`([^`]+)`/.exec(badan);
-      if (judul) hasil.push({ berkas, judul: judul[1] ?? judul[2], badan });
+    for (const blok of blokDescribe(readFileSync(path.join(dir, berkas), "utf8"))) {
+      const tag = tagDiBlok(blok.badan);
+      for (const badan of blok.badan.split(/\n\s*test\(/).slice(1)) {
+        const judul = /^\s*"([^"]+)"|^\s*`([^`]+)`/.exec(badan);
+        if (judul) hasil.push({ berkas, judul: judul[1] ?? judul[2], badan, tag });
+      }
     }
   }
   return hasil;
@@ -92,10 +96,33 @@ describe("every [BAYAR] item of the Rilis 1 checklist's section 11 (Layanan, fam
   });
 });
 
-describe("a journey that pays carries the @bayar tag, so `--grep @bayar` is everything that must run before the switch", () => {
-  const MEMBAYAR = /\b(bayarDenganQris|bukaTagihanDanBayar|perpanjangDanBayar|periksaDokumenLaluBayar)\(/;
-  it.each(readdirSync(path.join(AKAR, "uat/perjalanan")).filter((nama) => nama.endsWith(".uat.ts")))("%s", (berkas) => {
-    const teks = readFileSync(path.join(AKAR, "uat/perjalanan", berkas), "utf8");
-    if (MEMBAYAR.test(teks)) expect(teks, `${berkas} membayar tetapi tidak bertag @bayar`).toContain('"@bayar"');
+describe("every [TANPA-BAYAR] item of the Rilis 2 and Rilis 3 checklist (slice 2) has a journey that runs, and that journey never pays", () => {
+  const butir = [...checklist23.matchAll(/\*\*(R[23]-\d+\.\d+) \[TANPA-BAYAR\]/g)].map((cocok) => cocok[1]);
+  const uji = ujiPerjalanan();
+
+  it("finds the 36 [TANPA-BAYAR] items of 2026-10-04", () => {
+    expect(butir).toHaveLength(36);
+  });
+
+  it.each(butir)("%s is named by a journey tagged @tanpabayar that is not fixme", (id) => {
+    const milik = uji.filter((satu) => satu.judul.includes(id));
+    expect(milik.length, `tidak ada perjalanan yang menyebut ${id} di uat/perjalanan`).toBeGreaterThan(0);
+    expect(milik.filter((satu) => !tidakBerjalan(satu)).length, `${id} hanya dideklarasikan (test.fixme atau test.skip(true)), tidak berjalan`).toBeGreaterThan(0);
+    for (const satu of milik) expect(satu.tag, `${satu.berkas}: ${id} tidak bertag @tanpabayar`).toContain("@tanpabayar");
+  });
+
+  it("is one journey per item: no id is named by two journeys, so a report line is one checklist line", () => {
+    const berulang = butir.filter((id) => uji.filter((satu) => satu.judul.includes(id)).length > 1);
+    expect(berulang).toEqual([]);
+  });
+});
+
+describe("the checklist's slice marker agrees with its payment tag", () => {
+  it("every [BAYAR] item says S1 and every [TANPA-BAYAR] item says S2", () => {
+    const salah = checklist23
+      .split("\n")
+      .filter((baris) => /\*\*R[23]-\d+\.\d+ \[/.test(baris))
+      .filter((baris) => !(/\[BAYAR\] S1\*\*/.test(baris) || /\[TANPA-BAYAR\] S2\*\*/.test(baris)));
+    expect(salah).toEqual([]);
   });
 });

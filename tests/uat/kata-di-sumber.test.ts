@@ -103,6 +103,8 @@ describe("the words of every journey and helper are still in the app", () => {
   /** The two modules that analyse the runner itself: their own regular expressions are not words of a page. */
   const ALAT = new Set(["kata-selektor.ts", "pembayar.ts"]);
   const berkasRunner = [...berkasTs(path.join(akar, "uat/perjalanan")), ...berkasTs(path.join(akar, "uat/support"))].filter((berkas) => !ALAT.has(path.basename(berkas)));
+  /** What the runner types into forms (`.fill("…")`): a journey that then looks for it is looking for its own data. */
+  const diketik = berkasRunner.flatMap((berkas) => [...readFileSync(berkas, "utf8").matchAll(/\.fill\("((?:[^"\\]|\\.)+)"\)/g)].map((cocok) => cocok[1].toLowerCase())).filter((teks) => teks.length >= 6);
   const ada = (kata: string) => aplikasi.includes(kata.toLowerCase()) || polaTemplate.some((pola) => pola.test(kata.toLowerCase()));
 
   it("reads the runner's files (a guard that finds nothing guards nothing)", () => {
@@ -113,8 +115,8 @@ describe("the words of every journey and helper are still in the app", () => {
 
   it.each(berkasRunner.map((berkas) => [path.relative(akar, berkas), berkas] as const))("%s", (_nama, berkas) => {
     const hilang = kataPencarian(readFileSync(berkas, "utf8")).filter(({ jenis, kata, negatif }) => {
-      // Not words of the app: what the provider's checkout says, what a page must not show, and what the journeys type themselves ("… uji UAT …" in every value they enter).
-      if (KATA_PENYEDIA[kata] || negatif || /uji uat/i.test(kata)) return false;
+      // Not words of the app: what the provider's checkout says, what a page must not show, and what the journeys type themselves ("… uji UAT …" in the values they enter, or any `.fill("…")` text).
+      if (KATA_PENYEDIA[kata] || negatif || /uji uat/i.test(kata) || diketik.some((teks) => kata.toLowerCase().includes(teks))) return false;
       return jenis === "field" ? !aplikasi.includes(`name="${kata.toLowerCase()}"`) : !ada(kata);
     });
     expect(hilang.map(({ jenis, kata }) => `${jenis}: ${kata}`), "kata yang dicari perjalanan tetapi tidak ada di src/").toEqual([]);

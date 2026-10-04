@@ -1,6 +1,6 @@
 import { bukaDataSaatDuka, perpanjangDanBayar } from "../support/alur";
 import { angkaDiHalaman, bayarDenganQris } from "../support/bayar";
-import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, persis, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
+import { DATA, ambilSemuaBuktiKamera, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, persis, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -60,16 +60,7 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
     await langkah(page, "Mulai kerjakan, ambil bukti dengan kamera, Tandai selesai", async () => {
       const mulai = page.getByRole("button", { name: "Mulai kerjakan" });
       if (await mulai.isVisible()) await mulai.click();
-      // Each required proof: open the camera, take the picture, save it (the fake camera answers).
-      for (let bukti = 0; bukti < 4; bukti += 1) {
-        const ambil = page.getByRole("button", { name: "Ambil dengan kamera" }).first();
-        if (!(await ambil.isVisible())) break;
-        await ambil.click();
-        await page.getByRole("button", { name: "Ambil foto" }).click();
-        await page.getByRole("button", { name: "Simpan bukti" }).click();
-        await expect(page.getByAltText("Pratinjau bukti yang baru diambil")).toHaveCount(0, { timeout: 30_000 });
-      }
-      await expect(page.getByTestId("bukti-kurang")).toHaveCount(0);
+      await ambilSemuaBuktiKamera(page);
       await page.getByRole("button", { name: "Tandai selesai" }).click();
       await expect(page.getByRole("button", { name: "Tandai selesai" })).toHaveCount(0, { timeout: 30_000 });
     });

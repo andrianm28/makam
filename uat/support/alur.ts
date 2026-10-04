@@ -88,14 +88,19 @@ export async function bukaDataSaatDuka(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/pesan-makam\/saat-duka\/data/);
 }
 
+/** The Saat Duka TPU wizard's "Data & kirim": from the list, the TPU `UAT_TPU` names or the first one offered. */
+export async function bukaDataTpu(page: Page): Promise<void> {
+  await page.goto("/pesan-makam/saat-duka");
+  const tpu = process.env.UAT_TPU?.trim();
+  const tautan = tpu ? page.getByRole("link", { name: persis(tpu) }).first() : page.locator('a[href*="/pesan-makam/saat-duka/tpu"]').first();
+  await tautan.click();
+  await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
+}
+
 /** The Saat Duka TPU wizard, from the list to the order page. Returns the Nomor Pemesanan. */
 export async function pesanTpuSaatDuka(page: Page, opsi: { layananHariH?: boolean } = {}): Promise<string> {
   return langkah(page, "Saat Duka TPU: pilih TPU, isi data, Kirim pengurusan", async () => {
-    await page.goto("/pesan-makam/saat-duka");
-    const tpu = process.env.UAT_TPU?.trim();
-    const tautan = tpu ? page.getByRole("link", { name: persis(tpu) }).first() : page.locator('a[href*="/pesan-makam/saat-duka/tpu"]').first();
-    await tautan.click();
-    await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
+    await bukaDataTpu(page);
     await isiDataPemesan(page);
     await page.getByLabel("Nama almarhum / almarhumah").first().fill("Almarhum TPU Uji UAT");
     await page.getByLabel("Tanggal wafat").fill(tanggalWib(0));

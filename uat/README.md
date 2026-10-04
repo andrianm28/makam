@@ -14,9 +14,10 @@ UAT_OUT=/home/ubuntu/uat-runs/rilis-1 \
 npm run uat                       # all journeys, in order
 npm run uat -- --grep "§(2|3)\b"     # some sections (the \b keeps §1 from matching §10 and §11)
 npm run uat -- --grep @bayar      # only the journeys that pay (must run on staging before the switch)
+npm run uat -- --grep @tanpabayar # the 36 [TANPA-BAYAR] items of the Rilis 2/3 checklist: none pays, so they may run after the switch
 ```
 
-Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor Pemesanan, the Tagihan link), so run a later section with the same `UAT_OUT` as the earlier one. Order: `00` to `11`, then `rilis2-bayar`, `rilis3-bayar`. The Layanan journey (checklist section 11) is `10-layanan`, before the closing journey (section 10, `11-penutup`) that cancels the Terencana order it uses.
+Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor Pemesanan, the Tagihan link), so run a later section with the same `UAT_OUT` as the earlier one. Order: `00` to `11`, then `rilis2-bayar`, `rilis2-tanpa-bayar`, `rilis3-bayar`, `rilis3-mitra-jasa-tanpa-bayar`, `rilis3-tpu-tanpa-bayar`, `rilis3-wakaf-tanpa-bayar` (file names in that alphabetical order; the Mitra Jasa journeys follow the job `rilis3-bayar` leaves). The Layanan journey (checklist section 11) is `10-layanan`, before the closing journey (section 10, `11-penutup`) that cancels the Terencana order it uses.
 
 ## Environment
 
@@ -30,6 +31,7 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 | `UAT_KODE_TIMEOUT_MENIT` (15), `UAT_KODE_TUNGGU_MAKS_MENIT` (10) | how long to wait for a code; the longest the runner itself waits for the hour's limit |
 | `UAT_LOKASI_TERENCANA`, `UAT_PETAK_TERENCANA`, `UAT_PETAK_TERENCANA_LAYANAN` (another free Petak, default A-02, for the Layanan at checkout walk), `UAT_LOKASI_SAAT_DUKA`, `UAT_JENIS_SAAT_DUKA`, `UAT_TELEPON`, `UAT_TPU` | staging data (defaults in `support/halaman.ts`) |
 | `UAT_LOKASI_DI_ATAS_BATAS`, `UAT_LOKASI_BERHENTI`, `UAT_HAK_PAKAI_TUMPANG`, `_TANPA_EMAIL`, `_MASA_TENGGANG`, `_BERHENTI`, `UAT_LAYANAN_BERHENTI` | optional data for the Rilis 2 and edge cases; a journey without its data is skipped and says so |
+| `UAT_HAK_PAKAI_PEMEGANG_LAIN`, `_TUMPANG_DIBLOKIR`, `_KEMBALI`, `_GANTI`, `_PERBAIKAN`, `_AHLI_WARIS`, `_KLAIM`, `_PERBAIKAN_BERKAS`, `_AKHIRI`, `UAT_PETAK_DILEPAS` | the records the Rilis 2 [TANPA-BAYAR] journeys act on (checklist P8, e to j); several **use the record up** (return, change of Pemegang Hak, ending), so each needs a fresh one per run; a journey without its record is skipped and says which variable to set |
 
 ## The owner's codes
 
@@ -51,6 +53,10 @@ The server allows one emailed code per IP every 60 s and five in any rolling hou
 ## Output (not committed)
 
 `$UAT_OUT/laporan-<WIB date and time>/index.html` (Playwright HTML report, one folder per invocation), `ringkasan.md` and `ringkasan.json` (results, failures, the steps a person must check), `bukti/<journey>/NN-<step>.png` (a screenshot at every step), `artefak/` (traces of failures).
+
+## The tags, and what keeps them honest
+
+`@bayar` is every journey that pays (QRIS in the sandbox), so `--grep @bayar` is what has to run on staging before the switch; `@tanpabayar` is the 36 [TANPA-BAYAR] items, which never pay. Which helper pays is read from the helpers' own text (the one that presses "Simulate Payment" and every helper built on it), never from a list of names: `tests/uat/pembayar.test.ts` fails a journey that pays without `@bayar` or one marked `@tanpabayar` that pays. `tests/uat/checklist-perjalanan.test.ts` fails when a [BAYAR] or [TANPA-BAYAR] item of the checklists has no journey that runs (its title carries the item's id), and `tests/uat/kata-di-sumber.test.ts` fails when a button, label, heading or test id a journey looks for is no longer in the app's source: no journey has met a stack yet, and this is the check they get meanwhile.
 
 ## What it cannot do
 

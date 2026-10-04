@@ -13,6 +13,11 @@ export function env(nama: string, bawaan: string): string {
   return process.env[nama]?.trim() || bawaan;
 }
 
+/** An optional staging value (an id of a test record) from the environment, or null: a journey without its data skips and says which variable to set. */
+export function envOpsional(nama: string): string | null {
+  return process.env[nama]?.trim() || null;
+}
+
 /** The staging data a run needs. The defaults are the Lokasi of the 2026-10 UAT; set the variables for other data. */
 export const DATA = {
   /** The phone number the personas give on forms (one number per Akun; set it if staging already has it on another Akun). */
@@ -162,4 +167,33 @@ export function nomorTagihanDi(teks: string): string | undefined {
 /** A tiny valid JPEG, for a form that wants a photo or a scan. */
 export function jpegContoh(nama = "bukti.jpg") {
   return { name: nama, mimeType: "image/jpeg", buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("contoh bukti uat")]) };
+}
+
+/**
+ * On a job page of the staff (Admin Lokasi's Layanan, a Mitra Jasa's TPU job): takes every proof the page still asks for with the
+ * app's camera (Chromium's fake one answers): open the camera, take the picture, save it, until the page asks for no more.
+ */
+export async function ambilSemuaBuktiKamera(page: Page): Promise<void> {
+  for (let bukti = 0; bukti < 4; bukti += 1) {
+    const ambil = page.getByRole("button", { name: "Ambil dengan kamera" }).first();
+    if (!(await ambil.isVisible())) break;
+    await ambil.click();
+    await page.getByRole("button", { name: "Ambil foto" }).click();
+    await page.getByRole("button", { name: "Simpan bukti" }).click();
+    await expect(page.getByAltText("Pratinjau bukti yang baru diambil")).toHaveCount(0, { timeout: 30_000 });
+  }
+  await expect(page.getByTestId("bukti-kurang")).toHaveCount(0);
+}
+
+/**
+ * Fills a form control found by its label whatever kind it is: a text box is typed into, a select takes its first real
+ * option (the placeholder is never one), a file input takes a small valid picture. For the forms whose control type this
+ * runner has not seen run (the Wakaf form).
+ */
+export async function isiKolom(page: Page, label: string | RegExp, nilai: string): Promise<void> {
+  const kontrol = page.getByLabel(label).first();
+  const jenis = await kontrol.evaluate((elemen) => (elemen.tagName === "INPUT" ? `input:${(elemen as HTMLInputElement).type}` : elemen.tagName.toLowerCase()));
+  if (jenis === "select") await kontrol.selectOption({ index: 1 });
+  else if (jenis === "input:file") await kontrol.setInputFiles(jpegContoh());
+  else await kontrol.fill(nilai);
 }
