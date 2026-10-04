@@ -9,6 +9,12 @@
 # begin creates the Deployment; state adds a status to it. Every other form is a
 # bad usage (exit 64).
 #
+# GitHub refuses a description of more than 140 characters, and a refused POST
+# leaves the deploy's outcome unrecorded, so a longer one is cut to 140 in the
+# middle (see clamp_description). The success description, `<tag> (<digest>)
+# healthy`, is 126 characters and is sent as it is; it is the host's word
+# promote.yml reads by its ending, and a cut never takes the ending off.
+#
 # Needs a fine-grained token with exactly one permission: "Deployments" write on
 # this repository. It lives in <root>/<env>/<env>.env as MAKAM_GITHUB_TOKEN, on
 # the host only; GitHub never gets a host credential. Without the token (or
@@ -29,7 +35,7 @@ TAG=""
 STATE=""
 DESCRIPTION=""
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -82,9 +88,24 @@ call() {
     --data-binary @- <<< "$3" 2> /dev/null
 }
 
+# GitHub takes at most 140 characters of description (a status and a Deployment
+# alike), counted as characters, which jq's length is too. A longer one keeps how
+# it starts (what happened) and how it ends (for a success, `(<digest>) healthy`,
+# 81 characters for a sha256 digest), with "..." between: 47 + 3 + 90. Sets
+# DESCRIPTION, and leaves it as it was if jq fails: reporting never fails a deploy.
+DESCRIPTION_MAX=140
+DESCRIPTION_TAIL=90
+clamp_description() {
+  local clamped
+  clamped=$(printf '%s' "$1" | jq -Rrsj --argjson max "$DESCRIPTION_MAX" --argjson tail "$DESCRIPTION_TAIL" \
+    'if length > $max then .[0:($max - 3 - $tail)] + "..." + .[(length - $tail):] else . end') && DESCRIPTION=$clamped
+  return 0
+}
+
 if [ "$ACTION" = begin ]; then
   # GitHub wants the commit, not the image tag (sha-<commit>) the deploy calls it.
   REF=${TAG#sha-}
+  clamp_description "$DESCRIPTION"
   rm -f "$ID_FILE" # a failed begin must not leave the previous run's Deployment to receive this run's states
   body=$(jq -nc --arg ref "$REF" --arg env "$ENVIRONMENT" --arg digest "$DIGEST" --arg desc "$DESCRIPTION" \
     '{ref: $ref, environment: $env, auto_merge: false, required_contexts: [],
@@ -115,6 +136,7 @@ case "$STATE" in
     ;;
   *) echo "--state must be in_progress, success or failure" >&2; exit 64 ;;
 esac
+clamp_description "$DESCRIPTION"
 body=$(jq -nc --arg state "$target" --arg desc "$DESCRIPTION" --arg url "$url" \
   '{state: $state, log_url: $url, description: $desc}')
 if call POST "/repos/$REPOSITORY/deployments/$id/statuses" "$body" > /dev/null; then

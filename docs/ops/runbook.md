@@ -872,7 +872,8 @@ minutes as `ubuntu`, which has a `read:packages` ghcr login in
 4. creates a GitHub Deployment and reports `in_progress`
    (needs `MAKAM_GITHUB_TOKEN` in `staging.env`, a fine-grained token with only
    "Deployments: write" on this repository; without it every report is a logged
-   no-op);
+   no-op). Every status description is at most 140 characters, GitHub's limit
+   ("Reading a deploy in GitHub");
 5. runs `docker compose run --rm migrate` with the new image. **If migrate
    fails, it stops here and the old `web`/`worker` keep running**;
 6. runs `up -d --wait` (web and worker restart on the verified digest) and
@@ -959,12 +960,25 @@ digest that failed and rolled back has a `failure` status instead, and the smoke
 test's `success` status on the same Deployment says nothing about it. The
 Deployment's `ref` is the bare commit SHA (not `sha-<commit>`), and after a
 normal deploy it is the same string `/api/health` reports as `release`. After an
-**automatic rollback** the containers run with the tag instead (`makam-deploy`
-exports `MAKAM_RELEASE=<tag>` for the rollback and puts `deployed.env` back
-afterwards), so `release` reads `sha-<commit>` until the next deploy or recreate.
-The smoke test, which compares `release` with the Deployment's `ref`, then records
-`failure` for the failed digest, which is right: the site is not running it. A
-by-hand `makam-deploy --force` of the digest that runs puts the bare SHA back.
+**automatic rollback** it is the bare commit again, of the release put back:
+`makam-deploy` runs the rollback with that release's own `MAKAM_RELEASE`, the
+commit its deploy recorded in `deployed.env` (which is put back as it was), and
+`release` shows it. Before ticket 114 the rollback ran with the tag, so
+`/api/health` named `sha-<commit>` until the next deploy or recreate, and
+GlitchTip a release that was no commit. The failed digest's Deployment names
+another commit than the one now running, so the smoke test, which compares
+`release` with the Deployment's `ref`, records `failure` for it, which is right:
+the site is not running it.
+
+**A status description is at most 140 characters**, which is all GitHub takes of
+one: a longer one is refused, and the deploy's outcome is then never recorded
+(the first production rehearsal lost a failure that way: `could not record status
+failure` in `deploy.log`). `makam-deploy` writes its failure lines to fit,
+naming the tag and what happened (`<tag> never became healthy; rolling back to
+<tag>`), and `makam-deploy-status` cuts any longer description in the middle,
+keeping its beginning and its end, so the success line's ending `(<digest>)
+healthy`, which promote.yml reads, is never cut off. The Deployment's own
+description is held to 140 the same way.
 
 ## The staging smoke gate
 
@@ -1156,8 +1170,15 @@ now, not at the one that was rolled back from.
 
 - a `pg_dump` snapshot to `/opt/makam-v1/prod/backups/db/` **before** `migrate`
   (seven newest kept, mode 0600; a dump taken after the migration would be
-  worthless). Restoring one is a separate, manual decision — see
-  "Forward-only migrations" below;
+  worthless). On a host where `makam-prod` has never run there is no Postgres
+  container yet: `makam-deploy` starts it itself and waits until it is healthy,
+  then dumps the empty database, so the first deploy is snapshotted like every
+  other and needs no Postgres started by hand and no `MAKAM_TAG` in `deployed.env`
+  (it exports the tag of the release it deploys before any Compose command, and
+  Compose wants one even to start Postgres). A Postgres that already runs is left
+  alone. If Postgres will not start, or the dump fails, the deploy stops before
+  `migrate` with exit **1** and a `failure` status on its Deployment. Restoring
+  one is a separate, manual decision — see "Forward-only migrations" below;
 - a failed `migrate` restarts nothing;
 - a failed `up` or `/api/health` **rolls back automatically** to the previous
   digest and exits **1**; exit **2** is the case where that roll back failed as
@@ -2318,7 +2339,7 @@ What it checks, and what runs it:
 | backup, then restore test | `makam-backup-db --env prod` then `makam-restore-test --env prod --dump <that Dump>`; the Dump it made is removed again | 03, 72 |
 | SMTP | `email-check` in the image | 04 |
 | SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; then the same call with a wrong key must be refused, else the line is a SKIP "path unverified"; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
-| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (its ref is the image's revision label, the bare commit SHA: GitHub takes no `sha-<revision>` image tag as a ref), set inactive, deleted | 72 |
+| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (its ref is the image's revision label, the bare commit SHA: GitHub takes no `sha-<revision>` image tag as a ref), set inactive, deleted; its own `id` is read with `jq` (the reply names the creator's id after it), so FAIL when `jq` is not installed, which `makam-deploy-status` cannot do without either | 72 |
 | open release | `RILIS_TERBUKA` in the env file, and with `--rilis N` the `rilisTerbuka` that `http://127.0.0.1:<MAKAM_WEB_PORT>/api/health` reports (SKIP when the field is absent or the stack is down) | 72, 107 |
 | production timers | `systemctl is-enabled` of `makam-prod-db-backup.timer`, `makam-prod-files-backup.timer`, `makam-prod-restore-test.timer` and `makam-prod-health.timer` (ticket 108): FAIL unless all four say `enabled`; `deploy/install-host.sh` enables them once `deployed.env` names a `MAKAM_DIGEST`, so run it again after the first production deploy | 64, 108 |
 | data contoh | `[109] data contoh` (Data Contoh, ticket 109): SKIP while `SUMOPOD_BASE_URL` names the sandbox host, read the way the app reads it (the host of the URL, after the quotes and padding Compose removes; a path or capital letters do not matter) and SKIP "needs the env file" when it cannot be read; otherwise it asks the running stack's `http://127.0.0.1:<MAKAM_WEB_PORT>/api/browser-config`: FAIL when `contohAktif` is `true` (remove it with `data-contoh cabut --tulis --izinkan-production`), PASS when `false`, and a SKIP, never a PASS, when it cannot tell (nothing answers, the registry could not be read, an image from before ticket 109): at go-live this line has to read PASS, a SKIP there proves nothing | 109 |
@@ -2395,6 +2416,16 @@ systemctl list-timers 'makam-prod-*'                                          # 
   --webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran
 ```
 
+**Step 2 starts Postgres itself.** Before the first deploy `makam-prod` has never run,
+so step 2 finds no Postgres container and an empty `deployed.env`. `makam-deploy`
+starts Postgres, waits until it is healthy, and takes its snapshot of the empty
+database (an empty database dumps fine) before `migrate`; it exports `MAKAM_TAG` for
+its own Compose commands, so `deployed.env` needs none yet. Nothing is typed by hand
+before the deploy: no Postgres is started, and no `MAKAM_TAG` is set. `deploy.log`
+says `postgres is not running in makam-prod (a first deploy?); starting it` and then
+`postgres is up and healthy`; a Postgres that does not start stops the deploy before
+`migrate` (exit 1, a `failure` status).
+
 **An image signed only with the staging key is refused (exit 77).** Take a digest CI
 built and signed for staging that was never promoted, so it carries the staging
 signature and no production one: the image of an earlier `main` commit, or the
@@ -2422,9 +2453,12 @@ curl -s http://127.0.0.1:3100/api/health | jq '{ok, release, rilisTerbuka}'     
 Exit 1 means the deploy failed and the previous digest runs again; exit 2 would be a
 rollback that failed as well (stop and read `deploy.log`). The Deployment of that run
 ends `failure` (`gh api 'repos/andrianm28/makam/deployments?environment=production&per_page=1'`
-and its statuses). `release` reads `sha-<commit>` until the next deploy ("Reading a
-deploy in GitHub"), so finish with a normal one: the same command without
-`MAKAM_HEALTH_WAIT` (exit 0, a `healthy` status again).
+and its statuses), with a description of at most 140 characters that names the tag
+and what happened ("Reading a deploy in GitHub"); `deploy.log` saying `could not
+record status failure` means GitHub refused it. `release` is the bare commit of A
+again, as on any deploy, because the rollback runs A under its own commit. Finish with
+a normal deploy anyway: the same command without `MAKAM_HEALTH_WAIT` (exit 0, a
+`healthy` status again, so the newest Deployment is a success).
 
 **The backups.** The first production dump, the FileStore tar and the restore check
 exit 0, and four timers are listed:
@@ -2479,6 +2513,10 @@ has passed. The commands run in `/opt/makam-v1/prod`, with
    curl -s http://127.0.0.1:3100/api/health | jq '{ok, environment, release, rilisTerbuka}'            # true, "production", B's commit, 1
    $P logs worker | grep 'started (RILIS_TERBUKA=1)'
    ```
+   `makam-deploy` starts Postgres itself when it is not running (the rehearsal has
+   started it, so this deploy only snapshots and migrates), so no Postgres is started
+   by hand before it. The forced rollback leaves `release` at A's bare commit, as on
+   any deploy.
    The first Admin Platform, the launch data and the second `install-host.sh` belong
    to the rehearsal and are done: `seed-admin.mjs` answers exit 1 "sudah ada Admin
    Platform", `import-data-peluncuran.mjs` reports every row "sama", and

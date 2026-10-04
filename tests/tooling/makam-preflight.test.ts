@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -208,9 +208,13 @@ function healthy(w: ReturnType<typeof world>) {
       "        shaRef=0; case \"$data\" in *'\"ref\":\"sha-'*) shaRef=1 ;; esac",
       '        if [ "${FAKE_GH_REJECT_SHA_PREFIX:-0}" = 1 ] && [ "$shaRef" = 1 ]; then',
       "          code=422; body='{\"message\":\"No ref found for: sha-0123\"}'",
-      "        else code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"Bad credentials\"}'; [ \"$code\" != 422 ] || body='{\"message\":\"No ref found for: that ref\"}'; fi ;;",
-      `      "POST "*/statuses) ${INTERRUPT_AT("statuses")}; code=\${FAKE_GH_STATUS_CODE:-201} ;;`,
-      '      "DELETE "*) code=${FAKE_GH_DELETE_CODE:-204} ;;',
+      "        else code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"Bad credentials\"}'; [ \"$code\" != 422 ] || body='{\"message\":\"No ref found for: that ref\"}'; fi",
+      // FAKE_GH_DEPLOYMENT_BODY: the reply GitHub really gives (one line, the creator's own id after the Deployment's), and FAKE_GH_DEPLOYMENT_ID the one id that exists: any other is a 404, as GitHub answers for an id that is not a Deployment.
+      '        [ -z "${FAKE_GH_DEPLOYMENT_BODY:-}" ] || [ "$code" != 201 ] || body=$FAKE_GH_DEPLOYMENT_BODY ;;',
+      `      "POST "*/statuses) ${INTERRUPT_AT("statuses")}; code=\${FAKE_GH_STATUS_CODE:-201}`,
+      '        [ -z "${FAKE_GH_DEPLOYMENT_ID:-}" ] || case "$url" in */deployments/$FAKE_GH_DEPLOYMENT_ID/statuses) ;; *) code=404; body=\'{"message":"Not Found"}\' ;; esac ;;',
+      '      "DELETE "*) code=${FAKE_GH_DELETE_CODE:-204}',
+      '        [ -z "${FAKE_GH_DEPLOYMENT_ID:-}" ] || case "$url" in */deployments/$FAKE_GH_DEPLOYMENT_ID) ;; *) code=404; body=\'{"message":"Not Found"}\' ;; esac ;;',
       "    esac ;;",
       "esac",
       '[ -z "$out" ] || [ "$out" = /dev/null ] || printf "%s" "$body" > "$out"',
@@ -264,6 +268,47 @@ function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Reco
     leftovers: readdirSync(path.join(w.root, "tmp")),
   };
 }
+
+/**
+ * A PATH that finds every command the host has except `name` (the fakes in the world's bin first):
+ * a host where it is not installed. Each command is a symlink to the real one.
+ */
+function pathWithout(w: ReturnType<typeof world>, name: string): string {
+  const farm = path.join(w.root, `without-${name}`);
+  mkdirSync(farm);
+  for (const directory of ["/usr/bin", "/bin"]) {
+    for (const entry of readdirSync(directory)) {
+      if (entry !== name && !existsSync(path.join(farm, entry))) symlinkSync(path.join(directory, entry), path.join(farm, entry));
+    }
+  }
+  return `${w.bin}:${farm}`;
+}
+
+/**
+ * What GitHub answers to a created Deployment: one line of compact JSON, in this
+ * order, so the creator's own `id` (the owner's user id) comes after the Deployment's.
+ */
+const DEPLOYMENT_ID = "6840219276";
+const CREATOR_ID = "25896940";
+const GITHUB_REPLY = JSON.stringify({
+  url: `https://api.github.com/repos/andrianm28/makam/deployments/${DEPLOYMENT_ID}`,
+  id: Number(DEPLOYMENT_ID),
+  node_id: "DE_kwDOPlaceholder",
+  sha: REVISION,
+  ref: REVISION,
+  task: "deploy",
+  payload: {},
+  original_environment: "preflight",
+  environment: "preflight",
+  description: "makam-preflight probe",
+  creator: { login: "andrianm28", id: Number(CREATOR_ID), node_id: "MDQ6VXNlcjI1ODk2OTQw", type: "User", site_admin: false },
+  created_at: "2026-10-04T11:08:00Z",
+  updated_at: "2026-10-04T11:08:00Z",
+  statuses_url: `https://api.github.com/repos/andrianm28/makam/deployments/${DEPLOYMENT_ID}/statuses`,
+  repository_url: "https://api.github.com/repos/andrianm28/makam",
+  transient_environment: true,
+  production_environment: false,
+});
 
 describe("makam-preflight", () => {
   it("fails the production env file check, naming tickets 02 and 72, when the file is not there", () => {
@@ -583,6 +628,42 @@ describe("makam-preflight", () => {
 
     const notPulled = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*github deployments.*pull/));
+  });
+
+  it("reads the probe Deployment's own id when GitHub names the creator's id after it on the same line, so the probe is marked inactive and deleted", () => {
+    const real = { FAKE_GH_DEPLOYMENT_BODY: GITHUB_REPLY, FAKE_GH_DEPLOYMENT_ID: DEPLOYMENT_ID };
+    expect(GITHUB_REPLY.split("\n")).toHaveLength(1);
+    expect(GITHUB_REPLY.indexOf(`"id":${DEPLOYMENT_ID}`)).toBeLessThan(GITHUB_REPLY.indexOf(`"id":${CREATOR_ID}`));
+    const result = preflight(healthy(world()), ["--digest", DIGEST], real);
+    expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*github deployments.*andrianm28\/makam.*deleted/));
+    expect(result.calls).toMatch(new RegExp(`-X POST .*/deployments/${DEPLOYMENT_ID}/statuses`));
+    expect(result.calls).toMatch(new RegExp(`-X DELETE .*/deployments/${DEPLOYMENT_ID}(\\s|$)`));
+    // The owner's user id is not a Deployment: asking GitHub about it answers 404 and leaves the probe behind.
+    expect(result.calls).not.toContain(CREATOR_ID);
+    expect(result.lines.filter((line) => /github deployments/.test(line))).toEqual([expect.stringMatching(/^PASS/)]);
+    expect(result.code).toBe(0);
+  });
+
+  it("reads a Deployment id of any size, and none when GitHub's reply carries no id of its own", () => {
+    const body = JSON.stringify({ url: "https://api.github.com/x", id: 7, creator: { id: 5550123 } });
+    const small = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_DEPLOYMENT_BODY: body, FAKE_GH_DEPLOYMENT_ID: "7" });
+    expect(small.lines).toContainEqual(expect.stringMatching(/^PASS .*github deployments.*deleted/));
+    expect(small.calls).toMatch(/-X DELETE .*\/deployments\/7(\s|$)/);
+
+    // A creator's id is never taken for the Deployment's, even when the reply has no id of its own.
+    const noId = JSON.stringify({ url: "https://api.github.com/x", creator: { id: 5550123 } });
+    const missing = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_DEPLOYMENT_BODY: noId });
+    expect(missing.calls).not.toContain("5550123");
+    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*accepted a Deployment \(HTTP 201\).*no id.*delete the one in the preflight environment by hand/));
+    expect(missing.lines).not.toContainEqual(expect.stringMatching(/^PASS .*github deployments/));
+  });
+
+  it("fails, before it creates a Deployment, on a host without jq, which makam-deploy-status cannot do without either", () => {
+    const w = healthy(world());
+    const result = preflight(w, ["--digest", DIGEST], { PATH: pathWithout(w, "jq") });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*jq is not installed.*makam-deploy-status/));
+    expect(result.calls).not.toMatch(/-X POST .*\/deployments(\s|$)/);
+    expect(result.calls).not.toMatch(/-X DELETE /);
   });
 
   it("passes the Deployment probe on a GitHub that refuses the sha-<sha> image tag as a ref, without the old diagnosis", () => {
