@@ -3,10 +3,11 @@ import { langkah } from "./langkah";
 import { HOST_CHECKOUT_SANDBOX, checkoutSandboxSumopod } from "./lingkungan";
 
 /*
- * Paying a Tagihan on staging: Bayar → the SumoPod sandbox checkout → QRIS →
- * "Simulate Payment" (test mode) → the webhook → the Tagihan reads Lunas. The
- * checkout is SumoPod's page, not ours, so its controls are found by their words
- * and a screenshot is kept at every step.
+ * Paying a Tagihan on staging: Bayar → the SumoPod sandbox checkout → "Simulate Payment" (test mode) → the webhook →
+ * the Tagihan reads Lunas → Bukti Pembayaran. The app asks SumoPod for QRIS alone, so the checkout opens on the QR with
+ * no method to choose, and the link in its test-mode banner simulates the payment at once and sends the browser back to
+ * the Tagihan (2026-10-04). The checkout is SumoPod's page, not ours, so its controls are found by their words and a
+ * screenshot is kept at every step.
  */
 
 const SEMBUNYIKAN_PEMISAH = /[.,\s]/g;
@@ -22,6 +23,18 @@ export function angkaDiHalaman(teks: string): string[] {
  */
 export async function bayarDenganQris(page: Page, tagihanUrl: string): Promise<number> {
   const tombolBayar = page.getByRole("button", { name: /^Bayar Rp/ });
+  // A method choice exists only on a checkout that offers more than QRIS; the app asks for QRIS alone, so the QR is normally showing at once.
+  const pilihanQris = page
+    .getByRole("button", { name: /QRIS/i })
+    .or(page.getByRole("radio", { name: /QRIS/i }))
+    .or(page.getByText(/^\s*QRIS\s*$/i))
+    .first();
+  // The link in the test-mode banner ("Click here to simulate your payment", 2026-10-04); an older checkout had a "Simulate Payment" button.
+  const simulasi = page
+    .getByRole("link", { name: /simulate your payment/i })
+    .or(page.getByRole("button", { name: /Simulate Payment/i }))
+    .or(page.getByText(/simulate your payment|Simulate Payment/i))
+    .first();
 
   const total = await langkah(page, "Buka Tagihan: Belum Dibayar", async () => {
     await page.goto(tagihanUrl);
@@ -44,18 +57,28 @@ export async function bayarDenganQris(page: Page, tagihanUrl: string): Promise<n
     expect.soft(angkaDiHalaman(teks), `checkout menampilkan ${total}`).toContain(String(total));
   });
 
-  await langkah(page, "Checkout: pilih QRIS", async () => {
-    const qris = page.getByRole("button", { name: /QRIS/i }).or(page.getByRole("radio", { name: /QRIS/i })).or(page.getByText(/^\s*QRIS\s*$/i)).first();
-    await qris.click({ timeout: 30_000 });
+  await langkah(page, "Checkout: pilih QRIS bila ada pilihan", async () => {
+    // Settled when the checkout shows its QR page (the banner link) or a method choice; the choice is clicked only if it is there.
+    await pilihanQris.or(simulasi).first().waitFor({ state: "visible", timeout: 30_000 });
+    if (await pilihanQris.isVisible()) await pilihanQris.click();
   });
 
   await langkah(page, "Checkout: Simulate Payment", async () => {
-    const simulasi = page.getByRole("button", { name: /Simulate Payment/i }).or(page.getByText(/Simulate Payment/i)).first();
     await simulasi.waitFor({ state: "visible", timeout: 45_000 });
     // The checkout's own guidance: let the QR show for a moment before simulating.
     await page.waitForTimeout(3_000);
     await simulasi.click();
-    await expect.soft(page.getByText(/waiting for confirmation|menunggu konfirmasi/i)).toBeVisible({ timeout: 30_000 });
+    // The sandbox simulates at once and sends the browser back to this Tagihan's page (2026-10-04). Whether it already reads Lunas is for the next
+    // step, which reloads until it does; an older checkout stayed on its page and said it was waiting for confirmation.
+    await expect
+      .soft.poll(
+        async () => {
+          if (!checkoutSandboxSumopod(page.url())) return new URL(page.url()).pathname === tagihanUrl;
+          return page.getByText(/waiting for confirmation|menunggu konfirmasi/i).isVisible().catch(() => false);
+        },
+        { message: "setelah Simulate Payment peramban kembali ke halaman Tagihan (atau checkout menunggu konfirmasi)", timeout: 30_000 },
+      )
+      .toBe(true);
   });
 
   await langkah(page, "Tagihan: Lunas (webhook payment diterima)", async () => {

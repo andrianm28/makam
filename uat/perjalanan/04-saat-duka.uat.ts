@@ -5,6 +5,26 @@ import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
 
+/**
+ * The Pemakaman date this run records: today, unless UAT_TANGGAL_PEMAKAMAN (YYYY-MM-DD) names an earlier one. A date
+ * about ten years back puts the 10-year Hak Pakai near its end, inside the Perpanjangan window that bagian 5 needs
+ * (checklist P8); the Catat pemakaman form allows any past date. The date of death is then the day before it.
+ */
+function tanggalPemakaman(): string {
+  const dariEnv = process.env.UAT_TANGGAL_PEMAKAMAN?.trim();
+  if (!dariEnv) return tanggalWib(0);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dariEnv)) throw new Error(`UAT_TANGGAL_PEMAKAMAN harus YYYY-MM-DD, bukan "${dariEnv}"`);
+  return dariEnv;
+}
+
+function tanggalWafat(): string {
+  const dariEnv = process.env.UAT_TANGGAL_PEMAKAMAN?.trim();
+  if (!dariEnv) return tanggalWib(-1);
+  const sehariSebelum = new Date(`${tanggalPemakaman()}T00:00:00Z`);
+  sehariSebelum.setUTCDate(sehariSebelum.getUTCDate() - 1);
+  return sehariSebelum.toISOString().slice(0, 10);
+}
+
 /*
  * Checklist Rilis 1, bagian 4: journey Saat Duka di Lokasi Mitra. The Hak Pakai it
  * leaves (fixed-term, under the QRIS cap) is the one bagian 5 extends. [BAYAR]: the
@@ -23,11 +43,13 @@ test.describe("§4 Saat Duka (Lokasi Mitra)", { tag: ["@rilis1", "@bayar"] }, ()
       await expect(page.getByText("Belum ada yang dibayar sekarang.")).toBeVisible();
       await isiDataPemesan(page);
       await page.getByLabel("Nama almarhum / almarhumah").fill("Almarhum Uji UAT");
-      await page.getByLabel("Tanggal wafat").fill(tanggalWib(-1));
+      await page.getByLabel("Tanggal wafat").fill(tanggalWafat());
       await page.getByRole("button", { name: "Kirim pesanan" }).first().click();
       await expect(page).toHaveURL(/\/pesanan\/MKM-\d{4}-\d{6}$/, { timeout: 30_000 });
       simpan("saatduka.nomor", nomorPemesananDi(page.url()));
       await expect(page.locator("[data-slot=status-badge]")).toHaveText("Diajukan");
+      // "Yang dipesan" names the Lokasi in full; one that only contains the name ("… (Contoh)") fails here, not a journey later.
+      await expect(page.getByRole("link", { name: DATA.lokasiSaatDuka(), exact: true }).first()).toBeVisible();
     });
     await manual(page, "Kirim pesanan sebagai tamu di wizard Saat Duka (Kode Masuk di langkah terakhir)", "wizard ini signed-in di sini supaya satu jam cukup untuk lima kode; jalur tamu wizard Terencana ada di bagian 2, jalur tamu Saat Duka dicek owner atau diulang dengan sesi Pemesan dihapus");
   });
@@ -52,7 +74,7 @@ test.describe("§4 Saat Duka (Lokasi Mitra)", { tag: ["@rilis1", "@bayar"] }, ()
     const admin = await sebagai("admin-lokasi");
     await langkah(admin, "Catat Pemakaman (tanggal hari ini, lapis 1)", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
-      await admin.getByLabel("Tanggal pemakaman").fill(tanggalWib(0));
+      await admin.getByLabel("Tanggal pemakaman").fill(tanggalPemakaman());
       await admin.getByLabel("Lapis").fill("1");
       await admin.getByRole("button", { name: "Catat pemakaman" }).click();
       await expect(admin.getByRole("button", { name: "Catat pemakaman" })).toHaveCount(0, { timeout: 30_000 });

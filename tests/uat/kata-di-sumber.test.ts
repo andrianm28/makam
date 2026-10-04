@@ -85,6 +85,7 @@ describe("a word the app assembles from a template literal", () => {
 /** What the sandbox checkout of SumoPod says: its page is the provider's, not ours, so these words are not in `src/`. */
 const KATA_PENYEDIA: Record<string, string> = {
   "Simulate Payment": "tombol checkout sandbox SumoPod",
+  "simulate your payment": "tautan banner Test Mode checkout sandbox SumoPod (2026-10-04)",
   "waiting for confirmation": "teks checkout sandbox SumoPod setelah Simulate Payment",
 };
 

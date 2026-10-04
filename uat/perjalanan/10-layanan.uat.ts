@@ -18,14 +18,16 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
   test("§11 Pemesan memesan Layanan lewat Makam Keluarga dan membayar sampai Pekerjaan Dijadwalkan", async ({ sebagai }) => {
     const page = await sebagai("pemesan");
     await langkah(page, "Makam Keluarga: cari Nomor Makam di Lokasi Mitra", async () => {
-      await page.goto("/makam-keluarga");
+      // The menu's "Layanan" opens the hub with the Layanan branch chosen: only then does a found Petak offer "Pesan layanan di Petak …" (the "Layanan Makam" card goes to /layanan, which names no Petak).
+      await page.goto("/makam-keluarga?aksi=layanan");
       await pilihOpsi(page, "Lokasi Mitra", { teks: persis(DATA.lokasiTerencana()) });
-      await page.getByLabel("Nomor Makam").fill(DATA.petakTerencana());
+      // The radio "Nomor Makam" carries the same label as the field, so the field is found by its role.
+      await page.getByRole("textbox", { name: "Nomor Makam" }).fill(DATA.petakTerencana());
       await page.getByRole("button", { name: "Cari makam" }).click();
       await expect(page.getByText("Petak Makam").first()).toBeVisible();
     });
     await langkah(page, "Layanan Makam: pilih varian dan tanggal target", async () => {
-      await page.getByRole("link", { name: /layanan makam/i }).first().click();
+      await page.getByRole("link", { name: /Pesan layanan di Petak/ }).first().click();
       await expect(page.getByRole("heading", { name: "Pesan Layanan Makam" })).toBeVisible();
       const varian = page.locator('select[id^="varian-"]').first();
       await varian.selectOption({ index: 1 });

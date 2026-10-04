@@ -17,8 +17,11 @@ test.describe("§10 Penutup", { tag: ["@rilis1"] }, () => {
     test.skip(!nomor, "Pesanan Terencana belum ada (jalankan §2)");
     const pemesan = await sebagai("pemesan");
     await langkah(pemesan, "Pemesan: Ajukan Pembatalan dalam Masa Pembatalan", async () => {
-      await pemesan.goto(`/pesanan/${nomor}`);
-      await pemesan.getByTestId("pembatalan-terencana").getByRole("link").first().click();
+      // "Ajukan Pembatalan" is a link on the Hak Pakai's card in Akun Saya's Makam tab (ticket 38, spec story 102); the order page
+      // only reads out a request once one exists (its "pembatalan-terencana" section holds no link).
+      await pemesan.goto("/akun/makam");
+      const kartu = pemesan.locator("li").filter({ hasText: persis(DATA.lokasiTerencana()) }).filter({ hasText: persis(DATA.petakTerencana()) });
+      await kartu.getByTestId("tautan-pembatalan").click();
       await expect(pemesan.getByRole("heading", { name: "Pembatalan Hak Pakai" })).toBeVisible();
       await pemesan.getByTestId("ajukan-pembatalan").click();
       await expect(pemesan.getByTestId("pembatalan-status")).toBeVisible({ timeout: 30_000 });

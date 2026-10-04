@@ -116,10 +116,13 @@ export async function pilihOpsi(page: Page, label: string | RegExp, pilihan: { u
   await opsi.first().click();
 }
 
-/** The id of a Lokasi by its name, read from its public page link (so no staff session is needed to find it). */
+/**
+ * The id of a Lokasi by its name, read from its public page link (so no staff session is needed to find it). The name
+ * must be the whole name: "Makam Masjid Nurul Huda" is not "Makam Masjid Nurul Huda (Contoh)", a Lokasi of its own.
+ */
 export async function lokasiIdDariNama(page: Page, nama: string): Promise<string> {
   await page.goto("/lokasi");
-  const href = (await page.getByRole("link", { name: persis(nama) }).first().getAttribute("href")) ?? "";
+  const href = (await page.getByRole("link", { name: nama, exact: true }).first().getAttribute("href")) ?? "";
   const id = /\/lokasi\/([0-9a-f-]{36})/.exec(href)?.[1];
   if (!id) throw new Error(`Lokasi "${nama}" tidak ada di daftar Lokasi publik (/lokasi).`);
   return id;

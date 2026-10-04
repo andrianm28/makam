@@ -45,7 +45,9 @@ export async function pilihMasaLaluTagihan(page: Page, opsi: { tambahLayanan?: b
 /** Follows "Buka Tagihan" to the Tagihan page and pays it. Returns the Tagihan's path. */
 export async function bukaTagihanDanBayar(page: Page): Promise<string> {
   const url = await langkah(page, "Buka Tagihan", async () => {
-    await page.getByRole("link", { name: /Buka Tagihan/ }).first().click();
+    // "Lanjut ke Tagihan" now lands on the Tagihan itself (2026-10-05); an older page showed a "Buka Tagihan" link first.
+    await expect(page.getByRole("link", { name: /Buka Tagihan/ }).first().or(page.getByRole("heading", { name: "Tagihan", exact: true }))).toBeVisible({ timeout: 30_000 });
+    if (!/\/dokumen\//.test(page.url())) await page.getByRole("link", { name: /Buka Tagihan/ }).first().click();
     await expect(page).toHaveURL(/\/dokumen\//);
     return new URL(page.url()).pathname;
   });
@@ -74,13 +76,18 @@ export async function kirimPesananDenganKodeMasuk(page: Page, nama: NamaPersona)
   });
 }
 
-/** Saat Duka at a Lokasi Mitra: picks the Lokasi × Jenis Makam card and goes on to "Data & kirim". */
+/**
+ * Saat Duka at a Lokasi Mitra: picks the Lokasi × Jenis Makam card and goes on to "Data & kirim". The Lokasi is found by
+ * its exact name, through its card group ("Jenis Makam di <nama>"), never by a piece of text in the card: staging also
+ * carries a "<nama> (Contoh)" copy of each Lokasi (Data Contoh, tickets 109 and 111), the list is sorted by the lowest
+ * total, and the copy is the cheaper one, so a substring match picks it, a Lokasi the Admin Lokasi persona does not manage.
+ */
 export async function bukaDataSaatDuka(page: Page): Promise<void> {
   await page.goto("/pesan-makam/saat-duka");
   await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
   const kartu = page
+    .getByRole("radiogroup", { name: `Jenis Makam di ${DATA.lokasiSaatDuka()}`, exact: true })
     .getByRole("radio")
-    .filter({ hasText: persis(DATA.lokasiSaatDuka()) })
     .filter({ hasText: persis(DATA.jenisSaatDuka()) })
     .first();
   await kartu.click();
@@ -91,9 +98,13 @@ export async function bukaDataSaatDuka(page: Page): Promise<void> {
 /** The Saat Duka TPU wizard's "Data & kirim": from the list, the TPU `UAT_TPU` names or the first one offered. */
 export async function bukaDataTpu(page: Page): Promise<void> {
   await page.goto("/pesan-makam/saat-duka");
+  await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
+  // The TPU DKI cards are radios in the "TPU DKI" group of the one Pilih makam list (with the Lokasi Mitra), then "Lanjut"; not links.
+  const grup = page.getByRole("radiogroup", { name: "TPU DKI", exact: true });
   const tpu = process.env.UAT_TPU?.trim();
-  const tautan = tpu ? page.getByRole("link", { name: persis(tpu) }).first() : page.locator('a[href*="/pesan-makam/saat-duka/tpu"]').first();
-  await tautan.click();
+  const kartu = tpu ? grup.getByRole("radio").filter({ hasText: persis(tpu) }).first() : grup.getByRole("radio").first();
+  await kartu.click();
+  await page.getByRole("button", { name: "Lanjut" }).click();
   await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
 }
 
