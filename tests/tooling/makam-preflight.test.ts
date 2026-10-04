@@ -765,6 +765,18 @@ describe("makam-preflight", () => {
     expect(ticket).toMatch(/\*\*Rehearsal\*\*[^\n]*first step[^\n]*makam-preflight/);
   });
 
+  it("documents --rilis, the production timers, the bare-SHA Deployment probe and the pull retries in the runbook's preflight section", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Hari switch"));
+    expect(section).toMatch(/--rilis N[\s\S]*RILIS_TERBUKA[\s\S]*rilisTerbuka/);
+    for (const timer of ["makam-prod-db-backup", "makam-prod-files-backup", "makam-prod-restore-test", "makam-prod-health"]) {
+      expect(section).toContain(timer);
+    }
+    expect(section).toMatch(/Deployment[^\n]*ref[^\n]*bare commit SHA/);
+    expect(section).not.toContain("ref `sha-<revision>`");
+    expect(section).toMatch(/ghcr pull[^\n]*3 tries, 10 s and 30 s apart/);
+  });
+
   it("skips every S3 check by default because v1 goes live without S3, and runs them only with --met-s3", () => {
     const byDefault = preflight(healthy(world()));
     expect(byDefault.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[03\].*s3.*moved to v2.*2026-09-26.*--met-s3/));
@@ -845,7 +857,7 @@ describe("makam-preflight", () => {
     expect(section).toMatch(/public access, versioning and encryption[^.]*console[^.]*unless[^.]*read-capable key/i);
   });
 
-  it("fails with a clear reason when the image carries no revision label instead of probing the ref sha-", () => {
+  it("fails with a clear reason when the image carries no revision label instead of probing GitHub with no commit to send", () => {
     const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_REVISION: "" });
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*no org\.opencontainers\.image\.revision label/));
     expect(result.calls).not.toMatch(/-X POST .*\/deployments(\s|$)/);

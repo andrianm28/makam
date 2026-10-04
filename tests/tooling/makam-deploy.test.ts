@@ -442,6 +442,16 @@ describe("makam-deploy", () => {
       expect(backoffs(second.calls)).toEqual(["sleep 10", "sleep 30"]);
     });
 
+    it("is explained in the runbook's staging deploy section: three tries, 10 s and 30 s apart, the roll back's pull included", () => {
+      const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+      // Prose is re-wrapped by editors, so read it as one line.
+      const section = runbook
+        .slice(runbook.indexOf("## Staging deploy"), runbook.indexOf("## Reading a deploy in GitHub"))
+        .replace(/\s+/g, " ");
+      expect(section).toContain("3 tries, 10 s and 30 s apart");
+      expect(section).toContain("roll back's pull of the previous digest");
+    });
+
     it("leaves the unhealthy release running and exits 2 when all three pulls of the roll back fail, with the roll back's own message", () => {
       const world = staging();
       expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
