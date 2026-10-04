@@ -1337,10 +1337,16 @@ the restored data, under Docker's directory. It restores into it, then checks
 that every table of that night is there (the recorded counts, plus a fixed
 floor of core tables listed once in `deploy/bin/makam-backup-lib` as
 `REQUIRED_TABLES`) and that each holds at least the rows it had that night. The
-container is removed whether the check passed or failed — on failure the last
-20 lines of its Postgres log are printed first, and `--keep` leaves it for
-inspection (`docker rm -f <name>` when done). Nothing of the running environment
-is touched: the Dump is read, the live database is not.
+container is removed whether the check passed or failed, together with the
+anonymous volume the Postgres image gives it for its data (`docker rm -fv`: the
+restored database is a whole copy of the Dump, and a Dump is kept 7 days) — on
+failure the last 20 lines of its Postgres log are printed first, and `--keep`
+leaves it for inspection (`docker rm -fv <name>` when done). Nothing of the
+running environment is touched: the Dump is read, the live database is not.
+Until 2026-10-04 the volume was left behind, so staging's earlier weekly checks
+left one each. They are anonymous volumes with random names that nothing marks
+as makam's, and `docker volume ls --filter dangling=true` lists other projects'
+too: never prune them.
 
 A failed check exits 1 and logs at `err` (`journalctl -t makam-restore-test -p
 err`). It means one of: the Dump is unreadable (truncated write, wrong
