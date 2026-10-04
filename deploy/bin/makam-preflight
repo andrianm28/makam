@@ -605,6 +605,20 @@ check_open_release() {
   fi
 }
 
+# The production timers of ticket 108, checked by name only (nothing is started
+# or read from their units).
+check_production_timers() {
+  local name missing="" timers=(makam-prod-db-backup makam-prod-files-backup makam-prod-restore-test makam-prod-health)
+  for name in "${timers[@]}"; do
+    systemctl is-enabled "$name.timer" > /dev/null 2>&1 || missing="${missing:+$missing, }$name.timer"
+  done
+  if [ -n "$missing" ]; then
+    fail "72" "production timers" "not enabled: $missing (systemctl enable --now <name>; ticket 108)"
+  else
+    pass "72" "production timers" "makam-prod-db-backup, makam-prod-files-backup, makam-prod-restore-test and makam-prod-health timers are enabled"
+  fi
+}
+
 # What no script on this host can prove.
 check_manual_steps() {
   skip "02" "uptime monitor" "manual: an external monitor outside the VPS must watch https://makam.co.id/api/health with an alert contact (runbook, \"Uptime alarm\"); record which service in ticket 02"
@@ -625,6 +639,7 @@ check_webhook_secret
 check_webhook_forged
 check_github_deployments
 check_open_release
+check_production_timers
 check_s3
 check_backup_key
 check_backup_and_restore
