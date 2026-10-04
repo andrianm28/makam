@@ -210,6 +210,24 @@ function healthy(w: ReturnType<typeof world>) {
     ].join("\n"),
   );
   install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
+  // Every unit is enabled unless FAKE_TIMER_STATES lists it as <unit>=<state>; "missing" is a unit systemd has never heard of.
+  install(
+    w.bin,
+    "systemctl",
+    [
+      'case "$1" in',
+      "  is-enabled)",
+      "    for entry in ${FAKE_TIMER_STATES:-}; do",
+      '      if [ "${entry%%=*}" = "$2" ]; then',
+      '        state=${entry#*=}',
+      '        if [ "$state" = missing ]; then echo "Failed to get unit file state for $2: No such file or directory" >&2; else echo "$state"; fi',
+      "        exit 1",
+      "      fi",
+      "    done",
+      "    echo enabled ;;",
+      "esac",
+    ].join("\n"),
+  );
   return w;
 }
 
@@ -621,6 +639,41 @@ describe("makam-preflight", () => {
       const result = preflight(healthy(world()), ["--help"]);
       expect(result.code).toBe(0);
       expect(result.output).toMatch(/--rilis N/);
+    });
+  });
+
+  describe("the production timers (ticket 108)", () => {
+    it("passes when the db-backup, files-backup, restore-test and health timers of makam-prod are enabled", () => {
+      const ok = preflight(healthy(world()));
+      expect(ok.lines).toContainEqual(
+        expect.stringMatching(
+          /^PASS .*\[64, 108\].*production timers: .*makam-prod-db-backup\.timer.*makam-prod-files-backup\.timer.*makam-prod-restore-test\.timer.*makam-prod-health\.timer.*enabled/,
+        ),
+      );
+      for (const timer of ["db-backup", "files-backup", "restore-test", "health"]) {
+        expect(ok.calls).toContain(`systemctl is-enabled makam-prod-${timer}.timer`);
+      }
+      expect(ok.calls).not.toMatch(/systemctl is-enabled makam-staging/);
+    });
+
+    it("fails naming each timer that is not enabled and what state it is in, and how to enable them after the first production deploy", () => {
+      const result = preflight(healthy(world()), [], {
+        FAKE_TIMER_STATES: "makam-prod-db-backup.timer=disabled makam-prod-files-backup.timer=masked makam-prod-health.timer=missing",
+      });
+      expect(result.code).toBe(1);
+      const line = result.lines.find((l) => /production timers/.test(l)) ?? "";
+      expect(line).toMatch(/^FAIL .*\[64, 108\]/);
+      expect(line).toContain("makam-prod-db-backup.timer (disabled)");
+      expect(line).toContain("makam-prod-files-backup.timer (masked)");
+      expect(line).toContain("makam-prod-health.timer (not installed)");
+      expect(line).not.toContain("makam-prod-restore-test");
+      expect(line).toMatch(/install-host\.sh.*MAKAM_DIGEST.*after the first production deploy/);
+      expect(result.lines.filter((l) => /^PASS .*production timers/.test(l))).toEqual([]);
+    });
+
+    it("counts only an enabled timer: a unit with no [Install] section (static) does not make the backups run", () => {
+      const result = preflight(healthy(world()), [], { FAKE_TIMER_STATES: "makam-prod-restore-test.timer=static" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*production timers: .*makam-prod-restore-test\.timer \(static\)/));
     });
   });
 

@@ -625,6 +625,25 @@ check_rilis() {
   fi
 }
 
+# Ticket 108's four production timers. deploy/install-host.sh enables them once
+# the production stack really runs (deployed.env names a MAKAM_DIGEST); without
+# them no production Dump is taken, no restore test runs and nothing watches
+# /api/health. systemctl says "enabled" for an enabled timer and anything else
+# for the rest: disabled, masked, static (no [Install] section), and nothing at
+# all for a unit it has never heard of.
+check_production_timers() {
+  local timer state missing=""
+  for timer in makam-prod-db-backup makam-prod-files-backup makam-prod-restore-test makam-prod-health; do
+    state=$(systemctl is-enabled "$timer.timer" 2> /dev/null) || true
+    [ "$state" = enabled ] || missing="${missing:+$missing, }$timer.timer (${state:-not installed})"
+  done
+  if [ -z "$missing" ]; then
+    pass "64, 108" "production timers" "makam-prod-db-backup.timer, makam-prod-files-backup.timer, makam-prod-restore-test.timer and makam-prod-health.timer are enabled"
+  else
+    fail "64, 108" "production timers" "not enabled: $missing; deploy/install-host.sh enables them once $DIR/deployed.env names a MAKAM_DIGEST, so run it again after the first production deploy (runbook, \"Database backup and restore\")"
+  fi
+}
+
 # What no script on this host can prove.
 check_manual_steps() {
   skip "02" "uptime monitor" "manual: an external monitor outside the VPS must watch https://makam.co.id/api/health with an alert contact (runbook, \"Uptime alarm\"); record which service in ticket 02"
@@ -648,6 +667,7 @@ check_rilis
 check_s3
 check_backup_key
 check_backup_and_restore
+check_production_timers
 check_manual_steps
 
 echo
