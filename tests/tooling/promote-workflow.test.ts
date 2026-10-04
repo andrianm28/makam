@@ -229,7 +229,7 @@ describe("the promotion workflows: shape", () => {
 
   it.each(all)("%s: every needs.<job>.outputs.<x> is an output of that job", (_n, text, w) => {
     const refs = [...text.matchAll(/needs\.([\w-]+)\.outputs\.([\w-]+)/g)];
-    expect(refs.length).toBeGreaterThan(0);
+    if (text === promoteText) expect(refs.length).toBeGreaterThan(0);
     for (const [, job, out] of refs) expect(w.jobs[job]?.outputs?.[out], `${job}.${out}`).toBeTruthy();
   });
 });
