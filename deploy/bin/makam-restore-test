@@ -8,9 +8,11 @@
 # carries the label makam.role=restore-test, gets no network at all, and mounts
 # nothing of the environment's: no port, no host directory, no makam volume (the
 # image brings its own anonymous volume for the data, under Docker's directory).
-# It is removed again whether the check passed or failed (--keep leaves it for
-# inspection). Nothing of the environment it restores is touched: the Dump is
-# read, the running database is not, and this script needs no connection to it.
+# It is removed again, together with that volume (`docker rm -v`: the restored
+# database is a whole copy of the Dump, and the Dump is kept 7 days), whether the
+# check passed or failed (--keep leaves it for inspection). Nothing of the
+# environment it restores is touched: the Dump is read, the running database is
+# not, and this script needs no connection to it.
 #
 # The check is a comparison, not a hope: each night's Dump comes with the row
 # counts of the night it was taken (makam-<timestamp>.counts.enc), so every
@@ -52,8 +54,7 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
 done
-# `prod` is ticket 65's: no makam-prod-* unit is installed yet, and the runbook
-# says so. The value is here because that environment will run the same script.
+# Production runs the same script from makam-prod-restore-test.timer (ticket 108).
 case "$ENV_NAME" in
   staging|prod) ;;
   *) echo "--env must be staging or prod" >&2; exit 64 ;;
@@ -97,12 +98,12 @@ cleanup() {
   local code=$?
   if [ "$container_up" = 1 ]; then
     if [ "$KEEP" = 1 ]; then
-      echo "left $NAME in place for inspection (docker rm -f $NAME when done)" >&2
+      echo "left $NAME in place for inspection (docker rm -fv $NAME when done)" >&2
     else
       if [ "$code" != 0 ]; then
         docker logs --tail 20 "$NAME" >&2 2>&1 || true
       fi
-      docker rm -f "$NAME" > /dev/null 2>&1 || true
+      docker rm -fv "$NAME" > /dev/null 2>&1 || true
     fi
   fi
 }

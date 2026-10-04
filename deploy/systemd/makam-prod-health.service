@@ -1,0 +1,32 @@
+# Local watchdog for production: the app's /api/health and the host's root disk.
+# Both log failures to the journal (tags makam-health and makam-disk). Not the
+# uptime alarm. Installed by deploy/install-host.sh, which enables its timer only
+# once production runs (ticket 108).
+[Unit]
+Description=Check makam-prod's /api/health on 127.0.0.1:3100 and the host's disk
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+# Straight to the web container's own port, not through nginx and TLS the way
+# staging's unit goes: until the switch makam.co.id still reaches the old app, and
+# after it nginx and the certificate are the external monitor's to watch (runbook,
+# "Uptime alarm"). This one answers whether production itself is up.
+ExecStart=/opt/makam-v1/bin/makam-healthcheck http://127.0.0.1:3100/api/health
+# The disk check runs second for the same reason as in staging's unit: systemd
+# stops a oneshot at the first failing ExecStart, and the app check is the one an
+# operator acts on. Staging's unit measures the same root filesystem, so a full
+# disk is reported by both; production's watchdog then does not depend on the
+# staging timer staying enabled. `makam-prune-images` is what frees the space;
+# see docs/ops/runbook.md, "Images on the host and the disk".
+ExecStart=/opt/makam-v1/bin/makam-diskcheck /
+
+# Hardening, the same as staging's. It only runs curl, jq, df and logger
+# (/dev/log); it writes nothing.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

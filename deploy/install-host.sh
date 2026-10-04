@@ -6,6 +6,12 @@
 # containers. It installs the nginx proxy snippet and runs `nginx -t`, but
 # never reloads nginx.
 #
+# Staging's timers are always enabled. Production's database backup, FileStore
+# backup, restore check and health watchdog are enabled only once production
+# runs, that is once /opt/makam-v1/prod/deployed.env has a MAKAM_DIGEST (the
+# first `makam-deploy --env prod` writes it): run this script again after that
+# deploy. Until then it prints a NOTE with the command to enable them by hand.
+#
 #   deploy/install-host.sh                  # from a clean checkout of main, as ubuntu
 #   deploy/install-host.sh --allow-branch   # testing only: any branch, dirty tree allowed
 #
@@ -101,4 +107,19 @@ sudo systemctl enable --now makam-staging-deploy.timer makam-staging-health.time
   makam-staging-db-backup.timer makam-staging-restore-test.timer
 # makam-prod-deploy.timer is installed but NOT enabled: production follows an
 # explicit digest until the owner turns it on (runbook, "Production").
+
+# Production's backups, restore check and watchdog (ticket 108). Their units are
+# installed above with all the others, but a timer is enabled only once the
+# production stack really runs: before the first `makam-deploy --env prod` there
+# is no Postgres to dump, no FileStore volume to tar and nothing on port 3100 to
+# check, so an enabled timer would only fail every night and every minute. The
+# gate reads deployed.env the way makam-deploy's own `current_digest` does, so a
+# blank MAKAM_DIGEST (a first deploy that was rolled back) does not open it.
+PROD_TIMERS=(makam-prod-db-backup.timer makam-prod-files-backup.timer makam-prod-restore-test.timer makam-prod-health.timer)
+prod_digest=$(sed -n 's/^MAKAM_DIGEST=//p' "$ROOT/prod/deployed.env" 2>/dev/null | tail -n 1 || true)
+if [ -n "$prod_digest" ]; then
+  sudo systemctl enable --now "${PROD_TIMERS[@]}"
+else
+  echo "NOTE: production is not deployed yet ($ROOT/prod/deployed.env has no MAKAM_DIGEST), so its backup, restore-check and health timers are installed but NOT enabled. Run deploy/install-host.sh again after the first production deploy, or enable them by hand: sudo systemctl enable --now ${PROD_TIMERS[*]}" >&2
+fi
 systemctl list-timers 'makam-*' --no-pager

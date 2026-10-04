@@ -1,0 +1,14 @@
+# Runs makam-backup-db for production nightly at 01:15 WIB, ahead of the
+# FileStore tar (01:45) and of every staging job (02:15 onwards). No two jobs
+# ever run at once: tests/tooling/systemd-units.test.ts adds each job's random
+# delay and its TimeoutStartSec to its hour and fails if two such windows meet.
+[Unit]
+Description=Nightly makam-prod database backup
+
+[Timer]
+OnCalendar=*-*-* 01:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target
