@@ -12,11 +12,12 @@
 #   makam-deploy --env staging --force             redeploy even if already current
 #
 # Order, and what a failure leaves running:
-#   1. pull the image           fails -> nothing touched
+#   1. pull the image           fails -> nothing touched (3 tries, 10 s and 30 s apart)
 #   2. verify the signature     unsigned or wrongly signed -> nothing touched
 #   3. pg_dump (prod only)      fails -> nothing touched
 #   4. run --rm migrate         fails -> nothing restarted; old web/worker keep running
 #   5. up -d --wait             fails -> automatic roll back to the previous digest
+#                               (its pull of that digest is tried 3 times as well)
 #   6. /api/health must be 200  fails -> automatic roll back to the previous digest
 #   7. create the GlitchTip release for the commit (best effort, never fatal)
 #   8. makam-prune-images, so the host keeps at most MAKAM_KEEP_IMAGES (3)
@@ -142,7 +143,23 @@ record_release() {
   printf 'MAKAM_TAG=%s\nMAKAM_DIGEST=%s\nMAKAM_DEPLOY_REF=:%s@%s\nMAKAM_RELEASE=%s\nPREVIOUS_TAG=%s\nDEPLOYED_AT=%s\n' \
     "$1" "$2" "$1" "$2" "${REV:-$1}" "$PREVIOUS" "$(date -Is)" > "$DEPLOYED_FILE"
 }
-pull() { docker pull -q "$1" > /dev/null || { log "ERROR pull $1 failed; nothing changed"; exit 1; }; }
+# ghcr answers a TLS handshake timeout now and then (six times on 2026-10-03), and
+# a timer that gave up on the first one lost a whole cycle. So a pull is tried up
+# to three times, 10 s and then 30 s apart, before it counts as failed
+# (makam-preflight keeps the same rule for its own pull). Each retry is a WARNING
+# line in deploy.log; docker's own error text stays on stderr.
+PULL_BACKOFFS=(10 30)
+pull_with_retries() {
+  local ref=$1 attempt=1 tries=$((${#PULL_BACKOFFS[@]} + 1)) delay
+  until docker pull -q "$ref" > /dev/null; do
+    [ "$attempt" -lt "$tries" ] || return 1
+    delay=${PULL_BACKOFFS[$((attempt - 1))]}
+    log "WARNING pull $ref failed (try $attempt of $tries); trying again in ${delay}s"
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+pull() { pull_with_retries "$1" || { log "ERROR pull $1 failed; nothing changed"; exit 1; }; }
 
 running() { [ -n "$(compose ps --status running -q "$1" 2>/dev/null)" ]; }
 
@@ -172,7 +189,7 @@ roll_back() {
   fi
   export MAKAM_TAG="$PREVIOUS" MAKAM_DIGEST="$PREVIOUS_DIGEST" \
     MAKAM_DEPLOY_REF=":$PREVIOUS@$PREVIOUS_DIGEST" MAKAM_RELEASE="$PREVIOUS"
-  if ! docker pull -q "$IMAGE@$PREVIOUS_DIGEST" > /dev/null 2>&1 \
+  if ! pull_with_retries "$IMAGE@$PREVIOUS_DIGEST" 2> /dev/null \
     || ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
     log "ERROR roll back to $PREVIOUS_DIGEST failed; $TAG ($DIGEST) is still running"
     return 1
