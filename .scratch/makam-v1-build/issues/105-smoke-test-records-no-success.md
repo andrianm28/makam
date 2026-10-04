@@ -26,3 +26,9 @@ Record `success` when the job passed and `failure` otherwise, with the descripti
 - Run 37168614156 (`workflow_dispatch`, 01:38Z): the Playwright smoke passed (`RESULT: success`, digest `sha256:7c07a86b…`), then "Record the result against the digest" failed with the HTTP 422 above.
 - Run 37150149670 had failed earlier for another reason: staging served an empty browser DSN. That is fixed on the host; `NEXT_PUBLIC_SENTRY_DSN` is now in `staging.env`.
 - Ticket 102 is merged and works on the host: staging Deployment 6832434792 has `in_progress` and then `success`, with `ref` as the bare SHA.
+
+### Build (2026-10-04, builder)
+
+- `staging-smoke.yml`, step "Record the result against the digest": `[ "$RESULT" = success ] || state=failure` became `if [ "$RESULT" = success ]; then state=success; else state=failure; fi`. Nothing else in the workflow changed; the description is unchanged, so it stays a prefix match for `promote.yml`.
+- New `tests/tooling/staging-smoke-record.test.ts` reads the step's `run:` block from the workflow as text (`yaml` is not a direct dependency) and runs it with a fake `gh` on PATH. RESULT=success posts `state=success` and `...for <digest>: success`; RESULT=failure and cancelled post `state=failure` with the same shape; the step exits 0. The test failed on the old script (red) before the fix.
+- Spec gaps: none. Unverified: a real GitHub run.
