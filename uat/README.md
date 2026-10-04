@@ -35,6 +35,15 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 
 When a journey needs a code the runner presses the send button and then waits, printing `[UAT] MENUNGGU kode-masuk untuk persona <nama>: tulis 6 angka ke <UAT_OUT>/kode/<nama>.txt` and leaving `<nama>.minta` (JSON: who, which kind). Whoever drives the run writes the six digits (the Kode Masuk from the mailbox, or the authenticator code for an Admin Platform) to that `.txt` file; the runner types them and deletes the file. A leftover file is removed before the send, so an old code is never typed.
 
+## Refusals before any journey
+
+The base URL is checked twice, and either check stops the run with a message that starts `UAT ditolak`:
+
+1. **By its words** (`bacaKonfigurasi`, `support/lingkungan.ts`): only exactly `https://dev.makam.co.id`, or `localhost` / `127.0.0.1` / `[::1]` on any port. Production and look-alike hosts are refused, and a browser request to any other makam.co.id host is aborted during the run.
+2. **By asking the stack** (`support/pra-uji.ts`, Playwright's `globalSetup`, once before any journey): the runner calls `GET <base URL>/api/health` and reads `environment`, the `APP_ENV` of that process. Only `development`, `test` or `staging` pass. This is the check that stops a loopback port of the production host from passing as a local stack: production listens on `127.0.0.1:3100`, passes check 1 and answers `production`, so the run exits 1 with "mengaku environment produksi". The check fails closed: no answer (nothing listening, a timeout), an answer that is not the health report, no `environment` in it, or an environment the runner does not know ("tidak dikenal") are all refused. A 503 from a known environment (the worker's heartbeat is stale) still passes, because the check settles where the stack is, not whether it is well. Staging's basic auth, when set, is sent with the request.
+
+So a local stack (`UAT_BASE_URL=http://127.0.0.1:3310`) runs only when its own `APP_ENV` is `development` or `test`. Nothing is sent to the stack, not even a login, before both checks pass.
+
 ## Limits
 
 The server allows one emailed code per IP every 60 s and five in any rolling hour (`src/domain/identity/otp.ts`). The runner keeps inside both (`support/jeda-kode.ts`, history in `$UAT_SESI_DIR/riwayat-kode.json`): it waits out the 60 s itself and refuses, saying when it may try again, rather than wait more than `UAT_KODE_TUNGGU_MAKS_MENIT`. Each persona's session is saved (an Admin Platform's lasts 12 hours), so a persona asks for a code only when it has no working session.
