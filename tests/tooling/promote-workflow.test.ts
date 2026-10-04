@@ -193,7 +193,9 @@ describe("Promosikan ke produksi: the release is a draft until the production si
     return `case "$*" in
 "release view"*) echo "release not found" >&2; exit 1;;
 "release list"*) ${listError ? `echo "${listError}" >&2; exit 1;;` : `cat <<'JSON'\n${JSON.stringify(listed)}\nJSON\n;;`}
-"api"*releases*) cat <<'JSON'\n${JSON.stringify(api)}\nJSON
+"api"*releases*)
+  # Faithful to gh: --paginate prints one array per page unless --slurp wraps them.
+  case "$*" in *--slurp*) echo '[${JSON.stringify(api)},[]]';; *) echo '${JSON.stringify(api)}'; echo '[]';; esac
 ;;
 esac`;
   };
@@ -230,6 +232,18 @@ esac`;
     expect(r.stderr).toContain("do not name");
     expect(r.stderr).toContain(DIGEST);
     expect(r.output).toBe("");
+  });
+
+  it("a release on page 1 of the API listing is found although page 2 has none", () => {
+    // Every fake listing has two pages with the match on the first.
+    const r = run(draftStep(), ghFor({ draft: true, body: notes(DIGEST) }), env);
+    expect(r.status).toBe(0);
+  });
+
+  it("refuses notes that mention the digest anywhere but on the Production digest line", () => {
+    const r = run(draftStep(), ghFor({ draft: true, body: `copied from ${DIGEST}` }), env);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("do not name");
   });
 
   it("stops on a lookup error", () => {
