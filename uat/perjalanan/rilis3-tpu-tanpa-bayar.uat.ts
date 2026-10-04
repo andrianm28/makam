@@ -1,5 +1,5 @@
 import { bukaDataTpu, konfirmasiTpuSaatDuka, pesanTpuSaatDuka } from "../support/alur";
-import { kunjungi, persis, tanggalWib } from "../support/halaman";
+import { kirimLaluMuatUlang, kunjungi, persis, tanggalWib } from "../support/halaman";
 import { ajukanIptm, pesanPengurusanIptm, periksaDokumen, terbitkanIptm, unggahBerkasPengajuan } from "../support/iptm";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
@@ -154,8 +154,9 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     const admin = await sebagai("admin-platform");
     await langkah(admin, "Admin Platform: Pemakaman sudah berlangsung (status Dimakamkan)", async () => {
       await admin.goto(`/staf/admin-platform/pengurusan/${nomor}`);
-      await admin.getByRole("button", { name: "Pemakaman sudah berlangsung" }).click();
-      await expect(admin.getByRole("button", { name: "Pemakaman sudah berlangsung" })).toHaveCount(0, { timeout: 30_000 });
+      await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Pemakaman sudah berlangsung" }));
+      // The step gives way to "Dokumen lengkap" once the burial is recorded; a refusal leaves it (and its message) on the page.
+      await expect(admin.getByRole("button", { name: "Pemakaman sudah berlangsung" }), "Pemakaman tidak tercatat").toHaveCount(0);
     });
     await langkah(pemesan, "Pemesan: linimasa memuat Dimakamkan, dokumen jatuh tempo 7 hari, Surat Kuasa PT Jaya Korpora Prima", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
@@ -167,8 +168,9 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await unggahBerkasPengajuan(pemesan, nomor);
     await langkah(admin, "Admin Platform: Dokumen lengkap, linimasa memuat Dokumen Lengkap", async () => {
       await admin.goto(`/staf/admin-platform/pengurusan/${nomor}`);
-      await admin.getByRole("button", { name: "Dokumen lengkap" }).click();
-      await expect(admin.getByRole("button", { name: "Dokumen lengkap" })).toHaveCount(0, { timeout: 30_000 });
+      await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Dokumen lengkap" }));
+      // The step gives way to "IPTM diajukan" once the documents pass; a refusal leaves it (and its message) on the page.
+      await expect(admin.getByRole("button", { name: "Dokumen lengkap" }), "Dokumen lengkap tidak tercatat").toHaveCount(0);
       await pemesan.goto(`/pengurusan/${nomor}`);
       await expect(pemesan.getByTestId("linimasa").getByText("Dokumen Lengkap")).toBeVisible();
     });

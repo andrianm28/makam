@@ -125,8 +125,9 @@ test.describe("Rilis 3 Mitra Jasa [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabaya
     await langkah(admin, "Admin Platform: Antrean, baris Foto bukti perlu disetujui, buka pekerjaan", () => bukaBarisAntrean(admin, "Foto bukti perlu disetujui", nomor!));
     await langkah(admin, "Admin Platform: Bukti pekerjaan, Setujui bukti", async () => {
       await expect(admin.getByText("Bukti pekerjaan").first()).toBeVisible();
-      await admin.getByRole("button", { name: "Setujui bukti" }).click();
-      await expect(admin.getByRole("button", { name: "Setujui bukti" })).toHaveCount(0, { timeout: 30_000 });
+      await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Setujui bukti" }));
+      // The form is on the page only while the proof is Menunggu Verifikasi; a refusal leaves it (and its message) on the page.
+      await expect(admin.getByRole("button", { name: "Setujui bukti" }), "Bukti tidak disetujui").toHaveCount(0);
     });
     const pemesan = await sebagai("pemesan");
     await langkah(pemesan, "Pemesan: bukti tampil di halaman Layanan, pekerjaan Selesai", async () => {

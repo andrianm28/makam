@@ -68,8 +68,9 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
       const mulai = page.getByRole("button", { name: "Mulai kerjakan" });
       if (await mulai.isVisible()) await mulai.click();
       await ambilSemuaBuktiKamera(page);
-      await page.getByRole("button", { name: "Tandai selesai" }).click();
-      await expect(page.getByRole("button", { name: "Tandai selesai" })).toHaveCount(0, { timeout: 30_000 });
+      await kirimLaluMuatUlang(page, page.getByRole("button", { name: "Tandai selesai" }));
+      // A closed job asks for no more proof and has no such button; a refusal leaves it (and its message) on the page.
+      await expect(page.getByRole("button", { name: "Tandai selesai" }), "Pekerjaan tidak ditandai selesai").toHaveCount(0);
     });
   });
 

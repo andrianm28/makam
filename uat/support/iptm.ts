@@ -1,14 +1,16 @@
 import { expect, type Page } from "@playwright/test";
 import { bukaTagihanDanBayar } from "./alur";
-import { DATA, jpegContoh, nomorPemesananDi, persis, pilihOpsi, tanggalWib } from "./halaman";
+import { DATA, jpegContoh, kirimLaluMuatUlang, nomorPemesananDi, nomorTagihanDi, persis, pilihOpsi, tanggalWib } from "./halaman";
 import { langkah } from "./langkah";
 
 /*
  * The Pengurusan IPTM filing, from the family's order to the IPTM issued (tickets 47
  * and 48): the steps R3-47.1, R3-47.2 and R3-48.1 share. The order page of the family
  * is /pengurusan/<Nomor Pemesanan>; Admin Platform's is /staf/admin-platform/pengurusan/<Nomor Pemesanan>.
- * Selectors are read from the pages' source (src/app/pengurusan, src/app/staf/admin-platform/pengurusan)
- * and not yet run against a stack.
+ * A filing-only order has a family page of its own (src/app/pengurusan/[nomor]/pengurusan-iptm-pemesan.tsx, ticket 116) that shows
+ * the Tagihan (number, amount, due time, "Buka Tagihan") only while the order is Menunggu Pembayaran; what a later step needs of the
+ * Tagihan is read on Admin Platform's pages. Selectors are read from the pages' source (src/app/pengurusan,
+ * src/app/staf/admin-platform/pengurusan and .../tagihan) and not yet run against a stack.
  */
 
 const halamanAdmin = (nomor: string) => `/staf/admin-platform/pengurusan/${nomor}`;
@@ -58,8 +60,9 @@ export async function unggahBerkasPengajuan(pemesan: Page, nomor: string): Promi
 export async function periksaDokumen(pemesan: Page, admin: Page, nomor: string): Promise<void> {
   await langkah(admin, `Admin Platform ${nomor}: Dokumen lengkap, Tagihan bayar-dulu terbit`, async () => {
     await admin.goto(halamanAdmin(nomor));
-    await admin.getByRole("button", { name: "Dokumen lengkap" }).click();
-    await expect(admin.getByRole("button", { name: "Dokumen lengkap" })).toHaveCount(0, { timeout: 30_000 });
+    await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Dokumen lengkap" }));
+    // The card goes once the documents pass (Menunggu Pembayaran has no filing step); a refusal leaves it (and its message) on the page.
+    await expect(admin.getByRole("button", { name: "Dokumen lengkap" }), "Dokumen lengkap tidak tercatat").toHaveCount(0);
   });
   await langkah(pemesan, "Pemesan: Tagihan bayar-dulu terbit, Menunggu Pembayaran", async () => {
     await pemesan.goto(`/pengurusan/${nomor}`);
@@ -94,8 +97,9 @@ export async function ajukanIptm(admin: Page, nomor: string): Promise<void> {
       await admin.goto(halamanAdmin(nomor));
       await expect(tombol).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: TUNGGU_TICK_MS, intervals: [5_000] });
-    await tombol.click();
-    await expect(tombol).toHaveCount(0, { timeout: 30_000 });
+    await kirimLaluMuatUlang(admin, tombol);
+    // The card gives way to "IPTM terbit" once the IPTM is filed; a refusal leaves it (and its message) on the page.
+    await expect(tombol, "IPTM diajukan tidak tercatat").toHaveCount(0);
   });
 }
 
@@ -107,8 +111,9 @@ export async function terbitkanIptm(admin: Page, nomor: string, berlakuSampai: s
     await admin.locator('input[name="berlakuSampai"]').fill(berlakuSampai);
     const blok = admin.locator('input[name="blokNomor"]');
     if (await blok.count()) await blok.fill("Blok UAT-1 No. 7");
-    await admin.getByRole("button", { name: "Terbitkan IPTM" }).click();
-    await expect(admin.getByRole("button", { name: "Terbitkan IPTM" })).toHaveCount(0, { timeout: 30_000 });
+    await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Terbitkan IPTM" }));
+    // IPTM Terbit has no filing step, so the card goes once the IPTM is issued; a refusal leaves it (and its message) on the page.
+    await expect(admin.getByRole("button", { name: "Terbitkan IPTM" }), "IPTM tidak tercatat terbit").toHaveCount(0);
   });
 }
 
@@ -119,7 +124,27 @@ export async function catatPutusanPtsp(admin: Page, nomor: string, putusan: "per
     await admin.locator('select[name="putusan"]').selectOption(putusan);
     await admin.locator('textarea[name="alasan"]').fill(alasan);
     if (putusan === "perbaikan") await admin.locator('input[name="dokumen"]').first().check();
-    await admin.getByRole("button", { name: "Catat putusan PTSP" }).click();
-    await expect(admin.getByRole("button", { name: "Catat putusan PTSP" })).toHaveCount(0, { timeout: 30_000 });
+    await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Catat putusan PTSP" }));
+    // The form is on the page only while the order is IPTM Diajukan; a refusal leaves it (and its message) on the page.
+    await expect(admin.getByRole("button", { name: "Catat putusan PTSP" }), "Putusan PTSP tidak tercatat").toHaveCount(0);
+  });
+}
+
+/**
+ * The Nomor Tagihan of every Tagihan issued for the order, newest first, as Admin Platform's Tagihan search lists them for a Nomor
+ * Pemesanan (src/app/staf/admin-platform/tagihan/page.tsx; a row reads "<Nomor Tagihan> · <Nomor Pemesanan> · …"). It is read there
+ * because the family's page shows the Tagihan only while the order is Menunggu Pembayaran (ticket 116), and because a search by the
+ * order's number lists a second Tagihan whether or not the order points to it. It FAILS when the search finds none: a list that is
+ * empty before and after would make any comparison of the two pass without proving anything.
+ */
+export async function tagihanPesanan(admin: Page, nomor: string): Promise<string[]> {
+  await admin.goto(`/staf/admin-platform/tagihan?q=${encodeURIComponent(nomor)}`);
+  // The rows are the list items of the "Hasil" section: the staff menu and the notification bell have list items of their own.
+  const baris = admin.locator("section").filter({ has: admin.getByRole("heading", { name: "Hasil", exact: true }) }).locator("li");
+  await expect(baris.first(), `pencarian Tagihan untuk ${nomor} menemukan Tagihan pesanan ini`).toBeVisible();
+  return (await baris.allInnerTexts()).map((teks) => {
+    const tagihan = nomorTagihanDi(teks);
+    if (!tagihan) throw new Error(`Baris pencarian Tagihan tanpa Nomor Tagihan: ${teks.slice(0, 200)}`);
+    return tagihan;
   });
 }
