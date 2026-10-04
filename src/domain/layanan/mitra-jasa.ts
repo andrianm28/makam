@@ -46,6 +46,13 @@ export const BARU_SAMPAI_SELESAI = 5;
 
 type Row = typeof layananMitraJasa.$inferSelect;
 
+/**
+ * What the Mitra Jasa roster needs (onboard, read, cover, change the status): no order machinery, no files, so a caller that
+ * only keeps the roster (the Data Contoh command, ticket 111) composes this much and no more. The job port is the one a
+ * status change releases jobs through.
+ */
+export type MitraJasaDeps = Pick<LayananDeps, "db" | "clock" | "audit" | "pekerjaan">;
+
 /** The job statuses the module needs to tell apart; the port words them (see `./deps.ts`). */
 export type PekerjaanStatus = "dijadwalkan" | "ditugaskan" | "dikerjakan" | "selesai" | "dibatalkan";
 
@@ -109,7 +116,7 @@ export type BuatMitraJasaResult =
  * person cannot be entered twice under two addresses. Audited.
  */
 export async function buatMitraJasa(
-  deps: LayananDeps,
+  deps: MitraJasaDeps,
   by: Actor,
   email: string,
   input: unknown,
@@ -323,7 +330,7 @@ export type CoverageResult = WriteMitraJasaResult | { ok: false; reason: "covera
  * checked here, so an id it does not know simply covers nothing. Audited.
  */
 export async function ubahCoverage(
-  deps: LayananDeps,
+  deps: MitraJasaDeps,
   by: Actor,
   mitraJasaId: string,
   input: unknown,
@@ -385,7 +392,7 @@ export type UbahStatusResult =
  * to `aktif` touches no job.
  */
 export async function ubahStatus(
-  deps: LayananDeps,
+  deps: MitraJasaDeps,
   by: Actor,
   mitraJasaId: string,
   input: unknown,
@@ -646,7 +653,7 @@ export async function mitraJasaBelumLengkap(deps: LayananDeps, by: Actor): Promi
 
 /** One Mitra Jasa, for Admin Platform; refused for anyone else, and empty when there is none. */
 export async function bacaMitraJasa(
-  deps: LayananDeps,
+  deps: MitraJasaDeps,
   by: Actor,
   mitraJasaId: string,
 ): Promise<BacaMitraJasaResult> {
@@ -658,7 +665,7 @@ export async function bacaMitraJasa(
 }
 
 /** Every Mitra Jasa, by name, for Admin Platform; empty for anyone else. */
-export async function semuaMitraJasa(deps: LayananDeps, by: Actor): Promise<MitraJasa[]> {
+export async function semuaMitraJasa(deps: MitraJasaDeps, by: Actor): Promise<MitraJasa[]> {
   if (writeRefusal(by, "mitra_jasa.lihat_semua", semuaMitraJasaResource())) return [];
   const rows = await deps.db
     .select()
@@ -683,7 +690,7 @@ export async function mitraJasaCountByStatus(
 }
 
 /** One Mitra Jasa as its table row plus its coverage, its finished count and the "Baru" badge. */
-export async function keMitraJasa(deps: LayananDeps, row: Row): Promise<MitraJasa> {
+export async function keMitraJasa(deps: MitraJasaDeps, row: Row): Promise<MitraJasa> {
   const [coverage, pekerjaan] = await Promise.all([coverageOf(deps.db, row.id), deps.pekerjaan.daftarPekerjaan(row.id)]);
   const selesai = pekerjaan.filter((job) => job.status === "selesai").length;
   return {
@@ -767,7 +774,7 @@ interface PerubahanMitraJasa {
  * that does not match the KTP) and then nothing is written.
  */
 async function tulisMitraJasa<Changed extends PerubahanMitraJasa | { ok: false; reason: string }>(
-  deps: LayananDeps,
+  deps: MitraJasaDeps,
   by: Actor,
   mitraJasaId: string,
   action: AuditAction,

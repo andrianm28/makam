@@ -159,7 +159,7 @@ export async function stopLayanan(deps: PenawaranDeps, by: Actor, lokasiId: stri
  * mark off: only a marked variant is offered at a TPU, and nothing here decides
  * which. Audited.
  */
-export async function tandaiBolehDiTpu(deps: LayananDeps, by: Actor, layananVariantId: string, input: { boleh: boolean; reason: string | null }): Promise<TandaiBolehDiTpuResult> {
+export async function tandaiBolehDiTpu(deps: Pick<LayananDeps, "db" | "audit">, by: Actor, layananVariantId: string, input: { boleh: boolean; reason: string | null }): Promise<TandaiBolehDiTpuResult> {
   const refusal = writeRefusal(by, "layanan.kelola", layananKatalogResource());
   if (refusal) return refusal;
   if (!idSchema.safeParse(layananVariantId).success) return { ok: false, reason: "tidak_ditemukan" };

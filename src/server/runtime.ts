@@ -314,6 +314,8 @@ export function serverRuntime(): ServerRuntime {
       lokasi,
       identity,
       tariffs,
+      layanan,
+      wakaf,
       pemesanan: { pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi({ db: database.db }, lokasiId) },
     });
     globalForRuntime.__makamRuntime = {

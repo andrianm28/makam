@@ -126,6 +126,7 @@ import {
   type CoverageResult,
   type MitraJasa,
   type MitraJasaBelumLengkap,
+  type MitraJasaDeps,
   type TidakTersediaResult,
   type UbahProfilResult,
   type UbahStatusResult,
@@ -133,6 +134,7 @@ import {
   type RentangTidakTersedia,
 } from "./mitra-jasa";
 import { mitraJasaTersedia, type MitraJasaTersedia } from "./penugasan";
+import { portPekerjaanTpu } from "./port-pekerjaan-tpu";
 import type { KebutuhanPenugasan } from "./mitra-jasa-skema";
 import {
   catatTinjauan,
@@ -313,6 +315,7 @@ export type {
 } from "./katalog";
 export type { HapusVarianResult, NewVarian, TambahVarianResult, VarianDenganLayanan, VarianLayanan } from "./varian";
 export type { PenawaranDeps, StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
+export type { MitraJasaDeps } from "./mitra-jasa";
 export type { BuatPaketResult, HapusPaketResult, NewPaket, PaketLayanan, PerubahanPaket, UbahPaketResult } from "./paket";
 export type { BerlanggananPaketResult, PesananPaketTerbaca, SiklusPaketTerbaca } from "./siklus";
 export { paketStatuses, type PaketStatus } from "./schema";
@@ -823,11 +826,31 @@ export function createKatalogLayanan(
  * The catalog read and a Lokasi Mitra's offering of it (switch a variant on with its Lokasi price, stop it), for a
  * caller that keeps both without the order machinery: the Data Contoh command (ticket 109).
  */
-export function createPenawaranLayanan(deps: PenawaranDeps): Pick<Layanan, "katalog" | "tawarkanLayanan" | "stopLayanan"> {
+export function createPenawaranLayanan(deps: PenawaranDeps): Pick<Layanan, "katalog" | "tawarkanLayanan" | "stopLayanan" | "tandaiBolehDiTpu"> {
   return {
     katalog: () => katalog(deps.db),
     tawarkanLayanan: (by, lokasiId, layananVariantId, input) => tawarkanLayanan(deps, by, lokasiId, layananVariantId, input),
     stopLayanan: (by, lokasiId, layananVariantId, input) => stopLayanan(deps, by, lokasiId, layananVariantId, input),
+    // The "boleh di TPU DKI" mark is Admin Platform's hand-set flag on a catalog variant: the Data Contoh set marks and unmarks it (ticket 111).
+    tandaiBolehDiTpu: (by, layananVariantId, input) => tandaiBolehDiTpu(deps, by, layananVariantId, input),
+  };
+}
+
+/**
+ * The Mitra Jasa roster (onboard one, read them, set their coverage and their status) for a caller that keeps the roster
+ * without the order machinery: the Data Contoh command (ticket 111). The job port is the real one over the TPU job tables,
+ * so a status change releases the jobs it should, exactly as it does in the app.
+ */
+export function createMitraJasaDaftar(
+  deps: Pick<MitraJasaDeps, "db" | "clock" | "audit">,
+): Pick<Layanan, "buatMitraJasa" | "ubahCoverage" | "ubahStatus" | "semuaMitraJasa" | "bacaMitraJasa"> {
+  const lengkap: MitraJasaDeps = { ...deps, pekerjaan: portPekerjaanTpu(deps.db, deps.clock) };
+  return {
+    buatMitraJasa: (by, email, input) => buatMitraJasa(lengkap, by, email, input),
+    ubahCoverage: (by, mitraJasaId, input) => ubahCoverage(lengkap, by, mitraJasaId, input),
+    ubahStatus: (by, mitraJasaId, input) => ubahStatus(lengkap, by, mitraJasaId, input),
+    semuaMitraJasa: (by) => semuaMitraJasa(lengkap, by),
+    bacaMitraJasa: (by, mitraJasaId) => bacaMitraJasa(lengkap, by, mitraJasaId),
   };
 }
 

@@ -36,6 +36,15 @@
  * another example version superseded is no real successor: only a version no
  * `tanam` entered lets a contoh price go.
  *
+ * The Rilis 3 set (ticket 111) adds kinds of its own. A Layanan variant's DKI price and its Mitra Jasa rate are price
+ * versions too and cannot be retired, but `cabut` does not wait for a real successor over them the way it does over a global
+ * price: a variant is offered at a TPU only while Admin Platform's "boleh di TPU DKI" mark is on, so `cabut` takes the mark off
+ * every variant whose DKI price or Mitra Jasa rate in force is still a contoh version (the Operator would pay a Mitra Jasa an
+ * example amount), and leaves the mark on a variant whose prices both have real successors. A Mitra Jasa (Contoh) is set to
+ * Berhenti, a Nazhir (Contoh) is removed from the list, and the Rilis 2 rules entered on a contoh Lokasi Mitra go with the
+ * Lokasi (hidden for good), so their row is only marked retired. A real value a set enters, the Retribusi Pemda of an IPTM,
+ * is no entry here: it is not contoh, and a registry row would make `cabut` wait for it to be superseded.
+ *
  * Only Admin Platform writes here, under `lokasi.buat` (the action creating or
  * hiding a Lokasi Mitra is), like the Katalog Lama ledger. Each owning module
  * checks and audits its own write; this module audits its own rows.
@@ -45,10 +54,12 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditEntry, AuditLog } from "@/domain/audit";
 import { semuaLokasiMitraResource, writeRefusal, type Actor, type Identity, type WriteRefusal } from "@/domain/identity";
+import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { PesananBerjalan } from "@/domain/pemesanan";
-import type { GlobalTariffKey, GlobalTariffVersion, Tariffs } from "@/domain/tariffs";
+import type { GlobalTariffKey, Tariffs } from "@/domain/tariffs";
 import { GLOBAL_TARIFF_KEYS } from "@/domain/tariffs";
+import type { Wakaf } from "@/domain/wakaf";
 import type { Clock } from "@/ports/clock";
 import { dataContohEntri } from "./schema";
 
@@ -58,12 +69,25 @@ import { dataContohEntri } from "./schema";
  */
 export const AWALAN_ALASAN_TANAM = "data-contoh tanam";
 
-/** The sets a stack can be planted with; ticket 111 adds the next one here. */
-export const himpunanDataContoh = ["rilis1"] as const;
+/** The sets a stack can be planted with: the Rilis 1 set (ticket 109) and the Rilis 2/3 one (ticket 111, which carries the TPU data). */
+export const himpunanDataContoh = ["rilis1", "rilis3"] as const;
 export type HimpunanDataContoh = (typeof himpunanDataContoh)[number];
 
 /** What kinds of entity a registry row can name. */
-export const jenisDataContoh = ["lokasi_mitra", "jenis_makam", "akun_staf", "tarif_global", "penawaran_layanan"] as const;
+export const jenisDataContoh = [
+  "lokasi_mitra",
+  "jenis_makam",
+  "akun_staf",
+  "tarif_global",
+  "penawaran_layanan",
+  // The Rilis 3 set (ticket 111).
+  "harga_layanan_dki",
+  "tarif_mitra_jasa",
+  "tanda_tpu_dki",
+  "mitra_jasa",
+  "nazhir",
+  "aturan_lokasi",
+] as const;
 export type JenisDataContoh = (typeof jenisDataContoh)[number];
 
 /** One recorded entity: a fixture code, and the entity the owning module created for it. */
@@ -71,7 +95,11 @@ export interface EntriDataContoh {
   kode: string;
   himpunan: HimpunanDataContoh;
   jenis: JenisDataContoh;
-  /** The owning module's id; for a global price version, `<tariff key>:<version seq>`. */
+  /**
+   * The owning module's id; for a global price version, `<tariff key>:<version seq>`; for a Layanan variant's DKI price or
+   * Mitra Jasa rate version, `<variant id>:<version seq>`; for a "boleh di TPU DKI" mark, the variant's id; for the Rilis 2
+   * rules of a Lokasi Mitra, that Lokasi's id.
+   */
   entitasId: string;
   /** The code of the Lokasi Mitra entry this one belongs to, or null for a root entry. */
   indukKode: string | null;
@@ -110,8 +138,11 @@ interface RencanaTanamDasar {
   buat(ctx: KonteksTanam): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
 
+/** The kinds of entry that name a version of a Layanan variant's own price book (its DKI price, its Mitra Jasa rate). */
+export type JenisHargaLayanan = "harga_layanan_dki" | "tarif_mitra_jasa";
+
 export type RencanaTanam =
-  | (RencanaTanamDasar & { jenis: Exclude<JenisDataContoh, "tarif_global"> })
+  | (RencanaTanamDasar & { jenis: Exclude<JenisDataContoh, "tarif_global" | JenisHargaLayanan> })
   | (RencanaTanamDasar & {
       jenis: "tarif_global";
       /**
@@ -120,6 +151,11 @@ export type RencanaTanam =
        * nothing is recorded in place of the build.
        */
       kunciTarif?: GlobalTariffKey;
+    })
+  | (RencanaTanamDasar & {
+      jenis: JenisHargaLayanan;
+      /** The Layanan variant whose price the fixture enters: `tanam` records a contoh version of it a killed run left, as for `kunciTarif`. */
+      layananVariantId: string;
     });
 
 export type TanamResult =
@@ -152,16 +188,25 @@ export interface PesananTerbukaDiLokasiContoh extends PesananBerjalan {
   lokasiId: string;
 }
 
+/** A Layanan variant `cabut` stops offering at a TPU, and which of its two prices is still a contoh version with no real successor. */
+export interface VarianTakDitawarkan {
+  layananVariantId: string;
+  hargaDki: boolean;
+  tarifMitraJasa: boolean;
+}
+
 export interface RencanaCabut {
   /** Every entry still active, in the order `cabut` retires them. */
   aktif: EntriDataContoh[];
   /** The contoh prices with no real successor yet, whether or not the registry holds them: while any is listed `cabut` retires nothing. */
   diblokir: HargaContohBerlaku[];
+  /** The variants offered at a TPU whose DKI price or Mitra Jasa rate is still a contoh version: `cabut` takes their mark off. */
+  tidakDitawarkan: VarianTakDitawarkan[];
   pesananTerbuka: PesananTerbukaDiLokasiContoh[];
 }
 
 export type CabutResult =
-  | { ok: true; dicabut: Partial<Record<JenisDataContoh, number>>; pesananTerbuka: PesananTerbukaDiLokasiContoh[] }
+  | { ok: true; dicabut: Partial<Record<JenisDataContoh, number>>; tidakDitawarkan: VarianTakDitawarkan[]; pesananTerbuka: PesananTerbukaDiLokasiContoh[] }
   | WriteRefusal
   | { ok: false; reason: "alasan_wajib" }
   | { ok: false; reason: "harga_contoh_masih_berlaku"; diblokir: HargaContohBerlaku[]; pesananTerbuka: PesananTerbukaDiLokasiContoh[] }
@@ -174,7 +219,12 @@ export interface DataContohDeps {
   audit: AuditLog;
   lokasi: Pick<Lokasi, "tandaiDataContoh">;
   identity: Pick<Identity, "deactivateStaff">;
-  tariffs: Pick<Tariffs, "globalTariff" | "globalTariffHistory">;
+  /** The price books a registry row names a version of: the global prices, a Layanan variant's DKI price and its Mitra Jasa rate (Admin Platform's read). */
+  tariffs: Pick<Tariffs, "globalTariff" | "globalTariffHistory" | "hargaLayananDki" | "hargaLayananDkiHistory" | "mitraJasaRate" | "mitraJasaRateHistory">;
+  /** The catalog (which variants carry the "boleh di TPU DKI" mark), the mark itself, and a Mitra Jasa's status. */
+  layanan: Pick<Layanan, "katalog" | "tandaiBolehDiTpu" | "ubahStatus">;
+  /** The Nazhir list's removal. */
+  wakaf: Pick<Wakaf, "hapusNazhir">;
   /** The orders a Lokasi Mitra still has running (Pemesanan's `pesananBerjalanDiLokasi`). */
   pemesanan: { pesananBerjalanDiLokasi(lokasiId: string): Promise<PesananBerjalan[]> };
 }
@@ -184,8 +234,8 @@ export interface DataContoh {
   catat(by: Actor, input: CatatInput): Promise<CatatResult>;
   /** Plants a set: builds each fixture the registry does not already hold complete, and records it. */
   tanam(by: Actor, input: { himpunan: HimpunanDataContoh; reason: string; rencana: RencanaTanam[] }): Promise<TanamResult>;
-  /** What `cabut` would do right now, without writing anything (the dry run). */
-  rencanaCabut(): Promise<RencanaCabut>;
+  /** What `cabut` would do right now, without writing anything (the dry run); `by` is the Admin Platform whose reads the Mitra Jasa rates need. */
+  rencanaCabut(by: Actor): Promise<RencanaCabut>;
   /** Retires every active entry, or refuses and changes nothing while a contoh price is still in force. */
   cabut(by: Actor, input: { reason: string }): Promise<CabutResult>;
   /**
@@ -204,6 +254,8 @@ const jenisSchema = z.enum(jenisDataContoh);
 const entitasIdSchema = z.string().trim().min(1).max(200);
 /** `<tariff key>:<version seq>`, how a global price version is named in the registry. */
 const versiTarifSchema = z.string().regex(/^[a-z_]+:\d+$/);
+/** `<variant id>:<version seq>`, how a version of a Layanan variant's DKI price or Mitra Jasa rate is named in the registry. */
+const versiHargaLayananSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:\d+$/i);
 
 /**
  * What a caller built wrongly (a fixture code, a set, an id: the plan's own, never an operator's input) is a clear
@@ -222,8 +274,51 @@ function bacaVersiTarif(entitasId: string): { key: GlobalTariffKey; seq: string 
   return (GLOBAL_TARIFF_KEYS as readonly string[]).includes(key) ? { key: key as GlobalTariffKey, seq } : null;
 }
 
+/** The variant and version a Layanan price's registry name carries, or null when it is not one. */
+function bacaVersiHargaLayanan(entitasId: string): { layananVariantId: string; seq: string } | null {
+  if (!versiHargaLayananSchema.safeParse(entitasId).success) return null;
+  const [layananVariantId, seq] = entitasId.split(":");
+  return { layananVariantId, seq };
+}
+
 /** The order `cabut` retires in: the Lokasi Mitra go dark first, then their staff, then what only the registry tracks. */
-const URUTAN_CABUT: Record<JenisDataContoh, number> = { lokasi_mitra: 0, akun_staf: 1, jenis_makam: 2, penawaran_layanan: 3, tarif_global: 4 };
+const URUTAN_CABUT: Record<JenisDataContoh, number> = {
+  lokasi_mitra: 0,
+  akun_staf: 1,
+  jenis_makam: 2,
+  penawaran_layanan: 3,
+  tarif_global: 4,
+  mitra_jasa: 5,
+  nazhir: 6,
+  aturan_lokasi: 7,
+  tanda_tpu_dki: 8,
+  harga_layanan_dki: 9,
+  tarif_mitra_jasa: 10,
+};
+
+const adalahHargaLayanan = (jenis: string): jenis is JenisHargaLayanan => jenis === "harga_layanan_dki" || jenis === "tarif_mitra_jasa";
+
+/** One version of a price book, as the module reads it: what `hargaBerlakuDi` needs of a global price's and of a Layanan variant's. */
+interface VersiBuku {
+  seq: number;
+  amount: number;
+  effectiveOn: string;
+  inForceFrom: Date;
+}
+
+/**
+ * One price book a registry row can name a version of, and how to read it: the Audit Log entity and action its writes are
+ * filed under, its versions in entry order, and the version in force at an instant. `kunci` is what a row's `entitasId`
+ * starts with (the tariff key, or the Layanan variant's id).
+ */
+interface Buku {
+  jenis: "tarif_global" | JenisHargaLayanan;
+  kunci: string;
+  entitas: { kind: string; id: string };
+  aksi: string;
+  riwayat(): Promise<VersiBuku[]>;
+  berlakuPada(at: Date): Promise<{ seq: number } | null>;
+}
 
 type Row = typeof dataContohEntri.$inferSelect;
 
@@ -268,6 +363,9 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     };
     if (input.jenis === "tarif_global" && !bacaVersiTarif(input.entitasId)) {
       throw new Error(`Data Contoh: tarif global harus bernama <kunci tarif>:<versi>, bukan ${JSON.stringify(input.entitasId)}`);
+    }
+    if (adalahHargaLayanan(input.jenis) && !bacaVersiHargaLayanan(input.entitasId)) {
+      throw new Error(`Data Contoh: harga layanan harus bernama <id varian>:<versi>, bukan ${JSON.stringify(input.entitasId)}`);
     }
     const sama = (row: Row) => row.jenis === input.jenis && row.entitasId === input.entitasId;
     const ada = await aktifDenganKode(input.kode);
@@ -341,12 +439,12 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
   const olehTanam = (entri: AuditEntry) => entri.reason?.startsWith(AWALAN_ALASAN_TANAM) === true;
 
   /**
-   * The versions of one global price a `tanam` entered, told by the Entri Audit Tariffs writes with each version. The entries
+   * The versions of one price book a `tanam` entered, told by the Entri Audit its module writes with each version. The entries
    * and the versions are written together, in the same order, so the Nth version is the Nth entry's; one whose amount or date
    * differs from its entry's is not told apart, and when the two lists do not line up at all, none is (a price is then taken
    * for the Operator's, never the set's).
    */
-  function versiOlehTanam(riwayat: GlobalTariffVersion[], perubahan: AuditEntry[]): Set<number> {
+  function versiOlehTanam(riwayat: VersiBuku[], perubahan: AuditEntry[]): Set<number> {
     const ditanam = new Set<number>();
     if (perubahan.length !== riwayat.length) return ditanam;
     riwayat.forEach((versi, urutan) => {
@@ -356,34 +454,86 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     return ditanam;
   }
 
+  /** A global price's book. */
+  const bukuGlobal = (key: GlobalTariffKey): Buku => ({
+    jenis: "tarif_global",
+    kunci: key,
+    entitas: { kind: "tarif_global", id: key },
+    aksi: "tarif.ubah_global",
+    riwayat: () => deps.tariffs.globalTariffHistory(key),
+    berlakuPada: (at) => deps.tariffs.globalTariff(key, at),
+  });
+
+  /** A Layanan variant's DKI price book, or its Mitra Jasa rate book; the rate is Admin Platform's to read, so `by` is who reads it. */
+  const bukuHargaLayanan = (by: Actor, jenis: JenisHargaLayanan, layananVariantId: string): Buku =>
+    jenis === "harga_layanan_dki"
+      ? {
+          jenis,
+          kunci: layananVariantId,
+          entitas: { kind: "harga_layanan_dki", id: layananVariantId },
+          aksi: "tarif.ubah_harga_layanan_dki",
+          riwayat: () => deps.tariffs.hargaLayananDkiHistory(layananVariantId),
+          berlakuPada: (at) => deps.tariffs.hargaLayananDki(layananVariantId, at),
+        }
+      : {
+          jenis,
+          kunci: layananVariantId,
+          entitas: { kind: "tarif_mitra_jasa", id: layananVariantId },
+          aksi: "tarif.ubah_tarif_mitra_jasa",
+          riwayat: () => deps.tariffs.mitraJasaRateHistory(by, layananVariantId),
+          berlakuPada: (at) => deps.tariffs.mitraJasaRate(by, layananVariantId, at),
+        };
+
+  /** The price book a registry row names a version of: a global price's, or a Layanan variant's; null for a row that names no price version. */
+  function bukuUntukRow(by: Actor, row: Row): { buku: Buku; seq: number } | null {
+    if (row.jenis === "tarif_global") {
+      const versi = bacaVersiTarif(row.entitasId);
+      if (!versi) throw new Error(`Data Contoh: tarif global tidak dikenal: ${row.entitasId}`);
+      return { buku: bukuGlobal(versi.key), seq: Number(versi.seq) };
+    }
+    if (adalahHargaLayanan(row.jenis)) {
+      const versi = bacaVersiHargaLayanan(row.entitasId);
+      if (!versi) throw new Error(`Data Contoh: harga layanan tidak dikenal: ${row.entitasId}`);
+      return { buku: bukuHargaLayanan(by, row.jenis, versi.layananVariantId), seq: Number(versi.seq) };
+    }
+    return null;
+  }
+
   /**
-   * The contoh versions of one global price that are, or will be, the version in force: the version in force now, or the
+   * The contoh versions of one price book that are, or will be, the version in force: the version in force now, or the
    * version in force on its own date when that date is still ahead (a scheduled version nothing later has superseded). A
    * version counts as contoh when an active registry row names it or a `tanam` entered it (`kode` is null for the latter
    * alone). One that a later version has taken over from is not listed; that later version is listed itself if it is contoh,
    * so a real version is the only successor that lets a contoh price go, and a price version is never retired any other way.
    */
-  async function hargaBerlakuDi(key: GlobalTariffKey, aktif: Row[]): Promise<HargaContohBerlaku[]> {
+  async function versiContohBerlaku(buku: Buku, aktif: Row[]): Promise<{ kode: string | null; amount: number; versi: number }[]> {
     const dicatat = new Map<number, Row>();
     for (const row of aktif) {
-      const versi = row.jenis === "tarif_global" ? bacaVersiTarif(row.entitasId) : null;
-      if (versi?.key === key) dicatat.set(Number(versi.seq), row);
+      if (row.jenis !== buku.jenis) continue;
+      const nama = row.jenis === "tarif_global" ? bacaVersiTarif(row.entitasId) : bacaVersiHargaLayanan(row.entitasId);
+      const kunci = nama && "key" in nama ? nama.key : nama?.layananVariantId;
+      if (nama && kunci === buku.kunci) dicatat.set(Number(nama.seq), row);
     }
     // `aktif` asks this of every price book on every page load: a book no row names and no `tanam` wrote to is left after one indexed read.
-    const perubahan = (await deps.audit.entriesAbout({ kind: "tarif_global", id: key })).filter((satu) => satu.action === "tarif.ubah_global");
+    const perubahan = (await deps.audit.entriesAbout(buku.entitas)).filter((satu) => satu.action === buku.aksi);
     if (dicatat.size === 0 && !perubahan.some(olehTanam)) return [];
-    const riwayat = await deps.tariffs.globalTariffHistory(key);
+    const riwayat = await buku.riwayat();
     const ditanam = versiOlehTanam(riwayat, perubahan);
     const sekarang = deps.clock.now();
-    const berlaku: HargaContohBerlaku[] = [];
+    const berlaku: { kode: string | null; amount: number; versi: number }[] = [];
     for (const versi of riwayat) {
       const row = dicatat.get(versi.seq);
       if (!row && !ditanam.has(versi.seq)) continue;
       const pada = versi.inForceFrom.getTime() > sekarang.getTime() ? versi.inForceFrom : sekarang;
-      const dipakai = await deps.tariffs.globalTariff(key, pada);
-      if (dipakai?.seq === versi.seq) berlaku.push({ kode: row?.kode ?? null, key, amount: versi.amount, versi: versi.seq });
+      const dipakai = await buku.berlakuPada(pada);
+      if (dipakai?.seq === versi.seq) berlaku.push({ kode: row?.kode ?? null, amount: versi.amount, versi: versi.seq });
     }
     return berlaku;
+  }
+
+  /** The contoh versions of one global price that are, or will be, in force: what `cabut` waits for a real version over. */
+  async function hargaBerlakuDi(key: GlobalTariffKey, aktif: Row[]): Promise<HargaContohBerlaku[]> {
+    return (await versiContohBerlaku(bukuGlobal(key), aktif)).map((satu) => ({ ...satu, key }));
   }
 
   /** The contoh prices of every global price that are, or will be, in force: the ones `cabut` waits for a real version over. */
@@ -391,27 +541,35 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     return (await Promise.all(GLOBAL_TARIFF_KEYS.map((key) => hargaBerlakuDi(key, aktif)))).flat();
   }
 
-  /** The price a `tarif_global` row names, when it is itself still in force (or will be): null once a later version has taken over. */
-  async function hargaBerlakuUntuk(row: Row): Promise<HargaContohBerlaku | null> {
-    const versi = bacaVersiTarif(row.entitasId);
-    if (!versi) throw new Error(`Data Contoh: tarif global tidak dikenal: ${row.entitasId}`);
-    return (await hargaBerlakuDi(versi.key, await semuaAktif())).find((satu) => satu.kode === row.kode) ?? null;
+  /** Whether the price version a price row names is itself still in force (or will be): false once a later version has taken over. */
+  async function hargaMasihBerlaku(by: Actor, row: Row): Promise<boolean> {
+    const nama = bukuUntukRow(by, row);
+    if (!nama) return false;
+    return (await versiContohBerlaku(nama.buku, await semuaAktif())).some((satu) => satu.kode === row.kode);
   }
 
   /**
-   * Retires what one entry names through the owning module, then marks it retired. A price version cannot be retired, only
-   * superseded: its row is let go of only once a later version is in force, whoever asks (`cabut`, or a `tanam` cleaning up).
+   * Retires what one entry names through the owning module, then marks it retired. A global price version cannot be retired,
+   * only superseded: its row is let go of only once a later version is in force, whoever asks (`cabut`, or a `tanam` cleaning
+   * up). A Layanan variant's own prices are different: `cabut` takes the variant's mark off before any row is retired (see
+   * `rencanaTidakDitawarkan`), so what is left to retire here is the row alone.
    */
   async function cabutEntri(by: Actor, row: Row, reason: string): Promise<{ ok: true } | { ok: false; alasan: string }> {
     if (row.jenis === "tarif_global") {
-      const berlaku = await hargaBerlakuUntuk(row);
-      if (berlaku) return { ok: false, alasan: `harga contoh ${berlaku.key} masih berlaku, belum digantikan versi asli` };
+      if (await hargaMasihBerlaku(by, row)) return { ok: false, alasan: `harga contoh ${bacaVersiTarif(row.entitasId)?.key} masih berlaku, belum digantikan versi asli` };
     } else if (row.jenis === "lokasi_mitra") {
       const hasil = await deps.lokasi.tandaiDataContoh(by, row.entitasId, { dataContoh: true, reason });
       if (!hasil.ok && hasil.reason !== "tidak_diperbarui" && hasil.reason !== "tidak_ditemukan") return { ok: false, alasan: `Lokasi Mitra tidak bisa ditandai data contoh (${hasil.reason})` };
     } else if (row.jenis === "akun_staf") {
       const hasil = await deps.identity.deactivateStaff(by, { accountId: row.entitasId, reason });
       if (!hasil.ok && hasil.reason !== "sudah_dinonaktifkan" && hasil.reason !== "bukan_akun_staf") return { ok: false, alasan: `Akun staf tidak bisa dinonaktifkan (${hasil.reason})` };
+    } else if (row.jenis === "mitra_jasa") {
+      // Berhenti: no new job, its record and history stay (a Mitra Jasa ended by Admin Platform already is the same state).
+      const hasil = await deps.layanan.ubahStatus(by, row.entitasId, { status: "berhenti", alasan: reason });
+      if (!hasil.ok && hasil.reason !== "status_sama" && hasil.reason !== "tidak_ditemukan") return { ok: false, alasan: `Mitra Jasa tidak bisa diberhentikan (${hasil.reason})` };
+    } else if (row.jenis === "nazhir") {
+      const hasil = await deps.wakaf.hapusNazhir(by, { nazhirId: row.entitasId });
+      if (!hasil.ok && hasil.reason !== "nazhir_tidak_ditemukan") return { ok: false, alasan: `Nazhir tidak bisa dihapus (${hasil.reason})` };
     }
     await tandaiDicabut(by, row, reason);
     return { ok: true };
@@ -461,9 +619,44 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     });
   }
 
-  async function rencanaCabut(): Promise<RencanaCabut> {
+  /** The Layanan variant a TPU row (its DKI price, its Mitra Jasa rate, its mark) is about, or null for any other row. */
+  function varianDariRow(row: Row): string | null {
+    if (adalahHargaLayanan(row.jenis)) return bacaVersiHargaLayanan(row.entitasId)?.layananVariantId ?? null;
+    return row.jenis === "tanda_tpu_dki" ? row.entitasId : null;
+  }
+
+  /**
+   * The variants `cabut` stops offering at a TPU: every one a TPU row is about that is offered now (marked "boleh di TPU DKI")
+   * while its DKI price or its Mitra Jasa rate in force is still a contoh version, whoever set the mark. Offering it would
+   * charge a family an example price, or pay a Mitra Jasa an example rate; a price version cannot be erased, so the offer is
+   * what stops. A variant whose two prices both have real successors keeps its mark.
+   */
+  async function rencanaTidakDitawarkan(by: Actor, aktif: Row[]): Promise<VarianTakDitawarkan[]> {
+    const varian = new Set<string>();
+    for (const row of aktif) {
+      const id = varianDariRow(row);
+      if (id) varian.add(id);
+    }
+    if (varian.size === 0) return [];
+    const ditawarkan = new Set((await deps.layanan.katalog()).flatMap((layanan) => layanan.varian.filter((satu) => satu.bolehDiTpu).map((satu) => satu.id)));
+    const rencana: VarianTakDitawarkan[] = [];
+    for (const id of varian) {
+      if (!ditawarkan.has(id)) continue;
+      const hargaDki = (await versiContohBerlaku(bukuHargaLayanan(by, "harga_layanan_dki", id), aktif)).length > 0;
+      const tarifMitraJasa = (await versiContohBerlaku(bukuHargaLayanan(by, "tarif_mitra_jasa", id), aktif)).length > 0;
+      if (hargaDki || tarifMitraJasa) rencana.push({ layananVariantId: id, hargaDki, tarifMitraJasa });
+    }
+    return rencana;
+  }
+
+  async function rencanaCabut(by: Actor): Promise<RencanaCabut> {
     const aktif = (await semuaAktif()).sort((a, b) => URUTAN_CABUT[a.jenis as JenisDataContoh] - URUTAN_CABUT[b.jenis as JenisDataContoh]);
-    return { aktif: aktif.map(toEntri), diblokir: await hargaBerlaku(aktif), pesananTerbuka: await pesananTerbukaDi() };
+    return {
+      aktif: aktif.map(toEntri),
+      diblokir: await hargaBerlaku(aktif),
+      tidakDitawarkan: await rencanaTidakDitawarkan(by, aktif),
+      pesananTerbuka: await pesananTerbukaDi(),
+    };
   }
 
   return {
@@ -491,7 +684,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           continue;
         }
         if (ada) {
-          if (ada.jenis === "tarif_global" && (await hargaBerlakuUntuk(ada))) {
+          if (ada.jenis === "tarif_global" && (await hargaMasihBerlaku(by, ada))) {
             // A price entered and recorded, with only the finishing mark missing: a price in force is never let go of, so the row is finished.
             await selesaikan(by, kode, reason);
             sudahAda.push(kode);
@@ -502,11 +695,20 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           if (!dibuang.ok) return { ok: false, reason: "gagal", kode, alasan: `sisa build terputus tidak bisa dicabut (${dibuang.alasan})`, dibuat, sudahAda };
         }
 
-        if (item.jenis === "tarif_global" && item.kunciTarif) {
+        // A fixture that enters a price names the book it writes to, so `tanam` can find a version a killed run entered there.
+        const bukuItem =
+          item.jenis === "tarif_global"
+            ? item.kunciTarif
+              ? bukuGlobal(item.kunciTarif)
+              : null
+            : item.jenis === "harga_layanan_dki" || item.jenis === "tarif_mitra_jasa"
+              ? bukuHargaLayanan(by, item.jenis, item.layananVariantId)
+              : null;
+        if (bukuItem) {
           // A contoh price a killed run entered and never recorded is recorded now, never entered a second time.
-          const takTercatat = (await hargaBerlakuDi(item.kunciTarif, await semuaAktif())).find((satu) => satu.kode === null);
+          const takTercatat = (await versiContohBerlaku(bukuItem, await semuaAktif())).find((satu) => satu.kode === null);
           if (takTercatat) {
-            const dicatat = await catatEntri(by, { kode, himpunan, jenis: item.jenis, entitasId: `${takTercatat.key}:${takTercatat.versi}`, reason }, true);
+            const dicatat = await catatEntri(by, { kode, himpunan, jenis: item.jenis, entitasId: `${bukuItem.kunci}:${takTercatat.versi}`, reason }, true);
             if (!dicatat.ok) throw new Error(`Data Contoh: ${kode} tidak tercatat (${dicatat.reason})`);
             dibuat.push(kode);
             continue;
@@ -564,21 +766,35 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       const reason = reasonSchema.safeParse(raw.reason);
       if (!reason.success) return { ok: false, reason: "alasan_wajib" };
 
-      const rencana = await rencanaCabut();
+      const rencana = await rencanaCabut(by);
       if (rencana.diblokir.length > 0) {
         return { ok: false, reason: "harga_contoh_masih_berlaku", diblokir: rencana.diblokir, pesananTerbuka: rencana.pesananTerbuka };
       }
       const dicabut: Partial<Record<JenisDataContoh, number>> = {};
       const gagal: { kode: string; alasan: string }[] = [];
+      // A variant offered at a TPU at an example price stops being offered first, before any row of its own is let go of: if its
+      // mark cannot be taken off, its rows stay active and the run fails, because the variant would still be offered.
+      const tidakDitawarkan: VarianTakDitawarkan[] = [];
+      const tetapDitawarkan = new Set<string>();
+      for (const satu of rencana.tidakDitawarkan) {
+        const hasil = await deps.layanan.tandaiBolehDiTpu(by, satu.layananVariantId, { boleh: false, reason: `${reason.data}: harga contoh belum digantikan versi asli` });
+        if (hasil.ok || hasil.reason === "tidak_ditemukan") tidakDitawarkan.push(satu);
+        else {
+          tetapDitawarkan.add(satu.layananVariantId);
+          gagal.push({ kode: `varian ${satu.layananVariantId}`, alasan: `tanda "boleh di TPU DKI" tidak bisa dicabut (${hasil.reason})` });
+        }
+      }
       const aktif = await db.select().from(dataContohEntri).where(isNull(dataContohEntri.dicabutPada));
       for (const row of aktif.sort((a, b) => URUTAN_CABUT[a.jenis as JenisDataContoh] - URUTAN_CABUT[b.jenis as JenisDataContoh])) {
+        const varian = varianDariRow(row);
+        if (varian && tetapDitawarkan.has(varian)) continue;
         const hasil = await cabutEntri(by, row, reason.data);
         if (hasil.ok) dicabut[row.jenis as JenisDataContoh] = (dicabut[row.jenis as JenisDataContoh] ?? 0) + 1;
         else gagal.push({ kode: row.kode, alasan: hasil.alasan });
       }
       const sisa = (await semuaAktif()).map(toEntri);
       if (gagal.length > 0 || sisa.length > 0) return { ok: false, reason: "masih_aktif", gagal, sisa, pesananTerbuka: rencana.pesananTerbuka };
-      return { ok: true, dicabut, pesananTerbuka: rencana.pesananTerbuka };
+      return { ok: true, dicabut, tidakDitawarkan, pesananTerbuka: rencana.pesananTerbuka };
     },
 
     async status() {

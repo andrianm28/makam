@@ -296,3 +296,13 @@ export async function tarifMitraJasaInForce(
   if (!authorize(by, "tarif.ubah", tarifGlobalResource()).allowed) return null;
   return hargaLayananInForce(db, "tarif_mitra_jasa", layananVariantId, at);
 }
+
+/**
+ * Every version of one Layanan variant's Mitra Jasa rate, in entry order, for Admin
+ * Platform only: like the rate itself, its history is what the Operator pays, so
+ * anyone else reads none.
+ */
+export async function tarifMitraJasaHistory(db: Database, by: Actor, layananVariantId: string): Promise<HargaLayananVersion[]> {
+  if (!authorize(by, "tarif.ubah", tarifGlobalResource()).allowed) return [];
+  return versionsOfLayanan(db, "tarif_mitra_jasa", layananVariantId);
+}
