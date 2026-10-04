@@ -177,6 +177,20 @@ check_dns_and_certificates() {
   done
 }
 
+# ghcr now and then fails a pull with a TLS handshake timeout: 3 attempts in all,
+# backing off MAKAM_PULL_BACKOFF seconds (default 10 then 30) between them.
+pull_retry() {
+  local docker_config=$1 attempt=1 delay delays
+  read -ra delays <<< "${MAKAM_PULL_BACKOFF:-10 30}"
+  until DOCKER_CONFIG="$docker_config" docker pull "$IMAGE_REF" > /dev/null 2>&1; do
+    [ "$attempt" -lt 3 ] || return 1
+    delay=${delays[$((attempt - 1))]:-0}
+    echo "ghcr pull attempt $attempt of 3 failed; retrying in $delay s" >&2
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+
 # The digest to prove is --digest, else the one deployed.env records. The pull
 # uses the ghcr read token when the env file holds GHCR_READ_TOKEN (in a
 # throwaway Docker config that is removed again), else the host's own login.
@@ -203,7 +217,7 @@ check_image_pull() {
       return 0
     fi
   fi
-  if DOCKER_CONFIG="${config:-${DOCKER_CONFIG:-$HOME/.docker}}" docker pull "$IMAGE_REF" > /dev/null 2>&1; then
+  if pull_retry "${config:-${DOCKER_CONFIG:-$HOME/.docker}}"; then
     PULLED=1
     pass "02, 72" "ghcr pull" "pulled $IMAGE_REF with $login_note"
   else

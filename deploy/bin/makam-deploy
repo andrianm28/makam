@@ -142,7 +142,20 @@ record_release() {
   printf 'MAKAM_TAG=%s\nMAKAM_DIGEST=%s\nMAKAM_DEPLOY_REF=:%s@%s\nMAKAM_RELEASE=%s\nPREVIOUS_TAG=%s\nDEPLOYED_AT=%s\n' \
     "$1" "$2" "$1" "$2" "${REV:-$1}" "$PREVIOUS" "$(date -Is)" > "$DEPLOYED_FILE"
 }
-pull() { docker pull -q "$1" > /dev/null || { log "ERROR pull $1 failed; nothing changed"; exit 1; }; }
+# ghcr now and then fails a pull with a TLS handshake timeout: 3 attempts in all,
+# backing off MAKAM_PULL_BACKOFF seconds (default 10 then 30) between them.
+pull_retry() {
+  local ref=$1 attempt=1 delay delays
+  read -ra delays <<< "${MAKAM_PULL_BACKOFF:-10 30}"
+  until docker pull -q "$ref" > /dev/null 2>&1; do
+    [ "$attempt" -lt 3 ] || return 1
+    delay=${delays[$((attempt - 1))]:-0}
+    log "pull $ref attempt $attempt of 3 failed; retrying in $delay s"
+    sleep "$delay"
+    attempt=$((attempt + 1))
+  done
+}
+pull() { pull_retry "$1" || { log "ERROR pull $1 failed; nothing changed"; exit 1; }; }
 
 running() { [ -n "$(compose ps --status running -q "$1" 2>/dev/null)" ]; }
 
@@ -172,7 +185,7 @@ roll_back() {
   fi
   export MAKAM_TAG="$PREVIOUS" MAKAM_DIGEST="$PREVIOUS_DIGEST" \
     MAKAM_DEPLOY_REF=":$PREVIOUS@$PREVIOUS_DIGEST" MAKAM_RELEASE="$PREVIOUS"
-  if ! docker pull -q "$IMAGE@$PREVIOUS_DIGEST" > /dev/null 2>&1 \
+  if ! pull_retry "$IMAGE@$PREVIOUS_DIGEST" \
     || ! compose up -d --wait --wait-timeout 180 >> "$LOG" 2>&1; then
     log "ERROR roll back to $PREVIOUS_DIGEST failed; $TAG ($DIGEST) is still running"
     return 1
