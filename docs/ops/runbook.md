@@ -460,6 +460,8 @@ cd /opt/makam-v1/prod     # staging: /opt/makam-v1/staging, -p makam-staging, st
 P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
 $P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production            # dry run: what would be planted
 $P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production --tulis    # plants it and records it
+$P exec web node dist/data-contoh.mjs tanam --set rilis3 --izinkan-production            # the Rilis 2/3 set, dry run (needs the launch data and rilis1 first)
+$P exec web node dist/data-contoh.mjs tanam --set rilis3 --izinkan-production --tulis    # plants it: TPU prices, Mitra Jasa, Nazhir, Rilis 2 rules
 $P exec web node dist/data-contoh.mjs status --izinkan-production                        # what is active, per kind
 $P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what would be retired, and what stops it
 $P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis                 # retires all of it
@@ -469,15 +471,19 @@ $P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis        
 - **A dry run unless `--tulis`**, like the launch-data import, and **refused without
   the allowance of the environment**: `--izinkan-staging` on staging,
   `--izinkan-production` on production (the staging flag never opens production).
-- **Needs an Admin Platform first** (`seed:admin`). Every write's Audit Log reason
-  names the command and the environment.
+- **Needs an Admin Platform first** (`seed:admin`), the dry runs of `cabut` and of
+  `tanam --set rilis3` too (they read the Mitra Jasa rates as that Admin Platform). Every
+  write's Audit Log reason names the command and the environment.
 - **Idempotent**: planting twice changes nothing, and `status` lists what the
   registry holds.
 - **`cabut` retires everything the registry holds**: Lokasi flagged as data contoh
-  (hidden and never publishable again) and staff deactivated. It exits 1 while a
-  contoh price version is still in force (it lists it: replace it by a real version
-  through the Tarif or Layanan screen, then run it again), reports the open orders
-  on a contoh Lokasi, and exits 0 only when nothing contoh is left active.
+  (hidden and never publishable again), staff deactivated, Mitra Jasa (Contoh) set to
+  Berhenti, Nazhir (Contoh) removed. It exits 1 while a contoh global price version is
+  still in force (it lists it: replace it by a real version through the Tarif screen,
+  then run it again); a contoh DKI price or Mitra Jasa rate instead takes the variant off
+  the TPU listing (it lists them: enter the real prices first to keep a variant offered).
+  It reports the open orders on a contoh Lokasi, and exits 0 only when nothing contoh is
+  left active.
 - **This is the only way example data reaches production** (ADR 0007):
   `seed-contoh-publik` is refused there and the old app's catalog is not imported.
   Real data keeps its own commands (`seed:admin`, `import-data-peluncuran`, the
@@ -498,8 +504,9 @@ $P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis        
   one email ask for a new Kode Masuk once a minute: a rerun that answers
   `tunggu_kirim_ulang` wants a minute's wait, then the same command.)
 - **`cabut`** marks each Lokasi Mitra `data_contoh` (hidden from every public read, never
-  publishable again), deactivates the staff, and reports the orders still running at them
-  (cancel those through the Antrean). Exit 0 only when nothing contoh is left active.
+  publishable again), deactivates the staff, sets each Mitra Jasa (Contoh) to Berhenti,
+  removes each Nazhir (Contoh), and reports the orders still running at the Lokasi (cancel
+  those through the Antrean). Exit 0 only when nothing contoh is left active.
 - **A price cannot be erased.** Tariff versions are insert-only, so the example Biaya
   Layanan Platform is retired by being superseded. `cabut` refuses with exit 1, changing
   nothing, while it is still the version in force, or a version dated for the future that no
@@ -516,6 +523,58 @@ $P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis        
   payments are a trial, FAIL when Data Contoh is still active and they are not (it asks the
   running stack's `/api/browser-config`, `contohAktif`, which is true for an example price
   in force that the registry does not hold, as well as for any active registry entry).
+
+### The Rilis 2/3 set (`tanam --set rilis3`, ticket 111)
+
+Production can open level 3 during the beta without the owner's real TPU prices. The set
+builds on the launch data (`import-data-peluncuran`: the Layanan catalog and the DKI TPU)
+and on `--set rilis1` (the Lokasi "(Contoh)" its Rilis 2 rules go on); with either missing
+it plants nothing and says what to run first (exit 1, the dry run too). It needs `seed:admin`
+like every `data-contoh` command, and its dry run reads the Mitra Jasa rates as that Admin
+Platform. It plants:
+
+- **For every variant of the catalog** (11 at launch): a DKI price, a Mitra Jasa rate and
+  Admin Platform's "boleh di TPU DKI" mark, so the variant is offered at every TPU and a
+  TPU order of it can be quoted. One amount per kind of Layanan (`src/cli/data-contoh/rilis3.ts`,
+  the table the owner approves). A variant that already has a DKI price or a rate in force
+  keeps it (the set never overwrites a real value); a variant it did not price is not
+  marked either.
+- **Three Mitra Jasa (Contoh)**, Aktif, each with a coverage of its own (every TPU and every
+  variant; every TPU but no Batu Nisan; the first half of the TPU), on `.invalid`
+  addresses with no Akun: they fill the assignment picker, they cannot log in.
+- **Two Nazhir (Contoh)** for the Wakaf form.
+- **The Rilis 2 rules** (Masa Tenggang, the most terms of a Perpanjangan, the Ganti Pemegang
+  Hak by sale and its fee) on two Lokasi (Contoh) with a Hak Pakai berjangka; the other three
+  keep the defaults (sale forbidden). Rules someone has already set on a Lokasi are left.
+- **The Retribusi Pemda of an IPTM at Rp 0**, when no version of it is set, as a REAL value
+  (the owner's decision): its reason begins "nilai asli", no registry row names it, `status`
+  does not list it and `cabut` never waits for it or touches it. Without it a TPU order is
+  refused `tarif_belum_ada`. (The two Biaya Pengurusan come from the launch data.)
+
+`cabut` then: sets the Mitra Jasa (Contoh) to Berhenti and removes the Nazhir (Contoh)
+(a Pengajuan Wakaf that named one keeps the name). A job a Mitra Jasa (Contoh) has in
+progress is not taken away from it (it is the family's work in the ground): `cabut` lists
+those jobs, and Admin Platform reassigns them on the Pekerjaan TPU screen. A DKI price or a Mitra
+Jasa rate cannot be erased, so a variant is **taken off the TPU listing** (its "boleh di TPU
+DKI" mark off) while its DKI price or its rate in force is still an example version, whoever
+set the mark: a family would be charged an example price, or a Mitra Jasa paid an example
+rate. A variant whose two prices both have real versions after the example ones keeps its
+mark. `cabut` looks at every variant offered at a TPU, not only the ones the registry names
+(the Audit Log still tells an example version when its row is retired or was never
+recorded), so a second `cabut` also takes off a variant someone marked again after the first.
+It lists the variants it stops offering (the dry run too), and the dry run of `cabut` is the
+check before go-live that no variant is offered at an example price: `status`, the trial
+banner and the preflight read the registry (and the global prices) only. **Before `cabut`,
+enter the real DKI price and the real Mitra Jasa rate of every variant to be offered at a
+TPU** (Admin Platform > Layanan, in force from today); the example versions stay in the price
+books as history, so after `cabut` mark a variant "boleh di TPU DKI" again only with real
+prices in force. `cabut` cancels no order: a TPU order already placed at an example price is
+found and cancelled through the Antrean before `cabut` (it is not listed here, unlike the
+orders at a Lokasi Mitra (Contoh)). The rows `tanam` could not record because it was killed
+are found again by the Audit Log (the reason begins `data-contoh tanam`), so a rerun records
+them instead of entering a second price. Berhenti is not final for these three: planting
+`--set rilis3` again after a `cabut` takes the Mitra Jasa (Contoh) it ended back up (Aktif
+again, their coverage replaced) instead of creating a second set.
 
 ## Import the launch data on the host (`import-data-peluncuran`)
 

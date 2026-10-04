@@ -45,11 +45,13 @@ import {
 import {
   hargaLokasiSemuaHistory,
   hargaLayananInForce,
+  layananDkiVersionList,
   hargaLayananLokasiInForce,
   hargaLayananLokasiSemua,
   setHargaLayananDki,
   setHargaLayananLokasi,
   setTarifMitraJasa,
+  tarifMitraJasaHistory,
   tarifMitraJasaInForce,
   type HargaLayananVersion,
   type SetHargaLayananInput,
@@ -140,6 +142,10 @@ export interface Tariffs extends TariffReads {
    * it (they get null). It is never part of a quote.
    */
   mitraJasaRate(by: Actor, layananVariantId: string, at: Date): Promise<HargaLayananVersion | null>;
+  /** Every version of one Layanan variant's DKI price, in entry order (none is ever changed or deleted). */
+  hargaLayananDkiHistory(layananVariantId: string): Promise<HargaLayananVersion[]>;
+  /** Every version of one Layanan variant's Mitra Jasa rate, in entry order, for Admin Platform only (empty for anyone else, like the rate). */
+  mitraJasaRateHistory(by: Actor, layananVariantId: string): Promise<HargaLayananVersion[]>;
   /**
    * Every price version one Lokasi Mitra has for every Layanan variant, in entry
    * order per variant: one read for the whole place, for the screen that lists the
@@ -179,6 +185,8 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     hargaLayananLokasiSemua: (lokasiId, at) => hargaLayananLokasiSemua(deps.db, lokasiId, at),
     hargaLayananDki: (layananVariantId, at) => hargaLayananInForce(deps.db, "harga_layanan_dki", layananVariantId, at),
     mitraJasaRate: (by, layananVariantId, at) => tarifMitraJasaInForce(deps.db, by, layananVariantId, at),
+    hargaLayananDkiHistory: (layananVariantId) => layananDkiVersionList(deps.db, layananVariantId),
+    mitraJasaRateHistory: (by, layananVariantId) => tarifMitraJasaHistory(deps.db, by, layananVariantId),
     hargaLayananLokasiSemuaHistory: (lokasiId) => hargaLokasiSemuaHistory(deps.db, lokasiId),
     within: (tx) => createTariffs({ ...deps, db: tx }),
     markTariffsChecked: (by, lokasiId, input) => markTariffsChecked(deps, by, lokasiId, input),

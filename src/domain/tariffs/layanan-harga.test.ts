@@ -178,3 +178,26 @@ describe("the Mitra Jasa rate of a Layanan variant", () => {
     expect(quoted).toMatchObject({ ok: true, total: 600_000, lines: [{ kind: "layanan_dki", amount: 600_000 }] });
   });
 });
+
+describe("the history of a Layanan variant's DKI price and Mitra Jasa rate (ticket 111)", () => {
+  it("lists every version of each in entry order, and the Mitra Jasa rate's only to Admin Platform", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { admin, varian } = await catalogFixture(setup);
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
+    await setup.tariffs.setHargaLayananDki(admin, varian.id, { amount: 600_000, effectiveOn: "2026-10-01", reason: null });
+    await setup.tariffs.setHargaLayananDki(admin, varian.id, { amount: 650_000, effectiveOn: "2026-12-01", reason: null });
+    await setup.tariffs.setTarifMitraJasa(admin, varian.id, { amount: 400_000, effectiveOn: "2026-10-01", reason: null });
+
+    expect(await setup.tariffs.hargaLayananDkiHistory(varian.id)).toMatchObject([
+      { amount: 600_000, effectiveOn: "2026-10-01" },
+      { amount: 650_000, effectiveOn: "2026-12-01" },
+    ]);
+    expect(await setup.tariffs.mitraJasaRateHistory(admin, varian.id)).toMatchObject([{ amount: 400_000, effectiveOn: "2026-10-01" }]);
+    // What the Operator pays is never read by anyone but Admin Platform, its history included.
+    expect(await setup.tariffs.mitraJasaRateHistory(adminLokasi, varian.id)).toEqual([]);
+    // A Layanan variant that is no variant has no history.
+    expect(await setup.tariffs.hargaLayananDkiHistory("bukan-id")).toEqual([]);
+    expect(await setup.tariffs.mitraJasaRateHistory(admin, "bukan-id")).toEqual([]);
+  });
+});

@@ -5,30 +5,46 @@
  * reads (the public listing, the staff accounts, the tariff in force).
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { createMitraJasaDaftar, createPenawaranLayanan } from "@/domain/layanan";
 import { pesananBerjalanDiLokasi } from "@/domain/pemesanan";
+import { createNazhirList } from "@/domain/wakaf";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { adminPlatformOf } from "../../../tests/support/identity";
 import { pemesananOnTestDatabase, pemesanDenganEmail, siapkanOperatorPemesanan, unitIds } from "../../../tests/support/pemesanan";
+import { catalogFixture, layananOnTestDatabase, newLayananFor, newMitraJasaInput, newPekerjaan, type LayananSetup } from "../../../tests/support/layanan";
+import { newTpuDki } from "../../../tests/support/lokasi";
 import { newLokasiMitra, publishedLokasiMitra, signedInAdminLokasi, type PublishSetup } from "../../../tests/support/publish";
 import { terencanaLokasi } from "../../../tests/support/terencana";
 import type { Actor } from "@/domain/identity";
-import { createDataContoh, type DataContoh, type RencanaTanam } from ".";
+import { createDataContoh, type DataContoh, type DataContohDeps, type KonteksTanam, type RencanaTanam } from ".";
 
 const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-/** The module composed on the test Postgres, with its neighbours' real public functions. */
-function dataContohOn(setup: PublishSetup): DataContoh {
+/**
+ * The module composed on the test Postgres, with its neighbours' real public functions. `ganti` swaps in a neighbour composed
+ * another way (the Layanan of a setup, whose job port a test seeds), never a stand-in for one of its functions.
+ */
+function dataContohOn(setup: PublishSetup, ganti: Partial<DataContohDeps> = {}): DataContoh {
+  const komposisi = { db, clock: setup.clock, audit: setup.audit };
   return createDataContoh({
-    db,
-    clock: setup.clock,
-    audit: setup.audit,
+    ...komposisi,
     lokasi: setup.lokasi,
     identity: setup.identity,
     tariffs: setup.tariffs,
+    layanan: { ...createPenawaranLayanan({ ...komposisi, tariffs: setup.tariffs }), ...createMitraJasaDaftar(komposisi) },
+    wakaf: createNazhirList(komposisi),
     pemesanan: { pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi({ db }, lokasiId) },
+    ...ganti,
   });
+}
+
+/** The plan of a dry run: an Admin Platform always gets one, and a test that is not about the refusal reads it as is. */
+async function rencanaDari(dataContoh: DataContoh, admin: Actor) {
+  const rencana = await dataContoh.rencanaCabut(admin);
+  if (!rencana.ok) throw new Error(`rencanaCabut refused: ${rencana.reason}`);
+  return rencana;
 }
 
 async function setupDenganAdmin() {
@@ -156,7 +172,7 @@ describe("tanam", () => {
 
     await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: rencanaFee(true) })).rejects.toThrow("proses dimatikan");
     // The price is in force, so the registry keeps holding it (unfinished) rather than cleaning it up.
-    expect((await dataContoh.rencanaCabut()).diblokir.map((one) => one.kode)).toEqual([kode]);
+    expect((await rencanaDari(dataContoh, admin)).diblokir.map((one) => one.kode)).toEqual([kode]);
 
     const lagi = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: rencanaFee(false) });
 
@@ -397,7 +413,7 @@ describe("cabut", () => {
     const { lokasiMitra } = await publishedLokasiMitra(setup, admin, "Taman Contoh (Contoh)");
     await dataContoh.catat(admin, { kode: "rilis1/lokasi/x", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: lokasiMitra.id, reason: ALASAN });
 
-    const rencana = await dataContoh.rencanaCabut();
+    const rencana = await rencanaDari(dataContoh, admin);
 
     expect(rencana.aktif.map((one) => one.kode)).toEqual(["rilis1/lokasi/x"]);
     expect(rencana.diblokir).toEqual([]);
@@ -428,7 +444,7 @@ describe("a contoh price a tanam entered and died before recording", () => {
     await dataContoh.catat(admin, { kode: "rilis1/lokasi/taman-contoh", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: lokasi.id, reason: ALASAN });
     await hargaContohTanpaCatatan(setup, admin);
 
-    const rencana = await dataContoh.rencanaCabut();
+    const rencana = await rencanaDari(dataContoh, admin);
     const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
 
     expect(rencana.diblokir).toMatchObject([{ kode: null, key: kunciBiaya, amount: 100_000 }]);
@@ -467,7 +483,7 @@ describe("a contoh price a tanam entered and died before recording", () => {
     await hargaAsli(setup, admin, 100_000);
 
     expect(await dataContoh.aktif()).toBe(false);
-    expect((await dataContoh.rencanaCabut()).diblokir).toEqual([]);
+    expect((await rencanaDari(dataContoh, admin)).diblokir).toEqual([]);
     expect((await dataContoh.status()).takTercatat).toEqual([]);
     expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: true });
   });
@@ -553,5 +569,336 @@ describe("a contoh price a tanam entered and died before recording", () => {
     const { admin, dataContoh } = await setupDenganAdmin();
 
     await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: "seed biasa", rencana: [] })).rejects.toThrow("Data Contoh: alasan tanam");
+  });
+});
+
+describe("Rilis 3: TPU prices, Mitra Jasa and Nazhir of a set (ticket 111)", () => {
+  /** The three fixtures the Rilis 3 set plants for one Layanan variant, built the way the command builds them: its DKI price, its Mitra Jasa rate, its "boleh di TPU DKI" mark. */
+  function rencanaVarian(setup: LayananSetup, admin: Actor, varianId: string, kode = "v", jumlah = { dki: 150_000, tarif: 100_000 }): RencanaTanam[] {
+    const harga = (jenis: "harga_layanan_dki" | "tarif_mitra_jasa", awal: string): RencanaTanam => ({
+      kode: `rilis3/${awal}/${kode}`,
+      jenis,
+      layananVariantId: varianId,
+      async buat(ctx: KonteksTanam) {
+        const masuk = { amount: jenis === "harga_layanan_dki" ? jumlah.dki : jumlah.tarif, effectiveOn: "2026-10-01", reason: ALASAN };
+        const dibuat = jenis === "harga_layanan_dki" ? await setup.tariffs.setHargaLayananDki(admin, varianId, masuk) : await setup.tariffs.setTarifMitraJasa(admin, varianId, masuk);
+        if (!dibuat.ok) return { ok: false as const, reason: dibuat.reason };
+        await ctx.catatInduk(`${varianId}:${dibuat.version.seq}`);
+        return { ok: true as const };
+      },
+    });
+    return [
+      harga("harga_layanan_dki", "harga-dki"),
+      harga("tarif_mitra_jasa", "tarif-mitra-jasa"),
+      {
+        kode: `rilis3/tanda-tpu/${kode}`,
+        jenis: "tanda_tpu_dki",
+        async buat(ctx: KonteksTanam) {
+          const tanda = await setup.layanan.tandaiBolehDiTpu(admin, varianId, { boleh: true, reason: ALASAN });
+          if (!tanda.ok) return { ok: false as const, reason: tanda.reason };
+          await ctx.catatInduk(varianId);
+          return { ok: true as const };
+        },
+      },
+    ];
+  }
+
+  const tanamRilis3 = (dataContoh: DataContoh, admin: Actor, rencana: RencanaTanam[]) => dataContoh.tanam(admin, { himpunan: "rilis3", reason: ALASAN, rencana });
+  /** What a TPU shows: every offered variant with the price a family pays there. */
+  const diTpu = async (setup: LayananSetup) => (await setup.layanan.penawaranTpu(setup.clock.now())).flatMap((layanan) => layanan.varian.map((varian) => [varian.id, varian.harga.total]));
+  const hargaAsli = (setup: LayananSetup, admin: Actor, varianId: string, jumlah = { dki: 175_000, tarif: 120_000 }) =>
+    Promise.all([
+      setup.tariffs.setHargaLayananDki(admin, varianId, { amount: jumlah.dki, effectiveOn: "2026-10-01", reason: "harga asli" }),
+      setup.tariffs.setTarifMitraJasa(admin, varianId, { amount: jumlah.tarif, effectiveOn: "2026-10-01", reason: "tarif asli" }),
+    ]);
+
+  describe("a TPU price with no real successor version", () => {
+    it("is planted with its mark, so the variant is offered at a TPU; cabut then stops offering it and leaves nothing active", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+
+      const ditanam = await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+
+      expect(ditanam).toMatchObject({ ok: true, dibuat: ["rilis3/harga-dki/v", "rilis3/tarif-mitra-jasa/v", "rilis3/tanda-tpu/v"], sudahAda: [], dilewati: [] });
+      expect(await diTpu(setup)).toEqual([[varian.id, 150_000]]);
+      expect((await dataContoh.status()).aktif.map((one) => [one.jenis, one.lengkap]).sort()).toEqual([
+        ["harga_layanan_dki", true],
+        ["tanda_tpu_dki", true],
+        ["tarif_mitra_jasa", true],
+      ]);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id, hargaDki: true, tarifMitraJasa: true }] });
+      expect(await diTpu(setup)).toEqual([]);
+      expect((await dataContoh.status()).aktif).toEqual([]);
+      expect(await dataContoh.aktif()).toBe(false);
+      // Tariffs never erases a version: the example price is still in its book, it is only no longer offered anywhere.
+      expect(await setup.tariffs.hargaLayananDkiHistory(varian.id)).toHaveLength(1);
+      const katalog = await setup.layanan.katalog();
+      expect(katalog.flatMap((layanan) => layanan.varian).find((satu) => satu.id === varian.id)?.bolehDiTpu).toBe(false);
+    });
+
+    it("lets a variant stay offered at a TPU once a real DKI price and a real Mitra Jasa rate have superseded the contoh versions", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+      for (const hasil of await hargaAsli(setup, admin, varian.id)) expect(hasil.ok).toBe(true);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, tidakDitawarkan: [], dicabut: { harga_layanan_dki: 1, tarif_mitra_jasa: 1, tanda_tpu_dki: 1 } });
+      expect(await diTpu(setup)).toEqual([[varian.id, 175_000]]);
+      expect((await dataContoh.status()).aktif).toEqual([]);
+      expect(await dataContoh.aktif()).toBe(false);
+    });
+
+    it("stops offering a variant whose DKI price is real but whose Mitra Jasa rate is still a contoh version, because a job would pay a Mitra Jasa an example amount", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+      const dki = await setup.tariffs.setHargaLayananDki(admin, varian.id, { amount: 175_000, effectiveOn: "2026-10-01", reason: "harga asli" });
+      expect(dki.ok).toBe(true);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id, hargaDki: false, tarifMitraJasa: true }] });
+      expect(await diTpu(setup)).toEqual([]);
+      // The real DKI price is untouched and still the one in force.
+      expect((await setup.tariffs.hargaLayananDki(varian.id, setup.clock.now()))?.amount).toBe(175_000);
+    });
+
+    it("stops offering a variant somebody marked again after cabut, because the contoh versions are still the prices in force: a second cabut takes the mark off again", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+      expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: true });
+      expect(await diTpu(setup)).toEqual([]);
+      // The rows are retired, but Tariffs never erased the example versions: marking the variant again offers it at the example price.
+      expect((await setup.layanan.tandaiBolehDiTpu(admin, varian.id, { boleh: true, reason: "ditandai lagi" })).ok).toBe(true);
+      expect(await diTpu(setup)).toEqual([[varian.id, 150_000]]);
+
+      const lagi = await dataContoh.cabut(admin, { reason: "cabut lagi (test)" });
+
+      expect(lagi).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id, hargaDki: true, tarifMitraJasa: true }] });
+      expect(await diTpu(setup)).toEqual([]);
+    });
+
+    it("stops offering a marked variant whose DKI price is a contoh version no registry row names, because a killed tanam entered it and never recorded it", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      const [harga] = rencanaVarian(setup, admin, varian.id).filter((satu) => satu.jenis === "harga_layanan_dki");
+      // A run killed between entering the DKI price and recording it: the price is in force under the run's reason, and no row names it.
+      const terputus = {
+        ...harga,
+        async buat() {
+          await setup.tariffs.setHargaLayananDki(admin, varian.id, { amount: 150_000, effectiveOn: "2026-10-01", reason: ALASAN });
+          throw new Error("proses dimatikan");
+        },
+      } as RencanaTanam;
+      await expect(tanamRilis3(dataContoh, admin, [terputus])).rejects.toThrow("proses dimatikan");
+      expect((await dataContoh.status()).aktif).toEqual([]);
+      // Somebody marks the variant by hand, so it is offered at the example price.
+      expect((await setup.layanan.tandaiBolehDiTpu(admin, varian.id, { boleh: true, reason: "ditandai" })).ok).toBe(true);
+      expect(await diTpu(setup)).toEqual([[varian.id, 150_000]]);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id, hargaDki: true, tarifMitraJasa: false }] });
+      expect(await diTpu(setup)).toEqual([]);
+    });
+
+    it("is listed by the dry run, which writes nothing: rencanaCabut names the variants cabut would stop offering", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+      const entriSebelum = (await setup.audit.allEntries()).length;
+
+      const rencana = await dataContoh.rencanaCabut(admin);
+
+      expect(rencana).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id, hargaDki: true, tarifMitraJasa: true }], diblokir: [] });
+      expect(await diTpu(setup)).toEqual([[varian.id, 150_000]]);
+      expect((await setup.audit.allEntries()).length).toBe(entriSebelum);
+    });
+
+    it("refuses the dry run to an actor who is not Admin Platform, because the Mitra Jasa rates it checks are Admin Platform's to read and a plan without them would leave variants out unannounced", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+      const lokasiMitra = await newLokasiMitra(setup, admin);
+      const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
+
+      expect(await dataContoh.rencanaCabut(adminLokasi)).toMatchObject({ ok: false, reason: "tidak_berwenang" });
+      expect(await dataContoh.rencanaCabut(admin)).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id }] });
+    });
+
+    it("never stops offering a variant the registry holds no price of: an Operator's own variant stays offered", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const milikOperator = (await newLayananFor(setup, admin, { name: "Bunga Tabur", jenis: "bunga", bukti: "foto_sesudah", varian: ["Reguler"] })).varian;
+      for (const hasil of await hargaAsli(setup, admin, milikOperator.id)) expect(hasil.ok).toBe(true);
+      expect((await setup.layanan.tandaiBolehDiTpu(admin, milikOperator.id, { boleh: true, reason: null })).ok).toBe(true);
+      const dataContoh = dataContohOn(setup);
+      await tanamRilis3(dataContoh, admin, rencanaVarian(setup, admin, varian.id));
+      expect((await diTpu(setup)).map(([id]) => id).sort()).toEqual([milikOperator.id, varian.id].sort());
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, tidakDitawarkan: [{ layananVariantId: varian.id }] });
+      expect(await diTpu(setup)).toEqual([[milikOperator.id, 175_000]]);
+    });
+
+    it.each(["harga_layanan_dki", "tarif_mitra_jasa"] as const)("records a contoh %s a killed tanam entered and never recorded, instead of entering a second version", async (jenis) => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      const rencana = rencanaVarian(setup, admin, varian.id);
+      const [harga] = rencana.filter((satu) => satu.jenis === jenis);
+      // A run killed between entering the price and recording it: the price is in force, under the run's reason, and no row names it.
+      const terputus: RencanaTanam = {
+        ...harga,
+        async buat() {
+          const masuk = { amount: 150_000, effectiveOn: "2026-10-01", reason: ALASAN };
+          await (jenis === "harga_layanan_dki" ? setup.tariffs.setHargaLayananDki(admin, varian.id, masuk) : setup.tariffs.setTarifMitraJasa(admin, varian.id, masuk));
+          throw new Error("proses dimatikan");
+        },
+      } as RencanaTanam;
+      await expect(tanamRilis3(dataContoh, admin, [terputus])).rejects.toThrow("proses dimatikan");
+      expect((await dataContoh.status()).aktif).toEqual([]);
+
+      const lagi = await tanamRilis3(dataContoh, admin, rencana);
+
+      // The price a killed run left is recorded in place of entering a second one: it counts as planted, once.
+      expect(lagi).toMatchObject({ ok: true, dibuat: ["rilis3/harga-dki/v", "rilis3/tarif-mitra-jasa/v", "rilis3/tanda-tpu/v"], sudahAda: [], dilewati: [] });
+      const riwayat = jenis === "harga_layanan_dki" ? await setup.tariffs.hargaLayananDkiHistory(varian.id) : await setup.tariffs.mitraJasaRateHistory(admin, varian.id);
+      expect(riwayat).toHaveLength(1);
+      expect((await dataContoh.status()).aktif.map((one) => one.jenis)).toContain(jenis);
+    });
+
+    it("names a price version <variant id>:<version>: a name that is not one is never recorded, because it would break every later cabut", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+
+      for (const jenis of ["harga_layanan_dki", "tarif_mitra_jasa"] as const) {
+        await expect(dataContoh.catat(admin, { kode: `rilis3/x/${jenis}`, himpunan: "rilis3", jenis, entitasId: varian.id, reason: ALASAN })).rejects.toThrow("Data Contoh: harga layanan harus");
+      }
+      expect((await dataContoh.status()).aktif).toEqual([]);
+    });
+  });
+
+  describe("Mitra Jasa (Contoh)", () => {
+    it("is set to Berhenti by cabut with the reason of the run, so the assignment picker no longer offers it, and its record stays readable", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin, varian } = await catalogFixture(setup);
+      const tpu = await newTpuDki(setup, admin);
+      const dataContoh = dataContohOn(setup);
+      const dibuat = await setup.layanan.buatMitraJasa(admin, "agus.pratama@contoh.makam.invalid", newMitraJasaInput({ namaLengkap: "Agus Pratama (Contoh)" }));
+      if (!dibuat.ok) throw new Error(`Mitra Jasa refused: ${dibuat.reason}`);
+      expect((await setup.layanan.ubahCoverage(admin, dibuat.mitraJasaId, { tpuDkiIds: [tpu.id], layananVariantIds: [varian.id] })).ok).toBe(true);
+      expect(await dataContoh.catat(admin, { kode: "rilis3/mitra-jasa/agus-pratama", himpunan: "rilis3", jenis: "mitra_jasa", entitasId: dibuat.mitraJasaId, reason: ALASAN })).toMatchObject({ ok: true });
+      const kebutuhan = { tpuDkiId: tpu.id, layananVariantId: varian.id, tanggal: "2026-10-10" };
+      expect((await setup.layanan.mitraJasaTersedia(admin, kebutuhan)).map((satu) => satu.namaLengkap)).toEqual(["Agus Pratama (Contoh)"]);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, dicabut: { mitra_jasa: 1 }, pekerjaanBerjalan: [] });
+      expect(await setup.layanan.mitraJasaTersedia(admin, kebutuhan)).toEqual([]);
+      expect(await setup.layanan.bacaMitraJasa(admin, dibuat.mitraJasaId)).toMatchObject({
+        ok: true,
+        mitraJasa: { status: "berhenti", statusAlasan: "cabut (test)", coverage: { layananVariantIds: [varian.id] } },
+      });
+      expect((await dataContoh.status()).aktif).toEqual([]);
+    });
+
+    it("reports the jobs a Mitra Jasa (Contoh) still has in progress when cabut ends it, and releases only the ones not yet started: the work in the ground is for Admin Platform to reassign", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin } = await catalogFixture(setup);
+      // The roster of this setup works over the job port the test seeds with job facts.
+      const dataContoh = dataContohOn(setup, { layanan: setup.layanan });
+      const dibuat = await setup.layanan.buatMitraJasa(admin, "agus.pratama@contoh.makam.invalid", newMitraJasaInput({ namaLengkap: "Agus Pratama (Contoh)" }));
+      if (!dibuat.ok) throw new Error(`Mitra Jasa refused: ${dibuat.reason}`);
+      setup.pekerjaan.seed(dibuat.mitraJasaId, [
+        newPekerjaan({ id: "pekerjaan-dikerjakan", status: "dikerjakan", targetDate: "2026-10-05" }),
+        newPekerjaan({ id: "pekerjaan-dijadwalkan", status: "dijadwalkan", targetDate: "2026-10-08" }),
+      ]);
+      await dataContoh.catat(admin, { kode: "rilis3/mitra-jasa/agus-pratama", himpunan: "rilis3", jenis: "mitra_jasa", entitasId: dibuat.mitraJasaId, reason: ALASAN });
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({
+        ok: true,
+        pekerjaanBerjalan: [{ kode: "rilis3/mitra-jasa/agus-pratama", mitraJasaId: dibuat.mitraJasaId, pekerjaan: [{ id: "pekerjaan-dikerjakan", status: "dikerjakan", targetDate: "2026-10-05" }] }],
+      });
+      expect(setup.pekerjaan.dilepas.map((satu) => satu.pekerjaanId)).toEqual(["pekerjaan-dijadwalkan"]);
+    });
+
+    it("goes ahead for one Admin Platform has already ended, without changing its status or reason", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      const dibuat = await setup.layanan.buatMitraJasa(admin, "siti.rahayu@contoh.makam.invalid", newMitraJasaInput({ namaLengkap: "Siti Rahayu (Contoh)" }));
+      if (!dibuat.ok) throw new Error(`Mitra Jasa refused: ${dibuat.reason}`);
+      await dataContoh.catat(admin, { kode: "rilis3/mitra-jasa/siti-rahayu", himpunan: "rilis3", jenis: "mitra_jasa", entitasId: dibuat.mitraJasaId, reason: ALASAN });
+      expect((await setup.layanan.ubahStatus(admin, dibuat.mitraJasaId, { status: "berhenti", alasan: "berhenti oleh Admin Platform" })).ok).toBe(true);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true });
+      expect(await setup.layanan.bacaMitraJasa(admin, dibuat.mitraJasaId)).toMatchObject({ ok: true, mitraJasa: { status: "berhenti", statusAlasan: "berhenti oleh Admin Platform" } });
+      expect((await dataContoh.status()).aktif).toEqual([]);
+    });
+  });
+
+  describe("Nazhir (Contoh)", () => {
+    const nazhirContoh = { nama: "Nazhir Wakaf Sejahtera (Contoh)", jenis: "badan_hukum", kabKota: "Kota Jakarta Selatan", kontak: "021-5550101", nomorBwi: "BWI-CONTOH-001" };
+
+    it("is removed from the list by cabut, and goes ahead for one Admin Platform has already removed", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      const daftar = createNazhirList({ db, clock: setup.clock, audit: setup.audit });
+      const satu = await daftar.tambahNazhir(admin, nazhirContoh);
+      const dua = await daftar.tambahNazhir(admin, { ...nazhirContoh, nama: "Nazhir Amanah Umat (Contoh)", nomorBwi: "BWI-CONTOH-002" });
+      if (!satu.ok || !dua.ok) throw new Error("tambahNazhir refused");
+      const sendiri = await daftar.tambahNazhir(admin, { ...nazhirContoh, nama: "Nazhir Asli", nomorBwi: "BWI-123" });
+      if (!sendiri.ok) throw new Error("tambahNazhir refused");
+      for (const [kode, nazhir] of [["satu", satu.nazhir], ["dua", dua.nazhir]] as const) {
+        await dataContoh.catat(admin, { kode: `rilis3/nazhir/${kode}`, himpunan: "rilis3", jenis: "nazhir", entitasId: nazhir.id, reason: ALASAN });
+      }
+      expect((await daftar.hapusNazhir(admin, { nazhirId: dua.nazhir.id })).ok).toBe(true);
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, dicabut: { nazhir: 2 } });
+      // Only the ones the registry held are gone: the Operator's own Nazhir stays.
+      expect((await daftar.daftarNazhir(admin)).map((one) => one.nama)).toEqual(["Nazhir Asli"]);
+      expect((await dataContoh.status()).aktif).toEqual([]);
+    });
+  });
+
+  describe("Rilis 2 rules on a contoh Lokasi", () => {
+    it("are recorded under the Lokasi, and cabut retires the row while the Lokasi is hidden with its rules", async () => {
+      const setup = layananOnTestDatabase(db);
+      const { admin } = await catalogFixture(setup);
+      const dataContoh = dataContohOn(setup);
+      const { lokasiMitra } = await publishedLokasiMitra(setup, admin, "Taman Contoh (Contoh)");
+      const dasar = { himpunan: "rilis3" as const, reason: ALASAN };
+      await dataContoh.catat(admin, { ...dasar, himpunan: "rilis1", kode: "rilis1/lokasi/taman-contoh", jenis: "lokasi_mitra", entitasId: lokasiMitra.id });
+      await dataContoh.catat(admin, { ...dasar, kode: "rilis3/aturan/taman-contoh", jenis: "aturan_lokasi", entitasId: lokasiMitra.id, indukKode: "rilis1/lokasi/taman-contoh" });
+
+      const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+      expect(hasil).toMatchObject({ ok: true, dicabut: { lokasi_mitra: 1, aturan_lokasi: 1 } });
+      expect(await setup.lokasi.publicLokasiMitraList()).toEqual([]);
+      expect((await dataContoh.status()).aktif).toEqual([]);
+    });
   });
 });
