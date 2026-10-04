@@ -2,6 +2,7 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { FakeEmailSender } from "@/adapters/memory";
 import { SmtpEmailSender } from "@/adapters/live/smtp-email-sender";
+import { mailEverywhere } from "../../../../tests/support/mail-domain-resolver";
 import { RELAY_PASSWORD, RELAY_USER, startTestSmtpRelay } from "../../../../tests/support/smtp-relay";
 import { EmailSendError } from "@/ports/email-sender";
 import { initialKodeMasukRequestState } from "@/components/kode-masuk/state";
@@ -124,14 +125,14 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     try {
       const live = new SmtpEmailSender(
         { host: relay.host, port: relay.port, user: RELAY_USER, password: RELAY_PASSWORD, from: { address: "no-reply@makam.co.id", name: "Makam.co.id" } },
-        { trustedCertificate: relay.certificate },
+        { trustedCertificate: relay.certificate, resolver: mailEverywhere },
       );
       const email = server.runtime().adapters.email as FakeEmailSender;
       send = vi.spyOn(email, "send").mockImplementation((message) => live.send(message));
       relay.refuseNextRecipient();
       browser.setHeader("x-real-ip", "203.0.113.70");
 
-      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "uji98.repro@contoh.makam.invalid" }))).toMatchObject({
+      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "uji98.repro@contoh.id" }))).toMatchObject({
         status: "gagal",
         message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
       });
@@ -143,6 +144,28 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
       process.off("uncaughtException", onStray);
       process.off("unhandledRejection", onStray);
       send?.mockRestore();
+    }
+  });
+
+  it("with the live SMTP adapter, an address that cannot receive mail gets gagal kirim, not terkirim, though the relay would take it", async () => {
+    // The staging relay accepts a message for a `.invalid` address and bounces it later, so Kirim used to say "terkirim".
+    const relay = await startTestSmtpRelay();
+    const email = server.runtime().adapters.email as FakeEmailSender;
+    const live = new SmtpEmailSender(
+      { host: relay.host, port: relay.port, user: RELAY_USER, password: RELAY_PASSWORD, from: { address: "no-reply@makam.co.id", name: "Makam.co.id" } },
+      { trustedCertificate: relay.certificate, resolver: mailEverywhere },
+    );
+    const send = vi.spyOn(email, "send").mockImplementation((message) => live.send(message));
+    browser.setHeader("x-real-ip", "203.0.113.71");
+    try {
+      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }))).toMatchObject({
+        status: "gagal",
+        message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
+      });
+      expect(relay.accepted).toEqual([]);
+    } finally {
+      send.mockRestore();
+      await relay.close();
     }
   });
 

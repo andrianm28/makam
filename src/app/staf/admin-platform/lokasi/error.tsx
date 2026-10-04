@@ -1,6 +1,7 @@
 "use client";
 
 import { TriangleAlertIcon } from "lucide-react";
+import { unstable_isUnrecognizedActionError } from "next/navigation";
 import { useEffect } from "react";
 import { EmptyState } from "@/components/makam/empty-state";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,10 @@ export default function LokasiMitraListError({ error, retry }: { error: Error & 
   useEffect(() => {
     console.error(error);
   }, [error]);
+
+  // A form left open across a deploy: the page itself is old, so "Coba lagi" cannot help. Let the root error page
+  // (app/error.tsx) say so and offer Muat ulang.
+  if (unstable_isUnrecognizedActionError(error)) throw error;
 
   return (
     <EmptyState

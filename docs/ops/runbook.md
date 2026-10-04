@@ -1629,6 +1629,17 @@ $S exec worker node dist/email-check.mjs dmarc@makam.co.id
 # exit 0: accepted by the relay; 1: "Gagal kirim: ..." (codes only); 78: SMTP settings missing
 ```
 
+The live EmailSender (staging and production) refuses an address that cannot
+receive mail **before it connects to the relay** (ticket 98): a domain ending in
+`.invalid`, `.test`, `.example` or `.localhost`, a domain with no MX and no A or
+AAAA record, or a domain that publishes a null MX (RFC 7505). `email-check` then
+exits 1 with `Gagal kirim: Email tidak terkirim (rejected)`, and a Kode Masuk
+shows "gagal kirim" (SumoPod accepts such a message and bounces it later, which
+used to show "terkirim"). It asks DNS for MX, A and AAAA; a DNS failure (SERVFAIL,
+a timeout, no answer within 5 s) never blocks a send, the relay decides. The
+in-memory fakes of development and test do not check, so seeds on `.invalid` keep
+working there.
+
 In the received message's headers, expect `DKIM-Signature: ... d=makam.co.id; s=trx_ke`
 and `Authentication-Results: ... dkim=pass header.d=makam.co.id ... dmarc=pass`.
 SPF passes for SumoPod's own bounce domain (return-path), so DMARC alignment comes
