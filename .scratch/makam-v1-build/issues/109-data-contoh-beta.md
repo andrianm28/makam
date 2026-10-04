@@ -426,3 +426,9 @@ Answers to the round 2 review above, item by item. Each fix went test first: the
 - **New choice:** decision 3 above (cost of `aktif()` on every page load versus a preflight that sees an unrecorded example fee).
 
 **Tests** (read from whole logs). `npx vitest run` over `src/domain/data-contoh`, `src/domain/audit`, `src/cli/data-contoh-command.test.ts`, `src/cli/seed-contoh-publik-command.test.ts`, `src/app/api/browser-config`, `src/lib/payment-trial.test.ts`, `tests/tooling/makam-preflight.test.ts`, `data-contoh-bundle.test.ts`, `katalog-lama-runbook.test.ts`, `image-retention.test.ts`, `ticket-workflow.test.ts`: 11 files, 236 tests, exit 0, 170 s (fix pass 1: 226; +9 domain, +1 command). `npm run typecheck` exit 0, `npm run lint` exit 0 (the same 6 warnings, none in a file this ticket touches). No `npm run build`, no full suite, no Playwright (the e2e cases added in pass 1 are still not run).
+
+### Owner approvals (2026-10-04, recorded by the orchestrator)
+
+- **Amounts (AC "Amounts", plan C2): approved as listed.** Biaya Layanan Platform contoh Rp 100.000; Biaya Pemakaman Rp 1.000.000 (tumpang Rp 500.000); Layanan Lokasi prices bunga Rp 100.000, nisan Rp 1.000.000, pembersihan Rp 200.000, perawatan Rp 300.000, laporan Rp 50.000; the Hak Pakai and Perpanjangan prices per contoh Lokasi and Jenis Makam in `src/cli/data-contoh/rilis1.ts`.
+- **Banner wording (AC "Marking", plan C11): approved as written.** "Data bertanda (Contoh) dan harganya adalah contoh; pesanan masa uji coba tidak dilayani sungguhan."
+- With these approvals, the four BELUM items of the final re-review (H2 and H3, in both axes) are answered. The code is unchanged since head 4653966a.
