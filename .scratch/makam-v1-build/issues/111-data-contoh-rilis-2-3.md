@@ -221,3 +221,96 @@ Answers to the round 1 review above, item by item. Each change went test first (
 **Tests** (read from whole logs). `npx vitest run` over `src/domain/data-contoh`, `src/cli/data-contoh-command.test.ts`, `src/cli/import-data-peluncuran-command.test.ts`, `src/domain/tariffs/layanan-harga.test.ts`, `src/app/api/browser-config`, `src/domain/layanan/mitra-jasa.test.ts`, `src/domain/layanan/penawaran.test.ts`, `src/domain/wakaf/nazhir.test.ts` and the tooling tests `data-contoh-bundle`, `go-live-docs`, `ticket-workflow`, `katalog-lama-runbook`, `image-retention`, `makam-preflight`: **14 files, 398 tests, exit 0**, 114.85 s, read from the whole log (the domain file alone 45 tests, was 42; the command file 40, was 35). `npm run typecheck` exit 0. `npm run lint` exit 0 (6 warnings, none in a file this ticket touches). Red before green for each new case (10 domain and 4 command cases failed before the change); the two dry-run guards turned off made their 2 new tests fail, and were restored.
 - **Not run:** `npm run build`, the full suite, Playwright, CI, a real run on the staging database. The CLI's list of jobs left in progress is not driven through the command (a real TPU job in progress is a long fixture); the domain case covers what it prints from.
 
+### Review (2026-10-04, round 2; fixed point ea371143, head 29f4ad5c)
+
+Two review reports, pasted verbatim by the fix pass. Only their heading levels are lowered, so the entry stays inside `## Comments` (`tests/support/ticket-workflow.ts` ends a Comments section at the next `## ` heading).
+
+#### Standards
+
+**Scope.** The fixed point `ea371143` resolves (ea3711435a71), and `git diff ea371143...29f4ad5c` is not empty (27 files, +2631/−191).
+- `origin/main` has moved to 552ef51a (ticket 114), and the branch merged it in 81d56bfd. Ten of the 27 files come from that merge and are byte-identical to main: `deploy/bin/*`, `tests/tooling/makam-*.test.ts`, `go-live-docs.test.ts`, `CONTEXT.md`, ticket 114 and the index, plus part of the runbook. `git diff origin/main 29f4ad5c` lists only ticket 111's 17 files.
+- I gave main's deploy scripts a light check. Their new failure statuses go through `status()`, which ends in `|| true` (/home/ubuntu/makam-t111/deploy/bin/makam-deploy:171-174), so reporting cannot change a deploy's outcome. The diff has no workflow, prune or secret.
+- Next round, pin the fixed point to 552ef51a (/home/ubuntu/makam-t111/docs/agents/orchestration.md:12).
+
+**Tests.** I ran `npx vitest run src/domain/data-contoh/data-contoh.test.ts src/cli/data-contoh-command.test.ts src/domain/tariffs/layanan-harga.test.ts tests/tooling/go-live-docs.test.ts`: **exit 0, 4 files, 159 tests**, 54.7 s, on its own throwaway Postgres container. The log has two pg `client.query()` DeprecationWarnings, the same as round 1.
+
+**Earlier findings**
+1. **OK.** `git diff origin/main 29f4ad5c -- CONTEXT.md` is empty.
+   - The fix pass says (/home/ubuntu/makam-t111/.scratch/makam-v1-build/issues/111-data-contoh-rilis-2-3.md:182): "HARD 1, CONTEXT.md edited by hand: undone. The merge took main's (6a87d75d) Data Contoh entry unchanged".
+   - The proposed wording is now owner item 5 for `domain-modeling`, marked "not edited" (:204).
+   - `go-live-docs` passes against main's entry, and its test file is main's, unchanged by this ticket.
+2. **BELUM.** The ticket still says:
+   - :22: "- [ ] **Amounts:** … approved by the owner before merge"
+   - :192: "H1, amounts not approved: open, the owner's"
+   - :200: "need the owner's approval before merge"
+
+   `src/cli/data-contoh/rilis3.ts` is unchanged since ec5de35e, and no approval is recorded anywhere. Closing this needs the owner, not a code change. The builder filed it correctly under "Spec gaps and decisions for the owner" (/home/ubuntu/makam-t111/AGENTS.md:68).
+
+**What the fix pass got right**
+- **Stub removed.** The `ganti` override now swaps in only the setup's real Layanan, over the job port the test seeds (/home/ubuntu/makam-t111/src/domain/data-contoh/data-contoh.test.ts:25-28, :825). The assertion on `setup.pekerjaan.dilepas` (:840) follows the existing pattern at /home/ubuntu/makam-t111/src/domain/layanan/mitra-jasa.test.ts:329.
+- **Outcome assertions only.** The new tests check returned results, the TPU listing, `status`, `globalTariff` and Audit Log counts. None adds `vi.fn`, `spyOn` or mocks, and none checks call order. The negative copy assertions (/home/ubuntu/makam-t111/src/cli/data-contoh-command.test.ts:553-555) match the real strings at /home/ubuntu/makam-t111/src/cli/data-contoh-command.ts:368-369, so they do guard something.
+- **Guards.** `rencanaCabut` refuses anyone who is not Admin Platform (/home/ubuntu/makam-t111/src/domain/data-contoh/index.ts:693-697), with a test at data-contoh.test.ts:730. `cabut` still checks the actor before `susunRencanaCabut` (index.ts:801-806).
+- **Clock, logs and copy.** The added lines have no `new Date()`, `Date.now()` or `console` calls. `ReleasedJob` holds only id, target date and status (/home/ubuntu/makam-t111/src/domain/layanan/mitra-jasa.ts:60-64), so the printed job list has no personal data. The new copy is in Bahasa Indonesia.
+- **Process.** The round-1 reports were filed in 27c064a4 (12:42), before the fix commits (13:00–13:21), as orchestration.md:15 requires. The ticket's status matches the index (:418).
+
+**HARD**
+1. (Carried from round 1, Spec H1.) The AC4 amounts are still not approved; see item 2.
+
+**SOFT**
+1. **The jobs copy names the wrong screen.**
+   - /home/ubuntu/makam-t111/src/cli/data-contoh-command.ts:639 says "tugaskan ulang lewat layar Layanan".
+   - /home/ubuntu/makam-t111/docs/ops/runbook.md:557 says "reassigns them on the Layanan screen".
+   - The app's own copy for the same event says the jobs go "ke Antrean untuk ditugaskan ulang" (/home/ubuntu/makam-t111/src/app/staf/admin-platform/mitra-jasa/mitra-jasa-forms.tsx:405-406).
+   - The assign action is on the Pekerjaan TPU screen (/home/ubuntu/makam-t111/src/app/staf/admin-platform/pekerjaan-tpu/[pekerjaanId]/actions.ts:27). The Layanan screen has no assignment action.
+2. **The jobs report has no command-level test.** No command test drives `laporanPekerjaanBerjalan` (/home/ubuntu/makam-t111/src/cli/data-contoh-command.ts:635-642, called at :686 and :698), and the ticket says so (:222-223). The domain case (data-contoh.test.ts:821) checks only the data, not the printed list.
+
+Standards: 3 findings (1 carried from Spec, 2 soft). Worst: the AC4 amounts are still not approved by the owner (carried from Spec H1); the fix pass adds no new hard violation. hard violations: yes
+
+Hard: 1, soft: 2
+
+#### Spec
+
+**Range.** The fixed point `ea371143` resolves (ea3711435a71), and `git diff ea371143...29f4ad5c` is not empty (27 files, +2631/−191). That range also carries main's own commits, merged in at 900aba88 and 81d56bfd: 6a87d75d (MB3) and e0f85aa6/552ef51a (ticket 114: deploy/bin, the makam-* tooling tests, CONTEXT.md, go-live-docs). origin/main is now 552ef51a, and the head already contains it. Ticket 111's own change is `git diff origin/main 29f4ad5c` (17 files, +1945/−97), and that is what I judged below.
+
+**Earlier findings, item by item**
+1. **OK.** `git diff origin/main 29f4ad5c -- CONTEXT.md` is empty. The entry at /home/ubuntu/makam-t111/CONTEXT.md:443-444 is main's 6a87d75d text, with none of the Berhenti, TPU-listing or rate wording. The branch no longer touches go-live-docs.test.ts. Ticket :182: "The merge took main's (6a87d75d) Data Contoh entry unchanged". The proposed glossary sentence is parked for `domain-modeling`, marked "not edited" (:204). The edit at /home/ubuntu/makam-t111/docs/agents/orchestration.md:54 is a module note, not CONTEXT.md or an ADR.
+2. **BELUM.** Ticket :192: "H1, amounts not approved: open, the owner's." Ticket :200: "need the owner's approval before merge … Open since the Build entry". The checklist line for plan C2/C3 at /home/ubuntu/makam-t111/.scratch/makam-v1-build/go-live-rilis-1.md:27 is still `[ ]`. rilis3.ts has not changed since ec5de35e.
+
+**AC1 `tanam --set rilis3`: MET.** The "(owner confirms)" on Retribusi depends on AC4.
+- **Prices, rates and marks:** a DKI price, a rate and a mark for every variant (/home/ubuntu/makam-t111/src/cli/data-contoh-command.ts:402-442). The mark goes only on a variant the set priced (:435). Test: `prices, marks and covers all 11 variants of the launch catalog` (data-contoh-command.test.ts:640).
+- **Mitra Jasa, Nazhir and rules:** 3 Mitra Jasa, Aktif, with coverage; 2 Nazhir; the rules on Firdaus and Nurul Huda (:446-514). The test `plants the TPU prices with their marks…` (:592) asserts each of them.
+- **Retribusi:** Rp 0 is entered with the reason `nilai asli…` (:522-533) and has no registry row (asserted at :629-637).
+- **Registry and status:** six new kinds (/home/ubuntu/makam-t111/src/domain/data-contoh/index.ts:82-95), and `status` lists them (test :629-630).
+
+**AC2 `cabut` extended: MET.**
+- Mitra Jasa are set to Berhenti (index.ts:597-601). Nazhir are removed (:602-605), which the AC allows ("removed or deactivated").
+- A variant is unmarked whenever its DKI price or rate in force is still contoh (:670-679, :815-825).
+- `status` covers the new kinds.
+- The reading of "Nonaktif" is S1.
+
+**AC3 Tests: MET.**
+- **Idempotence:** `planting twice changes nothing` (:679): no new Entri Audit, one version per price book, the same status.
+- **`cabut` effects:** command tests :786, :831, :848; domain tests :616, :643, :658, :674, :691, :742, :798, :863.
+- **TPU quote:** `a TPU quote succeeds after tanam and is unavailable again after cabut without a real price` (:768). `hargaPesananTpu` returns a total after tanam and null after cabut, and the TPU listing is empty.
+
+**AC4 Amounts: PARTIAL.** The amounts are listed (ticket :39-45) and match /home/ubuntu/makam-t111/src/cli/data-contoh/rilis3.ts:21-39,119-122, but the owner has not approved them. See H1.
+
+**Money checks**
+- **No TPU price let go without a real successor: MET.** `cabut` looks at every offered variant (index.ts:671) and unmarks it before any of its rows is retired. If the unmark fails, those rows stay active and the run fails (:819-831). Only a real version counts as a successor (`versiContohBerlaku` :538-560). A variant is offered only with the mark and a DKI price (layanan/tpu.ts:74, :117). The rate history is gated on `tarif.ubah`, which is the same Admin Platform rule as the `lokasi.buat` guard (authorize.ts:532,561), so the rate check cannot fail open.
+- **Retribusi is real, not contoh: MET.** The tanam-reason check (`olehTanam`, :468) is false for "nilai asli". An explicit reason wins over the default (audit/index.ts:436). The value survives `cabut` (test :786).
+- **Idempotence: MET.** This includes a price a killed run left (:746; domain test :691) and taking over a Mitra Jasa or Nazhir a killed run left (command test :737).
+- **Audit reasons: MET.** tanam's reasons are asserted (:635-637). On cabut, the unmark (:819), the Berhenti change (:599, test :816) and the registry rows all carry the run's reason. The Nazhir removal gets it only through the command's default (wakaf/nazhir.ts:105 has `reason: null`), and no test asserts it.
+- **Production refused without its flag: MET.** The guard (data-contoh-command.ts:126-131) runs before any database access. It is now tested for the rilis3 dry run, rilis3 `--tulis` and `cabut --tulis` (:105-113).
+
+**Narrowing.** None of it is silent. Each reading is filed for the owner (ticket :201-203): the Retribusi kept out of the registry, "every variant" of the catalog, and the rate included in the TPU check. Each is either conservative or reconciles two clauses of the AC.
+
+**HARD**
+- **H1** (re-review item 2; ticket :22, :192, :200; go-live-rilis-1.md:27): the owner has not approved the amounts (DKI prices, rates, rule fees, Retribusi Rp 0), and AC4 makes that approval a condition of merge.
+
+**SOFT**
+- **S1** (ticket :202; CONTEXT.md:69-71, :176; data-contoh-command.ts:455-461): owner item 3 picks Berhenti because "the glossary avoids 'Nonaktif'". But CONTEXT.md:71 lists Nonaktif as the word to avoid for **Ditangguhkan**. Berhenti is "ended for good", yet re-planting sets a Berhenti record back to Aktif, and no test covers that path. Restate item 3 accurately for the owner.
+
+Findings: 2. Worst Spec issue: H1, the amounts are not approved by the owner (AC4). hard violations: yes
+
+Hard: 1, soft: 1
+
