@@ -1,6 +1,6 @@
 # Pengurusan IPTM order page crashes and hides the Tagihan for a filing-only order
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the selector audit of the UAT runner, 2026-10-05; blocks the Rilis 3 [BAYAR] journeys R3-47.1, R3-47.2 and R3-48.1, which must run in the SumoPod sandbox before the switch)
 Spec: tickets 46 (filing at a TPU) and 47 (Pengurusan IPTM, filing only); `.scratch/makam-v1-build/uat-rilis-2-3-checklist.md`, Tiket 47
 
@@ -52,3 +52,19 @@ Branch `ticket-116-pengurusan-iptm-halaman`, from origin/main 4713592b. The test
 - Seen, not changed: the order page asks for the refund rekening only at Dibatalkan. A final PTSP rejection (Ditolak) also raises a full refund, and the page shows no rekening form at that status (the same for a Saat Duka TPU order). If Admin Platform has no other way to learn the rekening, that is a ticket of its own.
 
 **Verification** (read off whole logs): `npx vitest run halaman-pesanan`: exit 0, 1 file, 16 tests passed. With `tests/support/copy-scan.test.ts`, `tests/tooling/use-server-exports.test.ts`, `tests/tooling/duplicate-routes.test.ts`, `tests/support/page-exists.test.ts`: exit 0, 5 files, 33 tests passed. `npm run lint`: exit 0, 0 errors, 6 warnings, none in a touched file. `npm run typecheck`: exit 0.
+
+### Review and merge (2026-10-05, orchestrator; fixed point 4713592b, head f96784f1)
+
+- **Two-axis review:** the Standards and Spec reviewers (sonnet) ran in parallel. Standards Hard: 0, soft: 3; Spec Hard: 0, soft: 2.
+- **Acceptance criteria:** all four are met.
+  - A filing-only order has its own view (`PengurusanIptmPemesan`), which reads no burial time.
+  - The Tagihan shows only while Menunggu Pembayaran.
+  - The Saat Duka TPU path is untouched (page.tsx +9/-0).
+- **Tests:** 16 tests render the real page on Postgres; 11 of them were red on the old page.
+- **Merged** in batch MB9. The browser check is the UAT rerun of R3-47.1, 47.2 and 48.1 in the sandbox.
+
+Follow-ups, for owner triage:
+- The shared notice in `pengajuan-pemesan.tsx` still says "sejak pemakaman diatur dengan TPU" on a filing-only order. The refund rule behind it is money code, so the wording is the owner's call.
+- R3-47.2's "no new Tagihan" runner check now compares two empty link lists. It should compare the Tagihan number on Admin Platform's page; this is a runner follow-up.
+- At Ditolak the page asks for no rekening, although a final PTSP rejection raises a full refund. This is unchanged from before and may need its own ticket.
+- Duplicated blocks between the new view and `page.tsx`.

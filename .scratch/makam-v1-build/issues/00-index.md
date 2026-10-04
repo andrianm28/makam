@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 116 tickets (as of 2026-10-05): 105 resolved, 1 ready-for-agent (116), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 116 tickets (as of 2026-10-05): 106 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -420,4 +420,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [113](113-go-live-docs.md) | Go-live documents: Hari switch, open release, sandbox rules, ADRs and spec | resolved | — |
 | [114](114-rehearsal-findings.md) | Rehearsal findings: first production deploy, long failure statuses, release after rollback, preflight probe cleanup | resolved | — |
 | [115](115-layanan-form-teks-tanggal.md) | Layanan order forms drop the extra text and the chosen target date | resolved | — |
-| [116](116-pengurusan-iptm-halaman-pesanan.md) | Pengurusan IPTM order page crashes and hides the Tagihan for a filing-only order | ready-for-agent | — |
+| [116](116-pengurusan-iptm-halaman-pesanan.md) | Pengurusan IPTM order page crashes and hides the Tagihan for a filing-only order | resolved | — |
