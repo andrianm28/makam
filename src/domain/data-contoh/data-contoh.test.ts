@@ -22,7 +22,10 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-/** The module composed on the test Postgres, with its neighbours' real public functions. */
+/**
+ * The module composed on the test Postgres, with its neighbours' real public functions. `ganti` swaps in a neighbour composed
+ * another way (the Layanan of a setup, whose job port a test seeds), never a stand-in for one of its functions.
+ */
 function dataContohOn(setup: PublishSetup, ganti: Partial<DataContohDeps> = {}): DataContoh {
   const komposisi = { db, clock: setup.clock, audit: setup.audit };
   return createDataContoh({

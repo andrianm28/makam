@@ -49,8 +49,10 @@
  * Pemda of an IPTM, is no entry here: it is not contoh, and a registry row would make `cabut` wait for it to be superseded.
  *
  * Only Admin Platform writes here, under `lokasi.buat` (the action creating or
- * hiding a Lokasi Mitra is), like the Katalog Lama ledger. Each owning module
- * checks and audits its own write; this module audits its own rows.
+ * hiding a Lokasi Mitra is), like the Katalog Lama ledger. The dry run of `cabut`
+ * is refused to anyone else too: the Mitra Jasa rates it checks are Admin
+ * Platform's to read, and a plan without them would leave variants out unannounced.
+ * Each owning module checks and audits its own write; this module audits its own rows.
  */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";

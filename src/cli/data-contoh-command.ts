@@ -18,7 +18,9 @@
  * TOTP, on a stack whose shell the operator already holds; run `seed:admin`
  * first), writes only through the owning modules' public functions, and every
  * write carries a reason naming this command and the environment. A dry run
- * (no `--tulis`) reads only and writes nothing. Development and test always;
+ * (no `--tulis`) reads only and writes nothing; the dry runs of `cabut` and of
+ * `tanam --set rilis3` need `seed:admin` too, because they read the Mitra Jasa
+ * rates as that Admin Platform. Development and test always;
  * staging only with `--izinkan-staging`; production only with
  * `--izinkan-production`, each refused without its flag, and `tanam` on
  * production only while payments are a trial (the SumoPod sandbox): example

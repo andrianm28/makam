@@ -552,18 +552,27 @@ Platform. It plants:
   refused `tarif_belum_ada`. (The two Biaya Pengurusan come from the launch data.)
 
 `cabut` then: sets the Mitra Jasa (Contoh) to Berhenti and removes the Nazhir (Contoh)
-(a Pengajuan Wakaf that named one keeps the name). A DKI price or a Mitra Jasa rate cannot
-be erased, so a variant is **taken off the TPU listing** (its "boleh di TPU DKI" mark off)
-while its DKI price or its rate in force is still an example version, whoever set the mark:
-a family would be charged an example price, or a Mitra Jasa paid an example rate. A variant
-whose two prices both have real versions after the example ones keeps its mark. `cabut`
-lists the variants it stops offering (the dry run too). **Before `cabut`, enter the real DKI
-price and the real Mitra Jasa rate of every variant to be offered at a TPU** (Admin Platform
-> Layanan, in force from today); the example versions stay in the price books as history, so
-after `cabut` mark a variant "boleh di TPU DKI" again only with real prices in force. The
-rows `tanam` could not record because it was killed are found again by the Audit Log (the
-reason begins `data-contoh tanam`), so a rerun records them instead of entering a second
-price.
+(a Pengajuan Wakaf that named one keeps the name). A job a Mitra Jasa (Contoh) has in
+progress is not taken away from it (it is the family's work in the ground): `cabut` lists
+those jobs, and Admin Platform reassigns them on the Layanan screen. A DKI price or a Mitra
+Jasa rate cannot be erased, so a variant is **taken off the TPU listing** (its "boleh di TPU
+DKI" mark off) while its DKI price or its rate in force is still an example version, whoever
+set the mark: a family would be charged an example price, or a Mitra Jasa paid an example
+rate. A variant whose two prices both have real versions after the example ones keeps its
+mark. `cabut` looks at every variant offered at a TPU, not only the ones the registry names
+(the Audit Log still tells an example version when its row is retired or was never
+recorded), so a second `cabut` also takes off a variant someone marked again after the first.
+It lists the variants it stops offering (the dry run too), and the dry run of `cabut` is the
+check before go-live that no variant is offered at an example price: `status`, the trial
+banner and the preflight read the registry (and the global prices) only. **Before `cabut`,
+enter the real DKI price and the real Mitra Jasa rate of every variant to be offered at a
+TPU** (Admin Platform > Layanan, in force from today); the example versions stay in the price
+books as history, so after `cabut` mark a variant "boleh di TPU DKI" again only with real
+prices in force. `cabut` cancels no order: a TPU order already placed at an example price is
+found and cancelled through the Antrean before `cabut` (it is not listed here, unlike the
+orders at a Lokasi Mitra (Contoh)). The rows `tanam` could not record because it was killed
+are found again by the Audit Log (the reason begins `data-contoh tanam`), so a rerun records
+them instead of entering a second price.
 
 ## Import the launch data on the host (`import-data-peluncuran`)
 
