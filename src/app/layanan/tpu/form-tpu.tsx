@@ -10,6 +10,7 @@ import { toBase64 } from "@/lib/files/base64";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { FOTO_MAKAM_TPU_MAX_BYTES } from "@/domain/layanan/tpu-skema";
+import { itemPesananLayanan } from "../item-pesanan";
 import type { DraftTpu } from "./draft";
 import { kirimPesananLayananTpu, verifikasiKodeMasukDanKirimLayananTpu } from "./actions";
 import type { LayananTpuTawarkan, TampilanPesananTpu } from "./tampilan";
@@ -100,11 +101,7 @@ export function FormPesananTpu({
     },
     pemesanName: nama.trim(),
     phoneNumber: telepon.trim(),
-    item: variantIds.flatMap((id) => {
-      const grup = tampilan.layanan.find((satu) => satu.varian.some((varian) => varian.id === id));
-      if (!grup) return [];
-      return [{ layananVariantId: id, targetDate: tanggal[id] ?? grup.targetPalingDini, teks: grup.teksLabel ? teks[id]?.trim() || null : null }];
-    }),
+    item: itemPesananLayanan(tampilan.layanan, { dipilih, tanggal, teks }),
     foto: foto ? { isi: foto.isi, contentType: foto.contentType } : null,
   };
   const siap = variantIds.length > 0 && tpuId !== "" && blokNomor.trim() !== "" && almarhum.trim() !== "" && nama.trim() !== "" && telepon.trim() !== "" && email.trim() !== "";
