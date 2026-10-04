@@ -202,3 +202,12 @@ Builder, branch `ticket-98-stale-form-address-check`, on top of the recorded rev
 6. Criterion 1 for the wizards (no test drives a wizard) and criterion 3 "no message-log entry" (no public read of the log) stay inferred, as before. Criterion 6 (stable action ids) stays out until the owner decides on the CI secret and `deploymentId`.
 
 **Verified** (whole logs read; the log of the vitest run is 12 lines): `MAKAM_TEST_PG=shared npx vitest run` over `smtp-email-sender.test.ts`, `masuk/actions.test.ts`, `masuk/wiring.test.ts`, `email-check-command.test.ts`, `fake-email-sender.test.ts`, `composition/adapters.test.ts`, the four new test files (`stale-action`, `halaman-galat`, `global-error`, `lokasi/error`) and the guard tests (dependency direction, retired company name, copy scan, ticket numbers in copy, brand tokens, no ops email verification, theme scope, browser Sentry, design tokens, scrub, sentry build, use-server exports, duplicate routes, ticket workflow): exit 0, 24 files, 370 tests passed. `npm run lint` exit 0 (0 errors, 6 warnings, all in files this branch does not touch); `npm run typecheck` exit 0. Not run: `npm run build` and `e2e/stale-action.spec.ts` (the component change is a rename of the predicate call and the render tests cover its output; the e2e spec is unchanged and first runs on the CI image on `main`).
+- 2026-10-04 — Orchestrator, merge (batch MB2; fixed point origin/main 0fd6bf41, head 5533744a).
+  - **Two-axis review** (Standards and Spec reviewers, sonnet, in parallel): round 1 had 2 hard findings, which went into the fix pass recorded above; the re-review had Hard: 0 on both axes.
+  - **Merged:**
+    - `src/app/error.tsx` and `global-error.tsx`: a Bahasa Indonesia stale-action page with "Muat ulang", and a generic page.
+    - The live SMTP adapter refuses reserved TLDs and domains without MX and A/AAAA (also a null MX). The resolver is injected, and a DNS failure lets the send go ahead.
+    - `e2e/stale-action.spec.ts`.
+  - **Status stays in-progress** until the re-test on a fresh staging digest: a form opened before a deploy shows the Indonesian page, and `.invalid` shows "gagal kirim". After that, close the ticket.
+  - **Optional AC (stable action ids) stays open:** it needs two builds with a constant key, plus the owner's acceptance.
+  - **Owner notes from the builder:** stale-action errors are deliberately not reported to GlitchTip; the null-MX refusal and the rethrow in the two Lokasi error boundaries go beyond the AC wording.

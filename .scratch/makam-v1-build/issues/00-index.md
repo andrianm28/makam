@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 113 tickets (as of 2026-10-04): 98 resolved, 5 ready-for-agent (109, 110, 111, 112, 113), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 113 tickets (as of 2026-10-04): 98 resolved, 4 ready-for-agent (109, 111, 112, 113), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 4 in-progress (72, 87, 98, 110).
 
 ## Tickets
 
@@ -413,7 +413,7 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [107](107-preflight-deploy-hardening.md) | Preflight and deploy hardening for the first production deploy | resolved | — |
 | [108](108-production-backups-watchdog.md) | Production backups, restore test and health watchdog | resolved | — |
 | [109](109-data-contoh-beta.md) | Production beta shows marked example data (Data Contoh): registry, Rilis 1 set, one-command removal | ready-for-agent | — |
-| [110](110-uat-kit.md) | UAT kit: a Rilis 2/3 checklist and a Playwright runner for the staging UAT | ready-for-agent | — |
+| [110](110-uat-kit.md) | UAT kit: a Rilis 2/3 checklist and a Playwright runner for the staging UAT | in-progress | — |
 | [111](111-data-contoh-rilis-2-3.md) | Data Contoh for Rilis 2/3: TPU prices and rates, Mitra Jasa, Nazhir, Rilis 2 rules | ready-for-agent | 109 |
 | [112](112-rilis-2-3-gaps-before-level-3.md) | Rilis 2/3 gaps to close before production opens level 3 | ready-for-agent | — |
 | [113](113-go-live-docs.md) | Go-live documents: Hari switch, open release, sandbox rules, ADRs and spec | ready-for-agent | — |

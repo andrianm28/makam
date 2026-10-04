@@ -1,6 +1,6 @@
 # UAT kit: a Rilis 2/3 checklist and a Playwright runner for the staging UAT
 
-Status: ready-for-agent
+Status: in-progress
 Blocked by: none
 Spec: `.scratch/makam-v1-build/uat-rilis-1-checklist.md`; Release plan (Rilis 2 = 35, 39, 41, 42, 59, 84; Rilis 3 = 43–48, 55–57, 58 and the TPU parts of 51–53); ADR 0006; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -181,3 +181,17 @@ Builder, fix pass 1 of slice 1 (branch `ticket-110-uat-kit`). Not money code.
 4. Slice 2 is unchanged (the 36 [TANPA-BAYAR] items).
 
 **HANDOFF (builder, fix pass 1)**: Next agent: (1) shake-out on a local stack, `UAT_BASE_URL=http://127.0.0.1:<port> npm run uat -- --grep "§(0|1)\b"` first, then the IPTM journeys; fix selectors in `uat/support/iptm.ts` and `uat/perjalanan`; (2) then staging with the owner reading codes out; (3) slice 2. Unverified: every journey, SumoPod's checkout, the `test.skip` annotation reaching the summary under a real Playwright run (tested with fakes of its reporter API).
+
+### Review and merge of slice 1 (2026-10-04, orchestrator; fixed point origin/main 0fd6bf41, head de1020a9)
+
+- **Two-axis review** (Standards and Spec reviewers, sonnet, in parallel): round 1 had 5 hard findings, answered in the fix pass above; the re-review had Hard: 0 on both axes. Merged in batch MB2.
+- **Slice 1 delivered:**
+  - the Rilis 2/3 checklist and Rilis 1 §11;
+  - the runner `uat/` (`npm run uat`, outside CI): persona sessions, a code file per persona, login pacing, refusal of any non-staging base URL or of a /api/health that is not staging, screenshots and an HTML report;
+  - journeys for the Rilis 1 sections and the [BAYAR] items.
+- **Still open: slice 2,** the 36 [TANPA-BAYAR] Rilis 2/3 items. Before the switch, three [BAYAR] items must still be scripted or walked by hand: R3-47.1 (only started), and R3-47.2 and R3-48.1 (`test.fixme`).
+- **Soft follow-ups:**
+  - `uat/README.md` does not describe the /api/health refusal.
+  - The "pays carries @bayar" guard keys on a hand-kept list of helper names.
+  - Rilis 1 §11 Layanan-at-checkout stops at the picker; the Tagihan rows are manual.
+  - R3-46.1/R3-53.1 do not assert the cancelled Layanan job; the refund amount is manual.
