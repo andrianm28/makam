@@ -91,12 +91,12 @@ Procedure: runbook, "Rehearsal of the first production deploy". No nginx change:
   Check: `origin/main` equals B's ref.
   Evidence:
 - [ ] **The UAT of Rilis 1 passes in the runner**: the checklist from section 0 to 11, 0 failed, a screenshot per step.
-  Evidence (2026-10-05, partial):
+  Evidence: (2026-10-05, partial)
   - The runner on staging, at 4b437d84 and then 4713592b (ticket 115): §0–§11 pass. Reports and screenshots are under `/home/ubuntu/uat-runs/2026-10-04-rilis1`.
   - Still open: §5's OTP signed out (the signed-in holder skips the code), and the owner's checks of §7 email and push.
   - Skipped: §9's Rp 10 juta cap item (no data).
 - [ ] **Every [BAYAR] item of Rilis 2 and 3 is paid and confirmed on staging.** One SumoPod project means none of them can be done after the switch.
-  Evidence (2026-10-05, partial). Paid and confirmed in the SumoPod sandbox:
+  Evidence: (2026-10-05, partial) paid and confirmed in the SumoPod sandbox:
   - R2-35.1: MKM-2026-000016, pay-after Tagihan Lunas Rp 1.150.000;
   - R2-41.1;
   - R2-42.1: the Hak Pakai is back to Aktif until 2036-09-14;
@@ -109,7 +109,7 @@ Procedure: runbook, "Rehearsal of the first production deploy". No nginx change:
   - R2-59.1 and 59.2 (P9, which needs one Kode Masuk).
 - [ ] **Every SumoPod webhook delivery shows 2xx**, and the UAT orders are cancelled.
   Check: the dashboard's Webhooks tab.
-  Evidence (2026-10-05, partial):
+  Evidence: (2026-10-05, partial)
   - The staging nginx log shows POST /api/webhooks/pembayaran on 2026-10-04 UTC: 11× 200 and nothing else.
   - Earlier non-2xx answers: 401 and 500 on 28 Sep, during setup; 2× 401 on 3 Oct, around the secret rotation.
   - The UAT orders are not cancelled yet.
