@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 115 tickets (as of 2026-10-05): 104 resolved, 1 ready-for-agent (115), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 115 tickets (as of 2026-10-05): 105 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -419,4 +419,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [112](112-rilis-2-3-gaps-before-level-3.md) | Rilis 2/3 gaps to close before production opens level 3 | resolved | — |
 | [113](113-go-live-docs.md) | Go-live documents: Hari switch, open release, sandbox rules, ADRs and spec | resolved | — |
 | [114](114-rehearsal-findings.md) | Rehearsal findings: first production deploy, long failure statuses, release after rollback, preflight probe cleanup | resolved | — |
-| [115](115-layanan-form-teks-tanggal.md) | Layanan order forms drop the extra text and the chosen target date | ready-for-agent | — |
+| [115](115-layanan-form-teks-tanggal.md) | Layanan order forms drop the extra text and the chosen target date | resolved | — |

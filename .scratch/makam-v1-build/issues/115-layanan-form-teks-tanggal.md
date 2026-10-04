@@ -1,6 +1,6 @@
 # Layanan order forms drop the extra text and the chosen target date
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found in the Rilis 1 UAT on staging, 2026-10-05; blocks the G2 sign-off and the switch, owner approved "ya 115")
 Spec: tickets 50 (Layanan order at a Lokasi Mitra) and 56 (TPU Layanan); `.scratch/makam-v1-build/uat-rilis-1-checklist.md` §11
 
@@ -65,3 +65,18 @@ Built on branch `ticket-115-layanan-form-keys`, based on 2b2acd02 (the local `ma
    - Both forms keep `""` in `variantIds = Object.values(dipilih)` after a Layanan is put back to "Tidak dipesan" (`form-pesanan.tsx:48`, `form-tpu.tsx:61`). At a Lokasi Mitra that makes `hargaPilihanLayanan` (`z.array(z.uuid())`) answer null for the whole set, so the price breakdown disappears while another Layanan is still chosen; on both forms "Pesan layanan" stays enabled with nothing chosen and the action then refuses with "Periksa lagi isian Anda." What is charged is not affected. The fix is to leave the empty ids out, but it lives in a component and needs the DOM test above.
    - Terencana (`pesan-makam/terencana/data-kirim.tsx:88`): a Layanan picked with no date is left off the order without a word (`satu.targetDate ? [...] : []`), while the "Layanan ditambahkan ke Tagihan" line and the total bar still count its price. A Perpanjangan pick with no date is refused by the action's schema instead. Both use the same `PilihLayanan`. Ticket 53's rule should say which it is: refuse with a message, or prefill the earliest date as the two standalone forms do.
 3. **Decision:** the forms keep their three maps instead of moving to `PilihanPerLayanan`, the model of the checkout pickers, so no field of either form changed. Moving would make this mistake impossible to write; it is an optional follow-up.
+
+### Review and merge (2026-10-05, orchestrator; fixed point 2b2acd02, head 6544378b)
+
+- **Two-axis review:** the Standards and Spec reviewers (sonnet) ran in parallel. Standards Hard: 0, soft: 4; Spec Hard: 0, soft: 2.
+- **The fix:** `itemPesananLayanan` reads the text and the date by the Layanan id, and both forms use it.
+- **Tests:** 16 new tests drive the real Server Actions on Postgres; 7 of them were red on the old lookup, showing both UAT symptoms.
+- **Checkout pickers** (Saat Duka, TPU, Terencana, Perpanjangan) were checked and found clean.
+- **Merged** in batch MB8. The UAT rerun of §11 on staging is the browser check.
+
+Follow-ups, deliberately left, for owner triage:
+- AC 4's tests call the shared function, not each form's own call site; the repo has no jsdom or Testing Library (an owner decision whether to add them).
+- Both forms keep "" in the chosen variants after "Tidak dipesan": the price breakdown vanishes, and "Pesan layanan" stays enabled with nothing chosen.
+- The Terencana checkout drops a Layanan picked without a date while its price still counts in the subtotal.
+- Duplicated test helpers.
+- The name clash of `ItemPesananLayanan`.
