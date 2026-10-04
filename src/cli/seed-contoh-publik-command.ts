@@ -458,8 +458,12 @@ function bacaIzin(argv: string[], source: Record<string, string | undefined>): {
   return { alasan: alasanSeed(appEnv.data === "staging") };
 }
 
-/** The modules this command drives, on one database connection, composed from the adapters of this stack. */
-function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>, clock?: Clock) {
+/**
+ * The modules this command drives, on one database connection, composed from the adapters of this stack.
+ * `alasanBawaanAudit` is the reason their one Audit Log stamps on every Entri Audit that has none of its own
+ * (ticket 109's `data-contoh`: every write of a run names the command and the environment).
+ */
+export function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>, clock?: Clock, alasanBawaanAudit?: string) {
   const overrides = {
     // See this file's header comment: every email this command sends goes to an
     // address it invented itself, never a real person's, so it never needs the
@@ -481,7 +485,7 @@ function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType
     devFilesRoot: env.DEV_FILES_ROOT,
     overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
   });
-  const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+  const { audit, identity } = composeIdentity({ env, db: database.db, adapters, alasanBawaan: alasanBawaanAudit });
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
   const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
   const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
@@ -498,7 +502,7 @@ function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType
     inventory,
     fieldwork: createFieldwork({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity, notifications, lokasi, billing }),
   };
-  return { modul, operatorSettings };
+  return { modul, operatorSettings, audit };
 }
 
 /** Brings each example Lokasi Mitra already listed up to the mock; what is left are the ones still to build. */
@@ -583,12 +587,12 @@ export async function seedContohPublikCommand(
 }
 
 /** The one Petugas Lapangan every example Lokasi Mitra's Kunjungan Verifikasi and Cek Denah are done by (the role is not Lokasi-scoped). */
-async function undangPetugas(modul: Modul, admin: Actor, alasan: string): Promise<{ ok: true; value: Actor } | Gagal> {
+export async function undangPetugas(modul: Modul, admin: Actor, alasan: string, petugas: { email: string; phoneNumber: string } = PETUGAS): Promise<{ ok: true; value: Actor } | Gagal> {
   return masukSebagai(
     modul,
-    PETUGAS.email,
+    petugas.email,
     { role: "petugas_lapangan" },
-    () => modul.identity.inviteStaff(admin, { ...PETUGAS, role: "petugas_lapangan", reason: alasan }),
+    () => modul.identity.inviteStaff(admin, { ...petugas, role: "petugas_lapangan", reason: alasan }),
   );
 }
 
@@ -919,16 +923,36 @@ async function samakanDenganContoh(modul: Modul, admin: Actor, lokasiId: string,
   return { ok: true, berubah: tarifBeda.length + kurang + prototipeBelum + dihapus + (perluNama ? 1 : 0) };
 }
 
+/**
+ * What a caller that keeps a register of what this builds (the Data Contoh command, ticket 109) hooks into:
+ * each is called at the earliest moment its entity exists, so a build cut short has already told the register.
+ * `lewatiBiayaPlatform` leaves the shared platform fee to that caller; `alasanLokasi` is the reason the Lokasi
+ * Mitra's creation is audited with.
+ */
+export interface SeedHook {
+  lokasiDibuat?(lokasiId: string): Promise<void>;
+  adminLokasiSiap?(admin: Actor): Promise<void>;
+  jenisMakamDibuat?(jm: JenisMakamSpec, jenisMakamId: string): Promise<void>;
+  lewatiBiayaPlatform?: boolean;
+  alasanLokasi?: string;
+}
+
 /** One example Lokasi Mitra, taken all the way to Terverifikasi (and, where the mock has it, Terencana aktif). */
-async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni: string, spec: ContohLokasiSpec, alasan: string): Promise<{ ok: true; id: string } | Gagal> {
+export async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni: string, spec: ContohLokasiSpec, alasan: string, hook: SeedHook = {}): Promise<{ ok: true; id: string } | Gagal> {
   const { lokasi, tariffs, fieldwork, inventory } = modul;
 
-  const dibuat = await lokasi.createLokasiMitra(admin, { name: spec.name, pengelolaName: spec.pengelolaName, address: spec.address, city: spec.city });
+  const dibuat = await lokasi.createLokasiMitra(
+    admin,
+    { name: spec.name, pengelolaName: spec.pengelolaName, address: spec.address, city: spec.city },
+    hook.alasanLokasi ? { reason: hook.alasanLokasi } : undefined,
+  );
   if (!dibuat.ok) return { ok: false, reason: `lokasi: ${dibuat.reason}` };
   const lokasiId = dibuat.lokasiMitra.id;
+  await hook.lokasiDibuat?.(lokasiId);
 
   const adminLokasi = await undangAdminLokasi(modul, admin, lokasiId, spec, alasan);
   if (!adminLokasi.ok) return { ok: false, reason: `admin lokasi: ${adminLokasi.reason}` };
+  await hook.adminLokasiSiap?.(adminLokasi.value);
 
   const agreement = await lokasi.uploadAgreement(admin, lokasiId, { scan: { body: scanPerjanjian, contentType: "application/pdf" }, signedOn: hariIni });
   if (!agreement.ok) return { ok: false, reason: `perjanjian: ${agreement.reason}` };
@@ -963,6 +987,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
     });
     if (!created.ok) return { ok: false, reason: `jenis makam ${jm.name}: ${created.reason}` };
     jenisMakamIds.push(created.jenisMakam.id);
+    await hook.jenisMakamDibuat?.(jm, created.jenisMakam.id);
 
     if (jm.hargaBaru) {
       const scheduled = await tariffs.setJenisMakamTariff(admin, created.jenisMakam.id, {
@@ -985,7 +1010,7 @@ async function seedOneLokasi(modul: Modul, admin: Actor, petugas: Actor, hariIni
 
   // The platform fee is the Operator's own, shared by every Lokasi Mitra: set once
   // (by this command or another seed) and reused, never given a second version.
-  const platformSudahAda = await tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now());
+  const platformSudahAda = hook.lewatiBiayaPlatform || (await tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now()));
   if (!platformSudahAda) {
     const platform = await tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: BIAYA_LAYANAN_PLATFORM, effectiveOn: hariIni, reason: alasan });
     if (!platform.ok) return { ok: false, reason: `biaya layanan platform: ${platform.reason}` };

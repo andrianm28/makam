@@ -301,6 +301,8 @@ export {
 export { alasanTolakTerencanaKeys, type AlasanTolakTerencana } from "./alasan-tolak";
 export type { OrderTerencanaAntrean, OrderTerencanaStaf, UnitTerencanaBaca } from "./reads-terencana-staf";
 export { pernahMenyebutPetakAtauKavling } from "./riwayat-petak";
+/** The orders a Lokasi Mitra still has running, for a caller that holds no whole Pemesanan module (the Data Contoh command, ticket 109). */
+export { pesananBerjalanDiLokasi } from "./pesanan-di-lokasi";
 /**
  * The Terencana wizard's boundaries. A Client Component (the wizard's form) takes
  * these from this file rather than from this module's barrel, because a bundler keeps

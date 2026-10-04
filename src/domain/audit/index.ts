@@ -49,6 +49,12 @@ export type AuditAction =
   | "akun.totp_reset"
   /** An old app's catalog code is bound to the Lokasi Mitra or Jenis Makam the import created from it (ticket 86). */
   | "katalog_lama.impor"
+  /** A Data Contoh set records an example entity it planted (ticket 109). */
+  | "data_contoh.tanam"
+  /** A planted fixture's build ran to its end: the registry marks it finished (ticket 109). */
+  | "data_contoh.selesai"
+  /** `data-contoh cabut` retires an example entity: its Lokasi Mitra hidden, its staff Akun Dinonaktifkan (ticket 109). */
+  | "data_contoh.cabut"
   /** Admin Platform changes Pengaturan Operator. */
   | "pengaturan_operator.ubah"
   /** An Akun Staf turns push on for a Perangkat Push. */
@@ -404,7 +410,14 @@ export interface AuditLog {
   allEntriesForLokasi(lokasiId: string): Promise<AuditEntry[]>;
 }
 
-export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
+/**
+ * `alasanBawaan` is for an ops command that composes its modules around one
+ * Audit Log of its own (ticket 109's `data-contoh`): every Entri Audit recorded
+ * without a reason of its own carries it, so each write of that run names the
+ * command and the stack, whichever module made it. An entry with its own reason
+ * keeps it. The `web` and `worker` runtimes give none.
+ */
+export function createAuditLog(deps: { db: Database; clock: Clock; alasanBawaan?: string }): AuditLog {
   return {
     staffWrite(db, write) {
       return refusable(db, async (tx) => {
@@ -420,7 +433,7 @@ export function createAuditLog(deps: { db: Database; clock: Clock }): AuditLog {
             lokasiId: entry.lokasiId ?? null,
             before: entry.before,
             after: entry.after,
-            reason: entry.reason,
+            reason: entry.reason ?? deps.alasanBawaan ?? null,
           });
           recorded++;
         };

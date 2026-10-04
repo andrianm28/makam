@@ -10,9 +10,10 @@ import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesan
 import { composePayouts } from "@/composition/payouts";
 import { composeRefunds, refundsTertunda } from "@/composition/refunds";
 import { createDatabase } from "@/db/client";
+import { createDataContoh } from "@/domain/data-contoh";
 import { createFieldwork } from "@/domain/fieldwork";
 import { createInventory } from "@/domain/inventory";
-import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
+import { pernahMenyebutPetakAtauKavling, pesananBerjalanDiLokasi } from "@/domain/pemesanan";
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createWakaf } from "@/domain/wakaf";
@@ -259,6 +260,15 @@ export function testServerRuntime() {
       pengurusan: pengursModule,
       perpanjangan,
       wakaf,
+      dataContoh: createDataContoh({
+        db: database.db,
+        clock: adapters.clock,
+        audit,
+        lokasi,
+        identity,
+        tariffs,
+        pemesanan: { pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi({ db: database.db }, lokasiId) },
+      }),
     };
   }
   afterAll(async () => {

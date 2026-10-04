@@ -195,6 +195,12 @@ function healthy(w: ReturnType<typeof world>) {
       '    code=${FAKE_HEALTH_CODE:-200}',
       '    if [ "${FAKE_HEALTH_RILIS:-1}" = absent ]; then body="{\\"ok\\":true,\\"environment\\":\\"production\\"}"',
       '    else body="{\\"ok\\":true,\\"environment\\":\\"production\\",\\"rilisTerbuka\\":${FAKE_HEALTH_RILIS:-1}}"; fi ;;',
+      // The running stack's /api/browser-config: whether Data Contoh is active (ticket 109): true, false, null (a failed read), no such field, or nothing answering.
+      '  */api/browser-config)',
+      '    [ "${FAKE_CONFIG_DOWN:-0}" != 1 ] || { printf 000; exit 7; }',
+      '    code=${FAKE_CONFIG_CODE:-200}',
+      '    if [ "${FAKE_CONTOH:-false}" = absent ]; then body="{\\"sentryDsn\\":\\"\\",\\"paymentTrial\\":false}"',
+      '    else body="{\\"sentryDsn\\":\\"\\",\\"paymentTrial\\":false,\\"contohAktif\\":${FAKE_CONTOH:-false}}"; fi ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
       `      "POST "*/deployments) ${INTERRUPT_AT("gh-create")}`,
@@ -516,6 +522,13 @@ describe("makam-preflight", () => {
       healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay.sumopod.com\n` })),
     );
     expect(liveOverride.lines.filter((line) => /production on the sandbox/.test(line))).toEqual([]);
+  });
+
+  it("reads SUMOPOD_BASE_URL the way the app does, so a quoted value or a path still names the sandbox", () => {
+    for (const value of ['"https://api-pay-sandbox.sumopod.com"', "'https://api-pay-sandbox.sumopod.com'", "https://api-pay-sandbox.sumopod.com/api/v1", " https://API-PAY-SANDBOX.sumopod.com "]) {
+      const result = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=${value}\n` })));
+      expect(result.lines.filter((line) => /^SKIP .*\[04\].*production on the sandbox/.test(line)), value).toHaveLength(1);
+    }
   });
 
   it("fails when the SumoPod webhook secret is not set or is not a Svix secret, without printing it", () => {
@@ -899,5 +912,62 @@ describe("makam-preflight", () => {
     const without = preflight(healthy(world()), ["--met-s3"]);
     expect(without.calls).toMatch(/aws s3api put-object --bucket makam-prod-files/);
     expect(without.calls).not.toContain("--endpoint-url");
+  });
+  describe("data contoh (Data Contoh, ticket 109)", () => {
+    const onSandbox = `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay-sandbox.sumopod.com\n`;
+
+    it("is one SKIP line while payments are a trial: the marked (Contoh) records are allowed, and the line says how to take them away", () => {
+      const result = preflight(healthy(world({ envFile: onSandbox })), [], { FAKE_CONTOH: "true" });
+      const line = result.lines.filter((one) => /^SKIP .*\[109\].*data contoh/.test(one));
+      expect(line).toHaveLength(1);
+      expect(line[0]).toMatch(/trial.*data-contoh cabut/);
+      // It does not read the running stack at all: nothing about Data Contoh can fail a production that is still a trial.
+      expect(result.calls).not.toContain("/api/browser-config");
+      expect(result.lines.filter((one) => /data contoh/.test(one) && !one.startsWith("SKIP"))).toEqual([]);
+    });
+
+    it("fails when the running stack says Data Contoh is active and payments are not a trial, naming the command that removes it", () => {
+      const result = preflight(healthy(world()), [], { FAKE_CONTOH: "true" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[109\].*data contoh: .*aktif.*data-contoh\.mjs cabut --tulis --izinkan-production/));
+      expect(result.code).toBe(1);
+      expect(result.calls).toMatch(/curl .*http:\/\/127\.0\.0\.1:3100\/api\/browser-config/);
+      // An override at the live host is the same as none.
+      const live = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay.sumopod.com\n` })), [], { FAKE_CONTOH: "true" });
+      expect(live.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[109\].*data contoh/));
+    });
+
+    it("reads SUMOPOD_BASE_URL the way the app does: quotes, padding, a path or capital letters still name the sandbox, and nothing is asked of the stack", () => {
+      for (const value of ['"https://api-pay-sandbox.sumopod.com"', "'https://api-pay-sandbox.sumopod.com'", "https://api-pay-sandbox.sumopod.com/api/v1", " https://API-PAY-SANDBOX.sumopod.com "]) {
+        const result = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=${value}\n` })), [], { FAKE_CONTOH: "true" });
+        expect(result.lines.filter((one) => /^SKIP .*\[109\].*data contoh: .*trial/.test(one)), value).toHaveLength(1);
+        expect(result.lines.filter((one) => /^FAIL .*\[109\]/.test(one)), value).toEqual([]);
+        expect(result.calls, value).not.toContain("/api/browser-config");
+      }
+    });
+
+    it("does not take a value that is not a URL for the sandbox, as the app does not: the stack is asked", () => {
+      const result = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=api-pay-sandbox.sumopod.com\n` })), [], { FAKE_CONTOH: "true" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[109\].*data contoh/));
+    });
+
+    it("needs the env file: with none to read it is a SKIP that says so, and the stack is not asked", () => {
+      const result = preflight(healthy(world({ envFile: null })), [], { FAKE_CONTOH: "true" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[109\].*data contoh: needs the env file/));
+      expect(result.calls).not.toContain("/api/browser-config");
+    });
+
+    it("passes when the running stack says no Data Contoh is active, reading the stack on its own port", () => {
+      const result = preflight(healthy(world({ envFile: ENV_FILE.replace("MAKAM_WEB_PORT=3100", "MAKAM_WEB_PORT=3110") })));
+      expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[109\].*data contoh: .*tidak ada/));
+      expect(result.calls).toMatch(/curl .*http:\/\/127\.0\.0\.1:3110\/api\/browser-config/);
+    });
+
+    it("is a SKIP with the instruction, never a PASS, when it cannot tell: nothing answers, a failed read, or an image from before ticket 109", () => {
+      for (const extra of [{ FAKE_CONFIG_DOWN: "1" }, { FAKE_CONTOH: "null" }, { FAKE_CONTOH: "absent" }, { FAKE_CONFIG_CODE: "503", FAKE_CONTOH: "absent" }] as Record<string, string>[]) {
+        const result = preflight(healthy(world()), [], extra);
+        expect(result.lines, JSON.stringify(extra)).toContainEqual(expect.stringMatching(/^SKIP .*\[109\].*data contoh: .*data-contoh\.mjs status/));
+        expect(result.lines.filter((one) => /\[109\]/.test(one) && !one.startsWith("SKIP"))).toEqual([]);
+      }
+    });
   });
 });

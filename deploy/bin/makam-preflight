@@ -19,7 +19,7 @@
 #
 # The bracket names the ticket items a check proves (02 infrastructure, 03 S3,
 # 04 SumoPod, 72 deploys, 64 and 108 the production backup timers, 107 the open
-# release). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
+# release, 109 Data Contoh). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
 #
 # Read-only, except for objects it names itself and removes again: the S3 probe
 # object, the GitHub probe Deployment and the Dump its own backup writes. One
@@ -468,11 +468,31 @@ sumopod_get() {
   printf '%s' "$code"
 }
 
+# Whether payments are a trial: SUMOPOD_BASE_URL in the env file names SumoPod's
+# sandbox host, read the way the app reads it (paymentsAreTrial, src/lib/env.ts):
+# a URL, compared by host, so a path or capital letters do not matter, after the
+# quotes and padding Compose removes. Anything else, a value that is not a URL and
+# an env file that cannot be read included, is "no": payments are taken as live.
+# The checks for the SumoPod key and for Data Contoh both ask this one question.
+payments_are_trial() {
+  local base host
+  [ -r "$ENV_FILE" ] || return 1
+  base=$(setting SUMOPOD_BASE_URL | tr -d '[:space:]"'"'")
+  case "$base" in
+    *://*) ;;
+    *) return 1 ;;
+  esac
+  host=${base#*://}
+  host=${host%%[/?#]*}
+  host=${host##*@}
+  [ "$(printf '%s' "$host" | tr 'A-Z' 'a-z')" = "api-pay-sandbox.sumopod.com" ]
+}
+
 check_sumopod_key() {
   local base code control url
   base=$(setting SUMOPOD_BASE_URL)
   base=${base:-https://api-pay.sumopod.com}
-  if [ "$base" = "https://api-pay-sandbox.sumopod.com" ] || [ "$base" = "https://api-pay-sandbox.sumopod.com/" ]; then
+  if payments_are_trial; then
     skip "04" "production on the sandbox" "SUMOPOD_BASE_URL points at SumoPod's sandbox: payments on makam.co.id are a trial (banner and Bayar notice show) until the live keys are installed and the override is removed (runbook, \"Production (ticket 65)\")"
   fi
   url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
@@ -640,6 +660,39 @@ check_rilis() {
   fi
 }
 
+# Data Contoh (ticket 109): the marked "(Contoh)" example records a beta shows, with
+# example prices. While payments are a trial (SUMOPOD_BASE_URL names SumoPod's test
+# host) they are allowed and the line is a SKIP. Once it is not (the live host, or no
+# override, which production reads as live), any that is still active FAILs: a real
+# order could be placed at an example Lokasi Mitra and charged an example price.
+# What is active is asked of the running stack's own /api/browser-config
+# (contohAktif: true, false, or null when its registry could not be read), the way
+# check_rilis asks /api/health, so no database is touched from here. An answer that
+# is not a plain true or false proves nothing and is a SKIP, never a PASS.
+check_data_contoh() {
+  local port url body code reported
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "109" "data contoh" "needs the env file (above)"
+    return 0
+  fi
+  if payments_are_trial; then
+    skip "109" "data contoh" "payments are still a trial (SUMOPOD_BASE_URL names SumoPod's test host), so the marked (Contoh) records are allowed; before the live keys go in, remove them with data-contoh cabut (runbook, \"Data Contoh\") and run this preflight again"
+    return 0
+  fi
+  port=$(setting MAKAM_WEB_PORT)
+  url="http://127.0.0.1:${port:-3100}/api/browser-config"
+  new_tmp
+  body=$REPLY
+  code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 10 "$url" 2> /dev/null) || code="no answer"
+  reported=$(sed -n 's/.*"contohAktif" *: *\([a-z]*\).*/\1/p' "$body" 2> /dev/null | head -n 1) || reported=""
+  rm -f "$body"
+  case "$reported" in
+    false) pass "109" "data contoh" "$url reports contohAktif=false: tidak ada Data Contoh aktif" ;;
+    true) fail "109" "data contoh" "$url reports contohAktif=true: Data Contoh masih aktif while payments are not a trial; remove it before real operation: docker compose -p makam-prod exec web node dist/data-contoh.mjs cabut --tulis --izinkan-production (it refuses until the real Biaya Layanan Platform has superseded the example one; runbook, \"Data Contoh\")" ;;
+    *) skip "109" "data contoh" "$url (HTTP $code) does not say whether Data Contoh is active (nothing answers, the registry could not be read, or an image from before ticket 109), so it is not checked: start the stack, then run node dist/data-contoh.mjs status --izinkan-production inside it and run this preflight again" ;;
+  esac
+}
+
 # Ticket 108's four production timers. deploy/install-host.sh enables them once
 # the production stack really runs (deployed.env names a MAKAM_DIGEST); without
 # them no production Dump is taken, no restore test runs and nothing watches
@@ -679,6 +732,7 @@ check_webhook_secret
 check_webhook_forged
 check_github_deployments
 check_rilis
+check_data_contoh
 check_s3
 check_backup_key
 check_backup_and_restore

@@ -12,11 +12,13 @@ export function composeIdentity(deps: {
   env: RuntimeEnv;
   db: Database;
   adapters: Adapters;
+  /** The reason an ops command's Audit Log stamps on every entry that has none of its own (`createAuditLog`). */
+  alasanBawaan?: string;
 }): {
   audit: AuditLog;
   identity: Identity;
 } {
-  const audit = createAuditLog({ db: deps.db, clock: deps.adapters.clock });
+  const audit = createAuditLog({ db: deps.db, clock: deps.adapters.clock, alasanBawaan: deps.alasanBawaan });
   const identity = createIdentity({
     db: deps.db,
     clock: deps.adapters.clock,

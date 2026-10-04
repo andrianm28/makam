@@ -441,8 +441,8 @@ The Operator's own reference values that no other screen owns, kept by Admin Pla
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
 
 **Data Contoh**:
-A record that stands in for a real one while the real values do not exist yet (an example Lokasi Mitra with its tariffs and Layanan prices, a Biaya Layanan Platform, a Mitra Jasa, a Nazhir), always named with "(Contoh)" and shown openly as an example. Once it must no longer be taken for real it is retired: hidden from the public and never published again, its prices replaced by real ones.
-_Avoid_: Dummy, seed, mock, data uji, data palsu
+A record that stands in for a real one while the real values do not exist yet (an example Lokasi Mitra with its tariffs and Layanan prices, a Biaya Layanan Platform, a Mitra Jasa, a Nazhir), always named with "(Contoh)" and shown openly as an example while the beta takes no real orders. It is planted by `data-contoh tanam`, taken through the real publish gate, and retired by `data-contoh cabut` before real operation: hidden from the public and never published again, its prices replaced by real ones. Distinct from a Lokasi Mitra flagged `data_contoh` (ticket 86), which is hidden from every public read: that flag is how `cabut` retires one, never how an example is shown. A price a contoh set entered cannot be erased (Tariffs only inserts versions), so `cabut` refuses until a real version has superseded it.
+_Avoid_: Dummy, data dummy, seed, mock, data uji, data palsu
 
 **Peringatan Staf**:
 A message that tells a staff member about work needing them (a new order, an Antrean row, an assigned job); it goes by push to each of their Perangkat Push and by email.

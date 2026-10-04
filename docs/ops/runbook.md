@@ -445,6 +445,69 @@ go through the real live FileStore. See `src/cli/seed-contoh-publik-command.ts`'
 header comment for exactly which of the prototype's fields this reproduces,
 approximates, or has no real counterpart for.
 
+## Data Contoh on the beta (`data-contoh`)
+
+While the beta runs on the SumoPod sandbox with no real orders (owner decision 2026-10-04),
+makam.co.id shows many clearly marked example records, prices included: five Lokasi Mitra
+named "… (Contoh)" taken through the real publish gate (Denah, Petak, tariffs, Kontak
+Siaga), the catalog's Layanan switched on at each with an example Lokasi price, an example
+Biaya Layanan Platform when none is set, and their staff on `.invalid` addresses. The trial
+banner adds a line while any is active. One command removes all of it before real operation.
+Unlike `seed-contoh-publik` it runs on production, and it keeps a registry
+(`data_contoh_entri`) of everything it created.
+
+```bash
+cd /opt/makam-v1/prod
+P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production           # dry run: reads only
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --tulis --izinkan-production   # plants
+$P exec web node dist/data-contoh.mjs status --izinkan-production                        # what is active, per kind
+$P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what it would retire, and whether it may
+$P exec web node dist/data-contoh.mjs cabut --tulis --izinkan-production                 # retires everything
+```
+
+On staging use `--izinkan-staging` instead (and `-p makam-staging`, `staging.env`, as in the sections above). Each
+environment is refused without its own flag, and `tanam` on production is refused unless
+`SUMOPOD_BASE_URL` names the sandbox host: example records are never planted beside real
+operation. It needs `seed:admin` first and acts as the stack's first Admin Platform, like
+the other ops commands (never copy that pattern into app code); every Entri Audit it writes,
+in whichever module, carries the reason `data-contoh <subcommand> (production,
+--izinkan-production)` (its Audit Log stamps it on every entry that has none of its own). It never writes
+Pengaturan Operator on production. Run `import:data-peluncuran` first when the Layanan
+catalog is empty: the set only switches catalog entries on (it never creates one, because a
+Layanan an offering names can never be deleted), and a later `tanam` adds the Layanan a
+catalog gained since.
+
+- **Idempotent.** A second `tanam` finds every fixture code recorded and changes nothing. A
+  run cut short leaves its Lokasi Mitra recorded but unfinished; the next `tanam` retires
+  that one (hidden, its staff deactivated) and builds it again. A price is never let go of
+  while it is in force: a run that died after entering the example Biaya Layanan Platform
+  has it finished by the next `tanam` (or recorded, when it died before recording it: the
+  Audit Log names the command as its author), not retired and built twice. Run one `data-contoh`
+  command at a time; two overlapping `tanam` runs are not supported, but a run that finds
+  another has recorded a fixture first retires nothing of the other's. (Identity lets
+  one email ask for a new Kode Masuk once a minute: a rerun that answers
+  `tunggu_kirim_ulang` wants a minute's wait, then the same command.)
+- **`cabut`** marks each Lokasi Mitra `data_contoh` (hidden from every public read, never
+  publishable again), deactivates the staff, and reports the orders still running at them
+  (cancel those through the Antrean). Exit 0 only when nothing contoh is left active.
+- **A price cannot be erased.** Tariff versions are insert-only, so the example Biaya
+  Layanan Platform is retired by being superseded. `cabut` refuses with exit 1, changing
+  nothing, while it is still the version in force, or a version dated for the future that no
+  later one has taken over: enter the real fee on the Tarif screen (in force from today, or
+  from the same future date), then run `cabut` again. Only a real version is a successor: a
+  version another example version superseded still blocks. This holds for an example price
+  the registry does not hold too: a `tanam` killed between entering the fee and recording it
+  leaves one, and the Audit Log names the command as its author, so `cabut` (dry run and
+  `--tulis`) lists it as "tidak tercatat di registri" and refuses, `status` lists it, the
+  trial banner and the preflight count it as active, and the next `tanam` records it
+  instead of entering a second fee. An Operator's own fee is never taken for an example one,
+  whatever its amount. Prices tied to an example Lokasi Mitra go with it.
+- **Preflight.** `makam-preflight` has a "data contoh" line (ticket 109): SKIP while
+  payments are a trial, FAIL when Data Contoh is still active and they are not (it asks the
+  running stack's `/api/browser-config`, `contohAktif`, which is true for an example price
+  in force that the registry does not hold, as well as for any active registry entry).
+
 ## Import the launch data on the host (`import-data-peluncuran`)
 
 The owner's launch reference data (the DKI TPU, the Biaya Pengurusan, the
@@ -2258,6 +2321,7 @@ What it checks, and what runs it:
 | GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (its ref is the image's revision label, the bare commit SHA: GitHub takes no `sha-<revision>` image tag as a ref), set inactive, deleted | 72 |
 | open release | `RILIS_TERBUKA` in the env file, and with `--rilis N` the `rilisTerbuka` that `http://127.0.0.1:<MAKAM_WEB_PORT>/api/health` reports (SKIP when the field is absent or the stack is down) | 72, 107 |
 | production timers | `systemctl is-enabled` of `makam-prod-db-backup.timer`, `makam-prod-files-backup.timer`, `makam-prod-restore-test.timer` and `makam-prod-health.timer` (ticket 108): FAIL unless all four say `enabled`; `deploy/install-host.sh` enables them once `deployed.env` names a `MAKAM_DIGEST`, so run it again after the first production deploy | 64, 108 |
+| data contoh | `[109] data contoh` (Data Contoh, ticket 109): SKIP while `SUMOPOD_BASE_URL` names the sandbox host, read the way the app reads it (the host of the URL, after the quotes and padding Compose removes; a path or capital letters do not matter) and SKIP "needs the env file" when it cannot be read; otherwise it asks the running stack's `http://127.0.0.1:<MAKAM_WEB_PORT>/api/browser-config`: FAIL when `contohAktif` is `true` (remove it with `data-contoh cabut --tulis --izinkan-production`), PASS when `false`, and a SKIP, never a PASS, when it cannot tell (nothing answers, the registry could not be read, an image from before ticket 109): at go-live this line has to read PASS, a SKIP there proves nothing | 109 |
 | production on the sandbox | one SKIP line, "production on the sandbox", when `SUMOPOD_BASE_URL` is SumoPod's sandbox host: payments are a trial until the live keys are installed and the override removed | 04, 101 |
 | data contoh | ticket 109: SKIP while `SUMOPOD_BASE_URL` is the sandbox host; FAIL when any Data Contoh is still active and it is not, so the live keys cannot be installed over example data ("Going live") | 109 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
