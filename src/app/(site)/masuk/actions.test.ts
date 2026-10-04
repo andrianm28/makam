@@ -99,7 +99,7 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     const failing = vi.spyOn(email, "send").mockRejectedValueOnce(makeError());
     browser.setHeader("x-real-ip", "203.0.113.60");
     try {
-      const failed = await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }));
+      const failed = await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.co.id" }));
       expect(failed).toMatchObject({ status: "gagal", message: "Kode belum bisa dikirim lewat email. Silakan coba lagi." });
     } finally {
       failing.mockRestore();
@@ -108,7 +108,7 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
     // No retry on its own: a day later (past any retry window) still nothing has been sent.
     server.clock.advance({ hours: 24 });
     expect(email.sent).toHaveLength(before);
-    expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.invalid" }))).toMatchObject({
+    expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "keluarga@contoh.makam.co.id" }))).toMatchObject({
       status: "terkirim",
     });
     expect(email.sent).toHaveLength(before + 1);
@@ -131,7 +131,7 @@ describe("Masuk with a Kode Masuk (Server Actions)", () => {
       relay.refuseNextRecipient();
       browser.setHeader("x-real-ip", "203.0.113.70");
 
-      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "uji98.repro@contoh.makam.invalid" }))).toMatchObject({
+      expect(await kirimKodeMasuk(initialKodeMasukRequestState, form({ email: "uji98.repro@contoh.makam.co.id" }))).toMatchObject({
         status: "gagal",
         message: "Kode belum bisa dikirim lewat email. Silakan coba lagi.",
       });

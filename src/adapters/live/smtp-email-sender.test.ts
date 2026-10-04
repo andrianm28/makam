@@ -10,7 +10,14 @@ import {
   type AcceptedMessage,
   type TestSmtpRelay,
 } from "../../../tests/support/smtp-relay";
-import { SmtpEmailSender } from "./smtp-email-sender";
+import { SmtpEmailSender, type RecipientResolver } from "./smtp-email-sender";
+
+/** Every domain is deliverable (an MX record exists). */
+const deliverable: RecipientResolver = { resolveMx: async () => [{ exchange: "mx.example.com" }], resolveAddresses: async () => [] };
+
+function dnsError(code: string) {
+  return Object.assign(new Error(code), { code });
+}
 
 function settingsFor(relay: { host: string; port: number }, overrides: Partial<SmtpSettings> = {}): SmtpSettings {
   return {
@@ -24,8 +31,8 @@ function settingsFor(relay: { host: string; port: number }, overrides: Partial<S
 }
 
 /** The live adapter pointed at a local relay whose self-signed certificate it is told to trust. */
-function senderFor(relay: TestSmtpRelay, overrides: Partial<SmtpSettings> = {}) {
-  return new SmtpEmailSender(settingsFor(relay, overrides), { trustedCertificate: relay.certificate });
+function senderFor(relay: TestSmtpRelay, overrides: Partial<SmtpSettings> = {}, resolver: RecipientResolver = deliverable) {
+  return new SmtpEmailSender(settingsFor(relay, overrides), { trustedCertificate: relay.certificate, resolver });
 }
 
 function asDelivered(message: AcceptedMessage): DeliveredEmail {
@@ -70,7 +77,7 @@ describe("SumoPod SMTP adapter", () => {
     const tlsRelay = await relay();
 
     const { messageId } = await senderFor(tlsRelay).send({
-      to: "pemesan@example.test",
+      to: "pemesan@example.com",
       subject: "Bukti BKT-2026-000045",
       text: "Terlampir Bukti pembayaran Anda.",
       attachments: [{ filename: "BKT-2026-000045.pdf", contentType: "application/pdf", content: SAMPLE_PDF }],
@@ -81,7 +88,7 @@ describe("SumoPod SMTP adapter", () => {
     expect(message.overTls).toBe(true);
     expect(message.authenticatedAs).toBe(RELAY_USER);
     expect(message.envelopeFrom).toBe("no-reply@makam.co.id");
-    expect(message.envelopeTo).toEqual(["pemesan@example.test"]);
+    expect(message.envelopeTo).toEqual(["pemesan@example.com"]);
     expect(message.parsed.from?.value).toEqual([{ address: "no-reply@makam.co.id", name: "Makam.co.id" }]);
     expect(message.parsed.messageId).toMatch(/^<[^@<>\s]+@makam\.co\.id>$/);
     expect(messageId).toBe(message.parsed.messageId);
@@ -94,7 +101,7 @@ describe("SumoPod SMTP adapter", () => {
     const tlsRelay = await relay();
     const sender = new SmtpEmailSender(settingsFor(tlsRelay)); // no trusted certificate given
 
-    const failure = await sender.send({ to: "a@example.test", subject: "x", text: "x" }).catch((error: unknown) => error);
+    const failure = await sender.send({ to: "a@example.com", subject: "x", text: "x" }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(EmailSendError);
     expect((failure as EmailSendError).kind).toBe("unavailable");
@@ -105,7 +112,7 @@ describe("SumoPod SMTP adapter", () => {
     const plainRelay = await relay({ tls: false });
 
     const failure = await senderFor(plainRelay)
-      .send({ to: "a@example.test", subject: "x", text: "x" })
+      .send({ to: "a@example.com", subject: "x", text: "x" })
       .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(EmailSendError);
@@ -117,7 +124,7 @@ describe("SumoPod SMTP adapter", () => {
     const tlsRelay = await relay();
 
     const failure = await senderFor(tlsRelay, { password: "wrong-password-xyz" })
-      .send({ to: "a@example.test", subject: "x", text: "x" })
+      .send({ to: "a@example.com", subject: "x", text: "x" })
       .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(EmailSendError);
@@ -133,12 +140,12 @@ describe("SumoPod SMTP adapter", () => {
     tlsRelay.refuseNextRecipient();
 
     const failure = await senderFor(tlsRelay)
-      .send({ to: "tidak-ada@example.test", subject: "Undangan Staf", text: "Undangan untuk 0812-3456-7890" })
+      .send({ to: "tidak-ada@example.com", subject: "Undangan Staf", text: "Undangan untuk 0812-3456-7890" })
       .catch((error: unknown) => error);
 
     expect(failure).toMatchObject({ kind: "rejected", responseCode: 550 });
     const shown = `${(failure as Error).message} ${(failure as Error).stack} ${JSON.stringify(failure)}`;
-    expect(shown).not.toContain("tidak-ada@example.test");
+    expect(shown).not.toContain("tidak-ada@example.com");
     expect(shown).not.toContain("0812-3456-7890");
     expect(shown).not.toContain("Mailbox unavailable");
   });
@@ -148,7 +155,7 @@ describe("SumoPod SMTP adapter", () => {
     await closed.close();
     cleanups.pop();
 
-    await expect(senderFor(closed).send({ to: "a@example.test", subject: "x", text: "x" })).rejects.toMatchObject({
+    await expect(senderFor(closed).send({ to: "a@example.com", subject: "x", text: "x" })).rejects.toMatchObject({
       name: "EmailSendError",
       kind: "unavailable",
     });
@@ -160,7 +167,7 @@ describe("SumoPod SMTP adapter", () => {
     const startedAt = performance.now();
 
     const failure = await new SmtpEmailSender(settingsFor(silent))
-      .send({ to: "a@example.test", subject: "x", text: "x" })
+      .send({ to: "a@example.com", subject: "x", text: "x" })
       .catch((error: unknown) => error);
 
     expect(failure).toMatchObject({ name: "EmailSendError", kind: "unavailable", code: "ETIMEDOUT" });
@@ -173,12 +180,81 @@ describe("SumoPod SMTP adapter", () => {
       vi.spyOn(console, method).mockImplementation(() => {}),
     );
 
-    await senderFor(tlsRelay).send({ to: "pemesan@example.test", subject: "Kode Masuk", text: "Kode Masuk: 123456" });
+    await senderFor(tlsRelay).send({ to: "pemesan@example.com", subject: "Kode Masuk", text: "Kode Masuk: 123456" });
     tlsRelay.refuseNextRecipient();
     await senderFor(tlsRelay)
-      .send({ to: "pemesan@example.test", subject: "Kode Masuk", text: "Kode Masuk: 123456" })
+      .send({ to: "pemesan@example.com", subject: "Kode Masuk", text: "Kode Masuk: 123456" })
       .catch(() => {});
 
     for (const spy of written) expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe("SumoPod SMTP adapter recipient check", () => {
+  const cleanups: (() => Promise<void>)[] = [];
+  afterEach(async () => {
+    while (cleanups.length) await cleanups.pop()!();
+  });
+  async function relayWith(resolver: RecipientResolver) {
+    const started = await startTestSmtpRelay();
+    cleanups.push(() => started.close());
+    return { relay: started, sender: senderFor(started, {}, resolver) };
+  }
+  const send = (sender: SmtpEmailSender, to: string) => sender.send({ to, subject: "Kode Masuk", text: "123456" });
+  const noRecords: RecipientResolver = {
+    resolveMx: async () => Promise.reject(dnsError("ENODATA")),
+    resolveAddresses: async () => Promise.reject(dnsError("ENOTFOUND")),
+  };
+
+  it.each(["a@mail.invalid", "a@mail.test", "a@mail.example", "a@mail.localhost", "Nama <a@MAIL.TEST>"])(
+    "refuses %s as rejected without looking up DNS and without contacting the relay",
+    async (to) => {
+      const unused: RecipientResolver = {
+        resolveMx: async () => Promise.reject(new Error("must not be called")),
+        resolveAddresses: async () => Promise.reject(new Error("must not be called")),
+      };
+      const { relay, sender } = await relayWith(unused);
+      const failure = await send(sender, to).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(EmailSendError);
+      expect((failure as EmailSendError).kind).toBe("rejected");
+      expect(String((failure as Error).message) + JSON.stringify(failure)).not.toContain("a@");
+      expect(relay.accepted).toHaveLength(0);
+    },
+  );
+
+  it("refuses a domain with neither MX nor A/AAAA records as rejected and the relay receives nothing", async () => {
+    const { relay, sender } = await relayWith(noRecords);
+    await expect(send(sender, "a@tidak-ada.example.com")).rejects.toMatchObject({ kind: "rejected" });
+    expect(relay.accepted).toHaveLength(0);
+  });
+
+  it("accepts a domain that has only an A record", async () => {
+    const { relay, sender } = await relayWith({
+      resolveMx: async () => Promise.reject(dnsError("ENODATA")),
+      resolveAddresses: async () => ["192.0.2.1"],
+    });
+    await send(sender, "a@example.com");
+    expect(relay.accepted).toHaveLength(1);
+  });
+
+  it.each(["ETIMEOUT", "ESERVFAIL", "SOMETHING_ELSE"])("lets the send go ahead when DNS fails with %s", async (code) => {
+    const { relay, sender } = await relayWith({
+      resolveMx: async () => Promise.reject(dnsError(code)),
+      resolveAddresses: async () => Promise.reject(dnsError(code)),
+    });
+    await send(sender, "a@example.com");
+    expect(relay.accepted).toHaveLength(1);
+  });
+
+  it("does not consult DNS for an address whose domain cannot be parsed (the relay judges it)", async () => {
+    let lookups = 0;
+    const counting: RecipientResolver = {
+      resolveMx: async () => (lookups++, Promise.reject(dnsError("ENOTFOUND"))),
+      resolveAddresses: async () => (lookups++, Promise.reject(dnsError("ENOTFOUND"))),
+    };
+    const { sender } = await relayWith(counting);
+    const failure = await send(sender, "tanpa-domain").catch((error: unknown) => error);
+    expect(lookups).toBe(0);
+    expect((failure as { code?: string } | undefined)?.code).not.toBe("ENOTFOUND");
   });
 });
