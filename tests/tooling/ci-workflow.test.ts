@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { parse } from "yaml";
 
 const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
@@ -61,5 +62,25 @@ describe("test-tuned Postgres", () => {
     for (const file of files) {
       expect(readFileSync(`${repo}/${file}`, "utf8"), file).not.toMatch(/fsync|synchronous_commit|full_page_writes/);
     }
+  });
+});
+
+describe("ci.yml actionlint job", () => {
+  const workflow = parse(ci) as { jobs: Record<string, { steps?: { uses?: string; run?: string }[] }> };
+  const steps = workflow.jobs.actionlint?.steps ?? [];
+  const lintStep = steps.find((s) => /actionlint/.test(s.run ?? ""));
+
+  it("exists and lints every workflow under .github/workflows", () => {
+    expect(lintStep?.run ?? "").toMatch(/\.github\/workflows\/\*\.yml/);
+  });
+
+  it("runs a pinned linter: an image by digest or an action by commit SHA", () => {
+    const pinned = /actionlint[^\s]*@sha256:[0-9a-f]{64}/.test(lintStep?.run ?? "") || steps.some((s) => /rhysd\/actionlint@[0-9a-f]{40}\b/.test(s.uses ?? ""));
+    expect(pinned).toBe(true);
+  });
+
+  it("is a check the deploy gate waits for", () => {
+    expect([...mustPass(needsGraph(ci), "deploy-gate")]).toContain("actionlint");
+    expect([...mustPass(needsGraph(ci), "sign")]).toContain("actionlint");
   });
 });
