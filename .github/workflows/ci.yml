@@ -96,6 +96,23 @@ jobs:
             zricethezav/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
             git . --config .gitleaks.toml --redact --no-banner --verbose
 
+  # Every workflow is linted (expressions, shellcheck on run scripts) so a typo
+  # in a promotion workflow fails here and not on the night it is needed. The
+  # image is pinned by digest (rhysd/actionlint 1.7.12).
+  actionlint:
+    name: Workflow lint (actionlint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: actionlint
+        run: |
+          docker run --rm -v "$PWD":/repo -w /repo \
+            rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 \
+            -color .github/workflows/*.yml
+
   migrations:
     name: Migration upgrade (running release → this commit)
     runs-on: ubuntu-latest
@@ -155,7 +172,7 @@ jobs:
           docker pull --quiet "$RUNNING"
           echo "Upgrading from: $RUNNING"
           docker run --rm --entrypoint ls "$RUNNING" drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/released.txt"
-          ls drizzle | grep '\.sql$' | sort > "$RUNNER_TEMP/here.txt"
+          find drizzle -maxdepth 1 -name '*.sql' -printf '%f\n' | sort > "$RUNNER_TEMP/here.txt"
           comm -13 "$RUNNER_TEMP/released.txt" "$RUNNER_TEMP/here.txt" | sed 's|^|drizzle/|' > "$RUNNER_TEMP/new.txt"
           echo "New migrations: $(tr '\n' ' ' < "$RUNNER_TEMP/new.txt")"
       - name: Destructive DDL in new migrations needs "-- contract:"
@@ -429,7 +446,7 @@ jobs:
     name: Deploy gate (all checks, e2e and scan passed)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [check, secrets, migrations, image, e2e, scan]
+    needs: [check, secrets, actionlint, migrations, image, e2e, scan]
     permissions: {}
     env:
       REF: ${{ needs.image.outputs.ref }}
