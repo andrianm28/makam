@@ -137,14 +137,14 @@ jobs:
           fi
           draft=$(printf '%s' "$listed" | jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tagName == $tag)] | .[0] | if . == null then "none" elif .isDraft then "true" else "false" end')
           if [ "$draft" != "none" ]; then
-            if ! releases=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" 2> "$err"); then
+            if ! releases=$(gh api --paginate --slurp "repos/$GH_REPO/releases?per_page=100" 2> "$err"); then
               echo "refusing: reading release $RELEASE_TAG failed:" >&2
               cat "$err" >&2
               exit 1
             fi
             # A re-run signs the CURRENT staging digest, so the release it found
             # must be for that digest.
-            if ! printf '%s' "$releases" | jq -e --arg tag "$RELEASE_TAG" --arg digest "$DIGEST" 'any(.[]; .tag_name == $tag and ((.body // "") | contains($digest)))' > /dev/null; then
+            if ! printf '%s' "$releases" | jq -e --arg tag "$RELEASE_TAG" --arg digest "$DIGEST" 'any(.[][]; .tag_name == $tag and ((.body // "") | contains("Production digest: `" + $digest + "`")))' > /dev/null; then
               echo "refusing: release $RELEASE_TAG already exists and its notes do not name $DIGEST; use a new tag, or gh release delete $RELEASE_TAG if it is a leftover draft" >&2
               exit 1
             fi
