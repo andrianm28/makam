@@ -17,8 +17,9 @@ import { createNazhirList } from "@/domain/wakaf";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { adminPlatformOf } from "../../tests/support/identity";
-import { layananOnTestDatabase, type LayananSetup } from "../../tests/support/layanan";
-import { pemesananOnTestDatabase } from "../../tests/support/pemesanan";
+import { layananOnTestDatabase, signedInMitraJasa, siapkanOperatorLayanan, type LayananSetup } from "../../tests/support/layanan";
+import { orderTpu } from "../../tests/support/layanan-tpu";
+import { pemesananOnTestDatabase, pemesanDenganEmail } from "../../tests/support/pemesanan";
 import { newLokasiMitra, newTpuDki } from "../../tests/support/publish";
 import { dataContohCommand } from "./data-contoh-command";
 import { olahKatalog } from "./import-data-peluncuran-command";
@@ -464,8 +465,9 @@ async function stackDenganDataPeluncuran(options: { lokasi?: boolean; katalog?: 
     wakaf: createNazhirList(komposisi),
     pemesanan: { pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi({ db }, lokasiId) },
   });
+  let tpu: Awaited<ReturnType<typeof newTpuDki>> | null = null;
   if (options.tpu !== false) {
-    await newTpuDki(setup, admin, "TPU Contoh Satu");
+    tpu = await newTpuDki(setup, admin, "TPU Contoh Satu");
     await newTpuDki(setup, admin, "TPU Contoh Dua", false);
   }
   const varian: { id: string; jenis: "bunga" | "nisan"; nama: string }[] = [];
@@ -486,16 +488,19 @@ async function stackDenganDataPeluncuran(options: { lokasi?: boolean; katalog?: 
     if (!bunga.ok || !nisan.ok) throw new Error("createLayanan refused");
     for (const layanan of [bunga.layanan, nisan.layanan]) for (const satu of layanan.varian) varian.push({ id: satu.id, jenis: layanan.jenis as "bunga" | "nisan", nama: `${layanan.name} / ${satu.name}` });
   }
-  const lokasi: { id: string; nama: string }[] = [];
-  if (options.lokasi !== false) {
+  /** The two Lokasi (Contoh) the Rilis 2 rules go on, entered in the registry as the Rilis 1 set enters them: what a Rilis 3 run needs there before it plants. */
+  const tanamLokasi = async () => {
+    const tertanam: { id: string; nama: string }[] = [];
     for (const nama of NAMA_ATURAN) {
       const dibuat = await newLokasiMitra(setup, admin, nama);
       const dicatat = await dataContoh.catat(admin, { kode: `rilis1/lokasi/${slug(nama)}`, himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: dibuat.id, reason: "data-contoh tanam (test)" });
       if (!dicatat.ok) throw new Error(`catat refused: ${dicatat.reason}`);
-      lokasi.push({ id: dibuat.id, nama });
+      tertanam.push({ id: dibuat.id, nama });
     }
-  }
-  return { setup, admin, varian, lokasi };
+    return tertanam;
+  };
+  const lokasi = options.lokasi !== false ? await tanamLokasi() : [];
+  return { setup, admin, varian, lokasi, tpu, tanamLokasi };
 }
 
 /** What a TPU shows a family: the price of every variant offered there, by variant id. */
@@ -840,5 +845,90 @@ describe("data-contoh cabut after tanam --set rilis3", () => {
     expect(await hargaDiTpu(setup)).toEqual({ [tetap.id]: 175_000 });
     for (const satu of lain) expect(hasil.output).toContain(satu.nama);
     expect(hasil.output).not.toContain(tetap.nama);
+  });
+
+  it("every Entri Audit a cabut writes after tanam --set rilis3, in whichever module, carries a reason naming the command: the Nazhir removal too, which Wakaf writes without one of its own", async () => {
+    const { setup } = await stackDenganRilis3();
+    const sebelum = (await setup.audit.allEntries()).length;
+
+    berhasil(await jalan(["cabut", "--tulis"]));
+
+    const baru = (await setup.audit.allEntries()).slice(sebelum);
+    expect(baru.filter((satu) => satu.action === "wakaf.nazhir_hapus")).toHaveLength(2);
+    expect(baru.filter((satu) => satu.action === "mitra_jasa.ubah_status")).toHaveLength(3);
+    expect(baru.length).toBeGreaterThan(10);
+    expect(baru.filter((satu) => !satu.reason?.startsWith("data-contoh cabut")).map((satu) => satu.action)).toEqual([]);
+  });
+
+  it("takes up again the Mitra Jasa (Contoh) an earlier cabut ended when it plants again: Aktif once more with their coverage, three of them and no second set", async () => {
+    const { setup, admin, tpu, varian, tanamLokasi } = await stackDenganRilis3();
+    const bunga = varian.find((satu) => satu.jenis === "bunga");
+    if (!tpu || !bunga) throw new Error("the stack lacks a TPU or a Karangan Bunga");
+    const kebutuhan = { tpuDkiId: tpu.id, layananVariantId: bunga.id, tanggal: "2026-10-10" };
+    const dipilih = async () => (await setup.layanan.mitraJasaTersedia(admin, kebutuhan)).map((satu) => satu.namaLengkap).sort();
+    const semula = await dipilih();
+    expect(semula.length).toBeGreaterThan(0);
+    berhasil(await jalan(["cabut", "--tulis"]));
+    expect((await setup.layanan.semuaMitraJasa(admin)).map((satu) => satu.status)).toEqual(["berhenti", "berhenti", "berhenti"]);
+    expect(await dipilih()).toEqual([]);
+    // The Rilis 1 Lokasi (Contoh) went with that cabut, and a Rilis 3 run builds on them: they are planted again first.
+    await tanamLokasi();
+
+    const hasil = await jalan([...SET3, "--tulis"]);
+
+    berhasil(hasil);
+    expect((await setup.layanan.semuaMitraJasa(admin)).map((satu) => satu.status)).toEqual(["aktif", "aktif", "aktif"]);
+    expect((await jalan(["status"])).output).toContain("mitra_jasa: 3");
+    expect(await dipilih()).toEqual(semula);
+  });
+
+  /** A paid TPU order of a Karangan Bunga, handed to one Mitra Jasa (Contoh), who accepts it and takes the first photo: work in the ground. */
+  async function pekerjaanSedangDikerjakan(stack: Awaited<ReturnType<typeof stackDenganRilis3>>, persona: (typeof MITRA_JASA_DATA_CONTOH)[number], targetDate: string) {
+    const { setup, admin, tpu, varian } = stack;
+    const bunga = varian.find((satu) => satu.jenis === "bunga");
+    const mitra = (await setup.layanan.semuaMitraJasa(admin)).find((satu) => satu.email === persona.email);
+    if (!tpu || !bunga || !mitra) throw new Error("the stack lacks a TPU, a Karangan Bunga or the Mitra Jasa (Contoh)");
+    // Every Tagihan is headed with Pengaturan Operator, so one can only be issued once it is entered.
+    await siapkanOperatorLayanan(setup);
+    const { pemesan } = await pemesanDenganEmail(setup, "pemesan.tpu@contoh.id");
+    const dipesan = await setup.layanan.placePesananLayananTpu(pemesan, orderTpu({ tpu }, [{ layananVariantId: bunga.id, targetDate }]));
+    if (!dipesan.ok) throw new Error(`TPU order refused: ${dipesan.reason}`);
+    const dibayar = await setup.billing.recordPayment(dipesan.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: setup.clock.now() });
+    if (!dibayar.ok) throw new Error("payment refused");
+    const [pekerjaan] = await setup.layanan.pekerjaanTpuUntukStaf(admin);
+    const ditugaskan = await setup.layanan.tugaskanMitraJasa(admin, { pekerjaanId: pekerjaan.id, mitraJasaId: mitra.id });
+    if (!ditugaskan.ok) throw new Error(`assign refused: ${ditugaskan.reason}`);
+    const actor = await signedInMitraJasa(setup, admin, persona.email);
+    const diterima = await setup.layanan.jawabPenugasan(actor, { pekerjaanId: pekerjaan.id, jawaban: "terima" });
+    if (!diterima.ok) throw new Error(`accept refused: ${diterima.reason}`);
+    const foto = await setup.layanan.simpanBuktiTpu(actor, {
+      pekerjaanId: pekerjaan.id,
+      kind: "foto_sesudah",
+      takenAt: setup.clock.now(),
+      file: { body: new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]), contentType: "image/jpeg" },
+    });
+    if (!foto.ok) throw new Error(`photo refused: ${foto.reason}`);
+    return { pekerjaanId: pekerjaan.id, mitraJasaId: mitra.id, actor };
+  }
+
+  it("lists the job a Mitra Jasa (Contoh) has in progress when cabut ends them, leaves it with them, and points to the Pekerjaan TPU screen, where Admin Platform reassigns it", async () => {
+    const stack = await stackDenganRilis3();
+    const agus = MITRA_JASA_DATA_CONTOH[0];
+    const { pekerjaanId, mitraJasaId, actor } = await pekerjaanSedangDikerjakan(stack, agus, "2026-10-05");
+
+    const hasil = await jalan(["cabut", "--tulis"]);
+
+    berhasil(hasil);
+    const baris = hasil.output.split("\n");
+    const laporan = baris.findIndex((satu) => satu.includes("pekerjaan masih berjalan"));
+    expect(laporan, hasil.output).toBeGreaterThanOrEqual(0);
+    expect(baris[laporan]).toContain("1 pekerjaan masih berjalan pada Mitra Jasa (Contoh)");
+    expect(baris[laporan]).toContain("layar Pekerjaan TPU");
+    expect(baris[laporan]).not.toContain("layar Layanan");
+    expect(baris[laporan + 1]).toContain(`rilis3/mitra-jasa/${agus.slug}`);
+    expect(baris[laporan + 1]).toContain("target 2026-10-05");
+    // "tidak dilepas": the work in the ground stays with the Mitra Jasa, who is Berhenti now.
+    expect(await stack.setup.layanan.bacaMitraJasa(stack.admin, mitraJasaId)).toMatchObject({ ok: true, mitraJasa: { status: "berhenti" } });
+    expect((await stack.setup.layanan.pekerjaanTpuSaya(actor)).aktif.map((satu) => satu.id)).toEqual([pekerjaanId]);
   });
 });

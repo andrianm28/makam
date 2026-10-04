@@ -636,7 +636,7 @@ function laporanPekerjaanBerjalan(daftar: PekerjaanBerjalanMitraJasa[]): string[
   const jumlah = daftar.reduce((total, satu) => total + satu.pekerjaan.length, 0);
   if (jumlah === 0) return [];
   return [
-    `${jumlah} pekerjaan masih berjalan pada Mitra Jasa (Contoh) yang diberhentikan dan tidak dilepas; tugaskan ulang lewat layar Layanan:`,
+    `${jumlah} pekerjaan masih berjalan pada Mitra Jasa (Contoh) yang diberhentikan dan tidak dilepas; tugaskan ulang lewat layar Pekerjaan TPU:`,
     ...daftar.flatMap((satu) => satu.pekerjaan.map((job) => `  - ${satu.kode}: pekerjaan ${job.id} (${job.status}, target ${job.targetDate})`)),
   ];
 }

@@ -554,7 +554,7 @@ Platform. It plants:
 `cabut` then: sets the Mitra Jasa (Contoh) to Berhenti and removes the Nazhir (Contoh)
 (a Pengajuan Wakaf that named one keeps the name). A job a Mitra Jasa (Contoh) has in
 progress is not taken away from it (it is the family's work in the ground): `cabut` lists
-those jobs, and Admin Platform reassigns them on the Layanan screen. A DKI price or a Mitra
+those jobs, and Admin Platform reassigns them on the Pekerjaan TPU screen. A DKI price or a Mitra
 Jasa rate cannot be erased, so a variant is **taken off the TPU listing** (its "boleh di TPU
 DKI" mark off) while its DKI price or its rate in force is still an example version, whoever
 set the mark: a family would be charged an example price, or a Mitra Jasa paid an example
@@ -572,7 +572,9 @@ prices in force. `cabut` cancels no order: a TPU order already placed at an exam
 found and cancelled through the Antrean before `cabut` (it is not listed here, unlike the
 orders at a Lokasi Mitra (Contoh)). The rows `tanam` could not record because it was killed
 are found again by the Audit Log (the reason begins `data-contoh tanam`), so a rerun records
-them instead of entering a second price.
+them instead of entering a second price. Berhenti is not final for these three: planting
+`--set rilis3` again after a `cabut` takes the Mitra Jasa (Contoh) it ended back up (Aktif
+again, their coverage replaced) instead of creating a second set.
 
 ## Import the launch data on the host (`import-data-peluncuran`)
 
