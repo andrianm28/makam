@@ -229,6 +229,7 @@ describe("SumoPod SMTP adapter", () => {
       "keluarga@localhost",
       "KELUARGA@Contoh.Makam.INVALID",
       "keluarga@contoh.makam.invalid.",
+      "Keluarga <keluarga@contoh.makam.invalid>",
     ])("a Kode Masuk to %s is refused as rejected before the relay is contacted", async (to) => {
       const failure = await liveSenderFor(await absentRelay())
         .send({ to, subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" })
@@ -256,6 +257,20 @@ describe("SumoPod SMTP adapter", () => {
         await liveSenderFor(acceptingRelay).send({ to, subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
 
         expect(acceptingRelay.accepted.map((message) => message.envelopeTo)).toEqual([[to]]);
+      },
+    );
+
+    it.each(["keluarga", "keluarga@", "keluarga@[192.0.2.7]"])(
+      "a recipient with no domain DNS could name (%s) is left to the relay: the check does not refuse it",
+      async (to) => {
+        // The DNS here knows no domain at all, so a name the check had looked up would be refused as rejected; a sender
+        // that went on to the relay, which is not there, fails as unavailable.
+        const failure = await liveSenderFor(await absentRelay(), {}, { resolver: dnsWith({}) })
+          .send({ to, subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" })
+          .catch((error: unknown) => error);
+
+        expect(failure).toBeInstanceOf(EmailSendError);
+        expect((failure as EmailSendError).kind).toBe("unavailable");
       },
     );
 
