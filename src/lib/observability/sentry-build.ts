@@ -21,6 +21,14 @@ import { z } from "zod";
 
 const emptyToUndefined = (value: unknown) => (value === "" || value === undefined ? undefined : value);
 
+const releaseSchema = z.preprocess(emptyToUndefined, z.string().regex(/^[A-Za-z0-9._-]{1,64}$/).optional());
+
+/** The running release name from a raw env value; null when it is unset or not a valid name. */
+export function parseRelease(value: string | undefined): string | null {
+  const parsed = releaseSchema.safeParse(value);
+  return parsed.success ? (parsed.data ?? null) : null;
+}
+
 const buildEnvSchema = z.object({
   /** The GlitchTip instance, e.g. https://errors.makam.co.id. Never sentry.io, never a relative path. */
   SENTRY_URL: z.preprocess(emptyToUndefined, z.url({ protocol: /^https$/, hostname: /[.-]/ }).optional()),
@@ -29,7 +37,7 @@ const buildEnvSchema = z.object({
   /** Empty in the build: a token here would live in the image's history. ci.yml's `sourcemaps` job has it. */
   SENTRY_AUTH_TOKEN: z.preprocess(emptyToUndefined, z.string().min(1).optional()),
   /** The commit this image is built from; the release name in GlitchTip. A build argument, not a secret. */
-  SENTRY_RELEASE: z.preprocess(emptyToUndefined, z.string().regex(/^[A-Za-z0-9._-]{1,64}$/).optional()),
+  SENTRY_RELEASE: releaseSchema,
 });
 
 /** What `next.config.ts` hands to `withSentryConfig`, plus the Next.js switch that keeps the maps. */

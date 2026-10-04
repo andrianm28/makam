@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { workerHeartbeat, type WorkerHeartbeat } from "@/domain/scheduler";
 import type { AppEnvironment } from "@/lib/env";
+import { parseRelease } from "@/lib/observability/sentry-build";
 import { rilisAktif, type Rilis } from "@/lib/rilis";
 import type { Clock } from "@/ports/clock";
 import { serverRuntime } from "./runtime";
@@ -49,7 +50,7 @@ export async function readHealth(): Promise<HealthReport> {
 
   const { database, adapters } = runtime;
   const environment = runtime.env.APP_ENV;
-  const release = process.env.SENTRY_RELEASE || null;
+  const release = parseRelease(process.env.SENTRY_RELEASE);
   const rilisTerbuka = rilisAktif();
   const checkedAt = adapters.clock.now();
   try {
