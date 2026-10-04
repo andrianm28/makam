@@ -1,0 +1,27 @@
+# Preflight and deploy hardening for the first production deploy
+
+Status: ready-for-agent
+Blocked by: none (pairs with 108; blocks the rehearsal, 72)
+Spec: ticket 72 (rehearsal: a preflight with no FAIL); `docs/ops/runbook.md` "Production preflight"; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
+
+## What to build
+
+Since ticket 102, `makam-deploy-status` sends the bare commit SHA as the Deployment `ref`. `deploy/bin/makam-preflight` (~550) still probes with `sha-<rev>` first. When GitHub accepts the bare SHA it reports a FAIL anyway, with the old diagnosis: a false FAIL, while the rehearsal requires no FAIL.
+
+The preflight also never checks two things:
+- **The open release.** `RILIS_TERBUKA`: production opens 1 at the switch and 3 later (owner decision 2026-10-04, ADR 0006 amendment). An unset value silently means 1.
+- **The production timers from ticket 108.**
+
+Separately, ghcr pulls fail now and then with a TLS handshake timeout (six times on 2026-10-03), which costs a whole timer cycle.
+
+## Acceptance criteria
+
+- [ ] **Deployment probe:** sends the bare revision as `ref` and passes when GitHub accepts it and the probe is deleted. The obsolete `sha-` 422 diagnosis is removed.
+- [ ] **`makam-preflight --rilis N`:** FAIL when the env file lacks `RILIS_TERBUKA=N`, or when the running stack's `/api/health` reports a different `rilisTerbuka` (field added by 106; SKIP with a clear line when the field is absent or the stack is down). Without `--rilis` it prints the value it found.
+- [ ] **Production timers:** a preflight line FAILs unless the four `makam-prod-*` timers from 108 (db-backup, files-backup, restore-test, health) are enabled.
+- [ ] **Pull retries:** `deploy/bin/makam-deploy` (the normal pull and the roll-back pull) and the preflight's pull retry up to 3 times, with 10 s and 30 s backoff, before giving up with the same message as today.
+- [ ] **Tests:** `tests/tooling/makam-preflight.test.ts` and `tests/tooling/makam-deploy.test.ts`. The runbook preflight table is updated.
+
+## Comments
+
+- 2026-10-04: Filed by the orchestrator from the approved plan (track A, MB1). Not money code. Use the same unit names as 108.
