@@ -1,6 +1,8 @@
 /**
  * The copy of the written content pages (spec, Public site and routing decisions
- * > Content pages): Tentang Kami, Cara Kami Bekerja and FAQ.
+ * > Content pages): Tentang Kami, Cara Kami Bekerja and FAQ, and the three ways in
+ * and the price labels of Pengurusan di TPU DKI (the rest of that page is written
+ * in the page itself).
  *
  * It is content, not domain data. No amount, deadline, count or opening hour is
  * written here on purpose: each of those is read on the page that owns it,
