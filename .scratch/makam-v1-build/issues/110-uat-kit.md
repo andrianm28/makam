@@ -240,3 +240,29 @@ Soft follow-ups (found offline; the first staging run will show them, and they g
 - R3-43.2 follows the page ("Pemerintah Provinsi"), not ticket 43's "Pemprov DKI Jakarta".
 - `tests/uat/kata-di-sumber.test.ts` matches words anywhere in `src/` and runs in `npm test`.
 - Duplicated literals and long lines in the new journeys.
+
+### Follow-up: runner fixes from the staging run (2026-10-05, orchestrator; fixed point 55c76c76, head e6c4f238)
+
+**Where the fixes came from.** Two sources:
+- running the runner against staging: Rilis 1 §0–§11 at 4b437d84, then at 4713592b;
+- a read-only selector audit of the remaining journeys: one agent per file, and each patch re-verified by a second agent against `src/`.
+
+**Commits:**
+- f014bfd1: fixes made during the Rilis 1 run;
+- e66bb20a: the audit patches;
+- d5c6b07f: the review fix pass;
+- e6c4f238: the second fix pass, covering pending-label waits, R3-47.x on ticket 116's filing-only view, and R3-47.2's Tagihan check.
+
+**Two-axis review.** The Standards and Spec reviewers (sonnet) ran in parallel on f014bfd1..e66bb20a. Standards Hard: 2, soft: 7; Spec Hard: 0, soft: 9.
+- Both hard findings are fixed in d5c6b07f: the alert check is scoped to the submitted form, and `setujuiPermohonan` fills the required Alasan.
+- The haiku re-review of the fix list said ok, and so did its re-check of e6c4f238.
+
+**Checks:** `npx eslint uat tests/uat` 0; `npx vitest run tests/uat` 376 passed; `npm run typecheck` 0.
+
+**On staging, with sandbox payments:**
+- Rilis 1 §0–§11 pass (§11 6/6 after ticket 115);
+- R2-35.1, R2-41.1, R2-42.1, R3-45.1, R3-56.1 pass;
+- R3-47.1, R3-47.2 and R3-48.1 pass after ticket 116.
+
+**App gaps the runs found:** tickets 115, 116 and 117, plus the owner triage list in the session summary of 2026-10-05.
+
