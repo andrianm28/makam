@@ -95,3 +95,123 @@ Built on branch `ticket-109-data-contoh-beta`, based on 7415fdf7 (the orchestrat
 
 **Tests** (read from whole logs): `npx vitest run` over every touched path, 17 files, 338 tests, exit 0. New or extended: `src/domain/data-contoh/data-contoh.test.ts` (14: registry idempotency, one active entity per code, Admin Platform only, `tanam` twice, nothing-to-plant, cut-short build, replant after `cabut`, `cabut` hides everything, `cabut` idempotent, refuses while a contoh price is in force and lists it, goes ahead once superseded, reports running orders, dry-run plan), `src/cli/data-contoh-command.test.ts` (17: refused without its flag on production/staging, no plant on live production, usage, no Admin Platform, dry run writes nothing, five Lokasi (Contoh) incl. two with Terencana on, example prices, `.invalid` staff, audit reasons incl. staging, Layanan switched on and never re-priced, twice changes nothing, failed build retired and replanted, `cabut` refusal / dry run / success), `src/app/api/browser-config/route.test.ts` (+3), `src/lib/payment-trial.test.ts` (+5), `tests/tooling/makam-preflight.test.ts` (+4, 58 in the file), `tests/tooling/data-contoh-bundle.test.ts` (4, the bundle run alone as the image has it). `npm run lint` exit 0 (6 warnings, all in files this ticket does not touch), `npm run typecheck` exit 0, `npm run build` once, exit 0, then `.next` and `dist` removed.
 - **Not run here:** the Playwright cases added to `e2e/trial-payment-banner.spec.ts` (they need a stack; they answer `/api/browser-config` with `page.route`), the full suite, CI, the migration expand/contract job (new table only), a real production or staging run of the command (the production `FileStore`/S3 and the live SMTP are out of reach; the refusals and the policy function are tested).
+
+### Review (2026-10-04, round 1; fixed point 7415fdf7, head 6377d194)
+
+Two review reports, pasted verbatim by the fix pass. Only their heading levels are lowered, so the entry stays inside `## Comments` (`tests/support/ticket-workflow.ts` ends a Comments section at the next `## ` heading).
+
+#### Standards
+
+Fixed point 7415fdf7 is origin/main, and `git diff 7415fdf7...6377d194` is not empty (35 files). I ran the ticket's six new or changed Vitest files with `npx vitest run`: 6 files, 112 tests, exit 0, 69 s, read from the complete log. The worktree was clean afterwards. The Playwright cases were not run because they need a stack.
+
+**Hard**
+
+1. `src/cli/data-contoh-command.test.ts:104-107`: the test "never enters Pengaturan Operator on production" checks `pengaturanOperatorBolehDiisi` (`src/cli/data-contoh-command.ts:53`) instead of the result.
+   - That function is exported only for this test; its one real caller is `:257`. AGENTS.md Tests says never assert on private helpers.
+   - If the guard at `:257` is deleted, the test still passes, so this AC has no test of its outcome.
+   - Production is wired like staging: disk FileStore (`src/composition/adapters.ts:70-74`), `susunModul` swaps in a fake email sender (`seed-contoh-publik-command.ts:467`), and env.ts has no production-only checks.
+   - So the test can do what the staging case at `:164` does: run `tanam --tulis --izinkan-production` with `stagingEnv()` plus `APP_ENV=production` and the sandbox `SUMOPOD_BASE_URL`, then assert `operatorSettings.current()` is still null.
+
+**Soft**
+
+1. `deploy/bin/makam-preflight:654-656`: the check for "payments are a trial" is an exact string match copied from `check_sumopod_key` (`:474-475`).
+   - The app compares hosts instead (`src/lib/env.ts:399`), and `check_rilis` strips the quotes and spaces that Compose removes (`:609`).
+   - So a quoted value, or a URL with a path, that the app reads as a trial makes this line FAIL and tell the owner to run `cabut --tulis` in the middle of the beta.
+   - It also lacks `check_rilis`'s `[ ! -r "$ENV_FILE" ]` guard, so an unreadable env file is treated as live payments.
+   - Fix: one shared helper for both checks.
+2. `src/app/api/browser-config/route.ts:25,28-33`: this route also gives the browser its Sentry DSN (`src/instrumentation-client.ts:31`), and it now waits on a database read.
+   - The try/catch handles errors but not hangs, and the pool has no connection timeout (`src/db/client.ts:17-21`).
+   - Fix: give the read a short time limit and return null when it runs out.
+3. `src/lib/payment-trial.ts:31`: `fetchPaymentTrial` is now called only by its own tests. The banner was its only caller on main.
+4. `docs/ops/runbook.md:2088` and the table at `2126-2142`: the "Production preflight" section lists every check and ticket, but nothing for `[109] data contoh`. The script's header comment was updated.
+5. Comments that don't match their assertions:
+   - `src/domain/data-contoh/data-contoh.test.ts:193` says a contoh Lokasi "can no longer be published again", but nothing checks that.
+   - `src/cli/data-contoh-command.test.ts:150` talks about all-in prices above an assertion on the Tersedia count.
+6. `src/cli/data-contoh-command.test.ts:271` sets `{ timeout: 600_000 }`. The whole six-file run took 69 s, and the similar seed test uses 120 s (`seed-contoh-publik-command.test.ts:156`). A 10-minute timeout would hide a hang.
+7. `src/domain/data-contoh/index.ts:210,336,342` throw ZodErrors on bad input (`.parse`), while `cabut` (`:400`) returns `alasan_wajib`. The Katalog Lama ledger this module follows uses `safeParse` (`src/domain/katalog-lama/index.ts:115`).
+8. `AGENTS.md:24`: the module-list entry includes a description. Line 13 says the file "holds only rules", and module notes were moved to `docs/agents/orchestration.md:54`.
+
+**Checked and clean**
+- No secrets in any output.
+- No unnamed `prune`.
+- No workflow or image changes.
+- The migration only adds a table and indexes.
+- The module reads only its own table, and time comes only from the Clock.
+- The client import rule is kept.
+- The banner line and the audit labels are in Bahasa Indonesia.
+- The preflight is only installed (`deploy/install-host.sh:62`), never run during a deploy, so the best-effort rule doesn't apply.
+- The gitleaks allowlist matches by value, so the reused test keys are covered.
+
+9 findings. Worst (Standards): the "never writes Pengaturan Operator on production" AC is tested through a test-only helper, not by checking the result. Hard violations: yes.
+
+Hard: 1, soft: 8
+
+#### Spec
+
+Worktree `/home/ubuntu/makam-t109`; paths below are relative to it. The fixed point `7415fdf7` resolves and equals `origin/main`. `git diff 7415fdf7...6377d194` is non-empty: 35 files, 2 commits. Spec: `.scratch/makam-v1-build/issues/109-data-contoh-beta.md`.
+
+##### Acceptance criteria
+- **Registry: MET.** `src/domain/data-contoh/{index,schema}.ts`, plus one migration (`drizzle/0064_far_tombstone.sql`) with a partial unique index on `kode` for active rows. `catat` is idempotent (index.ts:207-251; test "records a fixture code once…") and uses the katalog-lama idioms (`onConflictDoNothing`, `staffWrite`, its own audit action). Listed at AGENTS.md:24.
+- **CLI: PARTIAL.**
+  - Entry file plus `-command.ts`; `scripts/build-worker.mjs:17` builds `dist/data-contoh.mjs` (bundle test).
+  - Subcommands at command:84-93; dry run unless `--tulis` (:251, :303).
+  - Each environment needs its own flag, checked before any DB access (:100-105). This matches `import-data-peluncuran-command.ts:481-490`.
+  - `seed:admin` required (:253, :310).
+  - The reason names the command and the environment (:115-117), but not on every write (H4).
+- **tanam: MET** (S2).
+  - Reuses `seedOneLokasi`, `susunModul` and `undangPetugas` through hooks (seed-contoh-publik-command.ts:937-1058).
+  - Test "plants the five Lokasi Mitra…": 5 listed publicly, all "(Contoh)", 2 with Terencana on.
+  - Layanan get Lokasi prices (command:200-225). The platform fee is entered only when none is in force (:150-162).
+  - Staff are on `.invalid` addresses (rilis1.ts:33,103).
+  - No Pengaturan Operator on production (command:257); only the policy function is tested.
+  - Test "planting twice changes nothing".
+- **cabut: PARTIAL.**
+  - Hides each Lokasi with `tandaiDataContoh` and deactivates staff (index.ts:280-287; test "hides every Lokasi Mitra…").
+  - A contoh price in force is listed, nothing is retired, exit 1 (index.ts:403-406; command:306,320; domain and command tests).
+  - Running orders are reported (index.ts:302-311). Exit 0 only when nothing is left (index.ts:415-417).
+  - The supersede rule can be bypassed through `tanam` (H1).
+- **status: MET.** command:136-140; test "…lists what is active per kind".
+- **Marking: PARTIAL.** Names are marked (rilis1.ts:85-106). `contohAktif` returns true, false or null (route.ts; 3 route tests). The second line (`barisBanner`) shows only inside the trial banner. The owner has not confirmed the wording (H3); see also S6.
+- **Preflight: MET** (S1). makam-preflight:652-671: sandbox gives SKIP (:656), true gives FAIL (:669), false gives PASS (:668), anything else gives SKIP (:670). 4 tests.
+- **Tests: MET** (S5).
+  - Domain: "planting twice creates every fixture once", "hides every Lokasi Mitra…", "refuses while a contoh price is still in force…".
+  - Command: "refuses production without --izinkan-production…", "is a dry run without --tulis…" (for tanam and cabut).
+  - e2e: 3 new cases.
+- **Amounts: NOT MET** (H2).
+
+##### Money-code checks
+- **cabut never retires a price without a real successor:** correct inside `cabut` (it compares the version in force via `inForceAt`, and backdating is refused). It can be bypassed through `tanam`'s cleanup (H1).
+- **Nothing seeded becomes a real Pencairan without staff action: MET.** `tanam` creates no Pemesanan, Tagihan or payout item. A Pencairan is a manual transfer by Admin Platform (payouts/index.ts:181). On production, `tanam` requires the sandbox host (command:107).
+- **Every write audited with command and environment:** PARTIAL (H4).
+- **Production refused without `--izinkan-production`: MET.** command:100-102; tests at command-test:78 and bundle:44.
+- **tanam idempotent: MET**, apart from the H1 path.
+- **Preflight FAIL when non-sandbox:** MET when the stack answers (S1).
+- **Migration expand-only: MET.** One CREATE TABLE and two indexes. The 0064 snapshot differs from 0063 only in `id`/`prevId` and the new table.
+
+##### Findings
+**HARD**
+- **H1: `tanam` can drop a contoh global price from the registry without the supersede check.**
+  - `cabutEntri` lets `tarif_global` fall through to `tandaiDicabut` (index.ts:288), assuming "`cabut` proved it superseded" (:279). But `tanam` reaches it via `cabutPohon` for a cut-short entry (:350) and after a failed build (:367, :375).
+  - Scenario: run 1 writes the fee and records it unfinished (command:153-160), then dies before the separate `selesaiPada` update (index.ts:386-389).
+  - Run 2 retires that row. The fee fixture then sees a version in force and records nothing (command:152).
+  - Result: the Rp 100.000 contoh fee stays in force with no active row. `cabut` exits 0, `contohAktif` is false, and the preflight PASSes on the live host.
+  - A crash between `setGlobalTariff` and `catatInduk` ends the same way. No test covers this.
+  - Fix: check supersession inside `cabutEntri`. In the cut-short path, complete the row instead of retiring it. Make the fee fixture record its own unrecorded version.
+- **H2: Amounts not approved by the owner** (ticket :82-91). The AC requires approval before merge.
+- **H3: Banner wording not confirmed by the owner** (ticket :92).
+- **H4: Audit-reason narrowing.**
+  - These writes carry no reason: agreement, Jam Operasional, Kontak Siaga, Tugas Lapangan, publish, checklist, policies, Terencana (seed-contoh-publik-command.ts:953-1054).
+  - The `selesaiPada` update writes no Entri Audit at all.
+  - On production these writes are attributed to the real first Admin Platform. The builder flagged this; it needs the owner's acceptance or a reason threaded through.
+
+**SOFT**
+- **S1:** When it cannot tell, the preflight SKIPs instead of FAILing on a non-sandbox host (:670), so a go-live run exits 0 without proving the registry empty.
+- **S2:** With an empty catalog no Layanan is switched on (decision 6, command:272).
+- **S3:** `hargaBerlaku` misses a future-dated contoh version (index.ts:319-320). This matters for ticket 111.
+- **S4:** Decision 7's production-sandbox refusal is not in the AC; the owner should confirm it.
+- **S5:** The new e2e cases have not been run.
+- **S6:** Denah Blok names are seeded without "(Contoh)" (seed-contoh-publik-command.ts:328-399).
+
+Findings: 10. Worst: H1, after an interrupted `tanam` the contoh platform fee can stay in force unrecorded, so `cabut` exits 0 and the preflight passes. Hard violations: yes (must fix before merge; none breaks an AGENTS.md rule).
+
+Hard: 4, soft: 6
