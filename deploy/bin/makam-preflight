@@ -2,7 +2,12 @@
 # makam-preflight: which prerequisite of the production go-live is still missing?
 #
 #   makam-preflight --env prod [--digest sha256:...] [--email-to <address>]
-#                   [--met-s3] [--webhook-url <url>]
+#                   [--met-s3] [--webhook-url <url>] [--rilis N]
+#
+# --rilis N is the release production must open (RILIS_TERBUKA, ADR 0006: 1 at
+# the switch, 3 later): FAIL unless the env file says RILIS_TERBUKA=N and the
+# running stack's /api/health reports the same rilisTerbuka. Without it the line
+# only prints the value the env file holds.
 #
 # Run by the owner on the VPS before the production rehearsal (ticket 72,
 # "Added 2026-10-03"; docs/ops/runbook.md, "Production preflight"). One line per
@@ -34,6 +39,7 @@ DIGEST=""
 EMAIL_TO=""
 MET_S3=0
 WEBHOOK_URL=""
+RILIS=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
 
@@ -44,6 +50,10 @@ while [ $# -gt 0 ]; do
     --email-to) EMAIL_TO=${2:?}; shift 2 ;;
     --met-s3) MET_S3=1; shift ;;
     --webhook-url) WEBHOOK_URL=${2:?}; shift 2 ;;
+    --rilis)
+      RILIS=${2:-}
+      case "$RILIS" in 1|2|3) ;; *) echo "--rilis must be 1, 2 or 3" >&2; usage 64 ;; esac
+      shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
@@ -569,6 +579,52 @@ check_github_deployments() {
   rm -f "$BODY_FILE"
 }
 
+# The release production opens (RILIS_TERBUKA, ADR 0006): 1 at the switch, 3 later.
+# Production reads an unset value as 1 without a word, so --rilis N wants N written
+# in the env file; and web and worker read that file only when they start, so the
+# running stack's own /api/health (rilisTerbuka, ticket 106) must say N as well.
+# Without --rilis there is nothing to prove: the line says what it found.
+check_rilis() {
+  local found port url body code reported
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "72, 107" "open release" "needs the env file (above)"
+    return 0
+  fi
+  # Compose hands the app the value without quotes or padding.
+  found=$(setting RILIS_TERBUKA | tr -d '[:space:]"'"'")
+  if [ -z "$RILIS" ]; then
+    if [ -n "$found" ]; then
+      skip "72, 107" "open release" "$ENV_FILE has RILIS_TERBUKA=$found; pass --rilis N (1 at the switch, 3 later) to prove it is the release you mean to open"
+    else
+      skip "72, 107" "open release" "$ENV_FILE does not set RILIS_TERBUKA, so production opens Rilis 1; pass --rilis N (1 at the switch, 3 later) to prove the release you mean to open"
+    fi
+    return 0
+  fi
+  if [ "$found" = "$RILIS" ]; then
+    pass "72, 107" "open release" "$ENV_FILE has RILIS_TERBUKA=$found"
+  elif [ -z "$found" ]; then
+    fail "72, 107" "open release" "$ENV_FILE does not set RILIS_TERBUKA, so production silently opens Rilis 1, and --rilis $RILIS wants the number written down: add RILIS_TERBUKA=$RILIS, then restart web and worker (runbook, \"Which release is open\")"
+  else
+    fail "72, 107" "open release" "$ENV_FILE has RILIS_TERBUKA=$found, but --rilis asked for $RILIS: set RILIS_TERBUKA=$RILIS, then restart web and worker (runbook, \"Which release is open\")"
+  fi
+  port=$(setting MAKAM_WEB_PORT)
+  url="http://127.0.0.1:${port:-3100}/api/health"
+  new_tmp
+  body=$REPLY
+  code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 10 "$url" 2> /dev/null) || code="no answer"
+  reported=$(sed -n 's/.*"rilisTerbuka" *: *"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p' "$body" 2> /dev/null | head -n 1)
+  rm -f "$body"
+  if [ "$code" = "no answer" ] || [ "$code" = 000 ]; then
+    skip "72, 107" "open release (running stack)" "nothing answers on $url, so the release it runs is not checked: start the stack (the first deploy comes first) and run the preflight again"
+  elif [ -z "$reported" ]; then
+    skip "72, 107" "open release (running stack)" "$url (HTTP $code) does not report rilisTerbuka, so what it runs is not checked (an image from before ticket 106); read the worker's log instead: docker compose -p makam-prod logs worker | grep \"started (RILIS_TERBUKA=\""
+  elif [ "$reported" = "$RILIS" ]; then
+    pass "72, 107" "open release (running stack)" "$url reports rilisTerbuka=$reported"
+  else
+    fail "72, 107" "open release (running stack)" "$url reports rilisTerbuka=$reported, not $RILIS: the env file is read only when the stack starts, so restart web and worker after changing it (runbook, \"Which release is open\")"
+  fi
+}
+
 # What no script on this host can prove.
 check_manual_steps() {
   skip "02" "uptime monitor" "manual: an external monitor outside the VPS must watch https://makam.co.id/api/health with an alert contact (runbook, \"Uptime alarm\"); record which service in ticket 02"
@@ -588,6 +644,7 @@ check_sumopod_key
 check_webhook_secret
 check_webhook_forged
 check_github_deployments
+check_rilis
 check_s3
 check_backup_key
 check_backup_and_restore

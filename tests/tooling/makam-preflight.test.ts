@@ -33,6 +33,7 @@ const ENV_FILE = [
   "MAKAM_APP_ENV=production",
   "MAKAM_WEB_PORT=3100",
   "APP_BASE_URL=https://makam.co.id",
+  "RILIS_TERBUKA=1",
   ...Object.entries(SECRETS).map(([key, value]) => `${key}=${value}`),
   "SMTP_USER=smtp-user",
   "S3_REGION=ap-southeast-3",
@@ -184,6 +185,12 @@ function healthy(w: ReturnType<typeof world>) {
       'case "$url" in',
       `  *api-pay*) ${INTERRUPT_AT("sumopod")}; code=\${FAKE_SUMOPOD_CODE:-404}; case "$hdr" in *makam-preflight-wrong-key*) code=\${FAKE_SUMOPOD_WRONG_KEY_CODE:-401} ;; esac ;;`,
       '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
+      // The running stack's /api/health: the release it reports (ticket 106), or no such field, or nothing answering.
+      '  */api/health)',
+      '    [ "${FAKE_HEALTH_DOWN:-0}" != 1 ] || { printf 000; exit 7; }',
+      '    code=${FAKE_HEALTH_CODE:-200}',
+      '    if [ "${FAKE_HEALTH_RILIS:-1}" = absent ]; then body="{\\"ok\\":true,\\"environment\\":\\"production\\"}"',
+      '    else body="{\\"ok\\":true,\\"environment\\":\\"production\\",\\"rilisTerbuka\\":${FAKE_HEALTH_RILIS:-1}}"; fi ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
       `      "POST "*/deployments) ${INTERRUPT_AT("gh-create")}`,
@@ -527,6 +534,96 @@ describe("makam-preflight", () => {
     expect(result.calls.match(/-X POST .*\/deployments(\s|$)/g)).toHaveLength(1);
   });
 
+  describe("the open release (--rilis N, RILIS_TERBUKA)", () => {
+    const withoutRilis = ENV_FILE.split("\n").filter((line) => !line.startsWith("RILIS_TERBUKA=")).join("\n");
+
+    it("passes when the env file and the running stack both carry the Rilis that --rilis asks for, reading the stack on its own port", () => {
+      const ok = preflight(healthy(world()), ["--rilis", "1"]);
+      expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72, 107\].*open release: .*RILIS_TERBUKA=1/));
+      expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72, 107\].*open release \(running stack\): .*rilisTerbuka=1/));
+      expect(ok.calls).toMatch(/curl .*http:\/\/127\.0\.0\.1:3100\/api\/health/);
+      expect(ok.lines.filter((line) => /open release/.test(line) && !line.startsWith("PASS"))).toEqual([]);
+
+      const three = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=3") })), ["--rilis", "3"], { FAKE_HEALTH_RILIS: "3" });
+      expect(three.lines.filter((line) => /open release/.test(line)).every((line) => line.startsWith("PASS"))).toBe(true);
+
+      // A stack whose worker heartbeat is stale answers 503 and still says which release it runs.
+      const unhealthy = preflight(healthy(world()), ["--rilis", "1"], { FAKE_HEALTH_CODE: "503" });
+      expect(unhealthy.lines).toContainEqual(expect.stringMatching(/^PASS .*open release \(running stack\): .*rilisTerbuka=1/));
+    });
+
+    it("fails when the env file does not say the Rilis, because production then silently opens Rilis 1", () => {
+      const unset = preflight(healthy(world({ envFile: withoutRilis })), ["--rilis", "1"]);
+      expect(unset.code).toBe(1);
+      expect(unset.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72, 107\].*open release: .*does not set RILIS_TERBUKA.*silently opens Rilis 1.*--rilis 1/));
+
+      const other = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=3") })), ["--rilis", "1"]);
+      expect(other.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72, 107\].*open release: .*RILIS_TERBUKA=3.*--rilis asked for 1/));
+
+      const empty = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=") })), ["--rilis", "1"]);
+      expect(empty.lines).toContainEqual(expect.stringMatching(/^FAIL .*open release: .*does not set RILIS_TERBUKA/));
+    });
+
+    it("reads a quoted or padded value as the number compose hands the app, and the last of two lines", () => {
+      const quoted = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", 'RILIS_TERBUKA="1" ') })), ["--rilis", "1"]);
+      expect(quoted.lines).toContainEqual(expect.stringMatching(/^PASS .*open release: .*RILIS_TERBUKA=1/));
+
+      const twice = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` })), ["--rilis", "3"], { FAKE_HEALTH_RILIS: "3" });
+      expect(twice.lines).toContainEqual(expect.stringMatching(/^PASS .*open release: .*RILIS_TERBUKA=3/));
+    });
+
+    it("fails when the running stack reports another Rilis than --rilis, naming the restart that reads the env file again", () => {
+      const stale = preflight(healthy(world()), ["--rilis", "1"], { FAKE_HEALTH_RILIS: "3" });
+      expect(stale.code).toBe(1);
+      expect(stale.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72, 107\].*open release \(running stack\): .*rilisTerbuka=3.*not 1.*restart.*web and worker/));
+      // The env file part is its own line and is still right.
+      expect(stale.lines).toContainEqual(expect.stringMatching(/^PASS .*open release: .*RILIS_TERBUKA=1/));
+    });
+
+    it("skips, with a clear line, the running stack when its /api/health has no rilisTerbuka yet or nothing answers, and never fails the host for it", () => {
+      const old = preflight(healthy(world()), ["--digest", DIGEST, "--rilis", "1"], { FAKE_HEALTH_RILIS: "absent" });
+      expect(old.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72, 107\].*open release \(running stack\): .*does not report rilisTerbuka.*started \(RILIS_TERBUKA=/));
+      expect(old.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+      expect(old.code).toBe(0);
+
+      const down = preflight(healthy(world()), ["--digest", DIGEST, "--rilis", "1"], { FAKE_HEALTH_DOWN: "1" });
+      expect(down.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72, 107\].*open release \(running stack\): .*nothing answers.*127\.0\.0\.1:3100.*first deploy/));
+      expect(down.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+      expect(down.code).toBe(0);
+    });
+
+    it("prints the value it found in the env file when --rilis is not given, as a SKIP that says how to prove it, and does not touch the stack", () => {
+      const found = preflight(healthy(world()));
+      expect(found.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72, 107\].*open release: .*RILIS_TERBUKA=1.*--rilis N/));
+      expect(found.calls).not.toContain("/api/health");
+
+      const unset = preflight(healthy(world({ envFile: withoutRilis })));
+      expect(unset.lines).toContainEqual(expect.stringMatching(/^SKIP .*open release: .*does not set RILIS_TERBUKA.*opens Rilis 1.*--rilis N/));
+      expect(unset.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+    });
+
+    it("waits for the env file instead of reporting a missing RILIS_TERBUKA when the file itself is missing", () => {
+      const result = preflight(healthy(world({ envFile: null })), ["--rilis", "1"]);
+      expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*open release: .*needs the env file/));
+      expect(result.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+    });
+
+    it("refuses a --rilis that is not 1, 2 or 3 as a usage error before it runs any check", () => {
+      for (const value of ["0", "4", "x", ""]) {
+        const result = preflight(healthy(world()), ["--rilis", value]);
+        expect(result.code, `--rilis "${value}"`).toBe(64);
+        expect(result.output).toContain("--rilis must be 1, 2 or 3");
+        expect(result.calls).toBe("");
+      }
+    });
+
+    it("lists --rilis in its usage text", () => {
+      const result = preflight(healthy(world()), ["--help"]);
+      expect(result.code).toBe(0);
+      expect(result.output).toMatch(/--rilis N/);
+    });
+  });
+
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
     const result = preflight(healthy(world()));
     expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[02\].*uptime monitor.*outside the VPS.*alert contact/));
@@ -538,7 +635,8 @@ describe("makam-preflight", () => {
     const ready = preflight(healthy(world()), args);
     expect(ready.code).toBe(0);
     expect(ready.lines.filter((line) => line.startsWith("FAIL"))).toEqual([]);
-    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(3);
+    // The S3 move to v2, the open release without --rilis, the uptime monitor, the nginx switch.
+    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(4);
 
     const broken = preflight(healthy(world()), args, {
       FAKE_DOCKER_INFO: "1",
