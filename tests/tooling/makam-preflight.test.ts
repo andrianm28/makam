@@ -97,7 +97,10 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'case "$1" in',
       '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
-      `  pull) ${INTERRUPT_AT("pull")}; exit "\${FAKE_PULL:-0}" ;;`,
+      `  pull) ${INTERRUPT_AT("pull")}`,
+      '    n=$(cat "$FAKE_LOG.pull" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FAKE_LOG.pull"',
+      '    [ "$n" -gt "${FAKE_PULL_FAILS:-0}" ] || exit 1',
+      '    exit "${FAKE_PULL:-0}" ;;',
       "  login) cat > /dev/null ;;",
       '  image) echo "${FAKE_REVISION-' + REVISION + '}" ;;',
       '  run) case "$*" in',
@@ -223,6 +226,7 @@ function preflight(w: ReturnType<typeof world>, args: string[] = [], extra: Reco
       MAKAM_ROOT: w.root,
       FAKE_LOG: path.join(w.root, "log"),
       TMPDIR: path.join(w.root, "tmp"),
+      MAKAM_PULL_BACKOFF: "0 0",
       ...extra,
     },
   });
@@ -590,6 +594,18 @@ describe("makam-preflight", () => {
     expect(failed[0]).toContain("makam-prod-health.timer");
     expect(failed[0]).not.toContain("makam-prod-db-backup.timer");
     expect(failed[0]).not.toContain("makam-prod-restore-test.timer");
+  });
+
+  it("retries a failed ghcr pull and passes when a later attempt works", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL_FAILS: "2" });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 72\].*ghcr pull/));
+    expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
+  });
+
+  it("fails the ghcr pull with the usual message after 3 attempts", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL_FAILS: "99" });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 72\].*ghcr pull.*could not pull .*read:packages/));
+    expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
   });
 
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {

@@ -69,6 +69,11 @@ function fakeDocker() {
     "#!/usr/bin/env bash",
     'echo "docker $*" >> "$FAKE_DOCKER_LOG"',
     'case "$*" in',
+    // FAKE_PULL_FAILS pulls fail (counted per run), of the refs containing FAKE_PULL_MATCH.
+    '  pull*)',
+    '    case "${*##* }" in *"${FAKE_PULL_MATCH:-}"*)',
+    '      n=$(cat "$FAKE_DOCKER_LOG.pull" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FAKE_DOCKER_LOG.pull"',
+    '      [ "$n" -gt "${FAKE_PULL_FAILS:-0}" ] || { echo "net/http: TLS handshake timeout" >&2; exit 1; } ;; esac ;;',
     "  *'image inspect'*'org.opencontainers.image.revision'*) echo '0123456789abcdef0123456789abcdef01234567' ;;",
     "  *'image inspect'*'RepoDigests'*)",
     '    ref="${*##* }"',
@@ -127,6 +132,7 @@ function run(
   // The fake `up` counter counts within one run, so a test can say "the first up
   // works, the roll back's does not" without counting the previous deploy.
   rmSync(`${log}.up`, { force: true });
+  rmSync(`${log}.pull`, { force: true });
   const env: NodeJS.ProcessEnv = {
     PATH: `${path.join(world.root, "bin")}:/usr/bin:/bin`,
     MAKAM_ROOT: world.root,
@@ -136,6 +142,7 @@ function run(
     // A host waits 180 s; a test does not need to.
     MAKAM_HEALTH_WAIT: "2",
     MAKAM_HEALTH_INTERVAL: "1",
+    MAKAM_PULL_BACKOFF: "0 0",
     ...extra,
   };
   const result = spawnSync("bash", [script, ...args], { encoding: "utf8", env });
@@ -260,6 +267,55 @@ describe("makam-deploy", () => {
     expect(second.deployLog()).toMatch(/rolled back to sha-1111111111111111111111111111111111111111/);
     // The database is forward-only, so the running image is the previous one.
     expect(readFileSync(path.join(world.root, world.env, "deployed.env"), "utf8")).toContain(`MAKAM_TAG=${TAG_ONE}`);
+  });
+
+  const pullCalls = (calls: string, match = "") => calls.split("\n").filter((l) => l.startsWith("docker pull") && l.includes(match)).length;
+
+  it("retries a pull that failed once and carries on, with the retry in the deploy log", () => {
+    const world = staging();
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_PULL_FAILS: "1" });
+    expect(result.code).toBe(0);
+    expect(pullCalls(result.calls)).toBe(2);
+    expect(result.deployLog()).toMatch(/pull .* attempt 1 of 3 failed; retrying in 0 s/);
+  });
+
+  it("gives up after 3 pull attempts with the usual message and changes nothing", () => {
+    const world = staging();
+    const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_PULL_FAILS: "99" });
+    expect(result.code).toBe(1);
+    expect(pullCalls(result.calls)).toBe(3);
+    expect(result.deployLog()).toContain(`ERROR pull ${IMAGE}:${TAG_ONE} failed; nothing changed`);
+  });
+
+  it("waits 10 s and then 30 s between pull attempts unless MAKAM_PULL_BACKOFF says otherwise", () => {
+    const script = readFileSync(deployScript, "utf8");
+    expect(script).toMatch(/MAKAM_PULL_BACKOFF:-10 30/);
+  });
+
+  it("retries the roll back's pull too, and still rolls back when the second attempt works", () => {
+    const world = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+    const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, {
+      FAKE_HEALTH_OK: "0",
+      FAKE_PULL_MATCH: "@sha256",
+      FAKE_PULL_FAILS: "1",
+    });
+    expect(second.code).toBe(1);
+    expect(pullCalls(second.calls, "@sha256")).toBe(2);
+    expect(second.deployLog()).toMatch(/rolled back to /);
+  });
+
+  it("exits 2 with the roll back message when the roll back's pull fails 3 times", () => {
+    const world = staging();
+    expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+    const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, {
+      FAKE_HEALTH_OK: "0",
+      FAKE_PULL_MATCH: "@sha256",
+      FAKE_PULL_FAILS: "99",
+    });
+    expect(second.code).toBe(2);
+    expect(pullCalls(second.calls, "@sha256")).toBe(3);
+    expect(second.deployLog()).toMatch(/roll back to sha256:[0-9a-f]{64} failed/);
   });
 
   it("exits 2 when the roll back fails too, because the new digest is what is left running", () => {
