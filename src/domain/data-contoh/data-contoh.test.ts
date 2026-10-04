@@ -135,6 +135,87 @@ describe("tanam", () => {
     ]);
   });
 
+  it("a tanam cut short after the platform fee was entered finishes the fee on the next run instead of letting it go, so cabut still refuses while the fee is in force", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const kode = "rilis1/tarif/biaya-layanan-platform";
+    const rencanaFee = (putusSetelahDicatat: boolean) => [
+      {
+        kode,
+        jenis: "tarif_global" as const,
+        buat: async (ctx: Parameters<Parameters<DataContoh["tanam"]>[1]["rencana"][number]["buat"]>[0]) => {
+          if (await setup.tariffs.globalTariff("biaya_layanan_platform", setup.clock.now())) return { ok: true as const };
+          const dibuat = await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 100_000, effectiveOn: "2026-10-01", reason: ALASAN });
+          if (!dibuat.ok) return { ok: false as const, reason: dibuat.reason };
+          await ctx.catatInduk(`biaya_layanan_platform:${dibuat.version.seq}`);
+          if (putusSetelahDicatat) throw new Error("proses dimatikan");
+          return { ok: true as const };
+        },
+      },
+    ];
+
+    await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: rencanaFee(true) })).rejects.toThrow("proses dimatikan");
+    // The price is in force, so the registry keeps holding it (unfinished) rather than cleaning it up.
+    expect((await dataContoh.rencanaCabut()).diblokir.map((one) => one.kode)).toEqual([kode]);
+
+    const lagi = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: rencanaFee(false) });
+
+    expect(lagi).toMatchObject({ ok: true, dibuat: [], sudahAda: [kode], dilewati: [] });
+    expect((await dataContoh.status()).aktif.map((one) => [one.kode, one.lengkap])).toEqual([[kode, true]]);
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: false, reason: "harga_contoh_masih_berlaku" });
+    expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toHaveLength(1);
+  });
+
+  it("retires a cut-short fixture whose price a real version has since superseded, and builds it afresh", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const kode = "rilis1/tarif/biaya-layanan-platform";
+    const contoh = await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 100_000, effectiveOn: "2026-10-01", reason: ALASAN });
+    if (!contoh.ok) throw new Error("setGlobalTariff refused");
+    // The row was recorded unfinished (a build cut short) and the process died; then the Operator entered the real fee.
+    const terputus = {
+      kode,
+      jenis: "tarif_global" as const,
+      buat: async (ctx: Parameters<Parameters<DataContoh["tanam"]>[1]["rencana"][number]["buat"]>[0]) => {
+        await ctx.catatInduk(`biaya_layanan_platform:${contoh.version.seq}`);
+        throw new Error("dimatikan");
+      },
+    };
+    await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: [terputus] })).rejects.toThrow("dimatikan");
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 125_000, effectiveOn: "2026-10-01", reason: "harga asli" });
+
+    const lagi = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: [{ kode, jenis: "tarif_global", buat: async () => ({ ok: true }) }] });
+
+    expect(lagi).toMatchObject({ ok: true, dibuat: [], sudahAda: [], dilewati: [kode] });
+    expect((await dataContoh.status()).aktif).toEqual([]);
+    expect((await setup.tariffs.globalTariff("biaya_layanan_platform", setup.clock.now()))?.amount).toBe(125_000);
+  });
+
+  it("records the finishing of each fixture in the Audit Log, with the reason of the run", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+
+    await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: rencanaLokasi(setup, admin, { dibuat: 0 }) });
+
+    const [lokasi] = await setup.lokasi.allLokasiMitra(admin);
+    const entri = (await setup.audit.allEntriesForLokasi(lokasi.id)).filter((satu) => satu.entity.kind === "lokasi_mitra" && satu.action.startsWith("data_contoh."));
+    expect(entri.map((satu) => [satu.action, satu.reason])).toEqual([
+      ["data_contoh.tanam", ALASAN],
+      ["data_contoh.selesai", ALASAN],
+    ]);
+  });
+
+  it("refuses a blank reason, as cabut does, and says a fixture code that is not one is a bug in the plan", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const lokasiMitra = await newLokasiMitra(setup, admin);
+    const rencana = [{ kode: "rilis1/lokasi/x", jenis: "lokasi_mitra" as const, buat: async () => ({ ok: true as const }) }];
+
+    expect(await dataContoh.tanam(admin, { himpunan: "rilis1", reason: "  ", rencana })).toMatchObject({ ok: false, reason: "alasan_wajib" });
+    expect(await dataContoh.catat(admin, { kode: "rilis1/lokasi/x", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: lokasiMitra.id, reason: "" })).toMatchObject({ ok: false, reason: "alasan_wajib" });
+    await expect(dataContoh.catat(admin, { kode: "  ", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: lokasiMitra.id, reason: ALASAN })).rejects.toThrow("Data Contoh: kode tidak valid");
+    await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana: [{ ...rencana[0], kode: "" }] })).rejects.toThrow("Data Contoh: kode tidak valid");
+    // A global price is named `<tariff key>:<version>`; a name that is not one would break every later cabut, so it is never recorded.
+    await expect(dataContoh.catat(admin, { kode: "rilis1/tarif/x", himpunan: "rilis1", jenis: "tarif_global", entitasId: "bukan-versi", reason: ALASAN })).rejects.toThrow("Data Contoh: tarif global harus");
+    expect((await dataContoh.status()).aktif).toEqual([]);
+  });
+
   it("records nothing for a fixture whose build finds nothing to plant, and says so instead of counting it planted", async () => {
     const { admin, dataContoh } = await setupDenganAdmin();
     const rencana = [{ kode: "rilis1/tarif/biaya-layanan-platform", jenis: "tarif_global" as const, buat: async () => ({ ok: true as const }) }];
@@ -190,10 +271,21 @@ describe("cabut", () => {
     expect(await setup.lokasi.publicLokasiMitra(lokasiMitra.id)).toBeNull();
     const profil = await setup.lokasi.lokasiMitra(admin, lokasiMitra.id);
     expect(profil.ok && profil.lokasiMitra.dataContoh).toBe(true);
-    // A Lokasi Mitra marked data contoh can no longer be published again.
     const akun = (await setup.identity.staffAccounts()).find((one) => one.accountId === adminLokasi.accountId);
     expect(akun?.deactivated).toBe(true);
     expect((await dataContoh.status()).aktif).toEqual([]);
+  });
+
+  it("leaves a Lokasi Mitra it has retired unpublishable: the publish gate refuses it as data contoh", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const belumTayang = await newLokasiMitra(setup, admin, "Taman Contoh (Contoh)");
+    await dataContoh.catat(admin, { kode: "rilis1/lokasi/x", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: belumTayang.id, reason: ALASAN });
+    await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+    const terbit = await setup.lokasi.publish(admin, belumTayang.id, { tariffsChecked: null });
+
+    expect(terbit).toMatchObject({ ok: false, reason: "data_contoh_tidak_bisa_diterbitkan" });
+    expect(await setup.lokasi.publicLokasiMitraList()).toEqual([]);
   });
 
   it("is idempotent: cabut again changes nothing and still succeeds", async () => {
@@ -226,6 +318,29 @@ describe("cabut", () => {
     expect((await setup.lokasi.publicLokasiMitraList()).map((one) => one.name)).toEqual(["Taman Contoh (Contoh)"]);
     expect((await dataContoh.status()).aktif).toHaveLength(2);
     expect(await dataContoh.aktif()).toBe(true);
+  });
+
+  it("refuses while a contoh price dated for the future has no real successor, because it will be the price in force then", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 125_000, effectiveOn: "2026-10-01", reason: "harga asli" });
+    const terjadwal = await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 100_000, effectiveOn: "2026-12-01", reason: ALASAN });
+    if (!terjadwal.ok) throw new Error("setGlobalTariff refused");
+    await dataContoh.catat(admin, { kode: "rilis1/tarif/biaya-layanan-platform", himpunan: "rilis1", jenis: "tarif_global", entitasId: `biaya_layanan_platform:${terjadwal.version.seq}`, reason: ALASAN });
+
+    const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+    expect(hasil).toMatchObject({
+      ok: false,
+      reason: "harga_contoh_masih_berlaku",
+      diblokir: [{ kode: "rilis1/tarif/biaya-layanan-platform", key: "biaya_layanan_platform", amount: 100_000 }],
+    });
+    expect(await dataContoh.aktif()).toBe(true);
+
+    // A real version for the same day, entered after it, takes the day over: the contoh one is never in force.
+    const asli = await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 150_000, effectiveOn: "2026-12-01", reason: "harga asli" });
+    expect(asli.ok).toBe(true);
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: true });
+    expect(await dataContoh.aktif()).toBe(false);
   });
 
   it("goes ahead once a real price version has superseded the contoh one", async () => {

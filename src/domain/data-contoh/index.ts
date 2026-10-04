@@ -19,9 +19,12 @@
  * Dinonaktifkan (Identity). A price version cannot be retired: Tariffs only ever
  * inserts versions. A GLOBAL price a set entered (the Biaya Layanan Platform) is
  * therefore retired by being superseded: `cabut` refuses, and changes nothing,
- * while a contoh version of one is still the version in force, because the next
- * real order would be charged an example price. A price tied to a contoh Lokasi
- * Mitra goes with it: nothing can quote a hidden Lokasi Mitra.
+ * while a contoh version of one is still the version in force (or will be, on a
+ * date still ahead), because the next real order would be charged an example
+ * price. The registry never lets go of such a price any other way either: a
+ * `tanam` cleaning up after a build cut short finishes that row instead of
+ * retiring it. A price tied to a contoh Lokasi Mitra goes with it: nothing can
+ * quote a hidden Lokasi Mitra.
  *
  * Only Admin Platform writes here, under `lokasi.buat` (the action creating or
  * hiding a Lokasi Mitra is), like the Katalog Lama ledger. Each owning module
@@ -74,6 +77,7 @@ export interface CatatInput {
 export type CatatResult =
   | { ok: true; entri: EntriDataContoh; /** False when the code was already recorded for this very entity: nothing changed. */ baru: boolean }
   | WriteRefusal
+  | { ok: false; reason: "alasan_wajib" }
   | { ok: false; reason: "kode_dipakai_entitas_lain"; milik: EntriDataContoh };
 
 /** What a fixture's build is handed to record what it creates, the moment it creates it. */
@@ -102,6 +106,7 @@ export type TanamResult =
       dilewati: string[];
     }
   | WriteRefusal
+  | { ok: false; reason: "alasan_wajib" }
   | { ok: false; reason: "gagal"; kode: string; alasan: string; dibuat: string[]; sudahAda: string[] };
 
 /** A contoh price that is still the one in force. */
@@ -139,7 +144,7 @@ export interface DataContohDeps {
   audit: AuditLog;
   lokasi: Pick<Lokasi, "tandaiDataContoh">;
   identity: Pick<Identity, "deactivateStaff">;
-  tariffs: Pick<Tariffs, "globalTariff">;
+  tariffs: Pick<Tariffs, "globalTariff" | "globalTariffHistory">;
   /** The orders a Lokasi Mitra still has running (Pemesanan's `pesananBerjalanDiLokasi`). */
   pemesanan: { pesananBerjalanDiLokasi(lokasiId: string): Promise<PesananBerjalan[]> };
 }
@@ -161,17 +166,28 @@ export interface DataContoh {
 
 const kodeSchema = z.string().trim().min(1).max(160);
 const reasonSchema = z.string().trim().min(1).max(500);
-const catatSchema = z.object({
-  kode: kodeSchema,
-  himpunan: z.enum(himpunanDataContoh),
-  jenis: z.enum(jenisDataContoh),
-  entitasId: z.string().trim().min(1).max(200),
-  indukKode: kodeSchema.nullish(),
-  reason: reasonSchema,
-});
-const tanamSchema = z.object({ himpunan: z.enum(himpunanDataContoh), reason: reasonSchema });
+const himpunanSchema = z.enum(himpunanDataContoh);
+const jenisSchema = z.enum(jenisDataContoh);
+const entitasIdSchema = z.string().trim().min(1).max(200);
 /** `<tariff key>:<version seq>`, how a global price version is named in the registry. */
 const versiTarifSchema = z.string().regex(/^[a-z_]+:\d+$/);
+
+/**
+ * What a caller built wrongly (a fixture code, a set, an id: the plan's own, never an operator's input) is a clear
+ * error, as the Katalog Lama ledger throws one. The reason is the operator-facing input, and is refused as a result.
+ */
+function wajib<T>(schema: z.ZodType<T>, nilai: unknown, apa: string): T {
+  const dibaca = schema.safeParse(nilai);
+  if (!dibaca.success) throw new Error(`Data Contoh: ${apa} tidak valid: ${JSON.stringify(nilai)}`);
+  return dibaca.data;
+}
+
+/** The key and version a global price's registry name carries, or null when it is not one. */
+function bacaVersiTarif(entitasId: string): { key: GlobalTariffKey; seq: string } | null {
+  if (!versiTarifSchema.safeParse(entitasId).success) return null;
+  const [key, seq] = entitasId.split(":");
+  return (GLOBAL_TARIFF_KEYS as readonly string[]).includes(key) ? { key: key as GlobalTariffKey, seq } : null;
+}
 
 /** The order `cabut` retires in: the Lokasi Mitra go dark first, then their staff, then what only the registry tracks. */
 const URUTAN_CABUT: Record<JenisDataContoh, number> = { lokasi_mitra: 0, akun_staf: 1, jenis_makam: 2, penawaran_layanan: 3, tarif_global: 4 };
@@ -207,7 +223,19 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
   async function catatEntri(by: Actor, raw: CatatInput, selesai: boolean): Promise<CatatResult> {
     const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
     if (refusal) return refusal;
-    const input = catatSchema.parse(raw);
+    const reason = reasonSchema.safeParse(raw.reason);
+    if (!reason.success) return { ok: false, reason: "alasan_wajib" };
+    const input = {
+      kode: wajib(kodeSchema, raw.kode, "kode"),
+      himpunan: wajib(himpunanSchema, raw.himpunan, "himpunan"),
+      jenis: wajib(jenisSchema, raw.jenis, "jenis"),
+      entitasId: wajib(entitasIdSchema, raw.entitasId, "id entitas"),
+      indukKode: raw.indukKode == null ? null : wajib(kodeSchema, raw.indukKode, "kode induk"),
+      reason: reason.data,
+    };
+    if (input.jenis === "tarif_global" && !bacaVersiTarif(input.entitasId)) {
+      throw new Error(`Data Contoh: tarif global harus bernama <kunci tarif>:<versi>, bukan ${JSON.stringify(input.entitasId)}`);
+    }
     const sama = (row: Row) => row.jenis === input.jenis && row.entitasId === input.entitasId;
     const ada = await aktifDenganKode(input.kode);
     if (ada) return sama(ada) ? { ok: true, entri: toEntri(ada), baru: false } : { ok: false, reason: "kode_dipakai_entitas_lain", milik: toEntri(ada) };
@@ -221,7 +249,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           himpunan: input.himpunan,
           jenis: input.jenis,
           entitasId: input.entitasId,
-          indukKode: input.indukKode ?? null,
+          indukKode: input.indukKode,
           selesaiPada: selesai ? now : null,
           dicatatPada: now,
           dicatatOleh: by.accountId,
@@ -276,9 +304,30 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     });
   }
 
-  /** Retires what one entry names through the owning module, then marks it retired. A price version needs no write here: `cabut` proved it superseded. */
+  /**
+   * A contoh global price that is, or will be, the version in force: the version in force now, or the version in force on its
+   * own date when that date is still ahead (a scheduled version nothing later has superseded). Null once a later version
+   * takes over, which is the only way a price version is ever retired.
+   */
+  async function masihBerlaku(row: Row): Promise<HargaContohBerlaku | null> {
+    const versi = bacaVersiTarif(row.entitasId);
+    if (!versi) throw new Error(`Data Contoh: tarif global tidak dikenal: ${row.entitasId}`);
+    const dicatat = (await deps.tariffs.globalTariffHistory(versi.key)).find((satu) => String(satu.seq) === versi.seq);
+    if (!dicatat) return null;
+    const sekarang = deps.clock.now();
+    const berlaku = await deps.tariffs.globalTariff(versi.key, dicatat.inForceFrom.getTime() > sekarang.getTime() ? dicatat.inForceFrom : sekarang);
+    return berlaku && String(berlaku.seq) === versi.seq ? { kode: row.kode, key: versi.key, amount: berlaku.amount } : null;
+  }
+
+  /**
+   * Retires what one entry names through the owning module, then marks it retired. A price version cannot be retired, only
+   * superseded: its row is let go of only once a later version is in force, whoever asks (`cabut`, or a `tanam` cleaning up).
+   */
   async function cabutEntri(by: Actor, row: Row, reason: string): Promise<{ ok: true } | { ok: false; alasan: string }> {
-    if (row.jenis === "lokasi_mitra") {
+    if (row.jenis === "tarif_global") {
+      const berlaku = await masihBerlaku(row);
+      if (berlaku) return { ok: false, alasan: `harga contoh ${berlaku.key} masih berlaku, belum digantikan versi asli` };
+    } else if (row.jenis === "lokasi_mitra") {
       const hasil = await deps.lokasi.tandaiDataContoh(by, row.entitasId, { dataContoh: true, reason });
       if (!hasil.ok && hasil.reason !== "tidak_diperbarui" && hasil.reason !== "tidak_ditemukan") return { ok: false, alasan: `Lokasi Mitra tidak bisa ditandai data contoh (${hasil.reason})` };
     } else if (row.jenis === "akun_staf") {
@@ -310,16 +359,37 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     return terbuka;
   }
 
-  /** The contoh global prices that are still the version in force: a version a later one has not superseded yet. */
+  /** The active contoh global prices that are, or will be, the version in force: the ones `cabut` waits for a real version over. */
   async function hargaBerlaku(aktif: Row[]): Promise<HargaContohBerlaku[]> {
     const diblokir: HargaContohBerlaku[] = [];
     for (const row of aktif.filter((satu) => satu.jenis === "tarif_global")) {
-      const [key, seq] = versiTarifSchema.parse(row.entitasId).split(":");
-      if (!(GLOBAL_TARIFF_KEYS as readonly string[]).includes(key)) throw new Error(`Data Contoh: tarif global tidak dikenal: ${key}`);
-      const berlaku = await deps.tariffs.globalTariff(key as GlobalTariffKey, deps.clock.now());
-      if (berlaku && String(berlaku.seq) === seq) diblokir.push({ kode: row.kode, key: key as GlobalTariffKey, amount: berlaku.amount });
+      const satu = await masihBerlaku(row);
+      if (satu) diblokir.push(satu);
     }
     return diblokir;
+  }
+
+  /** Marks a built fixture finished, with its own Entri Audit: from then on a rerun finds it complete and leaves it alone. */
+  async function selesaikan(by: Actor, kode: string, reason: string): Promise<void> {
+    await deps.audit.staffWrite(db, async (tx, record) => {
+      const [selesai] = await tx
+        .update(dataContohEntri)
+        .set({ selesaiPada: deps.clock.now() })
+        .where(and(eq(dataContohEntri.kode, kode), isNull(dataContohEntri.dicabutPada), isNull(dataContohEntri.selesaiPada)))
+        .returning();
+      // Finished by someone else in the meantime: nothing to record, and the audit rule only binds a write that happened.
+      if (!selesai) return { ok: false as const };
+      await record({
+        actor: { accountId: by.accountId, role: "admin_platform" },
+        action: "data_contoh.selesai",
+        entity: { kind: selesai.jenis, id: selesai.entitasId },
+        lokasiId: selesai.jenis === "lokasi_mitra" ? selesai.entitasId : null,
+        before: { kode, lengkap: false },
+        after: { kode, lengkap: true },
+        reason,
+      });
+      return { ok: true as const };
+    });
   }
 
   async function rencanaCabut(): Promise<RencanaCabut> {
@@ -333,19 +403,28 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     async tanam(by, raw) {
       const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
       if (refusal) return refusal;
-      const { himpunan, reason } = tanamSchema.parse({ himpunan: raw.himpunan, reason: raw.reason });
+      const alasan = reasonSchema.safeParse(raw.reason);
+      if (!alasan.success) return { ok: false, reason: "alasan_wajib" };
+      const reason = alasan.data;
+      const himpunan = wajib(himpunanSchema, raw.himpunan, "himpunan");
       const dibuat: string[] = [];
       const sudahAda: string[] = [];
       const dilewati: string[] = [];
 
       for (const item of raw.rencana) {
-        const kode = kodeSchema.parse(item.kode);
+        const kode = wajib(kodeSchema, item.kode, "kode");
         const ada = await aktifDenganKode(kode);
         if (ada && ada.selesaiPada) {
           sudahAda.push(kode);
           continue;
         }
         if (ada) {
+          if (ada.jenis === "tarif_global" && (await masihBerlaku(ada))) {
+            // A price entered and recorded, with only the finishing mark missing: a price in force is never let go of, so the row is finished.
+            await selesaikan(by, kode, reason);
+            sudahAda.push(kode);
+            continue;
+          }
           // A build that was cut short: never finished, retired with everything it had recorded, then built afresh.
           const dibuang = await cabutPohon(by, ada, `${reason}: sisa build yang terputus dicabut`);
           if (!dibuang.ok) return { ok: false, reason: "gagal", kode, alasan: `sisa build terputus tidak bisa dicabut (${dibuang.alasan})`, dibuat, sudahAda };
@@ -383,10 +462,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           dilewati.push(kode);
           continue;
         }
-        await db
-          .update(dataContohEntri)
-          .set({ selesaiPada: deps.clock.now() })
-          .where(and(eq(dataContohEntri.kode, kode), isNull(dataContohEntri.dicabutPada), isNull(dataContohEntri.selesaiPada)));
+        await selesaikan(by, kode, reason);
         dibuat.push(kode);
       }
       return { ok: true, dibuat, sudahAda, dilewati };

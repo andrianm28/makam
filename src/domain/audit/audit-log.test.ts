@@ -51,6 +51,34 @@ describe("Audit Log", () => {
     ]);
   });
 
+  it("an Audit Log given a default reason (an ops command's name and stack) stamps it on every Entri Audit that has no reason, and leaves one that has its own", async () => {
+    const audit = createAuditLog({
+      db,
+      clock: new FakeClock(wib("2026-10-01 09:00")),
+      alasanBawaan: "data-contoh tanam (production, --izinkan-production)",
+    });
+
+    await audit.staffWrite(db, async (_tx, record) => {
+      await record({ ...pindahNomor("+6281111111111"), reason: null });
+      await record({ ...pindahNomor("+6282222222222"), reason: "HP hilang, KTP cocok" });
+      return { ok: true };
+    });
+
+    const entries = await audit.entriesAbout({ kind: "akun", id: "akun-pemesan" });
+    expect(entries.map((entry) => entry.reason)).toEqual(["data-contoh tanam (production, --izinkan-production)", "HP hilang, KTP cocok"]);
+  });
+
+  it("an Audit Log with no default reason leaves an Entri Audit without a reason as it was written", async () => {
+    const audit = createAuditLog({ db, clock: new FakeClock(wib("2026-10-01 09:00")) });
+
+    await audit.staffWrite(db, async (_tx, record) => {
+      await record({ ...pindahNomor("+6281111111111"), reason: null });
+      return { ok: true };
+    });
+
+    expect((await audit.entriesAbout({ kind: "akun", id: "akun-pemesan" })).map((entry) => entry.reason)).toEqual([null]);
+  });
+
   it("entries written at the same Clock time come back in the order they were written", async () => {
     const audit = createAuditLog({ db, clock: new FakeClock(wib("2026-10-01 09:00")) });
     const numbers = Array.from({ length: 20 }, (_, index) => `+62811${index.toString().padStart(8, "0")}`);

@@ -13,7 +13,7 @@ import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { adminPlatformOf } from "../../tests/support/identity";
 import { pemesananOnTestDatabase } from "../../tests/support/pemesanan";
-import { dataContohCommand, pengaturanOperatorBolehDiisi } from "./data-contoh-command";
+import { dataContohCommand } from "./data-contoh-command";
 import { LOKASI_RILIS1, sebagaiDataContoh, tandaContoh } from "./data-contoh/rilis1";
 import { CONTOH_LOKASI } from "./seed-contoh-publik-command";
 
@@ -101,9 +101,19 @@ describe("data-contoh: where it may run", () => {
     expect(sandbox.output).not.toContain("tidak membayar lewat sandbox SumoPod");
   });
 
-  it("never enters Pengaturan Operator on production", () => {
-    expect(pengaturanOperatorBolehDiisi("production")).toBe(false);
-    for (const lingkungan of ["development", "test", "staging"]) expect(pengaturanOperatorBolehDiisi(lingkungan)).toBe(true);
+  it("on production, with its flag and the SumoPod sandbox, plants the set but never enters Pengaturan Operator, and names the environment in every write", async () => {
+    const { setup } = await stackDenganAdmin();
+    const sebelum = (await setup.audit.allEntries()).length;
+    const produksi = { ...stagingEnv(), APP_ENV: "production", SUMOPOD_BASE_URL: "https://api-pay-sandbox.sumopod.com" };
+
+    berhasil(await jalan([...SET, "--tulis", "--izinkan-production"], produksi));
+
+    expect((await setup.lokasi.publicLokasiMitraList()).map((one) => one.name)).toEqual([tandaContoh("Pemakaman Bukit Sejuk")]);
+    // The Operator's own to fill in on production: the example values are never entered there.
+    expect(await setup.operatorSettings.current()).toBeNull();
+    const baru = (await setup.audit.allEntries()).slice(sebelum);
+    expect(baru.length).toBeGreaterThan(10);
+    expect(baru.filter((satu) => satu.reason !== "data-contoh tanam (production, --izinkan-production)").map((satu) => satu.action)).toEqual([]);
   });
 
   it("says how to use it for an unknown subcommand, a missing or unknown --set, or --set on another subcommand (exit 2)", async () => {
@@ -147,7 +157,7 @@ describe("data-contoh tanam --set rilis1", () => {
     const { jenisMakam } = await setup.tariffs.asStaff(admin).lokasiTariffs(lokasiId, setup.clock.now());
     expect(jenisMakam.map((one) => [one.name, one.inForce?.hargaHakPakai])).toEqual([[tandaContoh("Makam Standar"), 4_000_000]]);
     expect((await setup.tariffs.globalTariff("biaya_layanan_platform", setup.clock.now()))?.amount).toBe(100_000);
-    // The prices the family sees are all-in: the example Hak Pakai plus the example platform fee.
+    // Its three Petak are Tersedia, open for booking.
     expect(await setup.inventory.tersediaPerJenisMakam(lokasiId)).toEqual([expect.objectContaining({ count: 3 })]);
     const staf = (await setup.identity.staffAccounts()).filter((akun) => !akun.roles.includes("admin_platform"));
     expect(staf.length).toBeGreaterThanOrEqual(2);
@@ -170,6 +180,17 @@ describe("data-contoh tanam --set rilis1", () => {
     const entri = await setup.audit.allEntriesForLokasi(lokasi.id);
     expect(entri.filter((satu) => satu.action === "lokasi.buat").map((satu) => satu.reason)).toEqual(["data-contoh tanam (staging, --izinkan-staging)"]);
     expect(entri.filter((satu) => satu.action === "data_contoh.tanam").map((satu) => satu.reason)).toEqual(["data-contoh tanam (staging, --izinkan-staging)"]);
+  });
+
+  it("every Entri Audit a tanam writes, in whichever module, carries a reason naming the command and the environment", async () => {
+    const { setup } = await stackDenganAdmin();
+    const sebelum = (await setup.audit.allEntries()).length;
+
+    berhasil(await jalan([...SET, "--tulis", "--izinkan-staging"], stagingEnv()));
+
+    const baru = (await setup.audit.allEntries()).slice(sebelum);
+    expect(baru.length).toBeGreaterThan(10);
+    expect(baru.filter((satu) => satu.reason !== "data-contoh tanam (staging, --izinkan-staging)").map((satu) => satu.action)).toEqual([]);
   });
 
   it("retires a Lokasi Mitra whose build failed, with its staff, and plants the same fixture again afterwards", async () => {
@@ -256,6 +277,22 @@ describe("data-contoh tanam --set rilis1", () => {
     expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toHaveLength(1);
   });
 
+  it("records the contoh Biaya Layanan Platform a killed tanam left unrecorded, so cabut still refuses while it is in force", async () => {
+    const { setup, admin } = await stackDenganAdmin();
+    // What a run killed between the price and its registry row leaves behind: the price, entered under this command's own reason, no row.
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 100_000, effectiveOn: "2026-10-01", reason: "data-contoh tanam" });
+    expect((await jalan(["status"])).output).not.toContain("tarif_global");
+
+    berhasil(await jalan(SET.concat("--tulis")));
+
+    expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toHaveLength(1);
+    expect((await jalan(["status"])).output).toContain("tarif_global: 1");
+    const hasil = await jalan(["cabut", "--tulis"]);
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("biaya_layanan_platform Rp 100.000");
+    expect((await setup.lokasi.publicLokasiMitraList()).map((one) => one.name)).toEqual([tandaContoh("Pemakaman Bukit Sejuk")]);
+  });
+
   it("does not enter the contoh Biaya Layanan Platform when a version of it is already set", async () => {
     const { setup, admin } = await stackDenganAdmin();
     await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 125_000, effectiveOn: "2026-10-01", reason: "harga asli" });
@@ -268,7 +305,7 @@ describe("data-contoh tanam --set rilis1", () => {
     expect((await jalan(SET.concat("--tulis"))).output).toContain("tidak mengubah apa pun");
   });
 
-  it("plants the five Lokasi Mitra of the set, each named (Contoh), two with Pemesanan Terencana on", { timeout: 600_000 }, async () => {
+  it("plants the five Lokasi Mitra of the set, each named (Contoh), two with Pemesanan Terencana on", { timeout: 120_000 }, async () => {
     const { setup } = await stackDenganAdmin();
 
     berhasil(await dataContohCommand(SET.concat("--tulis"), env(), { clock: clock() }));

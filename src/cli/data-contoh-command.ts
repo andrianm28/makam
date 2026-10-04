@@ -25,6 +25,7 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 import { createDatabase } from "@/db/client";
 import { createDataContoh, himpunanDataContoh, type CabutResult, type DataContoh, type EntriDataContoh, type RencanaCabut, type RencanaTanam } from "@/domain/data-contoh";
+import type { AuditLog } from "@/domain/audit";
 import type { Actor } from "@/domain/identity";
 import { createPenawaranLayanan } from "@/domain/layanan";
 import { pesananBerjalanDiLokasi } from "@/domain/pemesanan";
@@ -49,10 +50,8 @@ type Hasil = { exitCode: number; output: string };
 
 const rupiah = (jumlah: number) => `Rp ${jumlah.toLocaleString("id-ID")}`;
 
-/** Whether this command may enter the example Pengaturan Operator: never on production, where it is the Operator's own to fill in. */
-export function pengaturanOperatorBolehDiisi(appEnv: string): boolean {
-  return appEnv !== "production";
-}
+/** How every `tanam` reason starts: what the Audit Log shows of a price this command entered, and how a killed run's price is told from a real one. */
+const NAMA_TANAM = "data-contoh tanam";
 
 interface Perintah {
   sub: "tanam" | "cabut" | "status";
@@ -121,6 +120,7 @@ function bacaPerintah(argv: string[], source: Record<string, string | undefined>
 /** Everything the three subcommands drive, composed on one connection. */
 interface Konteks {
   modul: Modul;
+  audit: AuditLog;
   dataContoh: DataContoh;
   penawaran: ReturnType<typeof createPenawaranLayanan>;
   operatorSettings: Parameters<typeof isiPengaturanOperatorBilaKosong>[0];
@@ -139,6 +139,20 @@ async function status(ctx: Konteks): Promise<Hasil> {
   return { exitCode: 0, output: [`Data Contoh aktif: ${aktif.length} entri (${dicabut} sudah dicabut).`, ...entriPerJenis(aktif)].join("\n") };
 }
 
+/**
+ * Whether a version of the platform fee is one a `tanam` entered: the Entri Audit at its place in the entry order (one is
+ * written with each version) names this command in its reason, which an Operator's own entry never does.
+ */
+async function diEnterOlehTanam(ctx: Konteks, seq: number): Promise<boolean> {
+  const [riwayat, entri] = await Promise.all([
+    ctx.modul.tariffs.globalTariffHistory("biaya_layanan_platform"),
+    ctx.audit.entriesAbout({ kind: "tarif_global", id: "biaya_layanan_platform" }),
+  ]);
+  const perubahan = entri.filter((satu) => satu.action === "tarif.ubah_global");
+  if (perubahan.length !== riwayat.length) return false;
+  return perubahan[riwayat.findIndex((satu) => satu.seq === seq)]?.reason?.startsWith(NAMA_TANAM) === true;
+}
+
 /** The Rilis 1 set's fixtures, in the order they depend on each other: the platform fee, the Petugas Lapangan, then each Lokasi Mitra. */
 function rencanaRilis1(ctx: Konteks, admin: Actor, hariIni: string, alasan: string): RencanaTanam[] {
   const { modul } = ctx;
@@ -149,7 +163,12 @@ function rencanaRilis1(ctx: Konteks, admin: Actor, hariIni: string, alasan: stri
       jenis: "tarif_global",
       async buat({ catatInduk }) {
         // The platform fee is the Operator's own, shared by every Lokasi Mitra: a contoh version is entered only when none is set at all.
-        if (await modul.tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now())) return { ok: true };
+        const berlaku = await modul.tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now());
+        if (berlaku) {
+          // A contoh version a killed run entered but never recorded is recorded now, so `cabut` still waits for a real one.
+          if (await diEnterOlehTanam(ctx, berlaku.seq)) await catatInduk(`biaya_layanan_platform:${berlaku.seq}`);
+          return { ok: true };
+        }
         const dibuat = await modul.tariffs.setGlobalTariff(admin, {
           key: "biaya_layanan_platform",
           amount: BIAYA_LAYANAN_PLATFORM_DATA_CONTOH,
@@ -254,7 +273,8 @@ async function tanam(ctx: Konteks, perintah: Perintah): Promise<Hasil> {
   if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
   const hariIni = wibDateOf(modul.adapters.clock.now());
 
-  if (pengaturanOperatorBolehDiisi(perintah.appEnv)) {
+  // The Operator's own to fill in on production: the example values are entered on no stack that is production.
+  if (perintah.appEnv !== "production") {
     const operator = await isiPengaturanOperatorBilaKosong(ctx.operatorSettings, admin, perintah.alasan);
     if (!operator.ok) return { exitCode: 1, output: `Ditolak: Pengaturan Operator contoh tidak tersimpan (${operator.reason}).` };
   }
@@ -348,9 +368,11 @@ export async function dataContohCommand(
     const env = readRuntimeEnv(source);
     const database = createDatabase(env.DATABASE_URL, { max: 2, applicationName: "makam-data-contoh" });
     try {
-      const { modul, operatorSettings, audit } = susunModul(env, database, options.clock);
+      // Every Entri Audit this run writes carries its reason (the command and the environment), whichever module writes it.
+      const { modul, operatorSettings, audit } = susunModul(env, database, options.clock, perintah.alasan);
       const ctx: Konteks = {
         modul,
+        audit,
         operatorSettings,
         penawaran: createPenawaranLayanan({ db: database.db, clock: modul.adapters.clock, audit, tariffs: modul.tariffs }),
         dataContoh: createDataContoh({

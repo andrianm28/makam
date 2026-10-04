@@ -458,8 +458,12 @@ function bacaIzin(argv: string[], source: Record<string, string | undefined>): {
   return { alasan: alasanSeed(appEnv.data === "staging") };
 }
 
-/** The modules this command drives, on one database connection, composed from the adapters of this stack. */
-export function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>, clock?: Clock) {
+/**
+ * The modules this command drives, on one database connection, composed from the adapters of this stack.
+ * `alasanBawaanAudit` is the reason their one Audit Log stamps on every Entri Audit that has none of its own
+ * (ticket 109's `data-contoh`: every write of a run names the command and the environment).
+ */
+export function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: ReturnType<typeof createDatabase>, clock?: Clock, alasanBawaanAudit?: string) {
   const overrides = {
     // See this file's header comment: every email this command sends goes to an
     // address it invented itself, never a real person's, so it never needs the
@@ -481,7 +485,7 @@ export function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: Ret
     devFilesRoot: env.DEV_FILES_ROOT,
     overrides: Object.keys(overrides).length > 0 ? overrides : undefined,
   });
-  const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
+  const { audit, identity } = composeIdentity({ env, db: database.db, adapters, alasanBawaan: alasanBawaanAudit });
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
   const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
   const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });

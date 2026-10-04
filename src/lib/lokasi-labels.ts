@@ -23,6 +23,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "akun.totp_reset": "Authenticator direset",
   "katalog_lama.impor": "Katalog aplikasi lama diimpor",
   "data_contoh.tanam": "Data Contoh ditanam",
+  "data_contoh.selesai": "Data Contoh selesai ditanam",
   "data_contoh.cabut": "Data Contoh dicabut",
   "pengaturan_operator.ubah": "Pengaturan Operator diubah",
   "akun.push_aktifkan": "Perangkat Push diaktifkan",
