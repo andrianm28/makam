@@ -2,7 +2,22 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { layananOnTestDatabase, type LayananSetup } from "../../../tests/support/layanan";
-import { HARGA_BUNGA_TABUR, HARGA_PEMBERSIHAN, mitraJasaUntuk, orderTpu, saatDukaTpuDikonfirmasi, siapTpu } from "../../../tests/support/layanan-tpu";
+import {
+  diterima,
+  foto,
+  HARGA_BUNGA_TABUR,
+  HARGA_PEMBERSIHAN,
+  mitraJasaUntuk,
+  orderTpu,
+  pencairanSaya,
+  saatDukaTpuDikonfirmasi,
+  setujui,
+  siapTpu,
+  siapTpuBertarif,
+  TARIF,
+  type MitraJasaTpu,
+  type SiapTpuBertarif,
+} from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
 import { tandaiTerlambatTpu } from "./terlambat-tpu";
 
@@ -17,20 +32,9 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-const TARIF = 150_000;
-const foto = () => new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
-
-async function siap() {
-  const setup = layananOnTestDatabase(db, { pekerjaanNyata: true });
-  const tpuSiap = await siapTpu(setup);
-  for (const varian of [tpuSiap.bunga, tpuSiap.pembersihan]) {
-    const tarif = await setup.tariffs.setTarifMitraJasa(tpuSiap.admin, varian.id, { amount: TARIF, effectiveOn: "2026-10-01", reason: null });
-    if (!tarif.ok) throw new Error(`tarif refused: ${tarif.reason}`);
-  }
-  return { setup, ...tpuSiap };
-}
-type Siap = Awaited<ReturnType<typeof siap>>;
-type Mitra = Awaited<ReturnType<typeof mitraJasaUntuk>>;
+const siap = () => siapTpuBertarif(db);
+type Siap = SiapTpuBertarif;
+type Mitra = MitraJasaTpu;
 
 async function bayar(setup: LayananSetup, tagihanId: string) {
   const hasil = await setup.billing.recordPayment(tagihanId, { method: { kind: "transfer_manual" }, reference: null, paidAt: setup.clock.now() });
@@ -47,13 +51,6 @@ async function kerjaDiterima(s: Siap, mitra: Mitra, varianId: string = s.bunga.i
   return { pekerjaanId: job.id, nomor: dipesan.pesanan.nomor, tagihanId: dipesan.tagihan.id };
 }
 
-async function diterima(s: Siap, mitra: Mitra, pekerjaanId: string) {
-  const tugas = await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId, mitraJasaId: mitra.id });
-  if (!tugas.ok) throw new Error(`assign refused: ${tugas.reason}`);
-  const jawab = await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId, jawaban: "terima" });
-  if (!jawab.ok) throw new Error(`accept refused: ${jawab.reason}`);
-}
-
 async function ambil(s: Siap, mitra: Mitra, pekerjaanId: string, kind: "foto_sebelum" | "foto_sesudah" | "video") {
   return s.setup.layanan.simpanBuktiTpu(mitra.actor, { pekerjaanId, kind, takenAt: s.setup.clock.now(), file: { body: foto(), contentType: "image/jpeg" } });
 }
@@ -64,18 +61,6 @@ async function kirimBunga(s: Siap, mitra: Mitra, pekerjaanId: string) {
   if (!diambil.ok) throw new Error(`shot refused: ${diambil.reason}`);
   const kirim = await s.setup.layanan.kirimBuktiTpu(mitra.actor, { pekerjaanId });
   if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
-}
-
-async function setujui(s: Siap, pekerjaanId: string) {
-  const hasil = await s.setup.layanan.setujuiBuktiTpu(s.admin, { pekerjaanId });
-  if (!hasil.ok) throw new Error(`approve refused: ${hasil.reason}`);
-  return hasil;
-}
-
-async function pencairanSaya(s: Siap, mitra: Mitra) {
-  const hasil = await s.setup.payouts.pencairanMitraJasa(mitra.actor);
-  if (!hasil.ok) throw new Error(hasil.reason);
-  return hasil.pekerjaan;
 }
 
 describe("the Mitra Jasa's photo proof of a TPU job", () => {

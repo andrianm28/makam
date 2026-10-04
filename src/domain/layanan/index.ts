@@ -203,18 +203,17 @@ import {
   type MulaiPekerjaanResult,
 } from "./pekerjaan";
 import { batalkanLayananPetakDibatalkan, batalkanPekerjaan, batalkanSisaBerhenti, pengembalianTerbuka, type BatalkanPekerjaanResult, type PengembalianTerbuka } from "./batal";
+import { batalkanHariHTpu, type BatalkanHariHTpuResult } from "./batal-hari-h-tpu";
 import {
   barisHariHTpu,
   hargaPesananTpu,
   jadwalkanHariHTpu,
-  pekerjaanTpuSelesaiUntukTagihan,
   penawaranTpuUntukPesanan,
   pesananTpuOf,
   placePesananLayananTpu,
   type BarisHariHTpuResult,
   type FotoMakamTpu,
   type JadwalkanHariHTpuInput,
-  type PekerjaanTpuSelesai,
   type PesananTpuTerbaca,
   type PlacePesananLayananTpuResult,
 } from "./tpu";
@@ -381,6 +380,7 @@ export type {
 } from "./keluhan";
 export { keluhanStatuses, type KeluhanStatus } from "./schema";
 export { batasBatal, bolehDibatalkan } from "./batal";
+export type { BatalkanHariHTpuResult } from "./batal-hari-h-tpu";
 export { BATAS_JAWAB_JAM, batasJawabPenugasan } from "./penugasan-tpu";
 export { BATAS_VERIFIKASI_BUKTI_JAM } from "./bukti-tpu-baca";
 export type {
@@ -404,7 +404,6 @@ export type {
   FotoMakamTpu,
   JadwalkanHariHTpuInput,
   PekerjaanTpuPemesan,
-  PekerjaanTpuSelesai,
   PesananTpuTerbaca,
   PlacePesananLayananTpuResult,
 } from "./tpu";
@@ -704,8 +703,13 @@ export interface Layanan {
    * jobs and the Tagihan they are billed on commit together.
    */
   jadwalkanHariHTpu(input: JadwalkanHariHTpuInput, within?: Database): Promise<number>;
-  /** The hari-H jobs of one Tagihan that are already done (label and amount as billed); a cancellation refunds none of them. */
-  pekerjaanTpuSelesaiUntukTagihan(tagihanId: string, within?: Database): Promise<PekerjaanTpuSelesai[]>;
+  /**
+   * A Saat Duka TPU order ends: every hari-H job of it not yet done (Dijadwalkan, or Terlambat and never started) becomes
+   * Dibatalkan and its assignment, if any, ends; the lines to refund for exactly those come back, in Pengurusan's own
+   * transaction (`within`). A job Sedang Dikerjakan, Menunggu Verifikasi, Selesai or in Keluhan, or Terlambat but started,
+   * keeps its price and is not returned. Idempotent (ticket 117).
+   */
+  batalkanHariHTpu(nomor: string, within: Database): Promise<BatalkanHariHTpuResult>;
   /** Every Dijadwalkan TPU job with who holds it and what came before (Admin Platform). */
   pekerjaanTpuUntukStaf(by: Actor): Promise<PekerjaanTpuStaf[]>;
   /** One TPU job with the picker's candidates: Aktif Mitra Jasa covering the TPU and the Layanan and free on the date. */
@@ -934,7 +938,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     pesananTpuOf: (nomor, pemesan) => pesananTpuOf(deps, nomor, pemesan),
     barisHariHTpu: (items, at) => barisHariHTpu(deps, items, at ?? now()),
     jadwalkanHariHTpu: (input, within) => jadwalkanHariHTpu(within ? { ...deps, db: within } : deps, input),
-    pekerjaanTpuSelesaiUntukTagihan: (tagihanId, within) => pekerjaanTpuSelesaiUntukTagihan(deps, tagihanId, within),
+    batalkanHariHTpu: (nomor, within) => batalkanHariHTpu(deps, nomor, within),
     pekerjaanTpuUntukStaf: (by) => pekerjaanTpuUntukStaf(deps, by),
     bacaPekerjaanTpu: (by, pekerjaanId) => bacaPekerjaanTpu(deps, by, pekerjaanId),
     tugaskanMitraJasa: (by, input) => tugaskanMitraJasa(deps, by, input),
