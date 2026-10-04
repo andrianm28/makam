@@ -108,7 +108,7 @@ export class SmtpEmailSender implements EmailSender {
     const domain = typeof to === "string" ? domainOf(to) : undefined;
     if (domain === undefined) return true;
     if (RESERVED_TLDS.has(domain.split(".").pop()!)) return false;
-    return !(await lookupSaysNothing.call(this.#resolver, domain));
+    return !(await lookupSaysNothing(this.#resolver, domain));
   }
 
   async send(message: EmailMessage): Promise<{ messageId: string }> {
@@ -137,14 +137,14 @@ export class SmtpEmailSender implements EmailSender {
 }
 
 /** Only a definitive "no such domain" refuses; any other lookup failure lets the send go ahead. */
-async function lookupSaysNothing(this: RecipientResolver, domain: string): Promise<boolean> {
+async function lookupSaysNothing(resolver: RecipientResolver, domain: string): Promise<boolean> {
   try {
-    if ((await this.resolveMx(domain)).length > 0) return false;
+    if ((await resolver.resolveMx(domain)).length > 0) return false;
   } catch (error) {
     if (!NO_SUCH_NAME.has((error as { code?: string })?.code ?? "")) return false;
   }
   try {
-    return (await this.resolveAddresses(domain)).length === 0;
+    return (await resolver.resolveAddresses(domain)).length === 0;
   } catch (error) {
     return NO_SUCH_NAME.has((error as { code?: string })?.code ?? "");
   }
