@@ -24,8 +24,17 @@
 import { parseArgs } from "node:util";
 import { z } from "zod";
 import { createDatabase } from "@/db/client";
-import { createDataContoh, himpunanDataContoh, type CabutResult, type DataContoh, type EntriDataContoh, type RencanaCabut, type RencanaTanam } from "@/domain/data-contoh";
-import type { AuditLog } from "@/domain/audit";
+import {
+  AWALAN_ALASAN_TANAM,
+  createDataContoh,
+  himpunanDataContoh,
+  type CabutResult,
+  type DataContoh,
+  type EntriDataContoh,
+  type HargaContohBerlaku,
+  type RencanaCabut,
+  type RencanaTanam,
+} from "@/domain/data-contoh";
 import type { Actor } from "@/domain/identity";
 import { createPenawaranLayanan } from "@/domain/layanan";
 import { pesananBerjalanDiLokasi } from "@/domain/pemesanan";
@@ -49,9 +58,6 @@ const USAGE =
 type Hasil = { exitCode: number; output: string };
 
 const rupiah = (jumlah: number) => `Rp ${jumlah.toLocaleString("id-ID")}`;
-
-/** How every `tanam` reason starts: what the Audit Log shows of a price this command entered, and how a killed run's price is told from a real one. */
-const NAMA_TANAM = "data-contoh tanam";
 
 interface Perintah {
   sub: "tanam" | "cabut" | "status";
@@ -111,7 +117,8 @@ function bacaPerintah(argv: string[], source: Record<string, string | undefined>
       },
     };
   }
-  const nama = `data-contoh ${sub.data}`;
+  // A tanam's reason starts with the module's mark: it is how the Audit Log tells a price this command entered from an Operator's.
+  const nama = sub.data === "tanam" ? AWALAN_ALASAN_TANAM : `data-contoh ${sub.data}`;
   const alasan =
     appEnv.data === "production" ? `${nama} (production, --izinkan-production)` : appEnv.data === "staging" ? `${nama} (staging, --izinkan-staging)` : nama;
   return { perintah: { sub: sub.data, himpunan, tulis: args.values.tulis === true, appEnv: appEnv.data, alasan } };
@@ -120,7 +127,6 @@ function bacaPerintah(argv: string[], source: Record<string, string | undefined>
 /** Everything the three subcommands drive, composed on one connection. */
 interface Konteks {
   modul: Modul;
-  audit: AuditLog;
   dataContoh: DataContoh;
   penawaran: ReturnType<typeof createPenawaranLayanan>;
   operatorSettings: Parameters<typeof isiPengaturanOperatorBilaKosong>[0];
@@ -133,24 +139,22 @@ function entriPerJenis(aktif: EntriDataContoh[]): string[] {
   return [...perJenis].flatMap(([jenis, daftar]) => [`  ${jenis}: ${daftar.length}`, ...daftar.map((entri) => `    - ${entri.kode}${entri.lengkap ? "" : " (belum selesai)"}`)]);
 }
 
-async function status(ctx: Konteks): Promise<Hasil> {
-  const { aktif, dicabut } = await ctx.dataContoh.status();
-  if (aktif.length === 0) return { exitCode: 0, output: `Tidak ada Data Contoh yang aktif (${dicabut} entri sudah dicabut).` };
-  return { exitCode: 0, output: [`Data Contoh aktif: ${aktif.length} entri (${dicabut} sudah dicabut).`, ...entriPerJenis(aktif)].join("\n") };
+/** The contoh prices in force that the registry does not hold: what a `tanam` killed between entering a price and recording it leaves. */
+function laporanTakTercatat(harga: HargaContohBerlaku[]): string[] {
+  if (harga.length === 0) return [];
+  return [
+    `${harga.length} harga contoh masih berlaku tetapi tidak tercatat di registri (sisa tanam yang terputus sebelum sempat mencatatnya):`,
+    ...harga.map((satu) => `  - ${satu.key} ${rupiah(satu.amount)}`),
+  ];
 }
 
-/**
- * Whether a version of the platform fee is one a `tanam` entered: the Entri Audit at its place in the entry order (one is
- * written with each version) names this command in its reason, which an Operator's own entry never does.
- */
-async function diEnterOlehTanam(ctx: Konteks, seq: number): Promise<boolean> {
-  const [riwayat, entri] = await Promise.all([
-    ctx.modul.tariffs.globalTariffHistory("biaya_layanan_platform"),
-    ctx.audit.entriesAbout({ kind: "tarif_global", id: "biaya_layanan_platform" }),
-  ]);
-  const perubahan = entri.filter((satu) => satu.action === "tarif.ubah_global");
-  if (perubahan.length !== riwayat.length) return false;
-  return perubahan[riwayat.findIndex((satu) => satu.seq === seq)]?.reason?.startsWith(NAMA_TANAM) === true;
+async function status(ctx: Konteks): Promise<Hasil> {
+  const { aktif, dicabut, takTercatat } = await ctx.dataContoh.status();
+  if (aktif.length === 0 && takTercatat.length === 0) return { exitCode: 0, output: `Tidak ada Data Contoh yang aktif (${dicabut} entri sudah dicabut).` };
+  return {
+    exitCode: 0,
+    output: [`Data Contoh aktif: ${aktif.length} entri (${dicabut} sudah dicabut).`, ...entriPerJenis(aktif), ...laporanTakTercatat(takTercatat)].join("\n"),
+  };
 }
 
 /** The Rilis 1 set's fixtures, in the order they depend on each other: the platform fee, the Petugas Lapangan, then each Lokasi Mitra. */
@@ -161,14 +165,11 @@ function rencanaRilis1(ctx: Konteks, admin: Actor, hariIni: string, alasan: stri
     {
       kode: "rilis1/tarif/biaya-layanan-platform",
       jenis: "tarif_global",
+      // Naming the key lets `tanam` record a contoh fee a killed run entered and never recorded, before this build would enter a second.
+      kunciTarif: "biaya_layanan_platform",
       async buat({ catatInduk }) {
         // The platform fee is the Operator's own, shared by every Lokasi Mitra: a contoh version is entered only when none is set at all.
-        const berlaku = await modul.tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now());
-        if (berlaku) {
-          // A contoh version a killed run entered but never recorded is recorded now, so `cabut` still waits for a real one.
-          if (await diEnterOlehTanam(ctx, berlaku.seq)) await catatInduk(`biaya_layanan_platform:${berlaku.seq}`);
-          return { ok: true };
-        }
+        if (await modul.tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now())) return { ok: true };
         const dibuat = await modul.tariffs.setGlobalTariff(admin, {
           key: "biaya_layanan_platform",
           amount: BIAYA_LAYANAN_PLATFORM_DATA_CONTOH,
@@ -246,10 +247,11 @@ async function nyalakanLayanan(ctx: Konteks, admin: Actor, hariIni: string, alas
 /** What a dry run of `tanam` finds, from reads only. */
 async function ujiTanam(ctx: Konteks): Promise<Hasil> {
   const { modul, dataContoh } = ctx;
-  const aktif = (await dataContoh.status()).aktif;
+  const { aktif, takTercatat } = await dataContoh.status();
   const ada = (kode: string) => aktif.find((entri) => entri.kode === kode);
   const akanDitanam = ctx.lokasi.filter((spec) => !ada(`rilis1/lokasi/${slug(spec.name)}`)?.lengkap);
   const platformAda = await modul.tariffs.globalTariff("biaya_layanan_platform", modul.adapters.clock.now());
+  const platformTakTercatat = takTercatat.some((harga) => harga.key === "biaya_layanan_platform");
   const katalog = await ctx.penawaran.katalog();
   const jumlahVarian = katalog.reduce((jumlah, layanan) => jumlah + layanan.varian.length, 0);
   return {
@@ -258,7 +260,9 @@ async function ujiTanam(ctx: Konteks): Promise<Hasil> {
       "[data-contoh] Mode dry-run: tidak ada yang ditulis.",
       `Lokasi Mitra (Contoh): ${akanDitanam.length} akan ditanam, ${ctx.lokasi.length - akanDitanam.length} sudah ada${akanDitanam.length > 0 ? `: ${akanDitanam.map((spec) => spec.name).join(", ")}` : ""}.`,
       platformAda
-        ? `Biaya Layanan Platform: sudah ada (${rupiah(platformAda.amount)}), tidak ditulis.`
+        ? platformTakTercatat
+          ? `Biaya Layanan Platform: contoh ${rupiah(platformAda.amount)} sisa tanam yang terputus akan dicatat di registri (tidak ada versi baru).`
+          : `Biaya Layanan Platform: sudah ada (${rupiah(platformAda.amount)}), tidak ditulis.`
         : `Biaya Layanan Platform: contoh ${rupiah(BIAYA_LAYANAN_PLATFORM_DATA_CONTOH)} akan dicatat.`,
       `Layanan: ${jumlahVarian} varian di katalog akan dinyalakan di setiap Lokasi (Contoh) yang belum menghargainya${jumlahVarian === 0 ? " (katalog Layanan kosong: tidak ada yang dinyalakan)" : ""}.`,
       "Gunakan --tulis untuk menanamnya.",
@@ -294,9 +298,10 @@ async function tanam(ctx: Konteks, perintah: Perintah): Promise<Hasil> {
 }
 
 function laporanRencanaCabut(rencana: RencanaCabut): string[] {
-  const baris = [
-    ...rencana.aktif.length === 0 ? ["Tidak ada Data Contoh yang aktif."] : [`${rencana.aktif.length} entri aktif akan dicabut:`, ...entriPerJenis(rencana.aktif)],
-  ];
+  const baris =
+    rencana.aktif.length > 0
+      ? [`${rencana.aktif.length} entri aktif akan dicabut:`, ...entriPerJenis(rencana.aktif)]
+      : [rencana.diblokir.length === 0 ? "Tidak ada Data Contoh yang aktif." : "Registri tidak memegang entri aktif."];
   if (rencana.diblokir.length > 0) baris.push(...laporanDiblokir(rencana.diblokir));
   baris.push(...laporanPesanan(rencana.pesananTerbuka));
   return baris;
@@ -305,7 +310,7 @@ function laporanRencanaCabut(rencana: RencanaCabut): string[] {
 function laporanDiblokir(diblokir: RencanaCabut["diblokir"]): string[] {
   return [
     `Ditolak: ${diblokir.length} harga contoh masih berlaku, belum digantikan versi asli (tidak ada yang dicabut):`,
-    ...diblokir.map((harga) => `  - ${harga.kode}: ${harga.key} ${rupiah(harga.amount)}`),
+    ...diblokir.map((harga) => `  - ${harga.kode ?? "(tidak tercatat di registri: sisa tanam yang terputus)"}: ${harga.key} ${rupiah(harga.amount)}`),
     "Masukkan harga asli lewat layar Tarif (berlaku mulai hari ini, atau mulai tanggal yang sama bila harga contoh itu berjangka), lalu jalankan cabut lagi.",
   ];
 }
@@ -372,7 +377,6 @@ export async function dataContohCommand(
       const { modul, operatorSettings, audit } = susunModul(env, database, options.clock, perintah.alasan);
       const ctx: Konteks = {
         modul,
-        audit,
         operatorSettings,
         penawaran: createPenawaranLayanan({ db: database.db, clock: modul.adapters.clock, audit, tariffs: modul.tariffs }),
         dataContoh: createDataContoh({

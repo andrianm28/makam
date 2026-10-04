@@ -26,6 +26,16 @@
  * retiring it. A price tied to a contoh Lokasi Mitra goes with it: nothing can
  * quote a hidden Lokasi Mitra.
  *
+ * A contoh price is one the registry names OR one a `tanam` entered: Tariffs
+ * writes an Entri Audit with each version, whose reason is the run's and starts
+ * with `AWALAN_ALASAN_TANAM`, which an Operator's own never does. A run killed
+ * between entering the price and recording it therefore leaves a price the
+ * registry does not hold but still knows of: `cabut` refuses over it, `status`
+ * lists it, `aktif` counts it, and the next `tanam` whose fixture names the
+ * price's key records it instead of entering a second one. And a version that
+ * another example version superseded is no real successor: only a version no
+ * `tanam` entered lets a contoh price go.
+ *
  * Only Admin Platform writes here, under `lokasi.buat` (the action creating or
  * hiding a Lokasi Mitra is), like the Katalog Lama ledger. Each owning module
  * checks and audits its own write; this module audits its own rows.
@@ -33,14 +43,20 @@
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "@/db/client";
-import type { AuditLog } from "@/domain/audit";
+import type { AuditEntry, AuditLog } from "@/domain/audit";
 import { semuaLokasiMitraResource, writeRefusal, type Actor, type Identity, type WriteRefusal } from "@/domain/identity";
 import type { Lokasi } from "@/domain/lokasi";
 import type { PesananBerjalan } from "@/domain/pemesanan";
-import type { GlobalTariffKey, Tariffs } from "@/domain/tariffs";
+import type { GlobalTariffKey, GlobalTariffVersion, Tariffs } from "@/domain/tariffs";
 import { GLOBAL_TARIFF_KEYS } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
 import { dataContohEntri } from "./schema";
+
+/**
+ * How the reason of every `tanam` run starts. It is the one mark the Audit Log keeps of who entered a price version, so
+ * `tanam` refuses a reason that does not carry it: its prices could not be told from an Operator's afterwards.
+ */
+export const AWALAN_ALASAN_TANAM = "data-contoh tanam";
 
 /** The sets a stack can be planted with; ticket 111 adds the next one here. */
 export const himpunanDataContoh = ["rilis1"] as const;
@@ -89,11 +105,22 @@ export interface KonteksTanam {
 }
 
 /** One fixture of a set: its code, and how to build it through the owning modules when the registry holds none. */
-export interface RencanaTanam {
+interface RencanaTanamDasar {
   kode: string;
-  jenis: JenisDataContoh;
   buat(ctx: KonteksTanam): Promise<{ ok: true } | { ok: false; reason: string }>;
 }
+
+export type RencanaTanam =
+  | (RencanaTanamDasar & { jenis: Exclude<JenisDataContoh, "tarif_global"> })
+  | (RencanaTanamDasar & {
+      jenis: "tarif_global";
+      /**
+       * The global price the fixture enters. With it, `tanam` first records a contoh version of that price a killed run
+       * entered and never recorded, instead of building the fixture (which would enter a second version); without it,
+       * nothing is recorded in place of the build.
+       */
+      kunciTarif?: GlobalTariffKey;
+    });
 
 export type TanamResult =
   | {
@@ -109,11 +136,14 @@ export type TanamResult =
   | { ok: false; reason: "alasan_wajib" }
   | { ok: false; reason: "gagal"; kode: string; alasan: string; dibuat: string[]; sudahAda: string[] };
 
-/** A contoh price that is still the one in force. */
+/** A contoh price that is still the one in force (or will be, on a date still ahead). */
 export interface HargaContohBerlaku {
-  kode: string;
+  /** The fixture code of the registry row naming it, or null for a price the registry does not hold: one a `tanam` entered and died before recording. */
+  kode: string | null;
   key: GlobalTariffKey;
   amount: number;
+  /** Its number in the price book (Tariffs' `seq`). */
+  versi: number;
 }
 
 /** An order still running at a Lokasi Mitra the registry holds. */
@@ -125,7 +155,7 @@ export interface PesananTerbukaDiLokasiContoh extends PesananBerjalan {
 export interface RencanaCabut {
   /** Every entry still active, in the order `cabut` retires them. */
   aktif: EntriDataContoh[];
-  /** The contoh prices with no real successor yet: while any is listed `cabut` retires nothing. */
+  /** The contoh prices with no real successor yet, whether or not the registry holds them: while any is listed `cabut` retires nothing. */
   diblokir: HargaContohBerlaku[];
   pesananTerbuka: PesananTerbukaDiLokasiContoh[];
 }
@@ -158,9 +188,12 @@ export interface DataContoh {
   rencanaCabut(): Promise<RencanaCabut>;
   /** Retires every active entry, or refuses and changes nothing while a contoh price is still in force. */
   cabut(by: Actor, input: { reason: string }): Promise<CabutResult>;
-  /** Every entry still active, in registry order, and how many were retired. */
-  status(): Promise<{ aktif: EntriDataContoh[]; dicabut: number }>;
-  /** Whether anything contoh is active: what the banner and the preflight ask. */
+  /**
+   * Every entry still active, in registry order, how many were retired, and the contoh prices in force that the registry
+   * does not hold (`takTercatat`: a `tanam` entered them and died before recording them).
+   */
+  status(): Promise<{ aktif: EntriDataContoh[]; dicabut: number; takTercatat: HargaContohBerlaku[] }>;
+  /** Whether anything contoh is active, an unrecorded contoh price in force included: what the banner and the preflight ask. */
   aktif(): Promise<boolean>;
 }
 
@@ -304,19 +337,65 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     });
   }
 
+  /** An Entri Audit a `tanam` wrote: its reason starts with `AWALAN_ALASAN_TANAM`, which an Operator's own never does. */
+  const olehTanam = (entri: AuditEntry) => entri.reason?.startsWith(AWALAN_ALASAN_TANAM) === true;
+
   /**
-   * A contoh global price that is, or will be, the version in force: the version in force now, or the version in force on its
-   * own date when that date is still ahead (a scheduled version nothing later has superseded). Null once a later version
-   * takes over, which is the only way a price version is ever retired.
+   * The versions of one global price a `tanam` entered, told by the Entri Audit Tariffs writes with each version. The entries
+   * and the versions are written together, in the same order, so the Nth version is the Nth entry's; one whose amount or date
+   * differs from its entry's is not told apart, and when the two lists do not line up at all, none is (a price is then taken
+   * for the Operator's, never the set's).
    */
-  async function masihBerlaku(row: Row): Promise<HargaContohBerlaku | null> {
+  function versiOlehTanam(riwayat: GlobalTariffVersion[], perubahan: AuditEntry[]): Set<number> {
+    const ditanam = new Set<number>();
+    if (perubahan.length !== riwayat.length) return ditanam;
+    riwayat.forEach((versi, urutan) => {
+      const entri = perubahan[urutan];
+      if (olehTanam(entri) && entri.after?.amount === versi.amount && entri.after?.effectiveOn === versi.effectiveOn) ditanam.add(versi.seq);
+    });
+    return ditanam;
+  }
+
+  /**
+   * The contoh versions of one global price that are, or will be, the version in force: the version in force now, or the
+   * version in force on its own date when that date is still ahead (a scheduled version nothing later has superseded). A
+   * version counts as contoh when an active registry row names it or a `tanam` entered it (`kode` is null for the latter
+   * alone). One that a later version has taken over from is not listed; that later version is listed itself if it is contoh,
+   * so a real version is the only successor that lets a contoh price go, and a price version is never retired any other way.
+   */
+  async function hargaBerlakuDi(key: GlobalTariffKey, aktif: Row[]): Promise<HargaContohBerlaku[]> {
+    const dicatat = new Map<number, Row>();
+    for (const row of aktif) {
+      const versi = row.jenis === "tarif_global" ? bacaVersiTarif(row.entitasId) : null;
+      if (versi?.key === key) dicatat.set(Number(versi.seq), row);
+    }
+    // `aktif` asks this of every price book on every page load: a book no row names and no `tanam` wrote to is left after one indexed read.
+    const perubahan = (await deps.audit.entriesAbout({ kind: "tarif_global", id: key })).filter((satu) => satu.action === "tarif.ubah_global");
+    if (dicatat.size === 0 && !perubahan.some(olehTanam)) return [];
+    const riwayat = await deps.tariffs.globalTariffHistory(key);
+    const ditanam = versiOlehTanam(riwayat, perubahan);
+    const sekarang = deps.clock.now();
+    const berlaku: HargaContohBerlaku[] = [];
+    for (const versi of riwayat) {
+      const row = dicatat.get(versi.seq);
+      if (!row && !ditanam.has(versi.seq)) continue;
+      const pada = versi.inForceFrom.getTime() > sekarang.getTime() ? versi.inForceFrom : sekarang;
+      const dipakai = await deps.tariffs.globalTariff(key, pada);
+      if (dipakai?.seq === versi.seq) berlaku.push({ kode: row?.kode ?? null, key, amount: versi.amount, versi: versi.seq });
+    }
+    return berlaku;
+  }
+
+  /** The contoh prices of every global price that are, or will be, in force: the ones `cabut` waits for a real version over. */
+  async function hargaBerlaku(aktif: Row[]): Promise<HargaContohBerlaku[]> {
+    return (await Promise.all(GLOBAL_TARIFF_KEYS.map((key) => hargaBerlakuDi(key, aktif)))).flat();
+  }
+
+  /** The price a `tarif_global` row names, when it is itself still in force (or will be): null once a later version has taken over. */
+  async function hargaBerlakuUntuk(row: Row): Promise<HargaContohBerlaku | null> {
     const versi = bacaVersiTarif(row.entitasId);
     if (!versi) throw new Error(`Data Contoh: tarif global tidak dikenal: ${row.entitasId}`);
-    const dicatat = (await deps.tariffs.globalTariffHistory(versi.key)).find((satu) => String(satu.seq) === versi.seq);
-    if (!dicatat) return null;
-    const sekarang = deps.clock.now();
-    const berlaku = await deps.tariffs.globalTariff(versi.key, dicatat.inForceFrom.getTime() > sekarang.getTime() ? dicatat.inForceFrom : sekarang);
-    return berlaku && String(berlaku.seq) === versi.seq ? { kode: row.kode, key: versi.key, amount: berlaku.amount } : null;
+    return (await hargaBerlakuDi(versi.key, await semuaAktif())).find((satu) => satu.kode === row.kode) ?? null;
   }
 
   /**
@@ -325,7 +404,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
    */
   async function cabutEntri(by: Actor, row: Row, reason: string): Promise<{ ok: true } | { ok: false; alasan: string }> {
     if (row.jenis === "tarif_global") {
-      const berlaku = await masihBerlaku(row);
+      const berlaku = await hargaBerlakuUntuk(row);
       if (berlaku) return { ok: false, alasan: `harga contoh ${berlaku.key} masih berlaku, belum digantikan versi asli` };
     } else if (row.jenis === "lokasi_mitra") {
       const hasil = await deps.lokasi.tandaiDataContoh(by, row.entitasId, { dataContoh: true, reason });
@@ -357,16 +436,6 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       }
     }
     return terbuka;
-  }
-
-  /** The active contoh global prices that are, or will be, the version in force: the ones `cabut` waits for a real version over. */
-  async function hargaBerlaku(aktif: Row[]): Promise<HargaContohBerlaku[]> {
-    const diblokir: HargaContohBerlaku[] = [];
-    for (const row of aktif.filter((satu) => satu.jenis === "tarif_global")) {
-      const satu = await masihBerlaku(row);
-      if (satu) diblokir.push(satu);
-    }
-    return diblokir;
   }
 
   /** Marks a built fixture finished, with its own Entri Audit: from then on a rerun finds it complete and leaves it alone. */
@@ -406,6 +475,9 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       const alasan = reasonSchema.safeParse(raw.reason);
       if (!alasan.success) return { ok: false, reason: "alasan_wajib" };
       const reason = alasan.data;
+      if (!reason.startsWith(AWALAN_ALASAN_TANAM)) {
+        throw new Error(`Data Contoh: alasan tanam harus diawali "${AWALAN_ALASAN_TANAM}" (Audit Log mengenali harga contoh dari situ), bukan ${JSON.stringify(reason)}`);
+      }
       const himpunan = wajib(himpunanSchema, raw.himpunan, "himpunan");
       const dibuat: string[] = [];
       const sudahAda: string[] = [];
@@ -419,7 +491,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           continue;
         }
         if (ada) {
-          if (ada.jenis === "tarif_global" && (await masihBerlaku(ada))) {
+          if (ada.jenis === "tarif_global" && (await hargaBerlakuUntuk(ada))) {
             // A price entered and recorded, with only the finishing mark missing: a price in force is never let go of, so the row is finished.
             await selesaikan(by, kode, reason);
             sudahAda.push(kode);
@@ -430,10 +502,25 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           if (!dibuang.ok) return { ok: false, reason: "gagal", kode, alasan: `sisa build terputus tidak bisa dicabut (${dibuang.alasan})`, dibuat, sudahAda };
         }
 
+        if (item.jenis === "tarif_global" && item.kunciTarif) {
+          // A contoh price a killed run entered and never recorded is recorded now, never entered a second time.
+          const takTercatat = (await hargaBerlakuDi(item.kunciTarif, await semuaAktif())).find((satu) => satu.kode === null);
+          if (takTercatat) {
+            const dicatat = await catatEntri(by, { kode, himpunan, jenis: item.jenis, entitasId: `${takTercatat.key}:${takTercatat.versi}`, reason }, true);
+            if (!dicatat.ok) throw new Error(`Data Contoh: ${kode} tidak tercatat (${dicatat.reason})`);
+            dibuat.push(kode);
+            continue;
+          }
+        }
+
+        // The entity this run itself recorded under the code: the only row its cleanup may retire. A row another run recorded
+        // under the code (the one that got there first), or one since replaced, is not this run's to touch.
+        let dicatatSendiri: string | null = null;
         const ctx: KonteksTanam = {
           async catatInduk(entitasId) {
             const hasil = await catatEntri(by, { kode, himpunan, jenis: item.jenis, entitasId, reason }, false);
             if (!hasil.ok) throw new Error(`Data Contoh: ${kode} tidak tercatat (${hasil.reason})`);
+            if (hasil.baru) dicatatSendiri = entitasId;
           },
           async catatAnak(anak) {
             const hasil = await catatEntri(by, { ...anak, himpunan, indukKode: kode, reason }, true);
@@ -441,8 +528,9 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           },
         };
         const buang = async (): Promise<string> => {
+          if (dicatatSendiri === null) return "";
           const induk = await aktifDenganKode(kode);
-          if (!induk) return "";
+          if (!induk || induk.entitasId !== dicatatSendiri) return "";
           const hasil = await cabutPohon(by, induk, `${reason}: build gagal, dicabut`);
           return hasil.ok ? "" : `; pembersihan gagal (${hasil.alasan})`;
         };
@@ -494,14 +582,17 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     },
 
     async status() {
-      const aktif = (await semuaAktif()).map(toEntri);
+      const aktif = await semuaAktif();
       const semua = await db.select({ kode: dataContohEntri.kode, dicabutPada: dataContohEntri.dicabutPada }).from(dataContohEntri);
-      return { aktif, dicabut: semua.filter((row) => row.dicabutPada !== null).length };
+      const takTercatat = (await hargaBerlaku(aktif)).filter((satu) => satu.kode === null);
+      return { aktif: aktif.map(toEntri), dicabut: semua.filter((row) => row.dicabutPada !== null).length, takTercatat };
     },
 
     async aktif() {
       const [satu] = await db.select({ id: dataContohEntri.id }).from(dataContohEntri).where(isNull(dataContohEntri.dicabutPada)).limit(1);
-      return satu !== undefined;
+      if (satu !== undefined) return true;
+      // The registry holds nothing, but a price a killed tanam entered and never recorded is still an example in force.
+      return (await hargaBerlaku([])).length > 0;
     },
   };
 }

@@ -441,7 +441,7 @@ The Operator's own reference values that no other screen owns, kept by Admin Pla
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
 
 **Data Contoh**:
-The clearly marked example records a beta shows while it takes no real orders: Lokasi Mitra named "… (Contoh)" taken through the real publish gate, with example prices and example staff, planted by `data-contoh tanam` and all removed again by `data-contoh cabut` before real operation. Distinct from a Lokasi Mitra flagged `data_contoh` (ticket 86), which is hidden from every public read: that flag is how `cabut` retires one, never how an example is shown. A price a contoh set entered cannot be erased (Tariffs only inserts versions), so `cabut` refuses until a real version has superseded it.
+The clearly marked example records a beta shows while it takes no real orders: Lokasi Mitra named "… (Contoh)" taken through the real publish gate, with example prices and example staff, planted by `data-contoh tanam` and all removed again by `data-contoh cabut` before real operation. Distinct from a Lokasi Mitra flagged `data_contoh` (ticket 86), which is hidden from every public read: that flag is how `cabut` retires one, never how an example is shown. A price a contoh set entered cannot be erased (Tariffs only inserts versions), so `cabut` refuses until a real version has superseded it: only a version no `tanam` entered is a real successor, and a contoh price a killed `tanam` never recorded still counts, because the Audit Log names the command as its author.
 _Avoid_: Data dummy, data uji, seed (alone)
 
 **Peringatan Staf**:

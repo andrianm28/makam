@@ -377,3 +377,52 @@ Worktree `/home/ubuntu/makam-t109`; every path below is relative to it. The fixe
 Findings: 3. Worst (Spec): after a `tanam` killed between entering the contoh fee and recording it, `cabut --tulis` exits 0 and the preflight PASSes with Rp 100.000 still in force. Hard violations: yes (must fix before merge; none breaks an AGENTS.md rule).
 
 Hard: 3, soft: 0
+
+### Fix pass 2 (2026-10-04)
+
+Answers to the round 2 review above, item by item. Each fix went test first: the new cases were run against the unchanged code and failed (7 of the 9 new domain cases, and the two command cases that cover the same ground), then went green. The other two new domain cases are guards that already held and are marked as such below.
+
+**Standards**
+
+- **1, the production test checks the outcome: OK.** Nothing to change.
+- **2, a price in force is never let go of: OK; its leftover (soft) is fixed.** See the soft item and "Spec, item 2" below.
+- **3, H2, amounts not approved: open, the owner's.** No amount changed; the list in the first Build entry stands (all in `src/cli/data-contoh/rilis1.ts`). Listed again under "Spec gaps and decisions for the owner" in the Build entry below.
+- **4, H3, banner wording not confirmed: open, the owner's.** `BARIS_DATA_CONTOH` is unchanged; the string is repeated in the Build entry below for the owner's answer.
+- **5, audit reasons: OK.** Nothing to change.
+- **Soft, only `tanam` adopts an unrecorded fee, and the rule sits in the command: fixed.** The rule moved into the Data Contoh module (`hargaBerlakuDi`, with the marker `AWALAN_ALASAN_TANAM = "data-contoh tanam"`), and every reader of "what contoh is active" uses it. `rencanaCabut` lists such a price as blocked, so `cabut` refuses too (the dry run exits 1, `--tulis` retires nothing); `status` lists it (`takTercatat`); `aktif()` counts it; `tanam` records it through the fixture's declared tariff key. The command's `diEnterOlehTanam` and `NAMA_TANAM` are gone. The runbook says so (no "rerun `tanam` before `cabut`" needed).
+
+**Spec**
+
+- **Item 2 and H1, an unrecorded contoh fee and overlapping runs: fixed, all three clauses.**
+  - *A `tanam` killed between `setGlobalTariff` and `catatInduk`.* A contoh price is now one an active registry row names **or** one a `tanam` entered; the Audit Log tells the second (the Entri Audit Tariffs writes with each version carries the run's reason, which starts with `AWALAN_ALASAN_TANAM`, and its amount and date must match the version). `cabut` as the next command now refuses: `rencanaCabut` lists the price in force with `kode: null`, the dry run exits 1, `--tulis` retires nothing and writes nothing (the test counts the Audit Log before and after), and the command says "tidak tercatat di registri". `status` lists it, `aktif()` (so `contohAktif`, the banner and the preflight) is true while it stands, and the next `tanam` records it instead of entering a second fee. Tests: domain "is held against cabut, which refuses and retires nothing while it is the price in force", "counts as Data Contoh being active although the registry holds no entry, and status lists it, until a real version supersedes it", "never counts an Operator's own fee, even one of the same amount" (all red before), "is recorded by the next tanam when the fixture names its tariff key" (red before); command "refuses, writing nothing, while a contoh Biaya Layanan Platform a killed tanam entered and never recorded is still in force, and says the registry does not hold it" (red before: `cabut` exited 0) and the dry run of `tanam` saying it will record it (red before). Guards that already held: "lets cabut go ahead once a real version has superseded it" and "is never recorded in place of an Operator's own fee".
+  - *`masihBerlaku` accepted any later version as the successor, not only a real one.* Only a version no `tanam` entered lets a contoh price go now: a contoh version that another contoh version superseded still blocks, the later one listed itself. Test "is no real successor to a recorded contoh price: a second contoh version over it keeps cabut refusing" (red before: `cabut` retired the row and exited 0), which then ends with a real version letting both go.
+  - *The losing run's `buang` retired whatever row held the code.* A run's cleanup now retires only the entity it recorded itself (`catatInduk` answered `baru`), checked by entity id; a run that could not record its fixture because another run already held the code retires nothing and throws as before. Test "cannot leave a tanam's own fixture to another run's cleanup: a run that could not record its fixture retires nothing of the run that did" (red before: the other run's row was retired). This is not a lock: two overlapping runs stay unsupported and the runbook says to run one `data-contoh` command at a time.
+- **3, H2: open, the owner's.** **4, H3: open, the owner's.** Neither can be closed by a builder; see below.
+- **5, audit reasons: OK.** Nothing to change.
+- **Money-code checks.** "cabut never lets go of a price without a real successor" now also holds for a price the registry does not hold and for a successor that is itself contoh. "Preflight FAILs while contoh data is active" now counts an unrecorded example price (see decision 3 in the Build entry for its cost).
+
+### Build (2026-10-04), fix pass 2
+
+**What changed.**
+
+- `src/domain/data-contoh/index.ts`: `AWALAN_ALASAN_TANAM`; `hargaBerlakuDi` / `hargaBerlaku` (a contoh version is one a row names or a `tanam` entered; listed while it is, or will be, the version in force) replace `masihBerlaku`; `HargaContohBerlaku` gains `versi` and a nullable `kode`; `RencanaTanam` is a union whose `tarif_global` member may name its `kunciTarif`; `tanam` records an unrecorded standing price of that key before it builds, refuses (throws) a reason that lacks the marker, and cleans up only what it recorded itself; `status()` returns `takTercatat`; `aktif()` also counts an unrecorded contoh price.
+- `src/cli/data-contoh-command.ts`: the fee fixture names its key and no longer decides anything about provenance (`diEnterOlehTanam`, `NAMA_TANAM` removed, `Konteks.audit` removed); a `tanam` reason is built from the module's marker; the reports for `cabut`, `status` and the `tanam` dry run say "tidak tercatat di registri".
+- Tests: `src/domain/data-contoh/data-contoh.test.ts` (+9: 29 in the file), `src/cli/data-contoh-command.test.ts` (+1 case and extended assertions: 21 in the file).
+- Docs: `docs/ops/runbook.md` (Data Contoh section), `CONTEXT.md` (Data Contoh). No migration, no new dependency, nothing outside these files.
+
+**Decisions** (each the conservative reading; none rewords a requirement).
+
+1. The module, not the command, says which price versions are contoh, because `cabut`, `status`, `aktif` and `tanam` all need the answer and the Audit Log is the only record of who entered a version. A `tanam` reason without the marker would make its prices untellable later, so `tanam` throws on one (the plan's own bug, like a bad fixture code); the command cannot trip it.
+2. `cabut` refuses and lists an unrecorded price; it does not record it first. A refused command writes nothing, and the Operator's real fee supersedes the example either way.
+3. `aktif()` counts an unrecorded contoh price, read audit-first: when the registry holds a row it answers at once (one read, as before); when it holds none it reads the Entri Audit about each of the 4 global prices (indexed) and goes on to the price book only where a `tanam` wrote. **Cost for the owner to weigh**: `/api/browser-config` is asked twice per page load, so in real operation after `cabut` this is 4 indexed reads per call instead of one. If the owner prefers the registry-only `aktif()`, it is one line, and the preflight is then blind to exactly this one state (an example fee in force with an empty registry), which `cabut` and `status` still report.
+4. When the Audit Log cannot be lined up with the versions (a different count, or an amount or date that differs), no version counts as the set's: an Operator's fee is never taken for an example one. A registry row still blocks on its own. The app cannot produce such a mismatch (Tariffs writes both together under the price book's lock).
+5. Two overlapping `tanam` runs remain unsupported (no lock); the only guarantee added is that a run never retires what another run recorded.
+
+**Spec gaps and decisions for the owner.**
+
+- **H2, Amounts (AC "Amounts"): still needs the owner's approval before merge.** Unchanged and all in `src/cli/data-contoh/rilis1.ts`: Biaya Layanan Platform (only when none is set) Rp 100.000; Biaya Pemakaman at every Lokasi (Contoh) Rp 1.000.000, tumpang Rp 500.000; Hak Pakai / Perpanjangan per Jenis Makam as listed in the first Build entry above (every Hak Pakai at or under Rp 9.000.000); Layanan Lokasi prices bunga 100.000, nisan 1.000.000, pembersihan 200.000, perawatan 300.000, laporan 50.000. To approve, say so in Comments; to change a number, name it (one file).
+- **H3, banner wording (AC "Marking"): still needs the owner's confirmation.** Built as "Data bertanda (Contoh) dan harganya adalah contoh; pesanan masa uji coba tidak dilayani sungguhan." (`BARIS_DATA_CONTOH`, `src/lib/payment-trial.ts`), shown under the trial banner's first line only while Data Contoh is active.
+- **Still the owner's, unchanged from fix pass 1:** S1 (a non-sandbox host the preflight cannot ask is a SKIP, not a FAIL), S2 (an empty Layanan catalog switches nothing on), S4 / decision 7 (`tanam` on production is refused unless payments go through the sandbox).
+- **New choice:** decision 3 above (cost of `aktif()` on every page load versus a preflight that sees an unrecorded example fee).
+
+**Tests** (read from whole logs). `npx vitest run` over `src/domain/data-contoh`, `src/domain/audit`, `src/cli/data-contoh-command.test.ts`, `src/cli/seed-contoh-publik-command.test.ts`, `src/app/api/browser-config`, `src/lib/payment-trial.test.ts`, `tests/tooling/makam-preflight.test.ts`, `data-contoh-bundle.test.ts`, `katalog-lama-runbook.test.ts`, `image-retention.test.ts`, `ticket-workflow.test.ts`: 11 files, 236 tests, exit 0, 170 s (fix pass 1: 226; +9 domain, +1 command). `npm run typecheck` exit 0, `npm run lint` exit 0 (the same 6 warnings, none in a file this ticket touches). No `npm run build`, no full suite, no Playwright (the e2e cases added in pass 1 are still not run).

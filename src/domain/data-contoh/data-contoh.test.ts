@@ -11,7 +11,8 @@ import { adminPlatformOf } from "../../../tests/support/identity";
 import { pemesananOnTestDatabase, pemesanDenganEmail, siapkanOperatorPemesanan, unitIds } from "../../../tests/support/pemesanan";
 import { newLokasiMitra, publishedLokasiMitra, signedInAdminLokasi, type PublishSetup } from "../../../tests/support/publish";
 import { terencanaLokasi } from "../../../tests/support/terencana";
-import { createDataContoh, type DataContoh } from ".";
+import type { Actor } from "@/domain/identity";
+import { createDataContoh, type DataContoh, type RencanaTanam } from ".";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -402,5 +403,155 @@ describe("cabut", () => {
     expect(rencana.diblokir).toEqual([]);
     expect((await setup.lokasi.publicLokasiMitraList()).map((one) => one.name)).toEqual(["Taman Contoh (Contoh)"]);
     expect(await dataContoh.aktif()).toBe(true);
+  });
+});
+
+describe("a contoh price a tanam entered and died before recording", () => {
+  const KODE_BIAYA = "rilis1/tarif/biaya-layanan-platform";
+
+  /** What a tanam killed between entering the Biaya Layanan Platform and recording it leaves behind: the example price in force, under the run's reason, and no registry row. */
+  async function hargaContohTanpaCatatan(setup: PublishSetup, admin: Actor, amount = 100_000) {
+    const dibuat = await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount, effectiveOn: "2026-10-01", reason: ALASAN });
+    if (!dibuat.ok) throw new Error("setGlobalTariff refused");
+    return dibuat.version;
+  }
+
+  /** The Operator's own fee, entered through the Tarif screen: no reason of a tanam. */
+  const hargaAsli = (setup: PublishSetup, admin: Actor, amount = 125_000) =>
+    setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount, effectiveOn: "2026-10-01", reason: "harga asli" });
+
+  const kunciBiaya = "biaya_layanan_platform" as const;
+
+  it("is held against cabut, which refuses and retires nothing while it is the price in force", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const lokasi = await newLokasiMitra(setup, admin, "Taman Contoh (Contoh)");
+    await dataContoh.catat(admin, { kode: "rilis1/lokasi/taman-contoh", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: lokasi.id, reason: ALASAN });
+    await hargaContohTanpaCatatan(setup, admin);
+
+    const rencana = await dataContoh.rencanaCabut();
+    const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+    expect(rencana.diblokir).toMatchObject([{ kode: null, key: kunciBiaya, amount: 100_000 }]);
+    expect(hasil).toMatchObject({ ok: false, reason: "harga_contoh_masih_berlaku", diblokir: [{ kode: null, key: kunciBiaya, amount: 100_000 }] });
+    const profil = await setup.lokasi.lokasiMitra(admin, lokasi.id);
+    expect(profil.ok && profil.lokasiMitra.dataContoh).toBe(false);
+    expect((await dataContoh.status()).aktif).toHaveLength(1);
+  });
+
+  it("lets cabut go ahead once a real version has superseded it", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    await hargaContohTanpaCatatan(setup, admin);
+    await hargaAsli(setup, admin);
+
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: true });
+    expect(await dataContoh.aktif()).toBe(false);
+  });
+
+  it("counts as Data Contoh being active although the registry holds no entry, and status lists it, until a real version supersedes it", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    await hargaContohTanpaCatatan(setup, admin);
+
+    expect(await dataContoh.aktif()).toBe(true);
+    const sebelum = await dataContoh.status();
+    expect(sebelum.aktif).toEqual([]);
+    expect(sebelum.takTercatat).toMatchObject([{ kode: null, key: kunciBiaya, amount: 100_000 }]);
+
+    await hargaAsli(setup, admin);
+
+    expect(await dataContoh.aktif()).toBe(false);
+    expect((await dataContoh.status()).takTercatat).toEqual([]);
+  });
+
+  it("never counts an Operator's own fee, even one of the same amount: only a version a tanam entered is contoh", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    await hargaAsli(setup, admin, 100_000);
+
+    expect(await dataContoh.aktif()).toBe(false);
+    expect((await dataContoh.rencanaCabut()).diblokir).toEqual([]);
+    expect((await dataContoh.status()).takTercatat).toEqual([]);
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: true });
+  });
+
+  it("is recorded by the next tanam when the fixture names its tariff key: no second price is entered, and cabut still refuses", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const contoh = await hargaContohTanpaCatatan(setup, admin);
+    const rencana: RencanaTanam[] = [
+      {
+        kode: KODE_BIAYA,
+        jenis: "tarif_global",
+        kunciTarif: kunciBiaya,
+        buat: async () => {
+          throw new Error("tidak boleh memasukkan harga kedua");
+        },
+      },
+    ];
+
+    const hasil = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana });
+
+    expect(hasil).toMatchObject({ ok: true, dibuat: [KODE_BIAYA], sudahAda: [], dilewati: [] });
+    expect((await dataContoh.status()).aktif.map((one) => [one.kode, one.entitasId, one.lengkap])).toEqual([[KODE_BIAYA, `biaya_layanan_platform:${contoh.seq}`, true]]);
+    expect(await setup.tariffs.globalTariffHistory(kunciBiaya)).toHaveLength(1);
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: false, reason: "harga_contoh_masih_berlaku", diblokir: [{ kode: KODE_BIAYA }] });
+    expect((await dataContoh.status()).takTercatat).toEqual([]);
+  });
+
+  it("is never recorded in place of an Operator's own fee: the fixture is skipped and the registry stays empty", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    await hargaAsli(setup, admin, 100_000);
+    const rencana: RencanaTanam[] = [{ kode: KODE_BIAYA, jenis: "tarif_global", kunciTarif: kunciBiaya, buat: async () => ({ ok: true }) }];
+
+    const hasil = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana });
+
+    expect(hasil).toMatchObject({ ok: true, dibuat: [], sudahAda: [], dilewati: [KODE_BIAYA] });
+    expect((await dataContoh.status()).aktif).toEqual([]);
+  });
+
+  it("is no real successor to a recorded contoh price: a second contoh version over it keeps cabut refusing", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const pertama = await hargaContohTanpaCatatan(setup, admin, 100_000);
+    await dataContoh.catat(admin, { kode: KODE_BIAYA, himpunan: "rilis1", jenis: "tarif_global", entitasId: `biaya_layanan_platform:${pertama.seq}`, reason: ALASAN });
+    // A second run entered its own example version over the first and died: the recorded price is superseded, but by another example price.
+    await hargaContohTanpaCatatan(setup, admin, 110_000);
+
+    const hasil = await dataContoh.cabut(admin, { reason: "cabut (test)" });
+
+    expect(hasil).toMatchObject({ ok: false, reason: "harga_contoh_masih_berlaku", diblokir: [{ kode: null, amount: 110_000 }] });
+    expect((await dataContoh.status()).aktif).toHaveLength(1);
+
+    // A real version is the successor that lets both go.
+    await hargaAsli(setup, admin);
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: true });
+    expect(await dataContoh.aktif()).toBe(false);
+  });
+
+  it("cannot leave a tanam's own fixture to another run's cleanup: a run that could not record its fixture retires nothing of the run that did", async () => {
+    const { setup, admin, dataContoh } = await setupDenganAdmin();
+    const lain = await hargaContohTanpaCatatan(setup, admin, 100_000);
+    const rencana: RencanaTanam[] = [
+      {
+        kode: KODE_BIAYA,
+        jenis: "tarif_global",
+        buat: async (ctx) => {
+          // The other run records its price under the code while this one is still building.
+          await dataContoh.catat(admin, { kode: KODE_BIAYA, himpunan: "rilis1", jenis: "tarif_global", entitasId: `biaya_layanan_platform:${lain.seq}`, reason: ALASAN });
+          const sendiri = await hargaContohTanpaCatatan(setup, admin, 100_000);
+          await ctx.catatInduk(`biaya_layanan_platform:${sendiri.seq}`);
+          return { ok: true };
+        },
+      },
+    ];
+
+    await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana })).rejects.toThrow("kode_dipakai_entitas_lain");
+
+    // The other run's row is still active: this run recorded nothing under the code, so it retires nothing.
+    expect((await dataContoh.status()).aktif.map((one) => [one.kode, one.entitasId])).toEqual([[KODE_BIAYA, `biaya_layanan_platform:${lain.seq}`]]);
+    // The example price this run entered is in force over it, and is held against cabut like any other.
+    expect(await dataContoh.cabut(admin, { reason: "cabut (test)" })).toMatchObject({ ok: false, reason: "harga_contoh_masih_berlaku" });
+  });
+
+  it("refuses a tanam whose reason does not start with the command's name, because the Audit Log could not then tell its prices from an Operator's", async () => {
+    const { admin, dataContoh } = await setupDenganAdmin();
+
+    await expect(dataContoh.tanam(admin, { himpunan: "rilis1", reason: "seed biasa", rencana: [] })).rejects.toThrow("Data Contoh: alasan tanam");
   });
 });

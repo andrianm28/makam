@@ -483,7 +483,9 @@ catalog gained since.
   that one (hidden, its staff deactivated) and builds it again. A price is never let go of
   while it is in force: a run that died after entering the example Biaya Layanan Platform
   has it finished by the next `tanam` (or recorded, when it died before recording it: the
-  Audit Log names the command as its author), not retired and built twice. (Identity lets
+  Audit Log names the command as its author), not retired and built twice. Run one `data-contoh`
+  command at a time; two overlapping `tanam` runs are not supported, but a run that finds
+  another has recorded a fixture first retires nothing of the other's. (Identity lets
   one email ask for a new Kode Masuk once a minute: a rerun that answers
   `tunggu_kirim_ulang` wants a minute's wait, then the same command.)
 - **`cabut`** marks each Lokasi Mitra `data_contoh` (hidden from every public read, never
@@ -493,11 +495,18 @@ catalog gained since.
   Layanan Platform is retired by being superseded. `cabut` refuses with exit 1, changing
   nothing, while it is still the version in force, or a version dated for the future that no
   later one has taken over: enter the real fee on the Tarif screen (in force from today, or
-  from the same future date), then run `cabut` again. Prices tied to an example Lokasi Mitra go
-  with it.
+  from the same future date), then run `cabut` again. Only a real version is a successor: a
+  version another example version superseded still blocks. This holds for an example price
+  the registry does not hold too: a `tanam` killed between entering the fee and recording it
+  leaves one, and the Audit Log names the command as its author, so `cabut` (dry run and
+  `--tulis`) lists it as "tidak tercatat di registri" and refuses, `status` lists it, the
+  trial banner and the preflight count it as active, and the next `tanam` records it
+  instead of entering a second fee. An Operator's own fee is never taken for an example one,
+  whatever its amount. Prices tied to an example Lokasi Mitra go with it.
 - **Preflight.** `makam-preflight` has a "data contoh" line (ticket 109): SKIP while
   payments are a trial, FAIL when Data Contoh is still active and they are not (it asks the
-  running stack's `/api/browser-config`, `contohAktif`).
+  running stack's `/api/browser-config`, `contohAktif`, which is true for an example price
+  in force that the registry does not hold, as well as for any active registry entry).
 
 ## Import the launch data on the host (`import-data-peluncuran`)
 

@@ -293,6 +293,9 @@ describe("data-contoh tanam --set rilis1", () => {
     // What a run killed between the price and its registry row leaves behind: the price, entered under this command's own reason, no row.
     await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 100_000, effectiveOn: "2026-10-01", reason: "data-contoh tanam" });
     expect((await jalan(["status"])).output).not.toContain("tarif_global");
+    const uji = await jalan(SET);
+    berhasil(uji);
+    expect(uji.output).toContain("akan dicatat di registri");
 
     berhasil(await jalan(SET.concat("--tulis")));
 
@@ -342,6 +345,37 @@ describe("data-contoh cabut", () => {
     expect(hasil.output).toContain("biaya_layanan_platform Rp 100.000");
     expect((await setup.lokasi.publicLokasiMitraList()).map((one) => one.name)).toEqual([tandaContoh("Pemakaman Bukit Sejuk")]);
     expect((await jalan(["status"])).output).toContain("tarif_global: 1");
+  });
+
+  it("refuses, writing nothing, while a contoh Biaya Layanan Platform a killed tanam entered and never recorded is still in force, and says the registry does not hold it", async () => {
+    const { setup, admin } = await stackDenganAdmin();
+    // What a tanam killed between entering the fee and recording it leaves: the price, entered under this command's own reason, and an empty registry.
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 100_000, effectiveOn: "2026-10-01", reason: "data-contoh tanam" });
+    const entriSebelum = (await setup.audit.allEntries()).length;
+
+    const dryRun = await jalan(["cabut"]);
+    const hasil = await jalan(["cabut", "--tulis"]);
+    const status = await jalan(["status"]);
+
+    for (const satu of [dryRun, hasil]) {
+      expect(satu.exitCode).toBe(1);
+      expect(satu.output).toContain("biaya_layanan_platform Rp 100.000");
+      expect(satu.output).toContain("tidak tercatat di registri");
+    }
+    expect(dryRun.output).not.toContain("Tidak ada Data Contoh yang aktif");
+    berhasil(status);
+    expect(status.output).toContain("biaya_layanan_platform Rp 100.000");
+    expect(status.output).toContain("tidak tercatat di registri");
+    expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toHaveLength(1);
+    expect((await setup.tariffs.globalTariff("biaya_layanan_platform", setup.clock.now()))?.amount).toBe(100_000);
+    // The refused cabut and the status wrote nothing at all, not even an Entri Audit.
+    expect((await setup.audit.allEntries()).length).toBe(entriSebelum);
+
+    // The Operator's real fee supersedes it: cabut then has nothing left to refuse.
+    await setup.tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 125_000, effectiveOn: "2026-10-01", reason: "harga asli" });
+    const sesudah = await jalan(["cabut", "--tulis"]);
+    berhasil(sesudah);
+    expect((await jalan(["status"])).output).toContain("Tidak ada Data Contoh yang aktif");
   });
 
   it("is a dry run without --tulis once the price is superseded: it lists what it would retire and writes nothing", async () => {
