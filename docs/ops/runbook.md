@@ -445,44 +445,53 @@ go through the real live FileStore. See `src/cli/seed-contoh-publik-command.ts`'
 header comment for exactly which of the prototype's fields this reproduces,
 approximates, or has no real counterpart for.
 
-## Data Contoh on the beta (`data-contoh`)
+## Data Contoh on the host (`data-contoh`)
 
-While the beta runs on the SumoPod sandbox with no real orders (owner decision 2026-10-04),
-makam.co.id shows many clearly marked example records, prices included: five Lokasi Mitra
-named "… (Contoh)" taken through the real publish gate (Denah, Petak, tariffs, Kontak
-Siaga), the catalog's Layanan switched on at each with an example Lokasi price, an example
-Biaya Layanan Platform when none is set, and their staff on `.invalid` addresses. The Rilis
-2/3 set (`--set rilis3`, ticket 111, below) adds what level 3 needs beside it. The trial
-banner adds a line while any is active. One command removes all of it before real operation.
-Unlike `seed-contoh-publik` it runs on production, and it keeps a registry
-(`data_contoh_entri`) of everything it created. This is the only way example data reaches
-production (ADR 0007): `seed-contoh-publik` is refused there and the old app's catalog is
-not imported.
+ADR 0007: while production runs as a beta on SumoPod's sandbox it shows Data Contoh,
+records named "(Contoh)" for every release, prices and tariffs included, planted by
+this command and removed by it before real operation. Tickets 109 (the Rilis 1 set,
+the registry, `cabut`, `status`) and 111 (the Rilis 3 set) build it, and the
+interface below is theirs. The bundle `dist/data-contoh.mjs` runs inside `web` like
+the other CLIs, after `seed:admin`: it acts as that stack's first Admin Platform
+(never copy that pattern into app code).
 
 ```bash
-cd /opt/makam-v1/prod
+cd /opt/makam-v1/prod     # staging: /opt/makam-v1/staging, -p makam-staging, staging.env, --izinkan-staging
 P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
-$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production           # dry run: reads only
-$P exec web node dist/data-contoh.mjs tanam --set rilis1 --tulis --izinkan-production   # plants
-$P exec web node dist/data-contoh.mjs tanam --set rilis3 --izinkan-production           # the Rilis 2/3 set, dry run (needs rilis1 and the launch data first)
-$P exec web node dist/data-contoh.mjs tanam --set rilis3 --tulis --izinkan-production   # plants it
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production            # dry run: what would be planted
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production --tulis    # plants it and records it
+$P exec web node dist/data-contoh.mjs tanam --set rilis3 --izinkan-production            # the Rilis 2/3 set, dry run (needs the launch data and rilis1 first)
+$P exec web node dist/data-contoh.mjs tanam --set rilis3 --izinkan-production --tulis    # plants it: TPU prices, Mitra Jasa, Nazhir, Rilis 2 rules
 $P exec web node dist/data-contoh.mjs status --izinkan-production                        # what is active, per kind
-$P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what it would retire, and whether it may
-$P exec web node dist/data-contoh.mjs cabut --tulis --izinkan-production                 # retires everything
+$P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what would be retired, and what stops it
+$P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis                 # retires all of it
+# Rilis 3's set is tanam --set rilis3 (ticket 111): on staging for the UAT at 3, then on production.
 ```
 
-On staging use `--izinkan-staging` instead (and `-p makam-staging`, `staging.env`, as in the sections above). Each
-environment is refused without its own flag, and `tanam` on production is refused unless
-`SUMOPOD_BASE_URL` names the sandbox host: example records are never planted beside real
-operation. It needs `seed:admin` first, the dry runs too (they read the Mitra Jasa rates as
-Admin Platform), and acts as the stack's first Admin Platform, like
-the other ops commands (never copy that pattern into app code); every Entri Audit it writes,
-in whichever module, carries the reason `data-contoh <subcommand> (production,
---izinkan-production)` (its Audit Log stamps it on every entry that has none of its own). It never writes
-Pengaturan Operator on production. Run `import:data-peluncuran` first when the Layanan
-catalog is empty: the set only switches catalog entries on (it never creates one, because a
-Layanan an offering names can never be deleted), and a later `tanam` adds the Layanan a
-catalog gained since.
+- **A dry run unless `--tulis`**, like the launch-data import, and **refused without
+  the allowance of the environment**: `--izinkan-staging` on staging,
+  `--izinkan-production` on production (the staging flag never opens production).
+- **Needs an Admin Platform first** (`seed:admin`), the dry runs of `cabut` and of
+  `tanam --set rilis3` too (they read the Mitra Jasa rates as that Admin Platform). Every
+  write's Audit Log reason names the command and the environment.
+- **Idempotent**: planting twice changes nothing, and `status` lists what the
+  registry holds.
+- **`cabut` retires everything the registry holds**: Lokasi flagged as data contoh
+  (hidden and never publishable again), staff deactivated, Mitra Jasa (Contoh) set to
+  Berhenti, Nazhir (Contoh) removed. It exits 1 while a contoh global price version is
+  still in force (it lists it: replace it by a real version through the Tarif screen,
+  then run it again); a contoh DKI price or Mitra Jasa rate instead takes the variant off
+  the TPU listing (it lists them: enter the real prices first to keep a variant offered).
+  It reports the open orders on a contoh Lokasi, and exits 0 only when nothing contoh is
+  left active.
+- **This is the only way example data reaches production** (ADR 0007):
+  `seed-contoh-publik` is refused there and the old app's catalog is not imported.
+  Real data keeps its own commands (`seed:admin`, `import-data-peluncuran`, the
+  staff screens).
+- While any Data Contoh is active the trial banner has a second line, and the
+  preflight's "data contoh" line is a SKIP on the sandbox and a FAIL otherwise.
+
+### What the 109 build guarantees in detail
 
 - **Idempotent.** A second `tanam` finds every fixture code recorded and changes nothing. A
   run cut short leaves its Lokasi Mitra recorded but unfinished; the next `tanam` retires
@@ -611,50 +620,6 @@ fixed file does the rest); exit code 0 means none was.
 - Idempotent: a re-run over the same files reports every row "sama" and writes
   nothing.
 - Never run it from a development machine against a host's database.
-
-## Data Contoh on the host (`data-contoh`)
-
-ADR 0007: while production runs as a beta on SumoPod's sandbox it shows Data Contoh,
-records named "(Contoh)" for every release, prices and tariffs included, planted by
-this command and removed by it before real operation. Tickets 109 (the Rilis 1 set,
-the registry, `cabut`, `status`) and 111 (the Rilis 3 set) build it, and the
-interface below is theirs. The bundle `dist/data-contoh.mjs` runs inside `web` like
-the other CLIs, after `seed:admin`: it acts as that stack's first Admin Platform
-(never copy that pattern into app code).
-
-```bash
-cd /opt/makam-v1/prod     # staging: /opt/makam-v1/staging, -p makam-staging, staging.env, --izinkan-staging
-P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
-$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production            # dry run: what would be planted
-$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production --tulis    # plants it and records it
-$P exec web node dist/data-contoh.mjs status --izinkan-production                        # what is active, per kind
-$P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what would be retired, and what stops it
-$P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis                 # retires all of it
-$P exec web node dist/data-contoh.mjs tanam --set rilis3 --izinkan-production --tulis    # Rilis 2/3 set (ticket 111): TPU prices, Mitra Jasa, Nazhir, Rilis 2 rules
-# tanam --set rilis3 goes on staging for the UAT at 3 first, then on production; it needs the launch data and rilis1 before it.
-```
-
-- **A dry run unless `--tulis`**, like the launch-data import, and **refused without
-  the allowance of the environment**: `--izinkan-staging` on staging,
-  `--izinkan-production` on production (the staging flag never opens production).
-- **Needs an Admin Platform first** (`seed:admin`). Every write's Audit Log reason
-  names the command and the environment.
-- **Idempotent**: planting twice changes nothing, and `status` lists what the
-  registry holds.
-- **`cabut` retires everything the registry holds**: Lokasi flagged as data contoh
-  (hidden and never publishable again), staff deactivated, Mitra Jasa (Contoh) set to
-  Berhenti, Nazhir (Contoh) removed. It exits 1 while a contoh global price version is
-  still in force (it lists it: replace it by a real version through the Tarif screen,
-  then run it again); a contoh DKI price or Mitra Jasa rate instead takes the variant off
-  the TPU listing (it lists them: enter the real prices first to keep a variant offered).
-  It reports the open orders on a contoh Lokasi, and exits 0 only when nothing contoh is
-  left active.
-- **This is the only way example data reaches production** (ADR 0007):
-  `seed-contoh-publik` is refused there and the old app's catalog is not imported.
-  Real data keeps its own commands (`seed:admin`, `import-data-peluncuran`, the
-  staff screens).
-- While any Data Contoh is active the trial banner has a second line, and the
-  preflight's "data contoh" line is a SKIP on the sandbox and a FAIL otherwise.
 
 ## Resetting an Admin Platform's TOTP (`reset-totp`)
 
