@@ -56,3 +56,83 @@ Builder, slice 1 (branch `ticket-110-uat-kit`). Not money code.
 - Slice 2 (left): all 36 [TANPA-BAYAR] items marked `S2` in the Rilis 2/3 checklist (R2-35.2 to 35.6, R2-39.1 to 39.4, R2-41.2, 41.3, R2-42.2, 42.3, R2-59.3, R2-84.1, R3-43.1 to 43.3, R3-44.1 to 44.3, R3-45.2, 45.3, R3-46.2, 46.3, R3-47.3, R3-48.2, R3-55.1, 55.2, R3-56.3, R3-57.1, 57.2, R3-58.1, 58.2, R3-51.1, R3-52.1), plus the three unscripted [BAYAR] items above.
 
 **HANDOFF (builder, slice 1)**: files: `uat/**`, `tests/uat/*.test.ts`, the two checklists, `package.json` (`uat` script). Next agent: (1) run `UAT_BASE_URL=http://127.0.0.1:<port> npm run uat -- --grep "§0|§1"` on a local stack to shake out selectors (local stack has no SumoPod: only the unpaid parts can run), then on staging with the owner reading codes out; fix selectors in `uat/perjalanan` and `support/bayar.ts`. (2) Script R3-47.1, 47.2 and 48.1 before the switch. (3) Slice 2. Unverified: every journey, the reporter's output files, the camera flags.
+
+### Review (2026-10-04, round 1; fixed point 0fd6bf41, head 4abdf352)
+
+Both axis reports as the reviewers wrote them (the two report titles are two heading levels deeper than the reviewers' (`##` became `####`, `###` became `#####`), because `ticketComments` ends a Comments section at the next `## ` heading; the text is otherwise verbatim).
+
+#### Standards
+
+**Tests not run by me.** This role is read-only and forbids running tests, and `vitest.config.mts` starts Postgres in `globalSetup`. The builder reports exit 0, 56 tests. I count 56 cases (29 + 12 + 15), traced their assertions by hand and expect green. Read the exit code before merging.
+
+**Hard**
+1. `tests/uat/kode.test.ts:79`: `expect(dipanggil[0]).toBe("kirim")` asserts call order between two fakes (AGENTS.md, Tests: "never on … call sequences"). Drop it; line 99 already proves the stale file is gone at send time.
+
+**Soft**
+1. `uat/support/lingkungan.ts:79-87`: `permintaanKeProduksi` fails open for `https://makam.co.id./` (hostname keeps the dot, `milikMakam` is false) while the base-URL guard fails closed. Strip the dot; add a case.
+2. `uat/support/masuk.ts:29,34`: `Number(env ?? default)` makes an empty `UAT_KODE_TUNGGU_MAKS_MENIT` 0, so even the 60 s gap is refused with the "batas 5 per jam" message, and `abc` NaN, which removes the cap. Validate in `bacaKonfigurasi`.
+3. `uat/playwright.uat.config.ts:47`: `httpCredentials` without `origin` sends basic auth to any host that challenges (the SumoPod checkout).
+4. `uat/support/jeda-kode.ts:58`, `ringkasan.ts:75`: UTC `toISOString()` shown to the owner; use `formatWib` (`@/lib/time/jakarta`).
+5. `uat/support/ringkasan.ts:35`: step errors keep ANSI colour codes (only line 60 calls `bersihkan`), garbling `ringkasan.md`.
+6. `tests/uat/jeda-kode.test.ts:158`: pins the history file's private JSON layout on top of the outcome at line 157.
+7. Duplicated Code: `10-layanan.uat.ts:58-65` re-implements `bukaBarisAntreanLokasi` (`halaman.ts:103-113`); the Nama/Telepon/Email fill repeats at `02-terencana:37`, `04-saat-duka:33`, `alur.ts:72`, `rilis2-bayar:30`.
+8. Speculative Generality: state keys `lokasiId` (`02:64`), `perpanjangan.tagihanUrl` (`05:25`), `terencana.total` (`03:18`), `tpu.saatDuka.nomor` (`rilis3:21`) are never read; bare-string keys turn a typo into a silent `test.skip` (`09-negatif:10-11`).
+
+**Seen for Spec, not counted:** `rilis2-bayar.uat.ts:124-126,147-151` look for the status buttons and reason field inside a `<form>`, but that form holds only a hidden input: the trigger sits beside it and the dialog is portalled (`lokasi-forms.tsx:379-390`, `confirm-dialog.tsx:19-21`); the Berhenti buttons read "Berhenti"/"Berhentikan", not "Hentikan" (`lokasi-forms.tsx:421,425`).
+
+**Clean:** no workflow, Docker, bash, deploy or dependency change (no `prune`/`uses:` in the diff); no secret logged; copy is Indonesian.
+
+9 findings; worst: the call-sequence assertion at `kode.test.ts:79`, the only hard; riskiest soft: the trailing-dot production guard; hard violations: yes.
+Hard: 1, soft: 8
+
+#### Spec
+
+Fixed point `0fd6bf41` resolves; `git diff 0fd6bf41...4abdf352` is non-empty (35 files, +2720/-1, 3 commits). Read-only: nothing was run, so the builder's vitest/lint/typecheck results are taken as reported.
+
+##### Acceptance criteria
+
+| AC | Verdict | Evidence |
+|---|---|---|
+| Rilis 2/3 checklist: tags, staging prerequisites | MET | `uat-rilis-2-3-checklist.md:14-25` (P1-P10: data, roles P2, Retribusi P3, TPU marks P4); 49 items, 13 [BAYAR], 36 [TANPA-BAYAR]; numbers spot-checked against tickets 44, 47, 56, 59 |
+| Rilis 1 section 11 (50, 53, 51, 52) | MET | `uat-rilis-1-checklist.md:94-103`, exit criteria `:106` |
+| Runner: own config and testDir, never CI or `npm run e2e`, `npm run uat` | MET | `uat/playwright.uat.config.ts:29-31`, `package.json:18`; root `playwright.config.ts:10` is `testDir: "e2e"`, `ci.yml:286` runs `npm run e2e`, `vitest.config.mts:11` does not match `*.uat.ts`. CI lint, typecheck and `npm test` do cover `uat/` and `tests/uat` (pure unit tests): fine |
+| Runner: personas with storageState, codes from `$UAT_OUT/kode/<persona>.txt` | MET | `persona.ts:21-47`, `masuk.ts:137-163`, `kode.ts:52-86` |
+| Runner: logins at least 60 s apart, at most 5 an hour per IP | MET | check 3 |
+| Runner: QRIS, Simulate Payment, Lunas; screenshot per step; report and summary in `/home/ubuntu/uat-runs/<date>-<sha>/` | MET, never run | `bayar.ts:22-73`, `langkah.ts:46-54`, config `:39-44`, `lingkungan.ts:104-117`; the Comments say no journey ran against any stack |
+| Slice 1: every Rilis 1 journey, every [BAYAR] of Rilis 2/3 | PARTIAL | HARD 2-4, SOFT 1, 4-6 |
+| Never targets production; refuses anything but staging or local | PARTIAL | allow-list, route guard and tests exist; HARD 1 |
+| Slice 2 | out of scope here | 36 items marked S2, declared in the Comments |
+
+##### The brief's checks
+
+1. **Every Rilis 1 section has a journey: yes.** 0 `00-prasyarat`, 1 `01-masuk`, 2 `02-terencana`, 3 `03-pembayaran`, 4 `04-saat-duka`, 5 `05-perpanjangan`, 6-8 `06`-`08` (page tours, edits as `manual()`), 9 `09-negatif`, 10 `11-penutup`, 11 `10-layanan` (numbers swapped for run order, README:19). **Every [BAYAR] item: no.** Of 13 Rilis 2/3 items, 3 are `fixme` (HARD 2), 2 ride on tests that never add the Layanan (HARD 4), 2 cannot pass as written (SOFT 1); R2-35.1/41.1/42.1/59.x also skip unless the P8/P9 env ids are set. The Rilis 1 section 11 checkout item has nothing (HARD 3).
+2. **Never production: not guaranteed.** HARD 1.
+3. **Login pacing: respected.** `jeda-kode.ts:33-52` mirrors `otp.ts:103-113` (60 s from the newest request, five in a rolling hour, reopening when the fifth-newest leaves) plus a 3 s margin. Every send goes through the gate: `masuk.ts:86`, `alur.ts:32`, `01-masuk.uat.ts:53`. History persists across runs (`masuk.ts:25`). A sixth request is refused with its reopening time instead of waited out (`jeda-kode.ts:50`, default cap 10 min), which keeps the AC. Resend is checked, never pressed (`masuk.ts:89-91`). Tested in `tests/uat/jeda-kode.test.ts`.
+4. **Nothing secret committed: yes.** Credential-like strings are fixtures (`rahasia`, `tests/uat/lingkungan.test.ts:40,58,97-100`) and placeholder aliases (`uat/README.md:11-12`). Personas and basic auth come from env; sessions (0600), codes, report and traces go under `/home/ubuntu/uat-runs`, outside the repo. I did not run gitleaks; the `user:rahasia@dev.makam.co.id` fixtures are the only thing its default rules could trip on.
+5. **Excluded from CI and `npm run e2e`: yes** (table, row 3).
+
+##### Narrowing of the spec
+
+Undisclosed: Rilis 1 section 11 checkout Layanan (HARD 3); anonymous wizard path (SOFT 5, only a parenthetical); the section 1 Admin Platform check skipped in run order (SOFT 4). Disclosed: three [BAYAR] items `fixme` (HARD 2; the Comments' "R3-47.1 only starts" is wrong, it never runs); sections 6-8 as tours; unverified selectors. The ticket text is untouched apart from the appended Build comment.
+
+##### Findings
+
+**HARD (4)**
+1. **Production reachable through a loopback port.** `lingkungan.ts:18,59` accepts localhost/127.0.0.1/[::1] on any port; `docs/ops/runbook.md:12-14` puts production on `127.0.0.1:3100` of the same VPS (staging 3110); `tests/uat/lingkungan.test.ts:18` asserts `http://localhost:3100/` is accepted. `UAT_BASE_URL=http://127.0.0.1:3100` passes `bacaKonfigurasi` and the browser guard (`permintaanKeProduksi`, `lingkungan.ts:79-87`, matches only `*.makam.co.id`), so journeys would send real Kode Masuk emails and create and cancel orders on production. Fix: before any journey, GET `<base>/api/health` and refuse unless `environment` is development, test or staging (`src/app/api/health/route.ts:11` returns it; no runner code reads it); drop 3100 from the test.
+2. **Three [BAYAR] items have no runnable script, yet the checklist says they do.** `rilis3-bayar.uat.ts:57,70,74`: R3-47.1, R3-47.2, R3-48.1 are `test.fixme(true, ...)`; checklist lines 84, 85, 89 tag them `S1` ("already scripted", line 10). AC "every [BAYAR] item of Rilis 2/3" fails for 3 of 13, and G2 needs them before the switch. Disclosed, so fix or re-scope to slice 2 and relabel, so a green `--grep @bayar` is not read as complete.
+3. **Rilis 1 section 11 [BAYAR] "Layanan saat checkout (tiket 53)"** (checklist `:98`) has no journey, no `manual()`, and is not in the Comments' gap list. The three surfaces exist (`terencana/data-kirim.tsx:227` "petak-kosong", `saat-duka/data/data-kirim.tsx:296` "hari-h", `tambah-layanan-perpanjangan.tsx:26`, rendered at `perpanjangan/[hakPakaiId]/page.tsx:197`); the runner never references them, and `perpanjangDanBayar` (`alur.ts:17-42`) walks past "Tambah Layanan".
+4. **R3-56.2 and the Layanan half of R3-53.1 pass without any Layanan.** `rilis3-bayar.uat.ts:20,38` pass `layananHariH: true`; `alur.ts:80-83` looks for `select[id^="varian-"]` and skips when absent, but the TPU wizard's select is `id="hari-h-<id>"` (`data-tpu.tsx:561`). Both tests go green with no hari-H Layanan in the order. A wrong selector would fail loudly; this guard hides it, so the shake-out would not find it.
+
+**SOFT (8)**
+1. **R2-59.1/59.2 cannot pass as written.** `rilis2-bayar.uat.ts:124-126,147-151` expect the reason field and button inside a `<form>` holding a "Tangguhkan"/"Hentikan" button, but the dialog is portalled with `form=` attributes (`confirm-dialog.tsx:19,68,83`; `lokasi-forms.tsx:379-425`); the buttons are "Tangguhkan", "Berhenti", "Berhentikan". R2-59.2 re-finds the Lokasi in `/lokasi` (`:144`) after 59.1 suspended it, and that list holds only Terverifikasi (`public-reads.ts:165-172`). Step title says "besok", code passes `tanggalWib(0)`.
+2. **No `actionTimeout`/`navigationTimeout`** with a 60-minute test timeout (`playwright.uat.config.ts:37,45-56`): a locator that never matches stalls the run up to an hour. Set both (about 30 s).
+3. **Summary understates what did not run.** `ringkasan.ts:53-63` keeps no skip reason, so env-skipped @bayar journeys and `fixme` read as "dilewati" against G2's "0 gagal" (checklist `:122`); `ringkasan.ts:101-103` and the HTML report are rewritten per invocation, though README:19 and the hourly refusal mean resuming on the same `UAT_OUT`.
+4. **Section 1 Admin Platform test is skipped in run order**: `00-prasyarat.uat.ts:24` saves the session, `01-masuk.uat.ts:29` then skips; wrong-TOTP (checklist `:19`) is never exercised.
+5. **Anonymous order path not walked** (checklist `:26`, `:45`): `02-terencana.uat.ts:36`, `04-saat-duka.uat.ts:31-43` use a signed-in Pemesan; the wizard has its own code branch (`data-kirim.tsx:302`). Add one anonymous walk or a `manual()`.
+6. **Thin coverage, partly disclosed**: sections 6-8 tours; section 5's Admin Lokasi verification only inside data-gated R2-41.1 (`rilis2-bayar.uat.ts:67-68`); section 11 skips the Admin Platform Keluhan row, Penilaian visibility, an Admin Lokasi reply and the Terlambat row; the section 9 cap case asserts only a disabled Lanjut (`09-negatif.uat.ts:45`).
+7. `bayar.ts:34` accepts any `sumopod.com`; checklist `:34` expects `pay-sandbox.sumopod.com`. Assert the sandbox host.
+8. Nits: `--grep "§0|§1"` in the HANDOFF also matches §10 (cancels the order) and §11 (pays); Rilis 1 sections 3-5 pay but carry no [BAYAR] tag; `httpCredentials` has no `origin` (`playwright.uat.config.ts:47`).
+
+Worst issue: production is reachable through the documented loopback port 3100, and a UAT kit can go green on [BAYAR] items it never exercised. Hard violations: yes (4).
+
+Hard: 4, soft: 8
