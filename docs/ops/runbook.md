@@ -884,14 +884,15 @@ only. It refuses, in this order, unless all of it holds:
 1. `github.actor` is the repository owner;
 2. the release tag input is the exact tag it expects (`vYYYY.MM.DD-N`, WIB),
    typed again: a mistyped promotion is the one mistake with no undo. N is the
-   number of **published** `v` releases created that day in WIB, plus one; drafts
-   and tags that do not start with `v` do not count, and a release created at
-   18:00 UTC counts for the next WIB day;
+   number of `v` releases **published** that day in WIB (`publishedAt`), plus one;
+   drafts and tags that do not start with `v` do not count, and a release
+   published at 18:00 UTC counts for the next WIB day;
 3. the newest staging deployment that names a digest carries the **host's own
    healthy status**: a `success` status whose description ends with
    `(<digest>) healthy`, which is what `makam-deploy` writes. The smoke status
    alone never counts as healthy;
-4. that digest also has a **passed smoke test** recorded against it.
+4. the newest smoke status recorded against that digest is a pass (a later
+   failure cancels an earlier success).
 
 Then it works in this order, so no public release exists before the signature:
 
@@ -903,8 +904,10 @@ Then it works in this order, so no public release exists before the signature:
 Only a production-signed digest is acceptable to the production host; a
 staging-signed one is refused there, which is the whole point of two keys.
 
-**A failed run is re-run with the same tag.** The draft is found and not
-created again, the signing is repeated (harmless) and the release is published;
+**A failed run is re-run with the same tag.** The draft is found (through the
+release list and the API, since `gh release view` does not show drafts) and not
+created again, provided its notes name the digest being promoted now (otherwise
+the run refuses before signing: use a new tag, or delete the draft), the signing is repeated (harmless) and the release is published;
 if it was already published, the re-run just completes. To abandon a leftover
 draft instead: `gh release delete <tag>` (a draft has no tag in git yet).
 
