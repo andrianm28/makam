@@ -136,18 +136,25 @@ describe('the runbook "Hari switch"', () => {
   const runbook = read("docs/ops/runbook.md");
   const section = runbook.slice(runbook.indexOf("## Hari switch"), runbook.indexOf("\n## ", runbook.indexOf("## Hari switch") + 5));
 
-  it("gives the day's steps in order: preflight, archive, promotion, switch, checks, fallback", () => {
+  it("gives the day's steps in the order of gate G3: promotion, deployment, Data Contoh, preflight, archive, switch, webhook, checks, monitoring, fallback, deletion", () => {
     expect(runbook).toContain("## Hari switch");
-    // Each step is a numbered item; the markers must sit in steps 1, 2, 3, 4, 5, 5 and 6 respectively.
+    // Each step is a numbered item; each marker must sit in the step of that position (counting from 0).
     const steps = section.split(/\n(?=\d+\. \*\*)/).slice(1);
     const markers: [number, string][] = [
-      [0, "makam-preflight"],
-      [1, "makam-arsip-app-lama"],
-      [2, "promote.yml"],
-      [3, "makam-switch --ke v1"],
-      [4, "/api/health"],
-      [4, "/api/webhooks/pembayaran"],
-      [5, "makam-switch --ke pemeliharaan"],
+      [0, "promote.yml"],
+      [1, "makam-deploy --env prod --digest"],
+      [2, "data-contoh.mjs tanam --set rilis1 --izinkan-production"],
+      [3, "makam-preflight --env prod"],
+      [3, "--rilis 1"],
+      [4, "makam-arsip-app-lama"],
+      [5, "makam-switch --cek"],
+      [5, "makam-switch --ke v1"],
+      [6, "Save & Test"],
+      [7, "https://makam.co.id/api/health"],
+      [7, "/api/webhooks/pembayaran"],
+      [8, "UptimeRobot"],
+      [9, "makam-switch --ke pemeliharaan"],
+      [10, "--hapus"],
     ];
     for (const [step, marker] of markers) expect(steps[step], marker).toContain(marker);
   });
@@ -158,7 +165,9 @@ describe('the runbook "Hari switch"', () => {
   });
 
   it("says in the archive step that the counts are taken just after the dump, and that a write in between means a rerun", () => {
-    const step = section.split(/\n(?=\d+\. \*\*)/)[2];
+    // The archive step is the first one that runs makam-arsip-app-lama, wherever the day's order puts it.
+    const step = section.split(/\n(?=\d+\. \*\*)/).slice(1).find((one) => one.includes("makam-arsip-app-lama"));
+    expect(step, "no step runs makam-arsip-app-lama").toBeDefined();
     expect(step).toMatch(/counts[^]*just after the dump[^]*rerun/i);
   });
 });

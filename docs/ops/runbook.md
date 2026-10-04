@@ -501,6 +501,46 @@ fixed file does the rest); exit code 0 means none was.
   nothing.
 - Never run it from a development machine against a host's database.
 
+## Data Contoh on the host (`data-contoh`)
+
+ADR 0007: while production runs as a beta on SumoPod's sandbox it shows Data Contoh,
+records named "(Contoh)" for every release, prices and tariffs included, planted by
+this command and removed by it before real operation. Tickets 109 (the Rilis 1 set,
+the registry, `cabut`, `status`) and 111 (the Rilis 3 set) build it, and the
+interface below is theirs. The bundle `dist/data-contoh.mjs` runs inside `web` like
+the other CLIs, after `seed:admin`: it acts as that stack's first Admin Platform
+(never copy that pattern into app code).
+
+```bash
+cd /opt/makam-v1/prod     # staging: /opt/makam-v1/staging, -p makam-staging, staging.env, --izinkan-staging
+P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production            # dry run: what would be planted
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production --tulis    # plants it and records it
+$P exec web node dist/data-contoh.mjs status --izinkan-production                        # what is active, per kind
+$P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what would be retired, and what stops it
+$P exec web node dist/data-contoh.mjs cabut --izinkan-production --tulis                 # retires all of it
+# Rilis 3's set is tanam --set rilis3 (ticket 111): on staging for the UAT at 3, then on production.
+```
+
+- **A dry run unless `--tulis`**, like the launch-data import, and **refused without
+  the allowance of the environment**: `--izinkan-staging` on staging,
+  `--izinkan-production` on production (the staging flag never opens production).
+- **Needs an Admin Platform first** (`seed:admin`). Every write's Audit Log reason
+  names the command and the environment.
+- **Idempotent**: planting twice changes nothing, and `status` lists what the
+  registry holds.
+- **`cabut` retires everything the registry holds**: Lokasi flagged as data contoh
+  (hidden and never publishable again) and staff deactivated. It exits 1 while a
+  contoh price version is still in force (it lists it: replace it by a real version
+  through the Tarif or Layanan screen, then run it again), reports the open orders
+  on a contoh Lokasi, and exits 0 only when nothing contoh is left active.
+- **This is the only way example data reaches production** (ADR 0007):
+  `seed-contoh-publik` is refused there and the old app's catalog is not imported.
+  Real data keeps its own commands (`seed:admin`, `import-data-peluncuran`, the
+  staff screens).
+- While any Data Contoh is active the trial banner has a second line, and the
+  preflight's "data contoh" line is a SKIP on the sandbox and a FAIL otherwise.
+
 ## Resetting an Admin Platform's TOTP (`reset-totp`)
 
 When an Admin Platform loses their authenticator, ops resets it. Confirm who
@@ -854,8 +894,14 @@ own word** that `/api/health` answered 200 on that digest (`makam-deploy` writes
 it after the restart). It is the only status that says staging is healthy: a
 digest that failed and rolled back has a `failure` status instead, and the smoke
 test's `success` status on the same Deployment says nothing about it. The
-Deployment's `ref` is the bare commit SHA (not `sha-<commit>`), the same string
-`/api/health` reports as `release`.
+Deployment's `ref` is the bare commit SHA (not `sha-<commit>`), and after a
+normal deploy it is the same string `/api/health` reports as `release`. After an
+**automatic rollback** the containers run with the tag instead (`makam-deploy`
+exports `MAKAM_RELEASE=<tag>` for the rollback and puts `deployed.env` back
+afterwards), so `release` reads `sha-<commit>` until the next deploy or recreate.
+The smoke test, which compares `release` with the Deployment's `ref`, then records
+`failure` for the failed digest, which is right: the site is not running it. A
+by-hand `makam-deploy --force` of the digest that runs puts the bare SHA back.
 
 ## The staging smoke gate
 
@@ -894,7 +940,7 @@ not a build. `RILIS_TERBUKA` is a number, 1 to 3, in the host's env file
 
 | Environment | Value | Why |
 |---|---|---|
-| production | `3` from the go-live (owner, 2026-10-03); unset still means `1` | the owner opens all three releases at the switch (ADR 0006 amendment) |
+| production | `1` from the switch, written explicitly in `prod.env`; `3` once the owner has signed the UAT at 3 (ADR 0006 amendment, 2026-10-04); unset still means `1` | the beta switches at Rilis 1 and level 3 follows its own UAT (gates G4 and G5 of `.scratch/makam-v1-build/go-live-rilis-1.md`) |
 | staging | `3` | every release can be tested before it opens on production |
 | development, test, the CI e2e stack (`deploy/ci/e2e.env`) | unset, which means `3` | nothing existing changes |
 
@@ -908,15 +954,26 @@ reminders and expiry) and Lokasi Ditangguhkan / Berhenti; Rilis 3 is DKI TPU,
 Mitra Jasa and Wakaf Tanah. A value outside 1 to 3 stops the process at start.
 
 **Opening a release** is a host setting change plus a restart, never a new
-promotion:
+promotion. On production, 3 waits for the owner's signature on the UAT at 3 and
+for the prerequisites of gate G5; do it at a quiet hour and tell the staff first
+(the restart makes every open form stale, ticket 98's page). On this host (the
+compose file is `/opt/makam-v1/prod/compose.yml`, copied there by the host
+installer):
 
-1. Edit the env file on the host: `RILIS_TERBUKA=2` (or `3`).
-2. Restart `web` and `worker` of that project so both read it, e.g.
-   `docker compose -p makam-prod -f docker-compose.prod.yml up -d --force-recreate web worker`
-   (use the same `--env-file` the deploy uses).
-3. Check: `docker compose -p makam-prod logs worker | grep "started (RILIS_TERBUKA="`
-   shows the new number, and a page of the newly opened feature no longer says
-   "Segera hadir".
+```bash
+cd /opt/makam-v1/prod                         # staging: /opt/makam-v1/staging, -p makam-staging, staging.env
+P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
+grep '^RILIS_TERBUKA=' prod.env               # what is open now: RILIS_TERBUKA=1
+sed -i 's/^RILIS_TERBUKA=.*/RILIS_TERBUKA=3/' prod.env
+grep -c '^RILIS_TERBUKA=3$' prod.env          # 1; 0 means the file had no such line, so add one
+$P up -d --force-recreate web worker          # web and worker read the env file only when they start
+$P logs worker | grep 'started (RILIS_TERBUKA='    # the newest line shows the new number
+$P logs worker | grep -c ' skipped'                # 0 once every release is open
+curl -s http://127.0.0.1:3100/api/health | jq '{ok, release, rilisTerbuka}'    # rilisTerbuka is 3
+/opt/makam-v1/bin/makam-preflight --env prod --rilis 3 --email-to <your address>   # exit 0, no FAIL
+```
+
+Then a page of the newly opened feature no longer says "Segera hadir".
 
 Opening Rilis 2 starts the Hak Pakai reminder emails to real Pemegang Hak. The old
 app holds no Hak Pakai (ticket 65, 2026-10-03): rows come from Denah clearing by the
@@ -936,13 +993,13 @@ only. It refuses, in this order, unless all of it holds:
    in WIB**, plus 1 (so the first promotion of a day is `-1`, and a draft left by
    a failed run does not move N). The workflow prints the tag it expects when you
    type another;
-3. the newest staging deployment that names a digest has a `success` status
-   **written by the host** whose description ends `(<digest>) healthy` (staging
-   is healthy; the smoke test's own status never counts for this);
-4. that digest's **newest smoke result** is a pass, recorded against it by the
-   smoke workflow ("The staging smoke gate" above);
-5. the deployment's `ref` is a full commit SHA, because the release is created
-   at that commit.
+3. the newest staging deployment that names a digest has a `ref` that is a full
+   commit SHA, because the release is created at that commit;
+4. that deployment has a `success` status **written by the host** whose
+   description ends `(<digest>) healthy` (staging is healthy; the smoke test's own
+   status never counts for this);
+5. that digest's **newest smoke result** is a pass, recorded against it by the
+   smoke workflow ("The staging smoke gate" above).
 
 Then, in this order (a production signature cannot be taken back, so the release
 exists before it and is published after it):
@@ -967,6 +1024,24 @@ promotion instead, delete the draft (`gh release delete <tag> --yes`); a digest
 already signed with the production key stays deployable by hand
 (`makam-deploy --env prod --digest ...`), so abandon one only after checking that
 is what you want.
+
+**After an automatic rollback on staging** (`makam-deploy` puts the previous digest
+back when the new one never became healthy) the failed digest's Deployment stays the
+newest one, with a `failure` status and no `healthy` of the host's, so promotion
+refuses until a healthy redeploy. Either a newer `main` commit deploys healthy, or,
+when the digest staging runs now is the one to promote, redeploy it by hand once.
+Stop the staging timer first, or it follows `:latest` back to the failing digest
+within 2 minutes:
+
+```bash
+sudo systemctl stop makam-staging-deploy.timer
+/opt/makam-v1/bin/makam-deploy --env staging --force \
+  --digest "$(sed -n 's/^MAKAM_DIGEST=//p' /opt/makam-v1/staging/deployed.env)"
+sudo systemctl start makam-staging-deploy.timer   # once the failing commit is fixed on main
+```
+
+That writes a new Deployment with the host's `healthy` status, the smoke workflow
+runs on its `deployment_status` event, and promotion reads that one.
 
 ```bash
 # What is running where
@@ -1362,7 +1437,7 @@ openssl rand -base64 32 > /opt/makam-v1/staging/backup-passphrase   # 0600
 
 Production has a passphrase of its own, made the same way, at
 `/opt/makam-v1/prod/backup-passphrase` (`makam-preflight` requires it, "Hari
-switch" step 1).
+switch", the preflight step).
 
 **Keep an offline copy of that file somewhere off this host** (Andrian holds
 these, with the other secrets): every Dump of the environment is unreadable
@@ -1608,8 +1683,17 @@ Certbot reuses the host's existing ACME account. After that:
   per deploy is set up but **has never run**, because the credentials do not
   exist yet — the exact steps are in "Source maps and releases" below. Until
   they do, GlitchTip shows minified JavaScript with no source map.
-- Set up SMTP for GlitchTip alerts (`EMAIL_URL` in `glitchtip.env`, via the
-  SumoPod SMTP relay once ticket 04's email setup is done), then restart GlitchTip.
+- **Alerts by email** (set up for the switch, 2026-10-04): `EMAIL_URL` in
+  `glitchtip.env` is the SumoPod SMTP relay, `smtp+ssl://<SMTP_USER>:<SMTP_PASSWORD>@smtp.sumopod.com:465`
+  (implicit TLS, like the app's own `SMTP_*`; percent-encode any `@` or other special
+  character in the user name and password), with `DEFAULT_FROM_EMAIL` a sender on
+  the authenticated `makam.co.id` domain. Both projects, `makam-staging` and
+  `makam-prod`, carry the alert rule **Error baru (email)** (the project's
+  Settings, Alerts). Changing either value needs the containers recreated
+  (`$G up -d web worker`, "GlitchTip: restart, upgrade, admin"). Test it on
+  production with `sentry-check` ("Test error"): `$P exec web node dist/sentry-check.mjs web`
+  with `P` the production compose command, and the email arrives within a few
+  minutes. Who receives it is chosen in GlitchTip (the owner's, plan C9).
 
 ## GlitchTip: restart, upgrade, admin
 
@@ -1863,7 +1947,19 @@ minutes):
    again (`docker start makam-staging-postgres-1`) and expect the recovery
    notice.
 
-For production (ticket 65), add a second monitor on `https://makam.co.id/api/health`.
+**The production monitor (gate G3; the owner's account).** Add it at the switch, in
+the same UptimeRobot account:
+
+1. *Add New Monitor* → type **Keyword**, name `makam production /api/health`, URL
+   `https://makam.co.id/api/health`, keyword `"ok":true`, alert when the keyword does
+   *not exist*, interval 5 minutes. The keyword is what tells a healthy answer from
+   the maintenance page or the old app's: a 200 alone is not enough.
+2. The same alert contacts as staging's: the ops email, and the mobile app or
+   Telegram for push.
+3. After `makam-switch --ke v1` it must show **Up**. Test the alarm without touching
+   production: add a temporary HTTP(s) monitor on a path that answers 404
+   (`https://makam.co.id/uji-alarm`), expect its Down alert within one interval, then
+   delete that monitor.
 
 **Local watchdog (installed).** `makam-staging-health.timer` runs
 `makam-healthcheck https://dev.makam.co.id/api/health` every minute, through
@@ -1956,7 +2052,9 @@ file alone never changes an existing database's password.
 `docker-compose.prod.yml` is ready for `makam-prod`. Create
 `/opt/makam-v1/prod/prod.env` like `staging.env`, with `MAKAM_PROJECT=makam-prod`,
 `MAKAM_APP_ENV=production`, `MAKAM_ENV_FILE=/opt/makam-v1/prod/prod.env`,
-`MAKAM_WEB_PORT=3100`, `APP_BASE_URL=https://makam.co.id`, a new
+`MAKAM_WEB_PORT=3100`, `RILIS_TERBUKA=1` (written explicitly: an unset value means
+the same, but nobody wrote it and the preflight cannot check it; ADR 0006's
+amendment of 2026-10-04), `APP_BASE_URL=https://makam.co.id`, a new
 `POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, a VAPID pair with
 `VAPID_SUBJECT`, `SENTRY_DSN` from `dsn-makam-prod-internal.txt`, the public
 `NEXT_PUBLIC_SENTRY_DSN` from `dsn-makam-prod-public.txt` (a runtime value, see
@@ -1982,7 +2080,9 @@ with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Create
 `/opt/makam-v1/prod/backup-passphrase`, and once the first deploy has written
 `/opt/makam-v1/prod/deployed.env` run `deploy/install-host.sh` again: it enables
 production's backup, restore-check and health timers (ticket 108, "Database
-backup and restore"). Then follow "Hari switch" for the gated nginx switch.
+backup and restore"). The order of all this, the preflight last, is in "Rehearsal
+of the first production deploy"; then follow "Hari switch" for the gated nginx
+switch.
 
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
 
@@ -2005,28 +2105,30 @@ Values in `prod.env`, and the webhook:
 | `EMAIL_FROM_NAME` | `Makam.co.id` | |
 | `SUMOPOD_BASE_URL` | `https://api-pay-sandbox.sumopod.com` | the sandbox host, until SumoPod is live |
 | `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret: the sandbox API key and the `whsec_` signing secret, installed by the owner (rotated 2026-10-03) | v1 reads only these two and `SUMOPOD_BASE_URL`; the `whtok_` webhook token is not used and stored nowhere |
+| `RILIS_TERBUKA` | `1` | written explicitly, never left unset (ADR 0006's amendment of 2026-10-04; "Which release is open") |
 
 Webhook URL (owner decision 2026-10-03): a SumoPod project has two
 environments, sandbox and live, and each has exactly one webhook URL; makam uses
 one project. Until the switch, the sandbox webhook is
 `https://dev.makam.co.id/api/webhooks/pembayaran`, because makam.co.id still
 serves the old app (test events reached it with HTTP 200 on 2026-10-03). At the
-switch the owner moves it to `https://makam.co.id/api/webhooks/pembayaran`. From
-then on staging's sandbox payments are not confirmed, so finish the UAT payment
+switch, right after `makam-switch --ke v1`, the owner moves it to
+`https://makam.co.id/api/webhooks/pembayaran` and presses Save & Test ("Hari
+switch"). From then on staging's sandbox payments are not confirmed, so finish the UAT payment
 cases before the switch. A payment created on staging whose event arrives after
 the switch shows in production as a "perlu ditinjau" item (reason
 `pembayaran_tidak_dikenal`) and is resolved as such. When production moves to
 SumoPod's live environment, its webhook goes to the live URL and the sandbox URL
 can return to staging.
 
-Go-live checklist, sandbox variant (replaces "live SumoPod key" in step 1 of
-"Hari switch" until the live account exists), in `/opt/makam-v1/prod/prod.env`:
+Checklist for the beta on the sandbox (what "Hari switch" and the preflight need
+until the live account exists), in `/opt/makam-v1/prod/prod.env` and the dashboard:
 
 1. `SUMOPOD_BASE_URL=https://api-pay-sandbox.sumopod.com`
 2. `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` of the sandbox project
    (the same pair staging holds, or a second sandbox project of your own).
-3. In the sandbox dashboard, the webhook points at
-   `https://makam.co.id/api/webhooks/pembayaran`.
+3. At the switch, and not before, the webhook in the sandbox dashboard points at
+   `https://makam.co.id/api/webhooks/pembayaran` ("Hari switch").
 4. Redeploy (`makam-deploy --env prod --digest ...`), then check that every page
    of `https://makam.co.id/` shows the banner "PEMBAYARAN UJI COBA" and that a
    Tagihan's Bayar step shows "Pembayaran ini uji coba: tidak ada uang yang
@@ -2038,16 +2140,72 @@ process reads `APP_ENV=production` with `SUMOPOD_BASE_URL` on the sandbox host
 development never show them (staging keeps its own banner). `makam-preflight`
 names this state in one SKIP line, "production on the sandbox".
 
-**Going live:** put the live `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` in
-`prod.env`, point the live webhook at the same URL, **delete the
-`SUMOPOD_BASE_URL` line** (production then uses the live host), redeploy. The
-banner and the notice disappear; the preflight SKIP line goes with them.
+### Rules while production pays through the sandbox
+
+Owner decision, 2026-10-04 (ADR 0007): production serves the owner's UAT and the
+staff's own use of the beta, not families.
+
+- **No real orders.** SumoPod's "Simulate Payment" turns any sandbox payment into
+  Lunas and anyone can press it, so a paid order proves nothing and no money has
+  moved. Only the Lokasi "(Contoh)" can be ordered at ("Data Contoh on the host"),
+  and the trial banner says so on every page.
+- **No Pencairan and no refund transfer.** Nothing was collected, so no Pencairan
+  is made to a Lokasi Mitra or a Mitra Jasa and no refund is transferred to a
+  family. A Pencairan or a Bukti Pengembalian Dana recorded now would document
+  money that never moved.
+- **Staff review the Antrean every day** (the Admin Platform on the rota) and close
+  every order that is not the owner's UAT or a staff member's own test: the
+  Pemesan's "Batalkan pesanan ini" on the order page, or an Admin Lokasi's "Catat
+  pembatalan" or "Tolak pesanan" on it.
+- **CS turns a real order away.** A family may still find the site, fill a form in
+  and "pay". CS answers by the channel the family used, with the script below, and
+  the order is closed as above. The script is a draft until the owner approves it
+  (plan, C11):
+
+> Terima kasih sudah menghubungi Makam.co.id. Saat ini situs kami masih dalam masa uji coba dan belum melayani pesanan sungguhan. Pesanan yang masuk sekarang tidak kami proses, tidak ada uang yang berpindah, dan Anda tidak perlu membayar apa pun. Mohon maaf atas ketidaknyamanannya.
+>
+> Jika keperluan Anda mendesak, silakan hubungi pengelola taman makam yang Anda tuju atau kelurahan setempat secara langsung. Silakan kembali ke makam.co.id setelah layanan resmi dibuka.
+>
+> (Bila sudah ada pesanan atas nama Anda:) Pesanan tersebut kami batalkan agar tidak tersisa. Tidak ada tagihan yang perlu Anda bayar.
+
+### Going live (leaving the beta)
+
+When the owner decides to take real orders (the live SumoPod account, ticket 04, and
+the real values, ticket 06). The order matters: the preflight's "data contoh" line
+fails when the sandbox is left while any Data Contoh is still active. The family
+reminder for overdue pay-after TPU Tagihan (ticket 46, gap 5) was deferred for the
+beta and is built before any live payment.
+
+1. **Real values in.** Pengaturan Operator is real since the switch. Enter the real
+   Biaya Layanan Platform, the Lokasi tariffs and Layanan prices (and the 22 DKI
+   prices and the Mitra Jasa rates, ticket 06) through their screens or
+   `import-data-peluncuran`, so that every contoh price version has a real version
+   after it.
+2. **Retire the Data Contoh.** `data-contoh.mjs cabut --izinkan-production` is a dry
+   run ("Data Contoh on the host"): it lists what it would retire, the open orders on
+   a contoh Lokasi and every contoh price version still in force. It exits 1 until
+   each contoh price has been replaced by a real price (a real version after it),
+   and 0 only when nothing contoh would stay active. Run it again with `--tulis`,
+   then `status` must list nothing active.
+3. **Clean the beta orders.** Every order made during the beta is a test order. The
+   platform has no function that deletes an order, so cleaning means closing every
+   open one (as in the rules above) until the Antrean holds no row of the beta. What
+   to do with the orders "paid" through the sandbox, which stay in Laporan, is the
+   owner's decision and is taken before the next step.
+4. **Live keys.** Put the live `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` in
+   `prod.env`, point the live webhook at `https://makam.co.id/api/webhooks/pembayaran`
+   and **delete the `SUMOPOD_BASE_URL` line** (production then uses the live host).
+   Redeploy with `makam-deploy --env prod --digest <the running digest> --force`: the
+   banner and the Bayar notice disappear.
+5. **Preflight.** `makam-preflight --env prod --rilis <the open release> ...` has no
+   FAIL: the "production on the sandbox" SKIP is gone and the "data contoh" line
+   passes.
 
 ## Production preflight (`makam-preflight`)
 
 Run this on the VPS before the production rehearsal (ticket 72) and again
 before the nginx switch. It answers one question: which prerequisite of tickets
-02, 03, 04, 72, 107 and 108 is still missing? It is read-only, except for three things it
+02, 03, 04, 72, 107, 108 and 109 is still missing? It is read-only, except for three things it
 names and removes again (an S3 object, a GitHub Deployment, and the Dump its own
 backup writes), and it never prints a secret value. One exception stays:
 `makam-backup-db` prunes Dumps older than 7 days on every run, so a preflight can
@@ -2101,12 +2259,15 @@ What it checks, and what runs it:
 | open release | `RILIS_TERBUKA` in the env file, and with `--rilis N` the `rilisTerbuka` that `http://127.0.0.1:<MAKAM_WEB_PORT>/api/health` reports (SKIP when the field is absent or the stack is down) | 72, 107 |
 | production timers | `systemctl is-enabled` of `makam-prod-db-backup.timer`, `makam-prod-files-backup.timer`, `makam-prod-restore-test.timer` and `makam-prod-health.timer` (ticket 108): FAIL unless all four say `enabled`; `deploy/install-host.sh` enables them once `deployed.env` names a `MAKAM_DIGEST`, so run it again after the first production deploy | 64, 108 |
 | production on the sandbox | one SKIP line, "production on the sandbox", when `SUMOPOD_BASE_URL` is SumoPod's sandbox host: payments are a trial until the live keys are installed and the override removed | 04, 101 |
+| data contoh | ticket 109: SKIP while `SUMOPOD_BASE_URL` is the sandbox host; FAIL when any Data Contoh is still active and it is not, so the live keys cannot be installed over example data ("Going live") | 109 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
 
 Before the first production deploy the lines that need the running stack FAIL or
 SKIP by design: the backup and restore test (it needs the `makam-prod` stack), the
 production timers (`install-host.sh` enables them only once the stack runs) and
-the release the stack reports. Run the preflight again after the rehearsal's deploy.
+the release the stack reports. Run it after the first deploy and the second run of
+the host installer, which is the order of "Rehearsal of the first production
+deploy".
 
 Public access, versioning and encryption of the buckets are a console check
 (AWS console, bucket, Permissions / Properties) unless `S3_ACCESS_KEY_ID` is a
@@ -2124,25 +2285,165 @@ for a non-AWS endpoint. The `aws` CLI must be installed.
 The images built before this preflight have no `dist/env-check.mjs`; the env
 schema line says so. Use a digest built from a `main` that has it.
 
+## Rehearsal of the first production deploy (ticket 72, gate G1)
+
+The first deploy of `makam-prod`, on `127.0.0.1:3100` with the sandbox keys and **no
+nginx change**: nothing on `makam.co.id` moves. It proves the promotion, the
+signature gate, the rollback and the backups before the day that matters. It needs
+gate G0 (staging runs a digest A healthy and its smoke test passed),
+`/opt/makam-v1/prod/prod.env` and `backup-passphrase` ("Production (ticket 65)",
+"Production on SumoPod's sandbox"), the production cosign public key, and the
+builders stopped (the host is shared).
+
+Ticket 72's Rehearsal item names the preflight as the first step, but it cannot be:
+the preflight FAILs until the four production timers are enabled, the host
+installer enables them only once `prod/deployed.env` names a digest, and only a
+first deploy writes that (tickets 107 and 108). So the order is the one below, with
+the preflight last.
+
+```bash
+cd /opt/makam-v1/prod
+P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
+
+# 1. Promote A: the owner runs "Promosikan ke produksi" (promote.yml) and types the tag it
+#    expects ("Promoting to production"). On any machine where gh is logged in:
+gh release view v2026.10.DD-1 --json isDraft,body --jq '{isDraft, body}'     # isDraft false; the body names sha256:<A>
+
+# 2. Deploy it
+/opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<A>; echo "exit=$?"    # 0
+$P logs worker | grep 'started (RILIS_TERBUKA=1)'
+
+# 3. The first Admin Platform: the owner's email and phone ("First Admin Platform")
+$P exec web node dist/seed-admin.mjs --email <owner address> --phone 0812xxxxxxxx
+
+# 4. The launch data ("Import the launch data on the host"): copy the folder in, dry run, write, remove the copies
+$P cp /opt/makam-v1/data-peluncuran web:/tmp/data-peluncuran
+$P exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran --izinkan-production
+$P exec web node dist/import-data-peluncuran.mjs --sumber /tmp/data-peluncuran --tulis --izinkan-production
+$P exec -u root web rm -rf /tmp/data-peluncuran && rm -rf /opt/makam-v1/data-peluncuran
+
+# 5. The timers: the host installer again, from a clean checkout of main (git pull --ff-only)
+deploy/install-host.sh
+systemctl list-timers 'makam-prod-*'                                          # four timers
+
+# 6. The preflight, with no FAIL (SKIP is expected for S3, the sandbox, data contoh, the uptime monitor, nginx)
+/opt/makam-v1/bin/makam-preflight --env prod --email-to <your address> --rilis 1 \
+  --webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran
+```
+
+**An image signed only with the staging key is refused (exit 77).** Take a digest CI
+built and signed for staging that was never promoted, so it carries the staging
+signature and no production one: the image of an earlier `main` commit, or the
+digest staging runs now once it has moved on past A. Nothing is touched, not even a
+Deployment:
+
+```bash
+docker pull ghcr.io/andrianm28/makam:sha-<an earlier commit>
+docker image inspect --format '{{index .RepoDigests 0}}' ghcr.io/andrianm28/makam:sha-<an earlier commit>   # ...@sha256:<digest>
+/opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<that digest>; echo "exit=$?"   # 77
+tail -n 3 /opt/makam-v1/prod/deploy.log      # ERROR refusing ...: signature check exited ...; nothing changed
+grep '^MAKAM_DIGEST=' /opt/makam-v1/prod/deployed.env      # still A
+```
+
+**A forced rollback.** `MAKAM_HEALTH_WAIT=0` gives the health check no time at all,
+so the deploy rolls back as if the new image had never become healthy, and `--force`
+makes it deploy the digest that already runs:
+
+```bash
+MAKAM_HEALTH_WAIT=0 /opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<A> --force; echo "exit=$?"   # 1
+grep -E 'never became healthy|rolled back' /opt/makam-v1/prod/deploy.log | tail -n 2
+curl -s http://127.0.0.1:3100/api/health | jq '{ok, release, rilisTerbuka}'                                  # ok true again
+```
+
+Exit 1 means the deploy failed and the previous digest runs again; exit 2 would be a
+rollback that failed as well (stop and read `deploy.log`). The Deployment of that run
+ends `failure` (`gh api 'repos/andrianm28/makam/deployments?environment=production&per_page=1'`
+and its statuses). `release` reads `sha-<commit>` until the next deploy ("Reading a
+deploy in GitHub"), so finish with a normal one: the same command without
+`MAKAM_HEALTH_WAIT` (exit 0, a `healthy` status again).
+
+**The backups.** The first production dump, the FileStore tar and the restore check
+exit 0, and four timers are listed:
+
+```bash
+/opt/makam-v1/bin/makam-backup-db --env prod
+/opt/makam-v1/bin/makam-backup-files --env prod
+/opt/makam-v1/bin/makam-restore-test --env prod
+systemctl list-timers 'makam-prod-*'       # makam-prod-db-backup, -files-backup, -restore-test, -health
+```
+
 ## Hari switch
 
-The day `makam.co.id` moves from the old app to v1 (ticket 65). Human-gated: the
-owner runs it, in this order, after the gate in the ticket's `## Comments`.
-Facts it rests on (owner decisions, 2026-10-03): the old app is switched off at
-the switch and archived; the switch-day fallback is a static maintenance page;
-after the first release, rollback is the previous v1 digest (`rollback.yml`).
-`deploy/install-host.sh` has installed `makam-switch`, `makam-arsip-app-lama`
+The day `makam.co.id` moves from the old app to v1 (ticket 65), at `RILIS_TERBUKA=1`
+on SumoPod's sandbox: gate G3 of `.scratch/makam-v1-build/go-live-rilis-1.md`, which
+holds the evidence to keep. Human-gated: the owner runs it, in this order, after the
+gate in the ticket's `## Comments`. Facts it rests on (owner decisions, 2026-10-03
+and 2026-10-04): the old app is switched off at the switch and archived; the
+switch-day fallback is a static maintenance page; after the first release, rollback
+is the previous v1 digest (`rollback.yml`); production opens Rilis 1 only, with
+`RILIS_TERBUKA=1` written in `prod.env` (level 3 comes later, "Which release is
+open"); the beta takes no real orders and shows Data Contoh ("Production on
+SumoPod's sandbox", ADR 0007); there is one SumoPod sandbox project, so every payment
+case of the UAT was finished on staging before this day and the webhook moves at the
+switch. `deploy/install-host.sh` has installed `makam-switch`, `makam-arsip-app-lama`
 and the blocks under `/opt/makam-v1/nginx/`.
 
-1. **Preflight.** `makam-preflight` (ticket 72) must pass: SumoPod key,
-   secret and webhook URL installed in `prod.env` (live, or the sandbox set from
-   "Production on SumoPod's sandbox" while the live merchant account does not
-   exist yet; then the preflight prints one SKIP line, "production on the
-   sandbox"), SMTP, buckets, the backup key
-   `/opt/makam-v1/prod/backup-passphrase` (0600).
-2. **Archive the old app's database.**
+Before the first step: the gate comment of G2 is in ticket 65, the merge freeze is on
+(nothing lands on `main` until the old app is deleted), the staff know the hour (a
+deploy makes every open form stale), and the rehearsal of the first production deploy
+has passed. The commands run in `/opt/makam-v1/prod`, with
+`P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"`.
+
+1. **Promote and pre-pull.** The owner runs `promote.yml` ("Promosikan ke produksi")
+   and types the tag it expects ("Promoting to production"); the digest is in the
+   release notes. Pull it to the host before the window, so the deploy does not hang
+   on a slow ghcr (the deploy retries a pull three times too, but a pull already
+   done costs nothing), and check its signature and the written release number:
    ```bash
-   sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <old postgres container>
+   gh release view <tag> --json body --jq .body | grep -o 'sha256:[0-9a-f]*'   # on any machine where gh is logged in
+   docker pull ghcr.io/andrianm28/makam@sha256:<digest>                         # as ubuntu, which holds the ghcr login
+   /opt/makam-v1/bin/makam-verify-image --env prod --image ghcr.io/andrianm28/makam --digest sha256:<digest>   # exit 0
+   grep -x 'RILIS_TERBUKA=1' prod.env                                           # written, not left unset
+   ```
+2. **Deploy.** Rehearse the rollback with the new digest first: production runs A, B
+   is new, and `MAKAM_HEALTH_WAIT=0` makes the deploy roll B back to A as if B had
+   never become healthy. Then deploy B for real:
+   ```bash
+   MAKAM_HEALTH_WAIT=0 /opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<B>; echo "exit=$?"   # 1: rolled back to A
+   grep -E 'never became healthy|rolled back' /opt/makam-v1/prod/deploy.log | tail -n 2
+   /opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<B>; echo "exit=$?"                       # 0: healthy
+   curl -s http://127.0.0.1:3100/api/health | jq '{ok, environment, release, rilisTerbuka}'            # true, "production", B's commit, 1
+   $P logs worker | grep 'started (RILIS_TERBUKA=1)'
+   ```
+   The first Admin Platform, the launch data and the second `install-host.sh` belong
+   to the rehearsal and are done: `seed-admin.mjs` answers exit 1 "sudah ada Admin
+   Platform", `import-data-peluncuran.mjs` reports every row "sama", and
+   `systemctl list-timers 'makam-prod-*'` lists four timers. If they are not done, do
+   them here, in that order, before Data Contoh (commands in "Rehearsal of the first
+   production deploy").
+3. **Data Contoh.** The Rilis 1 set, marked "(Contoh)" ("Data Contoh on the host",
+   ADR 0007): five Lokasi Mitra with their Layanan and prices, a contoh Biaya Layanan
+   Platform, staff on `.invalid` addresses. A dry run, then plant it, then look:
+   ```bash
+   $P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production            # dry run
+   $P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production --tulis
+   $P exec web node dist/data-contoh.mjs status --izinkan-production
+   ```
+   Nothing else seeds example data on production.
+4. **Preflight.** No FAIL, exit 0:
+   ```bash
+   /opt/makam-v1/bin/makam-preflight --env prod --digest sha256:<B> --email-to <your address> \
+     --rilis 1 --webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran
+   ```
+   SKIP lines may stay for S3 (moved to v2), "production on the sandbox" and "data
+   contoh" (the sandbox is in use), the external uptime monitor (Monitoring below) and
+   the nginx switch (Switch below). Anything else that FAILs or is skipped is fixed
+   first ("Production preflight"): the sandbox keys, the SMTP settings,
+   `backup-passphrase` and `RILIS_TERBUKA=1` all show up here.
+5. **Archive the old app's database.** The old app's Postgres container on this host
+   is `makam-nonprod-postgres-1` (check: `docker ps --filter name=makam-nonprod-postgres`).
+   ```bash
+   sudo /opt/makam-v1/bin/makam-arsip-app-lama --container makam-nonprod-postgres-1
    ```
    It dumps `makam_beta`, encrypts the dump with the backup key and keeps it in
    the host's backup folder `/opt/makam-v1/prod/backups/app-lama/` (the way the
@@ -2153,12 +2454,7 @@ and the blocks under `/opt/makam-v1/nginx/`.
    archive. Only a proven archive prints the cleanup
    plan; it deletes nothing yet. Any failure exits non-zero: do not switch on
    an unproven archive.
-3. **Promotion.** Run `promote.yml` ("Promosikan ke produksi", owner only, the
-   release tag typed again), then `makam-deploy --env prod --digest sha256:<digest>`
-   and check `curl -s http://127.0.0.1:3100/api/health`. Then run
-   `deploy/install-host.sh` again, so the production backup, restore-check and
-   health timers are enabled (ticket 108).
-4. **Switch.**
+6. **Switch.**
    ```bash
    sudo /opt/makam-v1/bin/makam-switch --cek            # lain: the old app's block is still there
    sudo /opt/makam-v1/bin/makam-switch --ke v1
@@ -2168,38 +2464,72 @@ and the blocks under `/opt/makam-v1/nginx/`.
    production block and `snippets/makam-prod-proxy.conf`, runs `nginx -t` and
    only then reloads; when `nginx -t` fails it puts the backup back and does not
    reload. Running it again changes nothing.
-5. **Checks** (ticket 65): `curl -s https://makam.co.id/api/health` shows the
-   database and the worker heartbeat; `https://www.makam.co.id/` answers;
-   SumoPod's webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1
-   (the dashboard's "Simulate Payment" or a resend shows 2xx, see "Test payment");
-   the uptime alarm watches production (see "Uptime alarm").
-6. **Fallback.** If anything above fails and cannot be fixed in minutes:
+7. **Move the SumoPod webhook.** A SumoPod project has one sandbox webhook URL, so it
+   moves now, after the switch: before it, `makam.co.id` still served the old app. In
+   the SumoPod dashboard (sandbox mode, the project staging uses), Webhooks: change
+   `https://dev.makam.co.id/api/webhooks/pembayaran` to
+   `https://makam.co.id/api/webhooks/pembayaran`, then **Save & Test**: the
+   `payment.test` ping shows delivered (2xx) and puts nothing in "perlu ditinjau".
+   From this moment staging's sandbox payments are not confirmed ("Production on
+   SumoPod's sandbox"); the UAT payment cases were finished before today. Confirm on
+   the host:
    ```bash
-   sudo /opt/makam-v1/bin/makam-switch --ke pemeliharaan
-   curl -si https://makam.co.id/ | head -3             # 503, Retry-After
-   curl -s https://makam.co.id/api/health              # 503 JSON
+   sudo grep 'POST /api/webhooks/pembayaran' /var/log/nginx/makam.co.id.access.log | tail -n 3   # status 2xx
    ```
-   This serves the static maintenance page for every path (the old app is not
-   coming back). `makam-switch --ke v1` puts v1 back. After the first release,
-   rollback is the previous v1 digest ("Rolling back").
-7. **Delete the old app** the same day, once the checks pass:
-   `sudo /opt/makam-v1/bin/makam-arsip-app-lama --container <name> --hapus`
-   re-proves the archive, prints the plan and runs it only after you type
-   `hapus-app-lama`: the old app's containers, volumes and images (the
-   `makam-nonprod-*` names and `makam-app`), `/home/ubuntu/makam-app`,
-   `/opt/makam-notify` and the old nginx blocks under
-   `/opt/makam-v1/nginx-backups/`. Nothing of `makam-v1`, `makam-prod` or staging
-   is touched, and nothing is pruned.
-8. **HSTS, in steps.** The production block sends `Strict-Transport-Security`
-   with `max-age=86400` at the switch. After two stable weeks, raise it to one
-   year (`max-age=31536000`) in `deploy/nginx/makam.co.id.conf`, merge it to
-   `main`, re-run `deploy/install-host.sh` from a checkout of `main` (it copies the
-   block to `/opt/makam-v1/nginx/`, where `makam-switch` reads it; without it
-   `makam-switch` answers "already serves v1"), install it with
-   `makam-switch --ke v1`, and check the header with `curl -sI https://makam.co.id/`.
-   Production stays indexable: it must not send the staging block's `X-Robots-Tag`.
-9. **The owner archives the `makam-app` GitHub repository** (Settings, Archive
-   this repository): read-only, not deleted.
+8. **Checks** (ticket 65):
+   - `curl -s https://makam.co.id/api/health | jq '{ok, environment, release, rilisTerbuka}'`
+     shows `true`, `"production"`, the commit of the release you promoted and `1`;
+     `https://www.makam.co.id/` answers;
+   - the SumoPod webhook `https://makam.co.id/api/webhooks/pembayaran` reaches v1: the
+     Save & Test above, and "Simulate Payment" on a test Tagihan shows Lunas ("Test
+     payment");
+   - every page shows the banner "PEMBAYARAN UJI COBA" and, while Data Contoh is
+     active, its second line; a Tagihan's Bayar step shows the sandbox notice;
+   - the seeded Admin Platform signs in at `/masuk` (the Kode Masuk comes by email),
+     enrols TOTP and enters the real Pengaturan Operator (the owner, plan C10);
+   - one order at a Lokasi "(Contoh)" is placed and cancelled again (the Pemesan's
+     "Batalkan pesanan ini"), so that the Antrean has no open row from the beta;
+   - `$P exec web node dist/data-contoh.mjs status --izinkan-production` lists the
+     Rilis 1 set as active.
+9. **Monitoring.**
+   - The owner adds the production monitor in UptimeRobot (keyword `"ok":true` on
+     `https://makam.co.id/api/health`, "Uptime alarm"), sees it Up, and a test alert
+     reaches the alert contacts.
+   - GlitchTip: `$P exec web node dist/sentry-check.mjs web` sends one test error to
+     the `makam-prod` project, and the alert rule "Error baru (email)" emails it within
+     minutes ("errors.makam.co.id").
+   - `systemctl list-timers 'makam-prod-*'` still lists four timers, and
+     `systemctl --failed` lists no `makam-` unit.
+10. **Fallback.** If anything above fails and cannot be fixed in minutes:
+    ```bash
+    sudo /opt/makam-v1/bin/makam-switch --ke pemeliharaan
+    curl -si https://makam.co.id/ | head -3             # 503, Retry-After
+    curl -s https://makam.co.id/api/health              # 503 JSON
+    ```
+    This serves the static maintenance page for every path (the old app is not
+    coming back). `makam-switch --ke v1` puts v1 back. After the first release,
+    rollback is the previous v1 digest ("Rolling back"). The webhook may stay where it
+    is: SumoPod does not retry, and a failed delivery waits in its Webhooks tab for
+    Resend ("Test payment"). Move it back to `https://dev.makam.co.id/api/webhooks/pembayaran`
+    only to resume a staging UAT.
+11. **Delete the old app** the same day, once the checks pass:
+    `sudo /opt/makam-v1/bin/makam-arsip-app-lama --container makam-nonprod-postgres-1 --hapus`
+    re-proves the archive, prints the plan and runs it only after you type
+    `hapus-app-lama`: the old app's containers, volumes and images (the
+    `makam-nonprod-*` names and `makam-app`), `/home/ubuntu/makam-app`,
+    `/opt/makam-notify` and the old nginx blocks under
+    `/opt/makam-v1/nginx-backups/`. Nothing of `makam-v1`, `makam-prod` or staging
+    is touched, and nothing is pruned. Then the merge freeze is lifted.
+12. **HSTS, in steps.** The production block sends `Strict-Transport-Security`
+    with `max-age=86400` at the switch. After two stable weeks, raise it to one
+    year (`max-age=31536000`) in `deploy/nginx/makam.co.id.conf`, merge it to
+    `main`, re-run `deploy/install-host.sh` from a checkout of `main` (it copies the
+    block to `/opt/makam-v1/nginx/`, where `makam-switch` reads it; without it
+    `makam-switch` answers "already serves v1"), install it with
+    `makam-switch --ke v1`, and check the header with `curl -sI https://makam.co.id/`.
+    Production stays indexable: it must not send the staging block's `X-Robots-Tag`.
+13. **The owner archives the `makam-app` GitHub repository** (Settings, Archive
+    this repository): read-only, not deleted.
 
 ## Staging is public (2026-09-25)
 
