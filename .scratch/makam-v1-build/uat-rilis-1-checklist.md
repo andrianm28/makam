@@ -30,7 +30,7 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 - [ ] Email **Tagihan** ke Pemesan tiba (berisi tautan bayar).
 - [ ] Bukti/Petak tetap ditahan sampai dibayar.
 
-## 3. Pembayaran QRIS (sandbox) — ticket 61 AC
+## 3. Pembayaran QRIS (sandbox) — ticket 61 AC [BAYAR]
 - [ ] Pemesan buka Tagihan → **Bayar Rp <total>** → dialihkan ke checkout `pay-sandbox.sumopod.com`.
 - [ ] Jumlah di checkout **sama persis** dengan total Tagihan (fee ditanggung Operator).
 - [ ] Checkout: pilih QRIS → QR tampil; **"Simulate Payment"** (Test Mode) → "waiting for confirmation".
@@ -40,14 +40,14 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 - [ ] Uang masuk tercatat benar (net = total − fee SumoPod).
 - [ ] **Bukti Pengembalian Dana** (bila dibatalkan) — lihat §6.
 
-## 4. Journey Saat Duka (Lokasi Mitra) — end to end
+## 4. Journey Saat Duka (Lokasi Mitra) — end to end [BAYAR]
 - [ ] `/pesan-makam/saat-duka` → daftar Lokasi × Jenis Makam; pilih.
 - [ ] Isi data Almarhum/keluarga → Kode Masuk → Kirim.
 - [ ] **Admin Lokasi**: baris Konfirmasi Saat Duka di Antrean → konfirmasi (Tagihan pay-after).
 - [ ] Bayar Tagihan → **Catat Pemakaman** (bukti) → order **Selesai** + **Bukti Pemesanan**.
 - [ ] Denah: Petak menjadi **Terisi**; Hak Pakai tercatat.
 
-## 5. Journey Perpanjangan (Lokasi Mitra, OTP) — ADR 0005
+## 5. Journey Perpanjangan (Lokasi Mitra, OTP) — ADR 0005 [BAYAR]
 - [ ] Dari **Akun Saya → Makam** atau tile **Perpanjang Makam** → halaman Perpanjangan.
 - [ ] Pilih masa perpanjangan → Kode Masuk ke email Pemegang Hak (OTP) → kirim permohonan.
 - [ ] **Admin Lokasi**: verifikasi permohonan (setuju/tolak/minta perbaikan) di halaman Perpanjangan.
@@ -91,5 +91,16 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 - [ ] Centang AC **ticket 61** + "What is NOT proved" handoff.
 - [ ] Simpan semua screenshot di satu folder + rekap webhook (dashboard SumoPod).
 
+## 11. Layanan dari sisi keluarga di Lokasi Mitra — ADR 0006 (tiket 49–54)
+Layanan di Lokasi Mitra masuk Rilis 1 (ADR 0006). Prasyarat: Hak Pakai aktif dari §3 (Petak Aktif di `/akun/makam`); Lokasi menyalakan minimal satu Layanan **tanpa isian teks** dengan harga Lokasi; Biaya Layanan Platform contoh terisi; Admin Lokasi memakai perangkat berkamera (runner memakai kamera palsu Chromium). Tag: **[BAYAR]** wajib selesai di staging sebelum switch.
+- [ ] **[BAYAR]** **Pesan Layanan** (tiket 50): Makam Keluarga → pilih Lokasi Mitra → cari Nomor Makam → "Layanan Makam" → pilih varian + tanggal target (tidak boleh di dalam lead time; jendela ±2 hari) → isi data (sudah masuk atau Kode Masuk) → **Pesan layanan** → Nomor Pesanan Layanan dan Tagihan.
+- [ ] **[BAYAR]** Tagihan Layanan: total = harga item + **satu** Biaya Layanan Platform, sama persis dengan rincian di form; **Bayar QRIS** (sandbox) → Lunas → Pekerjaan Layanan **Dijadwalkan**; halaman `/layanan/<nomor>` menunjukkan "Sudah dibayar".
+- [ ] **[BAYAR]** **Layanan saat checkout** (tiket 53): (a) **Saat Duka** hanya menawarkan item hari-H, barisnya masuk Tagihan bayar-belakang yang sama (tetap bayar-belakang); (b) **Terencana** untuk satu petak hanya menawarkan item petak-kosong, bayar-dulu dengan jatuh tempo paling awal; (c) **Perpanjangan** punya langkah opsional "Tambah Layanan", barisnya di Tagihan Perpanjangan **tanpa mengubah jatuh tempo 3×24 jam**, tanggal target minimal lead time setelah jatuh tempo itu; satu Biaya Layanan Platform per Tagihan. Bayar salah satunya (QRIS) sampai Lunas.
+- [ ] **Admin Lokasi mengerjakan**: baris "Layanan hari ini" / "Layanan akan datang" di Antrean Lokasi → buka Pekerjaan Layanan → **Mulai kerjakan** → bukti dari kamera aplikasi (foto sebelum dan sesudah sesuai katalog, bertimestamp, tanpa unggah galeri) → **Tandai selesai** → bukti terkirim ke Pemesan (Selesai); Terlambat (target + 2 hari tanpa bukti) muncul sebagai baris.
+- [ ] **Keluhan dan Penilaian** (tiket 51): Pemesan melihat bukti pekerjaan dan jendela Keluhan 3×24 jam; **Keluhan** ("Ada yang belum sesuai?") membuat baris Tier 1 untuk Admin Platform (respons pertama 4 jam hari; keputusan tolak / kerja ulang / refund; baris "Kerjakan ulang" untuk Admin Lokasi); **Penilaian** 1–5 bintang + komentar hanya terbaca Admin Platform (tidak Admin Lokasi); Keluhan setelah jendela ditolak.
+- [ ] **Thread pesan** (tiket 52): Pemesan dan Admin Lokasi saling kirim pesan teks dan foto di halaman pekerjaan; pesan baru mengirim email ke Pemesan **tanpa isi pesan** dengan tautan balas; Admin Platform dapat membaca dan menulis; thread menjadi baca-saja saat jendela Keluhan tutup; kontak tidak dipertukarkan lewat platform.
+- [ ] **Batalkan Layanan** sebelum H-1 atau sebelum dikerjakan: item dikembalikan, Biaya Layanan Platform ditahan (refund lewat Admin Platform, §8); Terlambat dibatalkan karena keterlambatan: refund penuh termasuk Biaya Layanan Platform.
+- [ ] Layar pesan **Paket Layanan** (tiket 54) tidak tampil di aplikasi (ditunda; hanya definisi dan siklus di domain).
+
 ## Exit criteria
-Semua butir §2–§7 tercentang tanpa kegagalan terbuka; hanya **ticket 65 (go-live)** yang tersisa (human-gated).
+Semua butir §2–§7 dan §11 tercentang tanpa kegagalan terbuka; hanya **ticket 65 (go-live)** yang tersisa (human-gated).

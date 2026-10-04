@@ -1,0 +1,94 @@
+import { baca, simpan, wajib } from "../support/keadaan";
+import { kirimPesananDenganKodeMasuk } from "../support/alur";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, nomorTagihanDi, persis } from "../support/halaman";
+import { langkah, manual } from "../support/langkah";
+import { simpanSesi } from "../support/masuk";
+import { expect, test } from "../support/uji";
+
+/*
+ * Checklist Rilis 1, bagian 2: journey Terencana di Lokasi Mitra, dari daftar
+ * Lokasi sampai Tagihan terbit. The family walks it as a visitor with no session,
+ * the checklist's own path: Kirim pesanan opens the Kode Masuk step, and the code the
+ * owner reads out sends the order (the other journeys are signed in). Payment is
+ * bagian 3 (03-pembayaran.uat.ts).
+ */
+
+test.describe("§2 Terencana (Lokasi Mitra)", { tag: ["@rilis1"] }, () => {
+  test.describe.configure({ mode: "serial" });
+  const petak = (page: import("@playwright/test").Page) => page.locator(`button[aria-label^="${DATA.petakTerencana()}"]`);
+
+  test("§2 Pemesan tamu memilih Lokasi dan Petak di Denah, mengirim pesanan dengan Kode Masuk, dan Petak ditahan", async ({ anonim }) => {
+    const page = await anonim();
+    const lokasi = DATA.lokasiTerencana();
+
+    await langkah(page, "Kartu Lokasi tampil dan ada filter kota", async () => {
+      await page.goto("/pesan-makam/terencana");
+      await expect(page.getByRole("link", { name: persis(lokasi) }).first()).toBeVisible();
+      await expect.soft(page.getByRole("group", { name: "Kota" })).toBeVisible();
+    });
+    await langkah(page, "Pilih Lokasi: Denah dengan Petak Tersedia", async () => {
+      await page.getByRole("link", { name: persis(lokasi) }).first().click();
+      await expect(petak(page)).toBeVisible({ timeout: 30_000 });
+      await expect(petak(page)).toHaveAttribute("aria-label", /Tersedia/i);
+    });
+    await langkah(page, "Pilih Petak lalu Lanjut", async () => {
+      await petak(page).click();
+      await expect(petak(page)).toHaveAttribute("aria-pressed", "true");
+      await page.getByRole("button", { name: "Lanjut" }).click();
+      await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
+    });
+    await langkah(page, "Data & kirim: isi Nama, Nomor dan Email", async () => {
+      await isiDataPemesan(page);
+    });
+    await kirimPesananDenganKodeMasuk(page, "pemesan");
+    await langkah(page, "Pesanan terkirim; Kode Masuk sudah memasukkan tamu sebagai Pemesan (sesi disimpan)", async () => {
+      await expect(page.getByRole("heading", { name: "Pesanan terkirim" })).toBeVisible({ timeout: 30_000 });
+      await simpanSesi(page.context(), "pemesan");
+    });
+    await langkah(page, "Pesanan terkirim: Nomor Pemesanan", async () => {
+      const tautan = (await page.getByRole("link", { name: "Ikuti pesanan" }).getAttribute("href")) ?? "";
+      const nomor = nomorPemesananDi(tautan || (await page.locator("main").innerText()));
+      simpan("terencana.nomor", nomor);
+      await expect(page.getByText(nomor).first()).toBeVisible();
+    });
+
+    const publik = await anonim();
+    await langkah(publik, "Denah publik: Petak itu Dipesan dan tidak bisa dipilih lagi", async () => {
+      await publik.goto("/pesan-makam/terencana");
+      await publik.getByRole("link", { name: persis(lokasi) }).first().click();
+      await expect(petak(publik)).toBeVisible({ timeout: 30_000 });
+      await expect(petak(publik)).toHaveAttribute("aria-label", /Dipesan/i);
+    });
+  });
+
+  test("§2 Admin Lokasi menemukan baris Konfirmasi Terencana dan mengonfirmasi pesanan", async ({ sebagai }) => {
+    const nomor = wajib("terencana.nomor", "§2 Terencana");
+    const page = await sebagai("admin-lokasi");
+    const lokasiId = await lokasiIdDariNama(page, DATA.lokasiTerencana());
+    await bukaBarisAntreanLokasi(page, lokasiId, "Konfirmasi Terencana", nomor);
+    await langkah(page, "Konfirmasi pesanan: Tagihan terbit", async () => {
+      await page.getByTestId("konfirmasi-terencana").click();
+      await expect(page.getByTestId("konfirmasi-terencana")).toHaveCount(0, { timeout: 30_000 });
+      const nomorTagihan = nomorTagihanDi(await page.locator("main").innerText());
+      if (nomorTagihan) simpan("terencana.nomorTagihan", nomorTagihan);
+      expect.soft(nomorTagihan, "Nomor Tagihan di halaman pesanan Admin Lokasi").toBeTruthy();
+    });
+  });
+
+  test("§2 Pemesan melihat Tagihan terbit (Belum Dibayar, 24 jam) dan membukanya untuk dibayar", async ({ sebagai }) => {
+    const nomor = wajib("terencana.nomor", "§2 Terencana");
+    const page = await sebagai("pemesan");
+    await langkah(page, "Halaman pesanan: dikonfirmasi, bayar sebelum Petak dilepas", async () => {
+      await page.goto(`/pesanan/${nomor}`);
+      await expect(page.getByTestId("terencana-dikonfirmasi")).toBeVisible();
+    });
+    await langkah(page, "Buka Tagihan: Belum Dibayar dan jatuh tempo", async () => {
+      await page.getByTestId("bayar-terencana").click();
+      await expect(page).toHaveURL(/\/dokumen\//);
+      await expect(page.getByText("Belum Dibayar", { exact: true })).toBeVisible();
+      await expect(page.getByText("Jatuh tempo").first()).toBeVisible();
+      simpan("terencana.tagihanUrl", new URL(page.url()).pathname);
+    });
+    await manual(page, "Email Tagihan ke Pemesan tiba (berisi tautan bayar)", `dicek owner di mailbox; Petak ${baca("terencana.nomor") ?? ""} tetap ditahan sampai dibayar`);
+  });
+});

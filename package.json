@@ -15,6 +15,7 @@
     "clean": "tsx scripts/clean.mts",
     "stack": "tsx scripts/stack.mts",
     "e2e": "playwright test",
+    "uat": "playwright test -c uat/playwright.uat.config.ts",
     "db:generate": "drizzle-kit generate",
     "migrate": "tsx src/cli/migrate.ts",
     "seed:admin": "tsx src/cli/seed-admin.ts",
