@@ -37,3 +37,9 @@ Make both workflows correct on their first run, and make a smoke result provably
 ## Comments
 
 - 2026-10-04: Filed by the orchestrator from the approved plan (track A, MB1). Not money code. Verified in source on origin/main 09f3b8b8.
+
+- 2026-10-04 (ticket thread, branch `ticket-106-promotion-first-run`): All acceptance criteria delivered. Actionlint 1.7.12 (digest-pinned) is clean on every workflow; workflows were not run.
+  - Review 1 (Standards: 0 blocking, 2 should, 3 nit; Spec: 0 blocking, 3 should, 2 nit), all fixed red-test-first: re-run reusing a draft now refuses if its notes name another digest before signing; drafts found via list + API, not `gh release view`; tag count uses `publishedAt`; newest smoke status decides; `TODAY_WIB` override removed (tests fake `date`); `/api/health` validates `SENTRY_RELEASE` with the build Zod schema; `vi.stubEnv`; `GH_REPO` in staging-smoke.
+  - Re-review: 1 blocking (`gh api --paginate` emitted one array per page, false refusal past 100 releases) and 1 nit (digest match too loose); both fixed (`--slurp`, match the "Production digest" line).
+  - `yaml` added as a devDependency (TDD-exempt: deps) for the workflow tests.
+  - Spec gaps and decisions for the owner: none.
