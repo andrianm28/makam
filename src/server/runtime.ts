@@ -10,6 +10,7 @@ import { composePemesanan, pemesananNotifikasiDari } from "@/composition/pemesan
 import { composePayouts } from "@/composition/payouts";
 import { composeRefunds, refundsTertunda } from "@/composition/refunds";
 import type { AuditLog } from "@/domain/audit";
+import { createDataContoh, type DataContoh } from "@/domain/data-contoh";
 import type { Billing } from "@/domain/billing";
 import { createFieldwork, type Fieldwork } from "@/domain/fieldwork";
 import type { Identity } from "@/domain/identity";
@@ -18,7 +19,7 @@ import type { Layanan } from "@/domain/layanan";
 import { createLokasi, type Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
 import { createOperatorSettings, type OperatorSettings } from "@/domain/operator-settings";
-import { pernahMenyebutPetakAtauKavling, type Pemesanan } from "@/domain/pemesanan";
+import { pernahMenyebutPetakAtauKavling, pesananBerjalanDiLokasi, type Pemesanan } from "@/domain/pemesanan";
 import { suratKuasaRenderPath } from "@/lib/surat-kuasa-link";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import { createWakaf, type Wakaf } from "@/domain/wakaf";
@@ -64,6 +65,8 @@ export interface ServerRuntime {
   payouts: Payouts;
   /** Refunds: refund requests, their approval and the Bukti Pengembalian Dana a transfer issues. */
   refunds: Refunds;
+  /** Data Contoh: the registry of the marked example records a beta shows (ticket 109); the web asks it whether any is active. */
+  dataContoh: DataContoh;
 }
 
 const globalForRuntime = globalThis as unknown as { __makamRuntime?: ServerRuntime };
@@ -304,6 +307,15 @@ export function serverRuntime(): ServerRuntime {
       fieldwork,
       notifikasi: notifications,
     });
+    const dataContoh = createDataContoh({
+      db: database.db,
+      clock: adapters.clock,
+      audit,
+      lokasi,
+      identity,
+      tariffs,
+      pemesanan: { pesananBerjalanDiLokasi: (lokasiId) => pesananBerjalanDiLokasi({ db: database.db }, lokasiId) },
+    });
     globalForRuntime.__makamRuntime = {
       env,
       database,
@@ -342,6 +354,7 @@ export function serverRuntime(): ServerRuntime {
       pengurusan,
       perpanjangan,
       wakaf,
+      dataContoh,
     };
   }
   return globalForRuntime.__makamRuntime;

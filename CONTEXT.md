@@ -440,6 +440,10 @@ _Avoid_: Log (alone), histori
 The Operator's own reference values that no other screen owns, kept by Admin Platform: its legal name, registered address and contact, and the CS WhatsApp number with its reply hours. Each change takes effect from the moment it is made; an issued Tagihan or Bukti keeps the values in force when it was issued.
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
 
+**Data Contoh**:
+The clearly marked example records a beta shows while it takes no real orders: Lokasi Mitra named "… (Contoh)" taken through the real publish gate, with example prices and example staff, planted by `data-contoh tanam` and all removed again by `data-contoh cabut` before real operation. Distinct from a Lokasi Mitra flagged `data_contoh` (ticket 86), which is hidden from every public read: that flag is how `cabut` retires one, never how an example is shown. A price a contoh set entered cannot be erased (Tariffs only inserts versions), so `cabut` refuses until a real version has superseded it.
+_Avoid_: Data dummy, data uji, seed (alone)
+
 **Peringatan Staf**:
 A message that tells a staff member about work needing them (a new order, an Antrean row, an assigned job); it goes by push to each of their Perangkat Push and by email.
 _Avoid_: Notifikasi (alone), alert, reminder (for staff)

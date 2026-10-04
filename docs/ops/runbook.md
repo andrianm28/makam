@@ -445,6 +445,55 @@ go through the real live FileStore. See `src/cli/seed-contoh-publik-command.ts`'
 header comment for exactly which of the prototype's fields this reproduces,
 approximates, or has no real counterpart for.
 
+## Data Contoh on the beta (`data-contoh`)
+
+While the beta runs on the SumoPod sandbox with no real orders (owner decision 2026-10-04),
+makam.co.id shows many clearly marked example records, prices included: five Lokasi Mitra
+named "… (Contoh)" taken through the real publish gate (Denah, Petak, tariffs, Kontak
+Siaga), the catalog's Layanan switched on at each with an example Lokasi price, an example
+Biaya Layanan Platform when none is set, and their staff on `.invalid` addresses. The trial
+banner adds a line while any is active. One command removes all of it before real operation.
+Unlike `seed-contoh-publik` it runs on production, and it keeps a registry
+(`data_contoh_entri`) of everything it created.
+
+```bash
+cd /opt/makam-v1/prod
+P="docker compose -p makam-prod -f compose.yml --env-file prod.env --env-file deployed.env"
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --izinkan-production           # dry run: reads only
+$P exec web node dist/data-contoh.mjs tanam --set rilis1 --tulis --izinkan-production   # plants
+$P exec web node dist/data-contoh.mjs status --izinkan-production                        # what is active, per kind
+$P exec web node dist/data-contoh.mjs cabut --izinkan-production                         # dry run: what it would retire, and whether it may
+$P exec web node dist/data-contoh.mjs cabut --tulis --izinkan-production                 # retires everything
+```
+
+On staging use `--izinkan-staging` instead (and `-p makam-staging`, `staging.env`, as in the sections above). Each
+environment is refused without its own flag, and `tanam` on production is refused unless
+`SUMOPOD_BASE_URL` names the sandbox host: example records are never planted beside real
+operation. It needs `seed:admin` first and acts as the stack's first Admin Platform, like
+the other ops commands (never copy that pattern into app code); every write carries the
+reason `data-contoh <subcommand> (production, --izinkan-production)`. It never writes
+Pengaturan Operator on production. Run `import:data-peluncuran` first when the Layanan
+catalog is empty: the set only switches catalog entries on (it never creates one, because a
+Layanan an offering names can never be deleted), and a later `tanam` adds the Layanan a
+catalog gained since.
+
+- **Idempotent.** A second `tanam` finds every fixture code recorded and changes nothing. A
+  run cut short leaves its Lokasi Mitra recorded but unfinished; the next `tanam` retires
+  that one (hidden, its staff deactivated) and builds it again. (Identity lets one email ask
+  for a new Kode Masuk once a minute: a rerun that answers `tunggu_kirim_ulang` wants a
+  minute's wait, then the same command.)
+- **`cabut`** marks each Lokasi Mitra `data_contoh` (hidden from every public read, never
+  publishable again), deactivates the staff, and reports the orders still running at them
+  (cancel those through the Antrean). Exit 0 only when nothing contoh is left active.
+- **A price cannot be erased.** Tariff versions are insert-only, so the example Biaya
+  Layanan Platform is retired by being superseded. `cabut` refuses with exit 1, changing
+  nothing, while it is still the version in force: enter the real fee on the Tarif screen
+  (in force from today), then run `cabut` again. Prices tied to an example Lokasi Mitra go
+  with it.
+- **Preflight.** `makam-preflight` has a "data contoh" line (ticket 109): SKIP while
+  payments are a trial, FAIL when Data Contoh is still active and they are not (it asks the
+  running stack's `/api/browser-config`, `contohAktif`).
+
 ## Import the launch data on the host (`import-data-peluncuran`)
 
 The owner's launch reference data (the DKI TPU, the Biaya Pengurusan, the

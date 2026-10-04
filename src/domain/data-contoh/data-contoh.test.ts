@@ -135,6 +135,18 @@ describe("tanam", () => {
     ]);
   });
 
+  it("records nothing for a fixture whose build finds nothing to plant, and says so instead of counting it planted", async () => {
+    const { admin, dataContoh } = await setupDenganAdmin();
+    const rencana = [{ kode: "rilis1/tarif/biaya-layanan-platform", jenis: "tarif_global" as const, buat: async () => ({ ok: true as const }) }];
+
+    const pertama = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana });
+    const kedua = await dataContoh.tanam(admin, { himpunan: "rilis1", reason: ALASAN, rencana });
+
+    for (const hasil of [pertama, kedua]) expect(hasil).toMatchObject({ ok: true, dibuat: [], sudahAda: [], dilewati: ["rilis1/tarif/biaya-layanan-platform"] });
+    expect((await dataContoh.status()).aktif).toEqual([]);
+    expect(await dataContoh.aktif()).toBe(false);
+  });
+
   it("retires what a failed build had already created, so nothing half-built stays active", async () => {
     const { setup, admin, dataContoh } = await setupDenganAdmin();
     const hitung = { dibuat: 0 };

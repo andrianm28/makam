@@ -1,13 +1,17 @@
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { testDatabase } from "../../../../tests/support/database";
+import { serverRuntime } from "@/server/runtime";
+import { resetDatabase, testDatabase } from "../../../../tests/support/database";
+import { adminPlatformOf } from "../../../../tests/support/identity";
+import { newLokasiMitra, publishOnTestDatabase } from "../../../../tests/support/publish";
 import { testServerRuntime } from "../../../../tests/support/server-runtime";
 import { GET } from "./route";
 
 vi.mock("server-only", () => ({}));
 vi.mock("next/server", () => ({ connection: async () => {} }));
 
-const { close } = testDatabase();
+const { db, close } = testDatabase();
 afterAll(close);
+beforeEach(resetDatabase);
 testServerRuntime();
 
 const stagingDsn = "https://stagingkey@glitchtip.makam.co.id/2";
@@ -46,6 +50,38 @@ describe("GET /api/browser-config", () => {
   it("refuses a DSN that is not a URL, rather than reporting to nowhere", async () => {
     process.env.NEXT_PUBLIC_SENTRY_DSN = "glitchtip";
     await expect(GET()).rejects.toThrow(/Invalid environment/);
+  });
+
+  describe("contohAktif (Data Contoh, ticket 109)", () => {
+    it("tells the browser no Data Contoh is active on a stack whose registry is empty", async () => {
+      expect((await (await GET()).json()).contohAktif).toBe(false);
+    });
+
+    it("tells the browser Data Contoh is active while the registry holds an active entry, and not once it is retired", async () => {
+      const setup = publishOnTestDatabase(db);
+      const { actor: admin } = await adminPlatformOf(setup);
+      const lokasiMitra = await newLokasiMitra(setup, admin, "Taman Contoh (Contoh)");
+      const { dataContoh } = serverRuntime();
+      await dataContoh.catat(admin, { kode: "rilis1/lokasi/taman-contoh", himpunan: "rilis1", jenis: "lokasi_mitra", entitasId: lokasiMitra.id, reason: "test" });
+      expect((await (await GET()).json()).contohAktif).toBe(true);
+
+      const dicabut = await dataContoh.cabut(admin, { reason: "test" });
+
+      expect(dicabut.ok).toBe(true);
+      expect((await (await GET()).json()).contohAktif).toBe(false);
+    });
+
+    it("says null, never a guess, when the registry cannot be read, and still serves the rest", async () => {
+      process.env.NEXT_PUBLIC_SENTRY_DSN = stagingDsn;
+      const runtime = serverRuntime();
+      const asli = runtime.dataContoh;
+      runtime.dataContoh = { ...asli, aktif: async () => { throw new Error("database tidak terjangkau"); } };
+      try {
+        expect(await (await GET()).json()).toMatchObject({ sentryDsn: stagingDsn, contohAktif: null });
+      } finally {
+        runtime.dataContoh = asli;
+      }
+    });
   });
 
   describe("paymentTrial", () => {

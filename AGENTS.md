@@ -21,7 +21,7 @@ From the v1 spec (`.scratch/makam-v1/spec.md`, Implementation and Testing Decisi
   - `ingatKota` (`src/app/pesan-makam/saat-duka/actions.ts`): it only writes the visitor's own city cookie and returns to the wizard's first screen.
 - **Client import rule**: a file on a `"use client"` import graph (the component, or a `draft.ts` / `state.ts` it shares) may import **types and Zod schemas** from a domain module's own file, never anything from its barrel (`@/domain/*`): the barrel reaches the database and would put `pg` in the browser bundle. Values a client needs come as props from its server-rendered page. Today's deep imports: `src/app/pesan-makam/terencana/draft.ts` → `@/domain/pemesanan/skema-terencana`, and `src/app/pesan-makam/makamkan-di-sini/draft.ts` → `@/domain/pemesanan/skema-tumpang`.
 - **Zod at every boundary**: action and handler input, webhook payloads, environment (`src/lib/env.ts`), job payloads, anything read from an outside service.
-- **Domain modules** (`src/domain/<module>/`) hold every business rule, each with a small public `index.ts`, and **own their tables** (`schema.ts`): only the owner reads or writes them. Modules: identity, audit, lokasi, tariffs, inventory, pemesanan, perpanjangan, pengurusan, layanan, billing, payouts, refunds (composed after Billing and Payouts), wakaf, fieldwork, queues, notifications, scheduler, operator-settings, katalog-lama.
+- **Domain modules** (`src/domain/<module>/`) hold every business rule, each with a small public `index.ts`, and **own their tables** (`schema.ts`): only the owner reads or writes them. Modules: identity, audit, lokasi, tariffs, inventory, pemesanan, perpanjangan, pengurusan, layanan, billing, payouts, refunds (composed after Billing and Payouts), wakaf, fieldwork, queues, notifications, scheduler, operator-settings, katalog-lama, data-contoh (the registry of the marked example records a beta shows, ticket 109; composed after lokasi, identity, tariffs and pemesanan).
 - **Messages go through Notifications** (recipient, channel, template, timing, message log, retries from the worker). Exception: the Kode Masuk email is sent by identity directly through EmailSender: no log entry, no automatic retry; on failure the person sees "gagal kirim" and can retry.
 - **Ports** (`src/ports/*`): Clock, PaymentProvider, EmailSender, WebPush, FileStore, PdfRenderer (no WhatsApp in v1). Live adapters in `src/adapters/live`, recording fakes in `src/adapters/memory`; domain code sees only the ports. `src/composition/adapters.ts` alone picks live or fake, and only development and test use fakes.
 - **Time**: "now" only from the injected `Clock`, never `new Date()` / `Date.now()` in domain code; wall-clock reasoning is Asia/Jakarta via `@/lib/time/jakarta`.
@@ -39,6 +39,7 @@ From the v1 spec (`.scratch/makam-v1/spec.md`, Implementation and Testing Decisi
 - **Migrations are expand/contract**: CI migrates from the running release's schema with rows in it. Destructive DDL (DROP, RENAME, SET NOT NULL, a type change, a NOT NULL column without a default) needs a `-- contract: <reason>` line directly above it, in a later release than its expand step.
 - CI also fails on a fixable CRITICAL (Trivy; exceptions only in `.trivyignore` with a reason and an `exp:` at most 90 days out), on gitleaks (accepted findings in `.gitleaks.toml`) and on a fixable critical in `npm audit --omit=dev`. Pin a new action by commit SHA and a new image by digest.
 - `seed-tagihan` and the other seed CLIs build their own Admin Platform actor without login or TOTP and refuse to run unless the fakes are in use; **never copy that pattern into app code**.
+- `data-contoh` (ticket 109), unlike the seeds, may also run on production, and on staging and production only with `--izinkan-staging` / `--izinkan-production`: it plants and retires the marked "(Contoh)" example records a beta shows (a dry run unless `--tulis`, no Pengaturan Operator on production, plants on production only while payments are a trial). Same CLI-only actor pattern; never in app code.
 
 ## Worktrees on the shared host
 
@@ -58,6 +59,7 @@ From the v1 spec (`.scratch/makam-v1/spec.md`, Implementation and Testing Decisi
 | Build / worker and migrate bundles | `npm run build` / `npm run build:worker` |
 | Migrate / generate a migration | `DATABASE_URL=... npm run migrate` / `npm run db:generate` |
 | Catalog import (dry run unless `--tulis`; staging needs `--izinkan-staging`, production `--izinkan-produksi`) | `npm run import:katalog-lama -- --sumber <f.json> [--tulis]` |
+| Data Contoh (dry run unless `--tulis`; staging needs `--izinkan-staging`, production `--izinkan-production`) | `npm run data-contoh -- tanam --set rilis1` / `cabut` / `status` |
 | Local stack / e2e against it | `npm run stack -- up --build -d` / `PLAYWRIGHT_BASE_URL=http://127.0.0.1:3310 npm run e2e` |
 
 ## Working agreements (every agent)

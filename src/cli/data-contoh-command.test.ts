@@ -3,6 +3,9 @@
  * what is active and retires all of it. Driven only through the command and read back through
  * the owning modules' own public reads, the way the public site and the staff screens read them.
  */
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterAll, beforeEach, describe, expect, inject, it } from "vitest";
 import { FakeClock } from "@/adapters/memory";
 import { buktiOf, createKatalogLayanan } from "@/domain/layanan";
@@ -37,6 +40,33 @@ const jalan = (argv: string[], source: Record<string, string | undefined> = env(
 /** A command that exits non-zero fails with its own output in the message, not only `expected 1 to be 0`. */
 const berhasil = (hasil: { exitCode: number; output: string }) =>
   expect(hasil.exitCode, `data-contoh keluar dengan kode ${hasil.exitCode}:\n${hasil.output}`).toBe(0);
+
+/** A temporary directory for the staging test's live FileStore; removed after the suite. */
+const sementara: string[] = [];
+afterAll(() => {
+  for (const path of sementara) rmSync(path, { recursive: true, force: true });
+});
+
+/** Everything `readRuntimeEnv` requires on staging, plus a real (temporary) `FILES_ROOT` for the photos and the agreement scan. */
+const stagingEnv = () => {
+  const folder = mkdtempSync(join(tmpdir(), "makam-data-contoh-"));
+  sementara.push(folder);
+  return {
+    ...env("staging"),
+    AUTH_SECRET: "s".repeat(32),
+    APP_BASE_URL: "https://makam.co.id",
+    TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
+    SMTP_USER: "v1-user",
+    SMTP_PASSWORD: "v1-password",
+    EMAIL_FROM: "no-reply@makam.co.id",
+    SUMOPOD_API_KEY: "sumopod-key",
+    SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
+    VAPID_PUBLIC_KEY: "BI9GUoKHw9z_J777Fi5TjIhzfL2qIT1Mwt43yL-4ClEIJe4nqMPuqV6N4fhPf0H0HElivGiE4yiJ63gf5uyry40",
+    VAPID_PRIVATE_KEY: "Xpgeqwz12bqNco2x4H5dpW57Hqrr1zVY6ift2jx5YYc",
+    VAPID_SUBJECT: "mailto:ops@makam.co.id",
+    FILES_ROOT: folder,
+  } as Record<string, string>;
+};
 
 async function stackDenganAdmin() {
   const setup = pemesananOnTestDatabase(db);
@@ -124,6 +154,52 @@ describe("data-contoh tanam --set rilis1", () => {
     for (const akun of staf) expect(akun.email).toMatch(/\.invalid$/);
     // On a stack that is not production the example Pengaturan Operator is entered when empty.
     expect(await setup.operatorSettings.current()).not.toBeNull();
+    // Every write that can carry a reason names the command, so the Audit Log says where a row came from.
+    const entri = await setup.audit.allEntriesForLokasi(lokasiId);
+    expect(entri.filter((satu) => satu.action === "lokasi.buat").map((satu) => satu.reason)).toEqual(["data-contoh tanam"]);
+    expect(entri.filter((satu) => satu.action === "data_contoh.tanam").map((satu) => satu.reason)).toEqual(["data-contoh tanam"]);
+    expect(entri.filter((satu) => satu.action === "tarif.buat_jenis_makam").every((satu) => satu.reason === "data-contoh tanam")).toBe(true);
+  });
+
+  it("on staging, only with its flag, names the environment and the allowance in the reason of every write", async () => {
+    const { setup } = await stackDenganAdmin();
+
+    berhasil(await jalan([...SET, "--tulis", "--izinkan-staging"], stagingEnv()));
+
+    const [lokasi] = await setup.lokasi.publicLokasiMitraList();
+    const entri = await setup.audit.allEntriesForLokasi(lokasi.id);
+    expect(entri.filter((satu) => satu.action === "lokasi.buat").map((satu) => satu.reason)).toEqual(["data-contoh tanam (staging, --izinkan-staging)"]);
+    expect(entri.filter((satu) => satu.action === "data_contoh.tanam").map((satu) => satu.reason)).toEqual(["data-contoh tanam (staging, --izinkan-staging)"]);
+  });
+
+  it("retires a Lokasi Mitra whose build failed, with its staff, and plants the same fixture again afterwards", async () => {
+    const { setup, admin } = await stackDenganAdmin();
+    // Two Jenis Makam of one name: the second is refused after the Lokasi Mitra and its Admin Lokasi exist.
+    const rusak = [{ ...kecil[0], jenisMakam: [kecil[0].jenisMakam[0], kecil[0].jenisMakam[0]] }];
+
+    const gagal = await jalan(SET.concat("--tulis"), env(), rusak);
+
+    expect(gagal.exitCode).toBe(1);
+    expect(gagal.output).toContain("gagal ditanam");
+    // The failed fixture's whole tree is retired (its Lokasi Mitra, its Admin Lokasi's Akun, the Jenis Makam it had made);
+    // the fixtures that were built before it (the platform fee, the Petugas Lapangan) stay.
+    const sesudahGagal = (await jalan(["status"])).output;
+    expect(sesudahGagal).not.toContain("lokasi_mitra");
+    expect(sesudahGagal).not.toContain("jenis_makam");
+    expect(sesudahGagal).toContain("akun_staf: 1");
+    expect(sesudahGagal).toContain("tarif_global: 1");
+    expect(await setup.lokasi.publicLokasiMitraList()).toEqual([]);
+    const [sisa] = await setup.lokasi.allLokasiMitra(admin);
+    const profil = await setup.lokasi.lokasiMitra(admin, sisa.id);
+    expect(profil.ok && profil.lokasiMitra.dataContoh).toBe(true);
+
+    // Identity lets one email ask for a new Kode Masuk once a minute, so the run that follows waits that long.
+    const semenit = new FakeClock(wib("2026-10-01 09:05"));
+    berhasil(await dataContohCommand(SET.concat("--tulis"), env(), { clock: semenit, lokasi: kecil }));
+
+    expect((await setup.lokasi.publicLokasiMitraList()).map((one) => one.name)).toEqual([tandaContoh("Pemakaman Bukit Sejuk")]);
+    expect((await jalan(["status"])).output).toContain("lokasi_mitra: 1");
+    expect(await setup.lokasi.allLokasiMitra(admin)).toHaveLength(2);
   });
 
   it("records every entity it created and lists what is active per kind", async () => {
@@ -188,6 +264,8 @@ describe("data-contoh tanam --set rilis1", () => {
 
     expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toHaveLength(1);
     expect((await jalan(["status"])).output).not.toContain("tarif_global");
+    // Nothing of it is the set's to retire, and planting again still changes nothing.
+    expect((await jalan(SET.concat("--tulis"))).output).toContain("tidak mengubah apa pun");
   });
 
   it("plants the five Lokasi Mitra of the set, each named (Contoh), two with Pemesanan Terencana on", { timeout: 600_000 }, async () => {

@@ -37,7 +37,10 @@ export const scanPerjanjian = new Uint8Array([0x25, 0x50, 0x44, 0x46, 1, 2, 3]);
  * The stack's first Admin Platform (seeded by `seed:admin`) as a local
  * developer with the stack's shell could act. Never on production, and on
  * staging only for a command run under its explicit `--izinkan-staging`
- * (seed-contoh-publik); every other command refuses staging before this.
+ * (seed-contoh-publik); every other command refuses staging before this. The
+ * one exception is the ops command `data-contoh` (ticket 109), which acts the
+ * same way on production too, but only under `--izinkan-production` and, to
+ * plant, only while payments are a trial.
  */
 export async function adminPlatform(identity: Identity): Promise<Actor | null> {
   const admin = (await identity.staffAccounts()).find((account) => account.roles.includes("admin_platform") && !account.deactivated);

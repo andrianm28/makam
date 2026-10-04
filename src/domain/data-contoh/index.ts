@@ -92,7 +92,15 @@ export interface RencanaTanam {
 }
 
 export type TanamResult =
-  | { ok: true; dibuat: string[]; sudahAda: string[] }
+  | {
+      ok: true;
+      /** Fixtures built and recorded this run. */
+      dibuat: string[];
+      /** Fixtures the registry already held complete: left alone. */
+      sudahAda: string[];
+      /** Fixtures whose build found nothing to plant (a price a real version already holds): recorded nowhere, asked again next run. */
+      dilewati: string[];
+    }
   | WriteRefusal
   | { ok: false; reason: "gagal"; kode: string; alasan: string; dibuat: string[]; sudahAda: string[] };
 
@@ -204,7 +212,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     const ada = await aktifDenganKode(input.kode);
     if (ada) return sama(ada) ? { ok: true, entri: toEntri(ada), baru: false } : { ok: false, reason: "kode_dipakai_entitas_lain", milik: toEntri(ada) };
 
-    return deps.audit.staffWrite(db, async (tx, record) => {
+    const dicatat = await deps.audit.staffWrite(db, async (tx, record) => {
       const now = deps.clock.now();
       const [baru] = await tx
         .insert(dataContohEntri)
@@ -221,10 +229,11 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
         .onConflictDoNothing()
         .returning();
       if (!baru) {
-        // Another run recorded the code between the read and the insert.
+        // Another run recorded the code between the read and the insert. Neither answer is a write, so neither is `ok`
+        // inside the audited transaction (it would owe an Entri Audit); the first is turned back into one below.
         const [dipakai] = await tx.select().from(dataContohEntri).where(and(eq(dataContohEntri.kode, input.kode), isNull(dataContohEntri.dicabutPada)));
         return sama(dipakai)
-          ? { ok: true as const, entri: toEntri(dipakai), baru: false }
+          ? { ok: false as const, reason: "sudah_dicatat" as const, entri: toEntri(dipakai) }
           : { ok: false as const, reason: "kode_dipakai_entitas_lain" as const, milik: toEntri(dipakai) };
       }
       await record({
@@ -238,6 +247,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       });
       return { ok: true as const, entri: toEntri(baru), baru: true };
     });
+    return !dicatat.ok && dicatat.reason === "sudah_dicatat" ? { ok: true, entri: dicatat.entri, baru: false } : dicatat;
   }
 
   /** Marks a row retired, with its own Entri Audit, once what it names is retired. */
@@ -326,6 +336,7 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       const { himpunan, reason } = tanamSchema.parse({ himpunan: raw.himpunan, reason: raw.reason });
       const dibuat: string[] = [];
       const sudahAda: string[] = [];
+      const dilewati: string[] = [];
 
       for (const item of raw.rencana) {
         const kode = kodeSchema.parse(item.kode);
@@ -368,13 +379,17 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
           const sisa = await buang();
           return { ok: false, reason: "gagal", kode, alasan: `${hasil.reason}${sisa}`, dibuat, sudahAda };
         }
+        if (!(await aktifDenganKode(kode))) {
+          dilewati.push(kode);
+          continue;
+        }
         await db
           .update(dataContohEntri)
           .set({ selesaiPada: deps.clock.now() })
           .where(and(eq(dataContohEntri.kode, kode), isNull(dataContohEntri.dicabutPada), isNull(dataContohEntri.selesaiPada)));
         dibuat.push(kode);
       }
-      return { ok: true, dibuat, sudahAda };
+      return { ok: true, dibuat, sudahAda, dilewati };
     },
 
     rencanaCabut,
