@@ -1,13 +1,19 @@
 name: Promosikan ke produksi
 
-# Owner-only promotion of a staging digest to production (ticket 72, ADR 0002).
-# Nothing here runs on a schedule and nothing here runs itself: the owner starts
-# it, types the release tag a second time, and the workflow still refuses unless
-# the digest is the one staging is running and its smoke test passed.
+# Owner-only promotion of a staging digest to production (ticket 72, ADR 0002;
+# made right for its first run in ticket 106). Nothing here runs on a schedule
+# and nothing here runs itself: the owner starts it, types the release tag a
+# second time, and the workflow still refuses unless the digest is the one
+# staging is running, the host itself reported it healthy, and its smoke test
+# passed.
 #
 # The production host accepts only images signed with the PRODUCTION key, so
 # re-signing here is what makes the digest promotable. A staging-signed digest
-# alone never reaches makam.co.id.
+# alone never reaches makam.co.id. Because a signature cannot be taken back,
+# the release exists first, as a draft that names the digest; the signature
+# comes second and publishing the release last. A run that stops half-way
+# leaves a draft, and running it again with the same tag finishes the same
+# release instead of failing on it.
 on:
   workflow_dispatch:
     inputs:
@@ -21,6 +27,13 @@ on:
         type: string
 
 permissions: {}
+
+# `bash -eo pipefail` for every script. Without `shell:` a step runs `bash -e`,
+# where `gh ... | jq ...` carries on after a failing gh and reads "no answer" as
+# "nothing there".
+defaults:
+  run:
+    shell: bash
 
 # Never cancelled mid-way: a half-signed or half-tagged release is worse than a
 # slow one.
@@ -37,19 +50,40 @@ jobs:
       contents: read
       deployments: read
     outputs:
+      tag: ${{ steps.tag.outputs.tag }}
       digest: ${{ steps.verified.outputs.digest }}
       sha: ${{ steps.verified.outputs.sha }}
+    # Every gh step names its repository and token itself: this job has no
+    # checkout, so gh has no git remote to find the repository from. The owner's
+    # inputs reach the scripts through env, never pasted into the script text.
     steps:
       - name: Only the repository owner may promote
         if: github.actor != github.repository_owner
         run: |
-          echo "refusing: ${{ github.actor }} is not the owner of ${{ github.repository }}" >&2
+          echo "refusing: $GITHUB_ACTOR is not the owner of $GITHUB_REPOSITORY" >&2
           exit 1
       - name: The release tag, typed again
         id: tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
-          expected="v$(TZ=Asia/Jakarta date +%Y.%m.%d)-$(gh release list --limit 200 --json tagName --jq '[.[] | select(.tagName | startswith("v"))] | length + 1')"
-          if [ "${{ inputs.release_tag }}" != "$expected" ]; then
+          today=$(TZ=Asia/Jakarta date +%Y.%m.%d)
+          # One call kept whole: a gh that fails stops the step here instead of
+          # reading as "no releases yet" and expecting N = 1.
+          releases=$(gh release list --limit 200 --json tagName,isDraft,publishedAt)
+          # The day a release was published, in WIB, not `createdAt`: GitHub's
+          # created date is the date of the release's commit, so a promotion of
+          # yesterday's commit would not count and the day's second tag would
+          # collide with the first. A draft is not a release yet.
+          published_today=$(printf '%s' "$releases" | jq --arg today "$today" '
+            [.[]
+             | select((.isDraft | not) and (.tagName | startswith("v")))
+             | select((.publishedAt | fromdateiso8601 + 25200 | strftime("%Y.%m.%d")) == $today)]
+            | length')
+          expected="v$today-$((published_today + 1))"
+          if [ "$RELEASE_TAG_INPUT" != "$expected" ]; then
             echo "refusing: the release tag must be typed exactly as $expected" >&2
             exit 1
           fi
@@ -58,28 +92,45 @@ jobs:
         id: verified
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          staging=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=staging&per_page=20" \
-            --jq '[.[] | select(.payload.image_digest != null)] | .[0] // empty')
-          [ -n "$staging" ] || { echo "refusing: staging has no recorded deployment" >&2; exit 1; }
-          digest=$(printf '%s' "$staging" | jq -r '.payload.image_digest')
-          id=$(printf '%s' "$staging" | jq -r '.id')
-          sha=$(printf '%s' "$staging" | jq -r '.ref')
-          statuses=$(gh api "repos/${GITHUB_REPOSITORY}/deployments/$id/statuses")
-          echo "Staging deployment $id: $digest (from $sha)"
-          printf '%s' "$statuses" | jq -r '.[] | "  \(.state): \(.description // "")"'
-          printf '%s' "$statuses" | jq -e 'any(.[]; .state == "success")' > /dev/null \
-            || { echo "refusing: staging has no successful status, so it is not healthy" >&2; exit 1; }
-          # The smoke test records its own status on the same deployment, naming
-          # the digest in the description. Promotion refuses a digest without one.
-          printf '%s' "$statuses" \
-            | jq -e --arg digest "$digest" 'any(.[]; .state == "success" and (.description // "" | startswith("smoke test against dev.makam.co.id for " + $digest)))' > /dev/null \
-            || { echo "refusing: $digest has no passed staging smoke test; run the \"Smoke test staging\" workflow" >&2; exit 1; }
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          refuse() { echo "refusing: $*" >&2; exit 1; }
+          # The payload is an object when the host wrote it, and a JSON string when a
+          # Deployment was made with `gh api -F payload=...`; one that is neither names no digest.
+          staging=$(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=staging&per_page=20" \
+            | jq -c 'def digest: (.payload | if type == "string" then (try fromjson catch null) else . end) | objects | .image_digest;
+                     [.[] | {id, ref, digest: digest} | select(.digest != null)] | .[0] // empty')
+          [ -n "$staging" ] || refuse "staging has no recorded deployment"
+          digest=$(jq -r '.digest' <<< "$staging")
+          id=$(jq -r '.id' <<< "$staging")
+          sha=$(jq -r '.ref' <<< "$staging")
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] \
+            || refuse "the staging deployment's ref is \"$sha\", not a full commit SHA, so the release cannot be created at it"
+          # Every page: the smoke test adds a status every 15 minutes, so the
+          # status the host wrote at deploy time is soon past the first page.
+          statuses=$(gh api --paginate "repos/$GITHUB_REPOSITORY/deployments/$id/statuses?per_page=100" | jq -s 'add // []')
+          echo "Staging deployment $id: $digest (from $sha); newest statuses:"
+          jq -r 'sort_by(.created_at) | reverse | .[:10][] | "  \(.created_at) \(.state): \(.description // "")"' <<< "$statuses"
+          # Healthy is the host's own word: makam-deploy writes "<tag> (<digest>)
+          # healthy" as a success once /api/health answered 200 on that digest. A
+          # digest that failed and rolled back has no such status, whatever the
+          # smoke test said about the site, which by then ran the previous digest.
+          jq -e --arg digest "$digest" \
+            'any(.[]; .state == "success" and ((.description // "") | endswith("(" + $digest + ") healthy")))' <<< "$statuses" > /dev/null \
+            || refuse "staging has no status from the host saying $digest is healthy; a digest that failed and rolled back never gets one"
+          # And the newest smoke result for this digest must be a pass (the smoke
+          # workflow records one against the digest and ref it just checked).
+          jq -e --arg digest "$digest" \
+            '[.[] | select((.description // "") | startswith("smoke test against dev.makam.co.id for " + $digest + ":"))]
+             | sort_by(.created_at) | last | .state == "success"' <<< "$statuses" > /dev/null \
+            || refuse "$digest has no passed staging smoke test as its newest smoke result; run the \"Smoke test staging\" workflow"
+          {
+            echo "digest=$digest"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
 
   sign-and-release:
-    name: Sign with the production key and create the release
+    name: Draft the release, sign with the production key, publish it
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -95,32 +146,70 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/ghcr-login
+      # 1. The release exists before any signature does, so no production
+      # signature is ever without a release naming its digest. The REST API, not
+      # `gh release`: a draft has no tag yet, and these calls are the documented
+      # ones for finding a draft and for publishing it by id.
+      - name: The release, as a draft naming the digest
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          SHA: ${{ needs.check.outputs.sha }}
+          REASON: ${{ inputs.reason }}
+        run: |
+          refuse() { echo "refusing: $*" >&2; exit 1; }
+          releases=$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" | jq -s 'add // []')
+          published=$(jq --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag and (.draft | not))] | length' <<< "$releases")
+          [ "$published" = 0 ] || refuse "$RELEASE_TAG is already published as a release; promote again with the next tag"
+          # A draft with this tag is what an earlier run of this promotion left.
+          id=$(jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag and .draft)] | .[0].id // empty' <<< "$releases")
+          if [ -n "$id" ]; then
+            # It is finished only for the digest it names. Another digest's run may
+            # already have signed that digest with the production key, and its
+            # release must keep naming it, so a draft is never rewritten for a
+            # different one: promote that digest, or delete the draft knowingly.
+            named=$(jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tag_name == $tag and .draft)] | .[0].body // ""' <<< "$releases")
+            case "$named" in
+              *"$DIGEST"*) ;;
+              *) refuse "the draft $RELEASE_TAG (release $id) names another digest, which an earlier run may already have signed with the production key; promote that digest, or delete the draft first" ;;
+            esac
+          fi
+          previous=$(jq -r --arg tag "$RELEASE_TAG" \
+            '[.[] | select((.draft | not) and .tag_name != $tag)] | sort_by(.published_at) | last | .tag_name // empty' <<< "$releases")
+          notes_args=(-f "tag_name=$RELEASE_TAG" -f "target_commitish=$SHA")
+          # A start tag only when there is a previous release: the first promotion has none.
+          [ -z "$previous" ] || notes_args+=(-f "previous_tag_name=$previous")
+          generated=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases/generate-notes" "${notes_args[@]}" --jq '.body')
+          body=$(printf '%s\n\n%s\n\n%s\n' "$REASON" \
+            "Production digest: \`$DIGEST\`, built from \`$SHA\`, signed with the production key." "$generated")
+          payload=$(jq -n --arg tag "$RELEASE_TAG" --arg sha "$SHA" --arg body "$body" \
+            '{tag_name: $tag, target_commitish: $sha, name: $tag, body: $body, draft: true}')
+          if [ -n "$id" ]; then
+            printf '%s' "$payload" | gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$id" --input - > /dev/null
+            echo "Updated the draft $RELEASE_TAG (release $id) that an earlier run left"
+          else
+            id=$(printf '%s' "$payload" | gh api --method POST "repos/$GITHUB_REPOSITORY/releases" --input - --jq '.id')
+            echo "Created the draft $RELEASE_TAG (release $id)"
+          fi
+          echo "release_id=$id" >> "$GITHUB_OUTPUT"
+      # 2. The signature, only now.
       - name: cosign (the production key)
         uses: ./.github/actions/cosign-sign
         with:
           image: ghcr.io/${{ github.repository }}@${{ needs.check.outputs.digest }}
           private-key: ${{ secrets.COSIGN_PROD_PRIVATE_KEY }}
           password: ${{ secrets.COSIGN_PROD_PASSWORD }}
-      - name: The release tag and its notes
+      # 3. Published last: the tag appears (at the staging commit) only for a
+      # digest that is signed.
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ needs.check.outputs.sha }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ steps.draft.outputs.release_id }}
         run: |
-          previous=$(gh release list --limit 1 --json tagName --jq '.[0].tagName // empty')
-          notes_args=(--generate-notes)
-          # --notes-start-tag with no previous release is an error, and the first
-          # promotion has none.
-          if [ -n "$previous" ] && [ "$previous" != "$RELEASE_TAG" ]; then
-            notes_args+=(--notes-start-tag "$previous")
-          fi
-          gh release create "$RELEASE_TAG" \
-            --target "$SHA" \
-            --title "$RELEASE_TAG" \
-            "${notes_args[@]}" \
-            --notes "${{ inputs.reason }}
-            
-            Production digest: \`$DIGEST\`, built from \`$SHA\`, signed with the production key."
-          echo "Created $RELEASE_TAG for $DIGEST"
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" -F draft=false > /dev/null
+          echo "Published $RELEASE_TAG for $DIGEST"
           echo "The production host now deploys this digest: it is signed with the production key."
           echo "Roll back with .github/workflows/rollback.yml, or on the host:"
           echo "  /opt/makam-v1/bin/makam-deploy --env prod --digest <previous digest>"

@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { readWorkflow } from "../support/workflow";
 
 const ci = readFileSync(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
 
@@ -44,9 +45,25 @@ describe("ci.yml job graph", () => {
 
   it("signing, moving latest and the deploy gate wait for every check, whichever way the graph runs", () => {
     for (const job of ["deploy-gate", "sign"]) {
-      expect([...mustPass(graph, job)]).toEqual(expect.arrayContaining(["check", "secrets", "migrations", "image", "e2e", "scan"]));
+      expect([...mustPass(graph, job)]).toEqual(expect.arrayContaining(["check", "secrets", "migrations", "image", "e2e", "scan", "actionlint"]));
     }
     expect(graph.get("sign")).toEqual(["deploy-gate"]);
+  });
+});
+
+describe("ci.yml workflow lint", () => {
+  const job = readWorkflow("ci.yml").job("actionlint");
+  const script = job.steps.map((step) => step.run ?? "").join("\n");
+
+  it("lints every workflow, on every push and pull request, with an actionlint pinned by version and image digest", () => {
+    expect(script).toMatch(/rhysd\/actionlint:\d+\.\d+\.\d+@sha256:[0-9a-f]{64}/);
+    // No file arguments: actionlint then reads every file of .github/workflows, so a new workflow is covered without an edit here.
+    expect(script).not.toContain(".github/workflows/");
+    expect(job.if).toBeUndefined();
+  });
+
+  it("checks the repository out by a pinned commit, like every other action", () => {
+    expect(job.steps.find((step) => step.uses?.startsWith("actions/checkout@"))?.uses).toMatch(/^actions\/checkout@[0-9a-f]{40}$/);
   });
 });
 
