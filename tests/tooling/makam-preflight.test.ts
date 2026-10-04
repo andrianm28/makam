@@ -182,6 +182,7 @@ function healthy(w: ReturnType<typeof world>) {
       "done",
       'body=""; code=000',
       'case "$url" in',
+      `  */api/health*) code=\${FAKE_HEALTH_CODE:-200}; body=\${FAKE_HEALTH_BODY-'{"status":"ok"}'} ;;`,
       `  *api-pay*) ${INTERRUPT_AT("sumopod")}; code=\${FAKE_SUMOPOD_CODE:-404}; case "$hdr" in *makam-preflight-wrong-key*) code=\${FAKE_SUMOPOD_WRONG_KEY_CODE:-401} ;; esac ;;`,
       '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
       "  *api.github.com*)",
@@ -513,6 +514,52 @@ describe("makam-preflight", () => {
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*refused.*HTTP 422, Validation Failed/));
     expect(result.lines.join("\n")).not.toMatch(/sha-|plain commit SHA/);
     expect(result.calls.match(/-X POST [^\n]*\/deployments(\s|$)/g)).toHaveLength(1);
+  });
+
+  it("fails --rilis N when the env file lacks RILIS_TERBUKA=N, and passes when file and running stack both say N", () => {
+    const missing = preflight(healthy(world()), ["--rilis", "3"]);
+    expect(missing.code).toBe(1);
+    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*open release.*RILIS_TERBUKA=3.*prod\.env/));
+
+    const wrongValue = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=1\n` })), ["--rilis", "3"]);
+    expect(wrongValue.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*open release.*RILIS_TERBUKA=3/));
+
+    const agreed = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` })), ["--rilis", "3"], {
+      FAKE_HEALTH_BODY: '{"status":"ok","rilisTerbuka":3}',
+    });
+    expect(agreed.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*open release.*RILIS_TERBUKA=3.*stack reports 3/));
+    expect(agreed.calls).toContain("http://127.0.0.1:3100/api/health");
+  });
+
+  it("fails --rilis N when the running stack reports another rilisTerbuka than the env file", () => {
+    const result = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` })), ["--rilis", "3"], {
+      FAKE_HEALTH_BODY: '{"status":"ok","rilisTerbuka":1}',
+    });
+    expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*open release.*stack reports 1.*restart/i));
+  });
+
+  it("skips the running-stack comparison with a clear line when /api/health has no rilisTerbuka or the stack is down", () => {
+    const env = world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` });
+    const absent = preflight(healthy(env), ["--rilis", "3"]);
+    expect(absent.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*open release.*RILIS_TERBUKA=3.*rilisTerbuka.*not reported/));
+    const down = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` })), ["--rilis", "3"], { FAKE_NETWORK_DOWN: "1" });
+    expect(down.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*open release.*stack.*not reachable/));
+  });
+
+  it("prints the RILIS_TERBUKA it found without --rilis, an unset value meaning 1, and never FAILs on it", () => {
+    const unset = preflight(healthy(world()));
+    expect(unset.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*open release.*RILIS_TERBUKA=unset in prod\.env \(unset means 1\)/));
+    const set = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` })), [], {
+      FAKE_HEALTH_BODY: '{"rilisTerbuka":1}',
+    });
+    expect(set.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*open release.*RILIS_TERBUKA=3 in prod\.env.*stack reports 1/));
+  });
+
+  it("rejects a --rilis that is not a positive integer with the usage exit code 64 and documents the option", () => {
+    for (const bad of ["0", "abc", "-2", "1.5"]) {
+      expect(preflight(healthy(world()), ["--rilis", bad]).code).toBe(64);
+    }
+    expect(readFileSync(preflightScript, "utf8").split("\n").slice(0, 12).join("\n")).toContain("--rilis");
   });
 
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
