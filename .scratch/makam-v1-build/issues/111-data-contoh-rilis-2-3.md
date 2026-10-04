@@ -1,6 +1,6 @@
 # Data Contoh for Rilis 2/3: TPU prices and rates, Mitra Jasa, Nazhir, Rilis 2 rules
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: 109
 Spec: Release plan (Rilis 2/3); tickets 43–48, 55–58; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -359,3 +359,19 @@ Answers to the round 2 review above, item by item. The round 2 reports were file
 **Tests** (read from whole logs). `npx vitest run` over `src/domain/data-contoh`, `src/cli/data-contoh-command.test.ts`, `src/cli/import-data-peluncuran-command.test.ts`, `src/domain/tariffs/layanan-harga.test.ts`, `src/app/api/browser-config`, `src/domain/layanan/mitra-jasa.test.ts`, `src/domain/layanan/penawaran.test.ts`, `src/domain/wakaf/nazhir.test.ts` and the tooling tests `data-contoh-bundle`, `go-live-docs`, `ticket-workflow`, `katalog-lama-runbook`, `image-retention`, `makam-preflight`: **14 files, 401 tests, exit 0**, 116.48 s, on the tree of 90700a31 (it was 398 at fix pass 1: +3 command cases). `npm run typecheck` exit 0. `npm run lint` exit 0 (6 warnings, none in a file this ticket touches). Red before green: the jobs case failed on the old wording first; the re-planting case (reactivation branch off, the statuses stayed `berhenti`) and the Audit reason case (the default reason dropped, the Nazhir removals had none) were shown to fail with their guard off, then restored (`git diff` of the command file is the one-string change).
 - **Not run:** `npm run build`, the full suite, Playwright, CI, a real run on the staging database.
 
+### Owner approvals, review and merge (2026-10-04, orchestrator; fixed point ea371143, head 5959d59f)
+
+- **Owner approvals (2026-10-04):**
+  - **The amounts sheet above (AC4), approved as listed:**
+    - DKI prices: bunga Rp 150.000, nisan Rp 1.500.000, pembersihan Rp 250.000, perawatan Rp 350.000, laporan Rp 75.000.
+    - Mitra Jasa rates: Rp 100.000, Rp 1.000.000, Rp 150.000, Rp 200.000, Rp 50.000 (same order).
+    - Retribusi Pemda IPTM: Rp 0 as a real value.
+    - Rilis 2 rules on Firdaus (Contoh) and Nurul Huda (Contoh).
+  - **Two readings, approved:**
+    - `cabut` sets a Mitra Jasa (Contoh) to Berhenti (the glossary avoids "Nonaktif").
+    - A TPU variant whose DKI price or rate is still contoh stops being offered, instead of `cabut` refusing.
+- **Two-axis review**, run on **opus** because this is money code (tariffs), with two fix passes:
+  - **Round 1 had 2 hard findings:** a hand edit of the CONTEXT.md glossary entry (dropped: main's entry stands) and the unapproved amounts.
+  - **After fix pass 2, the only open item was the owner's approval**, now given. No hard finding remains.
+  - **Money checks MET:** no TPU price is retired without a real successor (the variant comes off the TPU listing instead); Retribusi Rp 0 is real and outside the registry; `tanam` is idempotent; audit reasons on every write; production refused without its flag; a TPU quote works after `tanam rilis3` and is unavailable after `cabut` without a real price.
+- **Merged alone as batch MB6.** No conflict: the branch already followed main's single runbook Data Contoh section, and CONTEXT.md is unchanged.
