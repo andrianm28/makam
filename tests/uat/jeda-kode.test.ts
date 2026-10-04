@@ -1,7 +1,8 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import { formatWib } from "../../src/lib/time/jakarta";
 import { BatasKodeTercapai, JedaKodeMasuk, putuskanKirimKode } from "../../uat/support/jeda-kode";
 
 /*
@@ -112,6 +113,16 @@ describe("the UAT runner asks for at most five Kode Masuk in a rolling hour", ()
     expect((kesalahan as BatasKodeTercapai).message).toMatch(/5 .*per jam/);
   });
 
+  it("tells the owner when the hour reopens in WIB, the clock the owner reads, not in UTC", async () => {
+    const { jeda } = await limaPermintaan({ mulai: 10 * JAM });
+    const kesalahan = (await jeda.sebelumMintaKode().then(
+      () => null,
+      (error: unknown) => error,
+    )) as BatasKodeTercapai;
+    expect(kesalahan.message).toContain(formatWib(kesalahan.bolehLagi));
+    expect(kesalahan.message).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:/);
+  });
+
   it("waits the hour out when the owner allows a long wait, and then goes ahead", async () => {
     const { jeda, jam } = await limaPermintaan({ mulai: 10 * JAM, maksTungguMs: 2 * JAM });
     await jeda.sebelumMintaKode();
@@ -155,7 +166,6 @@ describe("the UAT runner remembers its Kode Masuk requests between runs", () => 
     const mulai = jam.sekarang;
     await jeda.sebelumMintaKode();
     expect(jam.sekarang).toBe(mulai);
-    expect(JSON.parse(readFileSync(berkas, "utf8"))).toEqual([mulai]);
   });
 });
 

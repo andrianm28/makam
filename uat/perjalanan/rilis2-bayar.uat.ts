@@ -1,9 +1,8 @@
 import { perpanjangDanBayar, pilihMasaLaluTagihan, bukaTagihanDanBayar } from "../support/alur";
 import { bayarDenganQris } from "../support/bayar";
-import { DATA, bukaBarisAntreanLokasi, jpegContoh, lokasiIdDariNama, nomorPemesananDi, persis, tanggalWib } from "../support/halaman";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, jpegContoh, lokasiIdDariNama, nomorPemesananDi, persis, tanggalWib } from "../support/halaman";
 import { baca, simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
-import { emailPersona } from "../support/persona";
 import { expect, test } from "../support/uji";
 
 /*
@@ -27,10 +26,7 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
       await expect(pemesan.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
       await pemesan.getByLabel("Nama almarhum / almarhumah").fill("Almarhum Tumpang Uji UAT");
       await pemesan.getByLabel("Tanggal wafat").fill(tanggalWib(-1));
-      await pemesan.getByLabel("Nama lengkap", { exact: true }).fill("Uji UAT Pemesan");
-      await pemesan.getByLabel("Nomor telepon", { exact: true }).fill(DATA.telepon());
-      const email = pemesan.getByLabel("Email", { exact: true });
-      if ((await email.isEditable()) && !(await email.inputValue())) await email.fill(emailPersona("pemesan"));
+      await isiDataPemesan(pemesan);
       await pemesan.getByRole("button", { name: "Kirim permintaan" }).click();
       await expect(pemesan).toHaveURL(/\/pesanan\/MKM-\d{4}-\d{6}$/, { timeout: 30_000 });
       simpan("tumpang.nomor", nomorPemesananDi(pemesan.url()));
@@ -119,12 +115,16 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
     const admin = await sebagai("admin-platform");
     const publik = await anonim();
     const lokasiId = await lokasiIdDariNama(publik, lokasi!);
-    await langkah(admin, "Admin Platform: Status kemitraan → Tangguhkan dengan alasan", async () => {
+    // The daftar /lokasi lists Terverifikasi Lokasi only, so R2-59.2 must not look this one up by name again.
+    simpan("berhenti.lokasiId", lokasiId);
+    await langkah(admin, "Admin Platform: Status kemitraan → Tangguhkan dengan alasan (dialog konfirmasi)", async () => {
       await admin.goto(`/staf/admin-platform/lokasi/${lokasiId}`);
-      const form = admin.locator("form").filter({ has: admin.getByRole("button", { name: /^Tangguhkan/ }) });
-      await form.getByLabel(/Alasan/i).fill("Uji UAT: Lokasi ditangguhkan");
-      await form.getByRole("button", { name: /^Tangguhkan/ }).click();
-      await expect(admin.getByText(/Ditangguhkan/).first()).toBeVisible({ timeout: 30_000 });
+      await admin.getByRole("button", { name: "Tangguhkan", exact: true }).click();
+      const dialog = admin.getByRole("alertdialog");
+      await dialog.getByLabel("Alasan").fill("Uji UAT: Lokasi ditangguhkan");
+      await dialog.getByRole("button", { name: "Tangguhkan", exact: true }).click();
+      // Once suspended, the page offers Pulihkan where it offered Tangguhkan.
+      await expect(admin.getByRole("button", { name: "Pulihkan", exact: true })).toBeVisible({ timeout: 30_000 });
     });
     await langkah(publik, "Halaman Lokasi tetap tayang dengan 'sementara tidak menerima pesanan'; hilang dari daftar Terencana", async () => {
       await publik.goto(`/lokasi/${lokasiId}`);
@@ -135,21 +135,23 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
     await perpanjangDanBayar(await sebagai("pemesan"), `/perpanjangan/${hakPakai}`);
   });
 
-  test("R2-59.2 Lokasi Berhenti: Layanan terbayar yang belum selesai dibatalkan dan direfund penuh", async ({ sebagai }) => {
+  test("R2-59.2 Lokasi Berhenti: Layanan terbayar yang belum selesai dibatalkan dan direfund penuh", async ({ sebagai, anonim }) => {
     const lokasi = DATA.lokasiBerhenti();
     const layanan = dariEnv("UAT_LAYANAN_BERHENTI");
     test.skip(!lokasi || !layanan, "Isi UAT_LOKASI_BERHENTI dan UAT_LAYANAN_BERHENTI: nomor Layanan terbayar belum selesai di Lokasi itu (P9). Berhenti tidak bisa dibatalkan");
     test.setTimeout(45 * 60_000);
     const admin = await sebagai("admin-platform");
-    const lokasiId = await lokasiIdDariNama(await (await sebagai("pemesan")).context().newPage(), lokasi!);
-    await langkah(admin, "Admin Platform: Hentikan Lokasi dengan tanggal efektif besok", async () => {
+    // After R2-59.1 the Lokasi is Ditangguhkan and no longer in the public daftar; run alone, it is still Terverifikasi.
+    const lokasiId = baca("berhenti.lokasiId") ?? (await lokasiIdDariNama(await anonim(), lokasi!));
+    await langkah(admin, "Admin Platform: Berhentikan Lokasi dengan tanggal berlaku hari ini (dialog konfirmasi)", async () => {
       await admin.goto(`/staf/admin-platform/lokasi/${lokasiId}`);
-      const form = admin.locator("form").filter({ has: admin.getByRole("button", { name: /^Hentikan/ }) });
-      await form.getByLabel(/Alasan/i).fill("Uji UAT: Lokasi berhenti");
-      const tanggal = form.getByLabel(/Tanggal/i);
-      if (await tanggal.count()) await tanggal.fill(tanggalWib(0));
-      await form.getByRole("button", { name: /^Hentikan/ }).click();
-      await expect(admin.getByText(/Berhenti/).first()).toBeVisible({ timeout: 30_000 });
+      // Today, so the 15-minute tick below can act at once; the date field sits in the form the dialog's button submits.
+      await admin.locator('input[name="berlakuOn"]').fill(tanggalWib(0));
+      await admin.getByRole("button", { name: "Berhenti", exact: true }).click();
+      const dialog = admin.getByRole("alertdialog");
+      await dialog.getByLabel("Alasan").fill("Uji UAT: Lokasi berhenti");
+      await dialog.getByRole("button", { name: "Berhentikan", exact: true }).click();
+      await expect(admin.getByText(/Berhenti, berlaku/)).toBeVisible({ timeout: 30_000 });
     });
     const pemesan = await sebagai("pemesan");
     await langkah(pemesan, "Setelah tanggal efektif: Layanan dibatalkan dengan refund penuh (tick 15 menit)", async () => {

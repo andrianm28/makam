@@ -12,7 +12,7 @@ UAT_EMAIL_PEMESAN=owner+pemesan@gmail.com UAT_EMAIL_ADMIN_LOKASI=owner+lokasi@gm
 UAT_EMAIL_ADMIN_PLATFORM=owner+platform@gmail.com \
 UAT_OUT=/home/ubuntu/uat-runs/rilis-1 \
 npm run uat                       # all journeys, in order
-npm run uat -- --grep "§2|§3"     # some sections
+npm run uat -- --grep "§(2|3)\b"     # some sections (the \b keeps §1 from matching §10 and §11)
 npm run uat -- --grep @bayar      # only the journeys that pay (must run on staging before the switch)
 ```
 
@@ -28,7 +28,7 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 | `UAT_OUT` | this run's folder; default `/home/ubuntu/uat-runs/<WIB date>-<sha>` (`UAT_RUNS_DIR` changes the parent, `UAT_SHA` the sha) |
 | `UAT_SESI_DIR` | saved sessions and the Kode Masuk request history; default `/home/ubuntu/uat-runs/sesi` |
 | `UAT_KODE_TIMEOUT_MENIT` (15), `UAT_KODE_TUNGGU_MAKS_MENIT` (10) | how long to wait for a code; the longest the runner itself waits for the hour's limit |
-| `UAT_LOKASI_TERENCANA`, `UAT_PETAK_TERENCANA`, `UAT_LOKASI_SAAT_DUKA`, `UAT_JENIS_SAAT_DUKA`, `UAT_TELEPON`, `UAT_TPU` | staging data (defaults in `support/halaman.ts`) |
+| `UAT_LOKASI_TERENCANA`, `UAT_PETAK_TERENCANA`, `UAT_PETAK_TERENCANA_LAYANAN` (another free Petak, default A-02, for the Layanan at checkout walk), `UAT_LOKASI_SAAT_DUKA`, `UAT_JENIS_SAAT_DUKA`, `UAT_TELEPON`, `UAT_TPU` | staging data (defaults in `support/halaman.ts`) |
 | `UAT_LOKASI_DI_ATAS_BATAS`, `UAT_LOKASI_BERHENTI`, `UAT_HAK_PAKAI_TUMPANG`, `_TANPA_EMAIL`, `_MASA_TENGGANG`, `_BERHENTI`, `UAT_LAYANAN_BERHENTI` | optional data for the Rilis 2 and edge cases; a journey without its data is skipped and says so |
 
 ## The owner's codes
@@ -41,7 +41,7 @@ The server allows one emailed code per IP every 60 s and five in any rolling hou
 
 ## Output (not committed)
 
-`$UAT_OUT/laporan/index.html` (Playwright HTML report), `ringkasan.md` and `ringkasan.json` (results, failures, the steps a person must check), `bukti/<journey>/NN-<step>.png` (a screenshot at every step), `artefak/` (traces of failures).
+`$UAT_OUT/laporan-<WIB date and time>/index.html` (Playwright HTML report, one folder per invocation), `ringkasan.md` and `ringkasan.json` (results, failures, the steps a person must check), `bukti/<journey>/NN-<step>.png` (a screenshot at every step), `artefak/` (traces of failures).
 
 ## What it cannot do
 

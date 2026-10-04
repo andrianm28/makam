@@ -136,3 +136,48 @@ Undisclosed: Rilis 1 section 11 checkout Layanan (HARD 3); anonymous wizard path
 Worst issue: production is reachable through the documented loopback port 3100, and a UAT kit can go green on [BAYAR] items it never exercised. Hard violations: yes (4).
 
 Hard: 4, soft: 8
+
+### Fix pass 1 (2026-10-04)
+
+Answers to round 1 (fixed point 0fd6bf41, head 4abdf352), test first where there is a seam: `tests/uat` went from 56 to 126 tests, each new test seen red before its change. Journeys have no seam here (no stack): their only checks are typecheck, lint, `--list`, and the new checklist-to-journey test.
+
+**Standards**
+- Hard 1 (`kode.test.ts:79`, call order): dropped, and the test's title no longer claims "asks first"; the stale-file test already proves the order that matters.
+- Soft 1 (trailing dot): `permintaanKeProduksi` and `milikMakam` strip it; cases `makam.co.id.`, `www.makam.co.id.` (production) and `dev.makam.co.id.` (staging) added.
+- Soft 2 (patience env): `bacaKesabaranKode` in `lingkungan.ts`; empty means the default (10 and 15 minutes), `abc`, `NaN`, `Infinity`, `0`, a negative or `1` (below the 60 s gap itself) are refused naming the variable; `masuk.ts` reads only through it.
+- Soft 3 (`httpCredentials`): `origin` is the base URL, so SumoPod's checkout never gets the password; test on `basicAuth`.
+- Soft 4 (UTC): the pacing refusal and the summary show WIB (`formatWib`); test.
+- Soft 5 (ANSI): step errors go through `bersihkan`; test.
+- Soft 6 (private layout): the assertion on the history file's JSON is gone, with its unused import.
+- Soft 7 (duplicates): `bukaBarisAntreanLokasi` takes a string or a RegExp and section 11 uses it; `isiDataPemesan` replaces the four Nama/Telepon/Email fills; `mintaKodeMasuk` replaces the three `mintaKode` blocks and keeps the 60 s / five-an-hour gate in front of every request.
+- Soft 8 (state keys): `lokasiId`, `perpanjangan.tagihanUrl`, `terencana.total`, `tpu.saatDuka.nomor` removed, `perpanjangan.url` became a local variable, and `KunciKeadaan` types every key (a typo is now a compile error, not a silent `test.skip`; the compiler found exactly the four).
+
+**Spec**
+- Hard 1 (production through a loopback port): before any journey, Playwright's `globalSetup` (`support/pra-uji.ts`) asks the stack `GET <base>/api/health` and `pastikanLingkunganBoleh` refuses unless `environment` is development, test or staging; no answer, no JSON, no environment and an unknown one are all refused (fail closed); a 503 from a known environment passes (the guard settles where the stack is, not whether it is well); staging's basic auth is sent. The test that accepted `localhost:3100` now uses 3310. Run for real against three throw-away stacks: one answering `production` on 127.0.0.1 exits 1 with "mengaku environment produksi", one answering `development` runs the §0 journey green, nothing listening exits 1.
+- Hard 2 (three [BAYAR] items fixme): R3-47.1, R3-47.2 and R3-48.1 are scripted end to end (`support/iptm.ts`): order, upload every document, Dokumen lengkap, pay, Tugas Ambil surat pengantar only after Lunas, IPTM diajukan, IPTM Terbit; Perlu Perbaikan refiled with no new Tagihan, then final rejection and the refund row; the renewal with the Admin Platform's date correction. `tests/uat/checklist-perjalanan.test.ts` now fails if any [BAYAR] item of either checklist has no journey that runs (it was red on exactly these three and on section 11). The earlier note "R3-47.1 only starts" was wrong (it was fixme); corrected here.
+- Hard 3 (Layanan at checkout): three journeys in `10-layanan`; see the spec gap below for what (a) and (b) leave to a person.
+- Hard 4 (silent guard): `pilihLayananCheckout` uses the picker's real ids (`hari-h-`, `petak-kosong-`, `tambah-layanan-`) and FAILS when none is offered; R3-45.1 and R3-46.1 also expect the order page's "Layanan hari-H" section. Found on the way and fixed: both looked for a link named after the Tagihan number on `/pengurusan/<nomor>`, but the link there reads "Buka Tagihan".
+- Soft 1 (R2-59.x): the status controls are dialogs (`alertdialog`, Alasan, buttons Tangguhkan, Pulihkan, Berhenti, Berhentikan) and Berhenti has its own date field; 59.2 takes the Lokasi id 59.1 saved (the public list holds only Terverifikasi); the step title says "hari ini", which is what the code passes.
+- Soft 2: `actionTimeout` and `navigationTimeout` 30 s.
+- Soft 3: the summary keeps each skip's reason, has a "Tidak berjalan" section and a line "[BAYAR] belum berjalan: k dari m (G2 ...)"; it is cumulative on one `UAT_OUT` (a journey that ran again replaces its row, the others keep theirs with the time they ran); the HTML report is one folder per invocation.
+- Soft 4: the Pengaturan Operator part of §0 moved to `08-admin-platform`, so section 1 is the first Admin Platform login and its wrong-TOTP check runs.
+- Soft 5: §2 walks as a visitor with the Kode Masuk step (`kirimPesananDenganKodeMasuk`) and saves the session it creates; §4 stays signed in, with a `manual()` (spec gap 2).
+- Soft 6: `manual()` entries added for what is still not scripted (§5 Admin Lokasi review, §11 Admin Platform Keluhan row, Admin Lokasi reply, the Terlambat row, §9 cap wording). Sections 6 to 8 are still page tours.
+- Soft 7: `checkoutSandboxSumopod` accepts only `pay-sandbox.sumopod.com` (test), and `bayar.ts` asserts it.
+- Soft 8: README grep is `"§(2|3)\b"` (the earlier HANDOFF's `"§0|§1"` also matched §10 and §11; use `"§(0|1)\b"`); Rilis 1 sections 3 to 5 carry `[BAYAR]`; the credentials origin is Standards soft 3.
+
+### Build (2026-10-04)
+
+Builder, fix pass 1 of slice 1 (branch `ticket-110-uat-kit`). Not money code.
+
+**What changed**: `uat/support/` (`lingkungan.ts` health guard, patience, credentials origin, sandbox host; `pra-uji.ts` and `iptm.ts` new; `ringkasan.ts` rewritten as a cumulative reporter; `halaman.ts`, `alur.ts`, `keadaan.ts`, `masuk.ts`, `bayar.ts`, `jeda-kode.ts`), `uat/playwright.uat.config.ts` (globalSetup, timeouts, report folder per run), journeys 00, 02 to 05, 08 to 11, `rilis2-bayar`, `rilis3-bayar`, `uat/README.md`, the Rilis 1 checklist (section 3 to 5 tags), and `tests/uat` (kode, jeda-kode, lingkungan edited; `ringkasan.test.ts` and `checklist-perjalanan.test.ts` new).
+
+**Verification** (logs read whole): `npx vitest run tests/uat` exit 0, 5 files, 126 tests passed; `npm run typecheck` exit 0; `npm run lint` exit 0 (0 errors, 6 warnings, none in `uat/` or `tests/uat`); `playwright test -c uat/playwright.uat.config.ts --list` lists 41 tests in 14 files; `UAT_BASE_URL=https://makam.co.id` exits 1 with "UAT ditolak"; the health guard run against three fake stacks as above. No build run. **Still no journey ran against a real stack**: every selector outside `e2e/` is read from the source (the IPTM, Perpanjangan TPU, dialog and checkout-picker ones this time) and unverified, and so is SumoPod's checkout.
+
+**Spec gaps and decisions for the owner**
+1. §11 "Layanan saat checkout": (c) Perpanjangan is walked and paid to Lunas, but (a) Saat Duka and (b) Terencana stop at the picker, before Kirim pesanan: the Tagihan rows, "bayar-belakang" and "jatuh tempo paling awal" are `manual()` steps. The checklist's own wording asks to pay one of the three, which (c) does; decide whether (a) and (b) need the full send, confirm and Tagihan walk before G2 (ticket 53's domain tests already cover the rows).
+2. The Saat Duka wizard's anonymous Kode Masuk path is a `manual()`: two anonymous walks plus the personas' first logins would be six code requests in the first hour against a limit of five.
+3. `UAT_PETAK_TERENCANA_LAYANAN` (default A-02) must be a free Petak on staging; R3-48.1 renews the Makam TPU that R3-47.1 leaves (its IPTM valid for 60 days), so R3-47.1 must run first on the same `UAT_OUT`.
+4. Slice 2 is unchanged (the 36 [TANPA-BAYAR] items).
+
+**HANDOFF (builder, fix pass 1)**: Next agent: (1) shake-out on a local stack, `UAT_BASE_URL=http://127.0.0.1:<port> npm run uat -- --grep "§(0|1)\b"` first, then the IPTM journeys; fix selectors in `uat/support/iptm.ts` and `uat/perjalanan`; (2) then staging with the owner reading codes out; (3) slice 2. Unverified: every journey, SumoPod's checkout, the `test.skip` annotation reaching the summary under a real Playwright run (tested with fakes of its reporter API).

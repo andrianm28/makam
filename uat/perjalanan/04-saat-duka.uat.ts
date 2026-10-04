@@ -1,8 +1,8 @@
+import { bukaDataSaatDuka } from "../support/alur";
 import { bayarDenganQris } from "../support/bayar";
-import { DATA, bukaBarisAntreanLokasi, lokasiIdDariNama, nomorPemesananDi, persis, pilihOpsi, tanggalWib } from "../support/halaman";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, pilihOpsi, tanggalWib } from "../support/halaman";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
-import { emailPersona } from "../support/persona";
 import { expect, test } from "../support/uji";
 
 /*
@@ -17,23 +17,11 @@ test.describe("§4 Saat Duka (Lokasi Mitra)", { tag: ["@rilis1", "@bayar"] }, ()
   test("§4 Pemesan memilih Lokasi × Jenis Makam dan mengirim data Almarhum", async ({ sebagai }) => {
     const page = await sebagai("pemesan");
     await langkah(page, "Pilih makam: daftar Lokasi × Jenis Makam, pilih kartu", async () => {
-      await page.goto("/pesan-makam/saat-duka");
-      await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
-      const kartu = page
-        .getByRole("radio")
-        .filter({ hasText: persis(DATA.lokasiSaatDuka()) })
-        .filter({ hasText: persis(DATA.jenisSaatDuka()) })
-        .first();
-      await kartu.click();
-      await page.getByRole("button", { name: "Lanjut" }).click();
-      await expect(page).toHaveURL(/\/pesan-makam\/saat-duka\/data/);
+      await bukaDataSaatDuka(page);
     });
     await langkah(page, "Data & kirim: Almarhum dan Pemesan, Kirim pesanan", async () => {
       await expect(page.getByText("Belum ada yang dibayar sekarang.")).toBeVisible();
-      await page.getByLabel("Nama lengkap", { exact: true }).fill("Uji UAT Pemesan");
-      await page.getByLabel("Nomor telepon", { exact: true }).fill(DATA.telepon());
-      const email = page.getByLabel("Email", { exact: true });
-      if ((await email.isEditable()) && !(await email.inputValue())) await email.fill(emailPersona("pemesan"));
+      await isiDataPemesan(page);
       await page.getByLabel("Nama almarhum / almarhumah").fill("Almarhum Uji UAT");
       await page.getByLabel("Tanggal wafat").fill(tanggalWib(-1));
       await page.getByRole("button", { name: "Kirim pesanan" }).first().click();
@@ -41,6 +29,7 @@ test.describe("§4 Saat Duka (Lokasi Mitra)", { tag: ["@rilis1", "@bayar"] }, ()
       simpan("saatduka.nomor", nomorPemesananDi(page.url()));
       await expect(page.locator("[data-slot=status-badge]")).toHaveText("Diajukan");
     });
+    await manual(page, "Kirim pesanan sebagai tamu di wizard Saat Duka (Kode Masuk di langkah terakhir)", "wizard ini signed-in di sini supaya satu jam cukup untuk lima kode; jalur tamu wizard Terencana ada di bagian 2, jalur tamu Saat Duka dicek owner atau diulang dengan sesi Pemesan dihapus");
   });
 
   test("§4 Admin Lokasi mengonfirmasi dari baris Konfirmasi Saat Duka (Tagihan bayar-belakang)", async ({ sebagai }) => {

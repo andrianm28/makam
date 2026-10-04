@@ -1,11 +1,14 @@
-import { kunjungi } from "../support/halaman";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
 
-/* Checklist Rilis 1, bagian 0: prasyarat dan akun. */
+/*
+ * Checklist Rilis 1, bagian 0: prasyarat dan akun. The Admin Platform's part of it (Pengaturan Operator) is walked in
+ * 08-admin-platform.uat.ts: the first Admin Platform login must be section 1's, which types a wrong authenticator
+ * code first, and a saved session would make that check skip.
+ */
 
 test.describe("§0 Prasyarat dan akun", { tag: ["@rilis1"] }, () => {
-  test("§0 /api/health ok dengan worker fresh, banner staging, Pengaturan Operator terisi", async ({ request, anonim, sebagai }) => {
+  test("§0 /api/health ok dengan worker fresh dan banner staging", async ({ request, anonim }) => {
     const publik = await anonim();
     await langkah(publik, "/api/health: ok dan worker fresh", async () => {
       const respons = await request.get("/api/health");
@@ -21,15 +24,6 @@ test.describe("§0 Prasyarat dan akun", { tag: ["@rilis1"] }, () => {
       }
     });
 
-    const admin = await sebagai("admin-platform");
-    await kunjungi(admin, "Admin Platform membuka Pengaturan Operator", "/staf/admin-platform/pengaturan-operator", /Pengaturan Operator/);
-    await langkah(admin, "Pengaturan Operator: tidak ada kolom isian yang kosong", async () => {
-      const kosong = await admin
-        .locator("main input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]), main textarea")
-        .evaluateAll((kolom) => kolom.filter((satu) => !(satu as HTMLInputElement).value.trim()).length);
-      expect.soft(kosong, "kolom Pengaturan Operator yang masih kosong").toBe(0);
-    });
-    await manual(admin, "Nilai Pengaturan Operator benar", "nama resmi, alamat, kontak dan nomor CS dibaca owner dari screenshot");
     await manual(null, "Akun Admin Platform siap (email + authenticator) dan Admin Lokasi memegang peran Lokasi uji", "terbukti oleh login persona; Kontak Siaga dipilih diperiksa di bagian 6");
     await manual(null, "Mailbox penerima tidak di suppression list SumoPod; cek folder spam", "hanya bisa dicek owner di mailbox dan dashboard SumoPod");
     await manual(null, 'Proyek SumoPod: "Charge fee to customer" OFF; webhook /api/webhooks/pembayaran tersimpan; Save & Test 2xx', "hanya bisa dicek owner di dashboard SumoPod");

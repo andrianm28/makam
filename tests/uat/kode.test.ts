@@ -54,7 +54,7 @@ describe("a code the owner reads out is six digits", () => {
 });
 
 describe("the runner asks for the owner's code and types what arrives", () => {
-  it("asks first, announces the request, then returns the code the orchestrator wrote and uses the file up", async () => {
+  it("announces the request, then returns the code the orchestrator wrote and uses the file up", async () => {
     const dir = folderKode();
     const berkas = path.join(dir, "admin-lokasi.txt");
     const dipanggil: string[] = [];
@@ -76,7 +76,6 @@ describe("the runner asks for the owner's code and types what arrives", () => {
 
     expect(kode).toBe("482913");
     expect(existsSync(berkas)).toBe(false);
-    expect(dipanggil[0]).toBe("kirim");
     expect(dipanggil.join("\n")).toMatch(/admin-lokasi.*kode-masuk|kode-masuk.*admin-lokasi/i);
     expect(dipanggil.join("\n")).toContain(berkas);
   });

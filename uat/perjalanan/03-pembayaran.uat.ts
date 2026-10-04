@@ -1,4 +1,4 @@
-import { simpan, wajib } from "../support/keadaan";
+import { wajib } from "../support/keadaan";
 import { DATA, persis } from "../support/halaman";
 import { bayarDenganQris } from "../support/bayar";
 import { langkah, manual } from "../support/langkah";
@@ -15,7 +15,6 @@ test.describe("§3 Pembayaran QRIS (sandbox)", { tag: ["@rilis1", "@bayar"] }, (
     const nomor = wajib("terencana.nomor", "§2 Terencana");
     const page = await sebagai("pemesan");
     const total = await bayarDenganQris(page, wajib("terencana.tagihanUrl", "§2 Terencana"));
-    simpan("terencana.total", String(total));
 
     await langkah(page, "Order Aktif: Bukti Pemesanan terbit", async () => {
       await page.goto(`/pesanan/${nomor}`);

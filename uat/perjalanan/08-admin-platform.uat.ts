@@ -36,4 +36,16 @@ test.describe("§8 Admin Platform", { tag: ["@rilis1"] }, () => {
     await manual(page, "Pengembalian: setujui refund (catatan fee bila Harga Khusus), transfer, Bukti Pengembalian Dana", "dikerjakan setelah pembatalan §10; owner memeriksa bukti");
     await manual(page, "Pencairan, Laporan angka dan Audit Log platform", "angka dibaca owner dari screenshot (Audit Log platform belum ada halamannya)");
   });
+
+  test("§0 Admin Platform membuka Pengaturan Operator dan tidak ada kolom isian yang kosong", async ({ sebagai }) => {
+    const admin = await sebagai("admin-platform");
+    await kunjungi(admin, "Admin Platform membuka Pengaturan Operator", "/staf/admin-platform/pengaturan-operator", /Pengaturan Operator/);
+    await langkah(admin, "Pengaturan Operator: tidak ada kolom isian yang kosong", async () => {
+      const kosong = await admin
+        .locator("main input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]), main textarea")
+        .evaluateAll((kolom) => kolom.filter((satu) => !(satu as HTMLInputElement).value.trim()).length);
+      expect.soft(kosong, "kolom Pengaturan Operator yang masih kosong").toBe(0);
+    });
+    await manual(admin, "Nilai Pengaturan Operator benar", "nama resmi, alamat, kontak dan nomor CS dibaca owner dari screenshot");
+  });
 });

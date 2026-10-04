@@ -5,7 +5,7 @@ import { JedaKodeMasuk } from "./jeda-kode";
 import { keluaranDir } from "./keadaan";
 import { langkah } from "./langkah";
 import { mintaKode } from "./kode";
-import { permintaanKeProduksi } from "./lingkungan";
+import { bacaKesabaranKode, permintaanKeProduksi } from "./lingkungan";
 import { PERSONA, berkasSesi, emailPersona, type NamaPersona } from "./persona";
 
 /*
@@ -26,12 +26,33 @@ export function jedaKode(): JedaKodeMasuk {
     sekarang: () => Date.now(),
     tidur,
     catat: log,
-    maksTungguMs: Number(process.env.UAT_KODE_TUNGGU_MAKS_MENIT ?? 10) * 60_000,
+    maksTungguMs: bacaKesabaranKode(process.env).tungguMaksMenit * 60_000,
+  });
+}
+
+/**
+ * Asks for a Kode Masuk through `tekan` (the click on "Kirim Kode Masuk" or "Kirim kode") and returns the code the
+ * owner reads out. The 60 s / five-an-hour gate stands in front of every request, so no caller can skip it.
+ */
+export async function mintaKodeMasuk(nama: NamaPersona, tekan: () => Promise<void>): Promise<string> {
+  const jeda = jedaKode();
+  return mintaKode({
+    dir: join(keluaranDir(), "kode"),
+    persona: nama,
+    jenis: "kode-masuk",
+    timeoutMs: timeoutKodeMs(),
+    sekarang: () => Date.now(),
+    tidur,
+    catat: log,
+    kirim: async () => {
+      await jeda.sebelumMintaKode();
+      await tekan();
+    },
   });
 }
 
 /** How long the runner waits for the owner to read a code out. */
-export const timeoutKodeMs = () => Number(process.env.UAT_KODE_TIMEOUT_MENIT ?? 15) * 60_000;
+export const timeoutKodeMs = () => bacaKesabaranKode(process.env).timeoutMenit * 60_000;
 
 function sesiDir(): string {
   const dir = process.env.UAT_SESI_DIR;
@@ -67,29 +88,18 @@ export interface PeriksaMasuk {
 
 export async function masukDenganKode(page: Page, nama: NamaPersona, periksa: PeriksaMasuk = {}): Promise<void> {
   const email = emailPersona(nama);
-  const jeda = jedaKode();
   const dir = join(keluaranDir(), "kode");
 
   await langkah(page, `Masuk sebagai ${nama}: Kirim Kode Masuk`, async () => {
     await page.goto("/masuk");
     await page.getByLabel("Email").fill(email);
   });
-  const kode = await mintaKode({
-    dir,
-    persona: nama,
-    jenis: "kode-masuk",
-    timeoutMs: timeoutKodeMs(),
-    sekarang: () => Date.now(),
-    tidur,
-    catat: log,
-    kirim: async () => {
-      await jeda.sebelumMintaKode();
-      await page.getByRole("button", { name: "Kirim Kode Masuk" }).click();
-      await expect(page.getByTestId("kode-masuk-email")).toHaveText(email, { timeout: 30_000 });
-      if (periksa.jedaKirimUlang) {
-        await expect.soft(page.getByRole("button", { name: /Kirim ulang kode \(\d+ detik\)/ })).toBeDisabled();
-      }
-    },
+  const kode = await mintaKodeMasuk(nama, async () => {
+    await page.getByRole("button", { name: "Kirim Kode Masuk" }).click();
+    await expect(page.getByTestId("kode-masuk-email")).toHaveText(email, { timeout: 30_000 });
+    if (periksa.jedaKirimUlang) {
+      await expect.soft(page.getByRole("button", { name: /Kirim ulang kode \(\d+ detik\)/ })).toBeDisabled();
+    }
   });
   if (periksa.kodeSalahDulu) {
     await langkah(page, `Masuk sebagai ${nama}: kode salah ditolak`, async () => {

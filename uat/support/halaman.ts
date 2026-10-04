@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 import { wibDateOf } from "../../src/lib/time/jakarta";
 import { langkah } from "./langkah";
+import { emailPersona } from "./persona";
 
 /*
  * What the journeys share: the data they need on staging (names that can be
@@ -19,6 +20,8 @@ export const DATA = {
   /** Terencana: a Lokasi with a Petak Tersedia whose all-in total is under the QRIS cap of Rp 10 juta. */
   lokasiTerencana: () => env("UAT_LOKASI_TERENCANA", "Pemakaman Wakaf Al-Ikhlas"),
   petakTerencana: () => env("UAT_PETAK_TERENCANA", "A-01"),
+  /** Another Petak Tersedia of that Lokasi, for the checkout walk that must not take the one the main order holds. */
+  petakTerencanaLayanan: () => env("UAT_PETAK_TERENCANA_LAYANAN", "A-02"),
   /** Saat Duka: a fixed-term Jenis Makam under the cap, so the Hak Pakai can later be extended. */
   lokasiSaatDuka: () => env("UAT_LOKASI_SAAT_DUKA", "Makam Masjid Nurul Huda"),
   jenisSaatDuka: () => env("UAT_JENIS_SAAT_DUKA", "10 tahun"),
@@ -27,6 +30,36 @@ export const DATA = {
   /** The throw-away Lokasi for Ditangguhkan and Berhenti, which cannot be undone. */
   lokasiBerhenti: () => process.env.UAT_LOKASI_BERHENTI?.trim() || null,
 };
+
+/** The Pemesan's own data on a booking form: name, phone and, when the form asks and holds none yet, the persona's email. */
+export async function isiDataPemesan(page: Page): Promise<void> {
+  await page.getByLabel("Nama lengkap", { exact: true }).fill("Uji UAT Pemesan");
+  await page.getByLabel("Nomor telepon", { exact: true }).fill(DATA.telepon());
+  const email = page.getByLabel("Email", { exact: true });
+  if ((await email.isEditable()) && !(await email.inputValue())) await email.fill(emailPersona("pemesan"));
+}
+
+/** The three places a booking checkout offers Layanan: the id prefix the shared picker (`PilihLayanan`) gives its fields. */
+export type PermukaanLayanan = "petak-kosong" | "hari-h" | "tambah-layanan";
+
+/**
+ * Picks the first variant of the first Layanan the checkout offers, fills the text it asks for and, where the family
+ * chooses the day (every surface but hari-H), the earliest date it allows. It FAILS when the checkout offers none: a
+ * journey that asks for a Layanan and finds no picker has found a problem (the Layanan data of the checklist's P4 and
+ * P6, or the page) and must not go green without one.
+ */
+export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayanan): Promise<void> {
+  const pilih = page.locator(`select[id^="${permukaan}-"]`).first();
+  await expect(pilih, `checkout "${permukaan}" tidak menawarkan Layanan: periksa data Layanan Lokasi dan Mitra Jasa (checklist P4, P6)`).toBeVisible({ timeout: 15_000 });
+  await pilih.selectOption({ index: 1 });
+  const teks = page.locator(`input[id^="${permukaan}-teks-"]`).first();
+  await teks.waitFor({ state: "visible", timeout: 1_000 }).then(() => teks.fill("Teks contoh uji UAT"), () => undefined);
+  if (permukaan !== "hari-h") {
+    const tanggal = page.locator(`input[id^="${permukaan}-tanggal-"]`).first();
+    await expect(tanggal, "kolom tanggal pengerjaan muncul setelah varian dipilih").toBeVisible();
+    await tanggal.fill((await tanggal.getAttribute("min")) || tanggalWib(7));
+  }
+}
 
 /** A regular expression that matches `teks` literally, ignoring case. */
 export function persis(teks: string): RegExp {
@@ -100,14 +133,14 @@ export async function kunjungi(page: Page, judul: string, path: string, judulHal
  * Opens the Antrean Lokasi of the Lokasi and then the row of kind `jenisBaris` for `nomor`
  * (a Nomor Pemesanan, Nomor Tagihan or other subject text the row's link carries).
  */
-export async function bukaBarisAntreanLokasi(page: Page, lokasiId: string, jenisBaris: string, nomor: string): Promise<void> {
+export async function bukaBarisAntreanLokasi(page: Page, lokasiId: string, jenisBaris: string | RegExp, nomor: string): Promise<void> {
   await langkah(page, `Antrean Lokasi: baris ${jenisBaris} untuk ${nomor}`, async () => {
     const baris = page.getByRole("link", { name: persis(nomor) }).first();
     await expect(async () => {
       await page.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
       await expect(baris).toBeVisible({ timeout: 2_000 });
     }).toPass({ timeout: 90_000, intervals: [3_000] });
-    await expect.soft(page.getByText(jenisBaris, { exact: true }).first()).toBeVisible();
+    await expect.soft(page.getByText(jenisBaris, { exact: typeof jenisBaris === "string" }).first()).toBeVisible();
     await baris.click();
   });
 }

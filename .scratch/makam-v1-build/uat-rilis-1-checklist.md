@@ -30,7 +30,7 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 - [ ] Email **Tagihan** ke Pemesan tiba (berisi tautan bayar).
 - [ ] Bukti/Petak tetap ditahan sampai dibayar.
 
-## 3. Pembayaran QRIS (sandbox) — ticket 61 AC
+## 3. Pembayaran QRIS (sandbox) — ticket 61 AC [BAYAR]
 - [ ] Pemesan buka Tagihan → **Bayar Rp <total>** → dialihkan ke checkout `pay-sandbox.sumopod.com`.
 - [ ] Jumlah di checkout **sama persis** dengan total Tagihan (fee ditanggung Operator).
 - [ ] Checkout: pilih QRIS → QR tampil; **"Simulate Payment"** (Test Mode) → "waiting for confirmation".
@@ -40,14 +40,14 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 - [ ] Uang masuk tercatat benar (net = total − fee SumoPod).
 - [ ] **Bukti Pengembalian Dana** (bila dibatalkan) — lihat §6.
 
-## 4. Journey Saat Duka (Lokasi Mitra) — end to end
+## 4. Journey Saat Duka (Lokasi Mitra) — end to end [BAYAR]
 - [ ] `/pesan-makam/saat-duka` → daftar Lokasi × Jenis Makam; pilih.
 - [ ] Isi data Almarhum/keluarga → Kode Masuk → Kirim.
 - [ ] **Admin Lokasi**: baris Konfirmasi Saat Duka di Antrean → konfirmasi (Tagihan pay-after).
 - [ ] Bayar Tagihan → **Catat Pemakaman** (bukti) → order **Selesai** + **Bukti Pemesanan**.
 - [ ] Denah: Petak menjadi **Terisi**; Hak Pakai tercatat.
 
-## 5. Journey Perpanjangan (Lokasi Mitra, OTP) — ADR 0005
+## 5. Journey Perpanjangan (Lokasi Mitra, OTP) — ADR 0005 [BAYAR]
 - [ ] Dari **Akun Saya → Makam** atau tile **Perpanjang Makam** → halaman Perpanjangan.
 - [ ] Pilih masa perpanjangan → Kode Masuk ke email Pemegang Hak (OTP) → kirim permohonan.
 - [ ] **Admin Lokasi**: verifikasi permohonan (setuju/tolak/minta perbaikan) di halaman Perpanjangan.

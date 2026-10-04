@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { formatWib } from "../../src/lib/time/jakarta";
 
 /*
  * Pacing of the runner's requests for an emailed Kode Masuk.
@@ -55,7 +56,7 @@ export function putuskanKirimKode(
 export class BatasKodeTercapai extends Error {
   constructor(readonly bolehLagi: Date) {
     super(
-      `Batas ${BATAS_KODE_PER_JAM} permintaan Kode Masuk per jam dari satu IP tercapai. Boleh lagi sekitar ${bolehLagi.toISOString()}. ` +
+      `Batas ${BATAS_KODE_PER_JAM} permintaan Kode Masuk per jam dari satu IP tercapai. Boleh lagi sekitar ${formatWib(bolehLagi)}. ` +
         "Jalankan ulang nanti (sesi yang sudah tersimpan dipakai lagi), atau naikkan UAT_KODE_TUNGGU_MAKS_MENIT bila mau menunggu di sini.",
     );
     this.name = "BatasKodeTercapai";

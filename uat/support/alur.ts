@@ -1,52 +1,44 @@
-import { join } from "node:path";
 import { expect, type Page } from "@playwright/test";
 import { bayarDenganQris } from "./bayar";
-import { DATA, nomorPemesananDi, persis, tanggalWib } from "./halaman";
-import { keluaranDir } from "./keadaan";
+import { DATA, isiDataPemesan, nomorPemesananDi, persis, pilihLayananCheckout, tanggalWib } from "./halaman";
 import { langkah } from "./langkah";
-import { mintaKode } from "./kode";
-import { jedaKode, log, timeoutKodeMs, tidur } from "./masuk";
-import { emailPersona } from "./persona";
+import { mintaKodeMasuk } from "./masuk";
+import { emailPersona, type NamaPersona } from "./persona";
 
-/* Flows more than one journey walks: Perpanjangan to Lunas, and the Saat Duka TPU order. */
+/* Flows more than one journey walks: Perpanjangan to Lunas, the anonymous Kirim pesanan, and the Saat Duka TPU order. */
 
 /**
  * On a Perpanjangan page (/perpanjangan/<hakPakaiId>): the code to the Pemegang Hak's email when asked,
- * the term, the Tagihan, and the payment through the sandbox. Returns the Tagihan's path.
+ * the term, optionally a Layanan at checkout ("Tambah Layanan"), the Tagihan, and the payment through the
+ * sandbox. Returns the Tagihan's path.
  */
-export async function perpanjangDanBayar(page: Page, halaman: string): Promise<string> {
+export async function perpanjangDanBayar(page: Page, halaman: string, opsi: { tambahLayanan?: boolean } = {}): Promise<string> {
   await langkah(page, "Perpanjang Makam: kode ke email Pemegang Hak (bila diminta), pilih masa", async () => {
     await page.goto(halaman);
     await expect(page.getByRole("heading", { name: "Perpanjang Makam" })).toBeVisible();
     const kirim = page.getByRole("button", { name: "Kirim kode" });
     if (await kirim.isVisible()) {
-      const kode = await mintaKode({
-        dir: join(keluaranDir(), "kode"),
-        persona: "pemesan",
-        jenis: "kode-masuk",
-        timeoutMs: timeoutKodeMs(),
-        sekarang: () => Date.now(),
-        tidur,
-        catat: log,
-        kirim: async () => {
-          await jedaKode().sebelumMintaKode();
-          await kirim.click();
-        },
+      const kode = await mintaKodeMasuk("pemesan", async () => {
+        await kirim.click();
       });
       await page.getByLabel("Kode 6 angka").fill(kode);
       await page.getByRole("button", { name: "Masukkan kode" }).click();
     }
-    await pilihMasaLaluTagihan(page);
+    await pilihMasaLaluTagihan(page, opsi);
   });
   return bukaTagihanDanBayar(page);
 }
 
-/** Chooses the first term on a page that offers `terms` and goes on to the Tagihan. */
-export async function pilihMasaLaluTagihan(page: Page): Promise<void> {
+/**
+ * Chooses the first term on a page that offers `terms`, adds a Layanan at checkout when asked (it fails when the
+ * page offers none), and goes on to the Tagihan.
+ */
+export async function pilihMasaLaluTagihan(page: Page, opsi: { tambahLayanan?: boolean } = {}): Promise<void> {
   const masa = page.locator('[name="terms"]').first();
   await expect(masa).toBeVisible();
   if ((await masa.evaluate((elemen) => elemen.tagName.toLowerCase())) === "select") await masa.selectOption({ index: 0 });
   else await masa.check();
+  if (opsi.tambahLayanan) await pilihLayananCheckout(page, "tambah-layanan");
   await page.getByRole("button", { name: "Lanjut ke Tagihan" }).click();
 }
 
@@ -61,6 +53,41 @@ export async function bukaTagihanDanBayar(page: Page): Promise<string> {
   return url;
 }
 
+/**
+ * The anonymous visitor's last step in a booking wizard (Terencana, Saat Duka): "Kirim pesanan" opens the Kode Masuk
+ * step with the email already in it, the code the owner reads out is typed, and the same button then sends the order.
+ * The visitor is signed in as `nama` afterwards.
+ */
+export async function kirimPesananDenganKodeMasuk(page: Page, nama: NamaPersona): Promise<void> {
+  const email = emailPersona(nama);
+  await langkah(page, `Kirim pesanan sebagai tamu: langkah Kode Masuk untuk ${nama}`, async () => {
+    await page.getByRole("button", { name: /Kirim pesanan/ }).first().click();
+    await expect(page.getByRole("button", { name: "Kirim Kode Masuk" })).toBeVisible({ timeout: 15_000 });
+  });
+  const kode = await mintaKodeMasuk(nama, async () => {
+    await page.getByRole("button", { name: "Kirim Kode Masuk" }).click();
+    await expect(page.getByTestId("kode-masuk-email")).toHaveText(email, { timeout: 30_000 });
+  });
+  await langkah(page, "Kode Masuk benar: pesanan terkirim", async () => {
+    await page.getByLabel("Kode Masuk").fill(kode);
+    await page.getByRole("button", { name: /Kirim pesanan/ }).click();
+  });
+}
+
+/** Saat Duka at a Lokasi Mitra: picks the Lokasi × Jenis Makam card and goes on to "Data & kirim". */
+export async function bukaDataSaatDuka(page: Page): Promise<void> {
+  await page.goto("/pesan-makam/saat-duka");
+  await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
+  const kartu = page
+    .getByRole("radio")
+    .filter({ hasText: persis(DATA.lokasiSaatDuka()) })
+    .filter({ hasText: persis(DATA.jenisSaatDuka()) })
+    .first();
+  await kartu.click();
+  await page.getByRole("button", { name: "Lanjut" }).click();
+  await expect(page).toHaveURL(/\/pesan-makam\/saat-duka\/data/);
+}
+
 /** The Saat Duka TPU wizard, from the list to the order page. Returns the Nomor Pemesanan. */
 export async function pesanTpuSaatDuka(page: Page, opsi: { layananHariH?: boolean } = {}): Promise<string> {
   return langkah(page, "Saat Duka TPU: pilih TPU, isi data, Kirim pengurusan", async () => {
@@ -69,18 +96,12 @@ export async function pesanTpuSaatDuka(page: Page, opsi: { layananHariH?: boolea
     const tautan = tpu ? page.getByRole("link", { name: persis(tpu) }).first() : page.locator('a[href*="/pesan-makam/saat-duka/tpu"]').first();
     await tautan.click();
     await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
-    await page.getByLabel("Nama lengkap", { exact: true }).fill("Uji UAT Pemesan");
-    await page.getByLabel("Nomor telepon", { exact: true }).fill(DATA.telepon());
-    const email = page.getByLabel("Email", { exact: true });
-    if ((await email.isEditable()) && !(await email.inputValue())) await email.fill(emailPersona("pemesan"));
+    await isiDataPemesan(page);
     await page.getByLabel("Nama almarhum / almarhumah").first().fill("Almarhum TPU Uji UAT");
     await page.getByLabel("Tanggal wafat").fill(tanggalWib(0));
     await page.getByLabel("Ya, KTP saya DKI Jakarta").check();
     await page.getByLabel("Ya, meninggal di Jakarta").check();
-    if (opsi.layananHariH) {
-      const varian = page.locator('select[id^="varian-"]').first();
-      if (await varian.count()) await varian.selectOption({ index: 1 });
-    }
+    if (opsi.layananHariH) await pilihLayananCheckout(page, "hari-h");
     await page.getByRole("button", { name: "Kirim pengurusan" }).first().click();
     await expect(page).toHaveURL(/\/(pengurusan|pesanan)\/MKM-\d{4}-\d{6}/, { timeout: 30_000 });
     return nomorPemesananDi(page.url());

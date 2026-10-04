@@ -1,5 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 import { langkah } from "./langkah";
+import { HOST_CHECKOUT_SANDBOX, checkoutSandboxSumopod } from "./lingkungan";
 
 /*
  * Paying a Tagihan on staging: Bayar → the SumoPod sandbox checkout → QRIS →
@@ -31,7 +32,9 @@ export async function bayarDenganQris(page: Page, tagihanUrl: string): Promise<n
   });
 
   await langkah(page, "Bayar: dialihkan ke checkout sandbox", async () => {
-    await Promise.all([page.waitForURL(/sumopod\.com/, { timeout: 60_000 }), tombolBayar.click()]);
+    // The sandbox checkout by its exact host: a Bayar that lands on any other SumoPod host is a finding, not a pass.
+    await Promise.all([page.waitForURL((url) => checkoutSandboxSumopod(url.toString()), { timeout: 60_000 }), tombolBayar.click()]);
+    expect(new URL(page.url()).hostname).toBe(HOST_CHECKOUT_SANDBOX);
     await page.waitForLoadState("domcontentloaded");
   });
 

@@ -44,6 +44,7 @@ test.describe("§9 Negatif dan tepi", { tag: ["@rilis1"] }, () => {
       await petak.click();
       await expect(page.getByRole("button", { name: "Lanjut" })).toBeDisabled();
     });
+    await manual(page, "Pesanan di atas batas Rp 10 juta ditolak dengan alasan yang jelas bagi keluarga", "runner hanya memastikan Lanjut nonaktif; kalimat alasannya dibaca owner (salinannya belum dipastikan, jadi tidak diasersi)");
   });
 
   test("§9 Kegagalan provider dan webhook expired/failed", async () => {

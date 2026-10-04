@@ -1,20 +1,24 @@
 import { baca, simpan, wajib } from "../support/keadaan";
-import { DATA, bukaBarisAntreanLokasi, lokasiIdDariNama, nomorPemesananDi, nomorTagihanDi, persis } from "../support/halaman";
+import { kirimPesananDenganKodeMasuk } from "../support/alur";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, nomorTagihanDi, persis } from "../support/halaman";
 import { langkah, manual } from "../support/langkah";
-import { emailPersona } from "../support/persona";
+import { simpanSesi } from "../support/masuk";
 import { expect, test } from "../support/uji";
 
 /*
  * Checklist Rilis 1, bagian 2: journey Terencana di Lokasi Mitra, dari daftar
- * Lokasi sampai Tagihan terbit. Payment is bagian 3 (03-pembayaran.uat.ts).
+ * Lokasi sampai Tagihan terbit. The family walks it as a visitor with no session,
+ * the checklist's own path: Kirim pesanan opens the Kode Masuk step, and the code the
+ * owner reads out sends the order (the other journeys are signed in). Payment is
+ * bagian 3 (03-pembayaran.uat.ts).
  */
 
 test.describe("§2 Terencana (Lokasi Mitra)", { tag: ["@rilis1"] }, () => {
   test.describe.configure({ mode: "serial" });
   const petak = (page: import("@playwright/test").Page) => page.locator(`button[aria-label^="${DATA.petakTerencana()}"]`);
 
-  test("§2 Pemesan memilih Lokasi dan Petak di Denah, mengirim pesanan, dan Petak ditahan", async ({ sebagai, anonim }) => {
-    const page = await sebagai("pemesan");
+  test("§2 Pemesan tamu memilih Lokasi dan Petak di Denah, mengirim pesanan dengan Kode Masuk, dan Petak ditahan", async ({ anonim }) => {
+    const page = await anonim();
     const lokasi = DATA.lokasiTerencana();
 
     await langkah(page, "Kartu Lokasi tampil dan ada filter kota", async () => {
@@ -33,13 +37,13 @@ test.describe("§2 Terencana (Lokasi Mitra)", { tag: ["@rilis1"] }, () => {
       await page.getByRole("button", { name: "Lanjut" }).click();
       await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
     });
-    await langkah(page, "Data & kirim: isi data lalu Kirim pesanan (sudah masuk: tanpa Kode Masuk lagi)", async () => {
-      await page.getByLabel("Nama lengkap", { exact: true }).fill("Uji UAT Pemesan");
-      await page.getByLabel("Nomor telepon", { exact: true }).fill(DATA.telepon());
-      const email = page.getByLabel("Email", { exact: true });
-      if ((await email.isEditable()) && !(await email.inputValue())) await email.fill(emailPersona("pemesan"));
-      await page.getByRole("button", { name: /Kirim pesanan/ }).click();
+    await langkah(page, "Data & kirim: isi Nama, Nomor dan Email", async () => {
+      await isiDataPemesan(page);
+    });
+    await kirimPesananDenganKodeMasuk(page, "pemesan");
+    await langkah(page, "Pesanan terkirim; Kode Masuk sudah memasukkan tamu sebagai Pemesan (sesi disimpan)", async () => {
       await expect(page.getByRole("heading", { name: "Pesanan terkirim" })).toBeVisible({ timeout: 30_000 });
+      await simpanSesi(page.context(), "pemesan");
     });
     await langkah(page, "Pesanan terkirim: Nomor Pemesanan", async () => {
       const tautan = (await page.getByRole("link", { name: "Ikuti pesanan" }).getAttribute("href")) ?? "";
@@ -61,7 +65,6 @@ test.describe("§2 Terencana (Lokasi Mitra)", { tag: ["@rilis1"] }, () => {
     const nomor = wajib("terencana.nomor", "§2 Terencana");
     const page = await sebagai("admin-lokasi");
     const lokasiId = await lokasiIdDariNama(page, DATA.lokasiTerencana());
-    simpan("lokasiId", lokasiId);
     await bukaBarisAntreanLokasi(page, lokasiId, "Konfirmasi Terencana", nomor);
     await langkah(page, "Konfirmasi pesanan: Tagihan terbit", async () => {
       await page.getByTestId("konfirmasi-terencana").click();

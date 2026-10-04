@@ -1,14 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { wibDateTimeLocal } from "../src/lib/time/jakarta";
 import { bacaKonfigurasi } from "./support/lingkungan";
 
 /*
  * The UAT runner (ticket 110, `npm run uat`): scripted journeys against staging
  * (https://dev.makam.co.id) or a local stack, with the owner reading out the
  * codes. It is not the e2e suite: its own testDir, never run by CI or by
- * `npm run e2e`. The base URL is refused unless it is staging or local, so it can
- * never be pointed at production. See uat/README.md.
+ * `npm run e2e`. The base URL is refused unless it is staging or local, and before
+ * any journey the stack itself must say it is development, test or staging
+ * (support/pra-uji.ts), so the runner can never reach production. See uat/README.md.
  */
 
 function sha(): string {
@@ -25,10 +27,13 @@ const konfigurasi = bacaKonfigurasi(process.env, { sekarang: new Date(), sha: sh
 // The main process fixes the run folder once; every worker it starts inherits it.
 process.env.UAT_OUT = konfigurasi.out;
 process.env.UAT_SESI_DIR = konfigurasi.sesiDir;
+// One HTML report per invocation: a run resumed on the same UAT_OUT keeps the report of the one before.
+const laporan = `laporan-${wibDateTimeLocal(new Date()).replace(/[T:]/g, "-")}`;
 
 export default defineConfig({
   testDir: "./perjalanan",
   testMatch: "**/*.uat.ts",
+  globalSetup: "./support/pra-uji.ts",
   fullyParallel: false,
   workers: 1,
   retries: 0,
@@ -39,12 +44,16 @@ export default defineConfig({
   outputDir: join(konfigurasi.out, "artefak"),
   reporter: [
     ["list"],
-    ["html", { outputFolder: join(konfigurasi.out, "laporan"), open: "never" }],
-    ["./support/ringkasan.ts", { out: konfigurasi.out, baseUrl: konfigurasi.baseUrl }],
+    ["html", { outputFolder: join(konfigurasi.out, laporan), open: "never" }],
+    ["./support/ringkasan.ts", { out: konfigurasi.out, baseUrl: konfigurasi.baseUrl, laporan }],
   ],
   use: {
     baseURL: konfigurasi.baseUrl,
+    // Tied to the staging origin: a host that challenges later (the SumoPod checkout) never receives it.
     httpCredentials: konfigurasi.basicAuth,
+    // A locator that never matches fails in 30 s instead of stalling a journey for the whole hour it may take.
+    actionTimeout: 30_000,
+    navigationTimeout: 30_000,
     locale: "id-ID",
     timezoneId: "Asia/Jakarta",
     trace: "retain-on-failure",
