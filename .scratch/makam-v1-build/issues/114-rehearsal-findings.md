@@ -1,6 +1,6 @@
 # Rehearsal findings: first production deploy, long failure statuses, release after rollback, preflight probe cleanup
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (owner approved 2026-10-04: "ya 114")
 Spec: ticket 72 (rehearsal), ticket 102 (Deployment statuses), ticket 106/107/108; `docs/ops/runbook.md` "Rehearsal of the first production deploy"; plan /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (G1)
 
@@ -59,3 +59,16 @@ Built on `ea371143` (origin/main plus ticket 109, the MB3 merge), branch `ticket
 
 - None blocks an acceptance criterion. Two choices for the owner to confirm: the extra `failure` statuses above, and `jq` now being a FAIL on the preflight's GitHub line when missing (the host has it today: the status script logged `could not record status failure`, not `jq is not installed`).
 - Unverified, because nothing here touches Docker or GitHub: `compose up -d --wait postgres` on a host whose stack never ran (the fake models it), and GitHub counting the 140 characters as characters (the cut is character-based and every description `makam-deploy` writes is ASCII).
+
+### Review and merge (2026-10-04, orchestrator; fixed point ea371143, head e0f85aa6)
+
+- **Two-axis review:** the Standards and Spec reviewers (sonnet) ran in parallel. Both reported **Hard: 0** on the first round, and all four defects were fixed, each with a test that failed first (22 red before).
+- **Merged** in batch MB5 on top of main 6a87d75d. That merge already carries the fix for the three go-live-docs Data Contoh assertions, which were red at this ticket's base.
+- **Accepted by the orchestrator (owner informed):**
+  - Both snapshot failure paths (Postgres will not start, `pg_dump` fails) now also post a failure status.
+  - The preflight's GitHub line FAILs when `jq` is missing; the host has `jq`.
+
+Soft follow-ups:
+- Put `rm -f` of a failed dump before the best-effort status call; the status `curl` has no `--max-time`.
+- Some order assertions over the fake docker log.
+- The release-after-rollback runbook fact is pinned by two tests.
