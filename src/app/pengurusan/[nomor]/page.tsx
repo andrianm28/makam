@@ -17,6 +17,7 @@ import { RekeningPengembalianForm } from "@/app/(site)/pesanan/[nomor]/rekening-
 import { isiRekeningPengembalianPengurusanAction } from "./pengajuan-actions";
 import { JawabTpuLainForm } from "./jawab-tpu-lain";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
+import { PengurusanIptmPemesan } from "./pengurusan-iptm-pemesan";
 import { PerpanjanganTpuPemesan } from "./perpanjangan-tpu-pemesan";
 
 /** The statuses from the confirmation on: the burial is agreed and the family follows the filing. */
@@ -45,6 +46,8 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
   const order = await orderFor(params);
   if (!order) notFound();
   if (order.kind === "perpanjangan_tpu") return <PerpanjanganTpuPemesan order={order} scanUrl={await scanUrlOf(order)} />;
+  // A filing-only order has no burial arranged by us (ticket 47): everything below is about one, so it has a page of its own (ticket 116).
+  if (order.kind === "pengurusan_iptm") return <PengurusanIptmPemesan order={order} scanUrl={await scanUrlOf(order)} pengembalian={await pengembalianOf(order)} />;
   const { operatorSettings, queues, layanan } = serverRuntime();
   const pengaturan = await operatorSettings.current();
   // The hari-H Layanan of a confirmed order are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56).
@@ -261,6 +264,12 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
 async function scanUrlOf(order: PengurusanOrder): Promise<string | null> {
   const actor = await currentActor();
   return actor && order.status === "iptm_terbit" ? serverRuntime().pengurusan.iptmScanUrl({ accountId: actor.accountId }, order.nomor) : null;
+}
+
+/** The refund a cancelled order that had been paid is waiting to send, for the Pemesan's rekening; null for any other order. */
+async function pengembalianOf(order: PengurusanOrder) {
+  const actor = await currentActor();
+  return actor && order.status === "dibatalkan" ? serverRuntime().refunds.permintaanUntukPesanan(order.nomor) : null;
 }
 
 /**
