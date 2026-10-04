@@ -883,15 +883,36 @@ only. It refuses, in this order, unless all of it holds:
 
 1. `github.actor` is the repository owner;
 2. the release tag input is the exact tag it expects (`vYYYY.MM.DD-N`, WIB),
-   typed again — a mistyped promotion is the one mistake with no undo;
-3. the newest staging deployment that names a digest has a `success` status
-   (staging is healthy);
-4. that digest has a **passed smoke test** recorded against it.
+   typed again: a mistyped promotion is the one mistake with no undo. N is the
+   number of **published** `v` releases created that day in WIB, plus one; drafts
+   and tags that do not start with `v` do not count, and a release created at
+   18:00 UTC counts for the next WIB day;
+3. the newest staging deployment that names a digest carries the **host's own
+   healthy status**: a `success` status whose description ends with
+   `(<digest>) healthy`, which is what `makam-deploy` writes. The smoke status
+   alone never counts as healthy;
+4. that digest also has a **passed smoke test** recorded against it.
 
-Then it signs the digest with the **production** key and creates the release tag
-with generated notes. Only a production-signed digest is acceptable to the
-production host; a staging-signed one is refused there, which is the whole point
-of two keys.
+Then it works in this order, so no public release exists before the signature:
+
+1. it creates the release as a **draft** (the digest is named in its notes; the
+   notes start from the previous *published* release);
+2. it signs the digest with the **production** key;
+3. it publishes the release (`gh release edit <tag> --draft=false`).
+
+Only a production-signed digest is acceptable to the production host; a
+staging-signed one is refused there, which is the whole point of two keys.
+
+**A failed run is re-run with the same tag.** The draft is found and not
+created again, the signing is repeated (harmless) and the release is published;
+if it was already published, the re-run just completes. To abandon a leftover
+draft instead: `gh release delete <tag>` (a draft has no tag in git yet).
+
+The staging smoke test also runs when a staging deployment succeeds (within
+minutes, not only on its schedule). It records a failure for the digest if
+`/api/health` reports a `release` other than the Deployment's ref, so a staging
+host still running the old image cannot be promoted under a new digest.
+`/api/health` returns `release` and `rilisTerbuka`.
 
 ```bash
 # What is running where
@@ -909,7 +930,9 @@ the production key signed it.
 `.github/workflows/rollback.yml`, owner only: give it an earlier release tag and
 a reason. It finds the digest that release went out as, re-signs it with the
 production key, and records the rollback as a production deployment. It creates
-**no** new release: the release list stays the history of what went out.
+**no** new release: the release list stays the history of what went out. When
+the release lookup fails it prints gh's own error (for example an `HTTP 403`
+is a permissions problem, not a missing release) and stops.
 
 By hand, the same thing without the workflow:
 
