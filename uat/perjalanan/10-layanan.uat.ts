@@ -1,6 +1,6 @@
 import { bukaDataSaatDuka, perpanjangDanBayar } from "../support/alur";
-import { bayarDenganQris } from "../support/bayar";
-import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, persis, pilihLayananCheckout, pilihOpsi } from "../support/halaman";
+import { angkaDiHalaman, bayarDenganQris } from "../support/bayar";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, persis, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -108,34 +108,75 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
 
   /*
    * Layanan saat checkout (tiket 53), the three places a booking offers it. (c) pays, as the checklist asks
-   * ("bayar salah satunya sampai Lunas"). (a) and (b) walk to the picker, choose a Layanan and stop before Kirim:
-   * the orders they would send are the ones sections 2 and 4 already send, and what the Tagihan then holds is
-   * a step for a person (manual), not for this script.
+   * ("bayar salah satunya sampai Lunas"). (a) and (b) send the order, have the Admin Lokasi confirm it and read the
+   * Tagihan that results, without paying it: the row of the chosen Layanan is in it, and it is the kind the checklist names
+   * (bayar-belakang for Saat Duka, bayar-dulu for Terencana). An unpaid order lapses by itself (Saat Duka's Tagihan 3×24 h
+   * after the burial, Terencana's after 24 h, which frees the Petak again).
    */
-  test("§11 Layanan saat checkout (a) Saat Duka: Layanan hari-H ditawarkan di Data & kirim dan bisa dipilih", async ({ sebagai }) => {
-    const page = await sebagai("pemesan");
-    await langkah(page, "Saat Duka, Data & kirim: pilih Layanan hari-H", async () => {
-      await bukaDataSaatDuka(page);
-      await isiDataPemesan(page);
-      await pilihLayananCheckout(page, "hari-h");
-      await expect.soft(page.getByText(/Layanan hari-H/).first()).toBeVisible();
+  test("§11 Layanan saat checkout (a) Saat Duka: hanya item hari-H ditawarkan, barisnya masuk Tagihan bayar-belakang yang sama", async ({ sebagai }) => {
+    const pemesan = await sebagai("pemesan");
+    let pilihan = { nama: "", harga: "" };
+    const nomor = await langkah(pemesan, "Saat Duka, Data & kirim: isi data, pilih Layanan hari-H, Kirim pesanan", async () => {
+      await bukaDataSaatDuka(pemesan);
+      await isiDataPemesan(pemesan);
+      await pemesan.getByLabel("Nama almarhum / almarhumah").fill("Almarhum Layanan Checkout Uji UAT");
+      await pemesan.getByLabel("Tanggal wafat").fill(tanggalWib(-1));
+      pilihan = await pilihLayananCheckout(pemesan, "hari-h");
+      await expect.soft(pemesan.getByText(/Layanan hari-H/).first()).toBeVisible();
+      await pemesan.getByRole("button", { name: "Kirim pesanan" }).first().click();
+      await expect(pemesan).toHaveURL(/\/pesanan\/MKM-\d{4}-\d{6}$/, { timeout: 30_000 });
+      return nomorPemesananDi(pemesan.url());
     });
-    await manual(page, "Saat Duka: yang ditawarkan hanya item hari-H; barisnya masuk Tagihan bayar-belakang yang sama dan Tagihan tetap bayar-belakang", "dibaca owner pada Tagihan sesudah Admin Lokasi mengonfirmasi; runner berhenti sebelum Kirim pesanan");
+    const admin = await sebagai("admin-lokasi");
+    await bukaBarisAntreanLokasi(admin, await lokasiIdDariNama(admin, DATA.lokasiSaatDuka()), "Konfirmasi Saat Duka", nomor);
+    await langkah(admin, "Admin Lokasi: konfirmasi pesanan (Petak Makam dan waktu pemakaman), Tagihan terbit", async () => {
+      await pilihOpsi(admin, "Petak Makam");
+      await admin.getByLabel("Pemakaman", { exact: true }).fill(`${tanggalWib(1)}T10:00`);
+      await admin.getByRole("button", { name: "Konfirmasi pesanan" }).click();
+      await expect(admin.getByRole("button", { name: "Konfirmasi pesanan" })).toHaveCount(0, { timeout: 30_000 });
+    });
+    await langkah(pemesan, "Tagihan: bayar-belakang (dibayar setelah pemakaman) dan memuat baris Layanan hari-H", async () => {
+      await pemesan.goto(`/pesanan/${nomor}`);
+      await pemesan.getByRole("link", { name: /TGH\/\d{4}\/\d{6}/ }).first().click();
+      await expect(pemesan).toHaveURL(/\/dokumen\//);
+      await expect(pemesan.getByText("Tagihan ini dibayar setelah pemakaman.")).toBeVisible();
+      expect(angkaDiHalaman(await pemesan.locator("body").innerText()), `baris Layanan "${pilihan.nama}" (${pilihan.harga}) ada di Tagihan`).toContain(pilihan.harga);
+    });
   });
 
-  test("§11 Layanan saat checkout (b) Terencana: untuk satu petak ditawarkan item petak-kosong dan subtotalnya tampil", async ({ sebagai }) => {
-    const page = await sebagai("pemesan");
-    const petak = page.locator(`button[aria-label^="${DATA.petakTerencanaLayanan()}"]`);
-    await langkah(page, "Terencana: pilih satu Petak, Data & kirim: pilih Layanan petak-kosong", async () => {
-      await page.goto("/pesan-makam/terencana");
-      await page.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
+  test("§11 Layanan saat checkout (b) Terencana: untuk satu petak hanya item petak-kosong, Tagihan bayar-dulu memuat barisnya dan jatuh tempo", async ({ sebagai }) => {
+    const pemesan = await sebagai("pemesan");
+    const petak = pemesan.locator(`button[aria-label^="${DATA.petakTerencanaLayanan()}"]`);
+    let pilihan = { nama: "", harga: "" };
+    const nomor = await langkah(pemesan, "Terencana: pilih satu Petak, Data & kirim: pilih Layanan petak-kosong, Kirim pesanan", async () => {
+      await pemesan.goto("/pesan-makam/terencana");
+      await pemesan.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
       await petak.click();
-      await page.getByRole("button", { name: "Lanjut" }).click();
-      await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
-      await pilihLayananCheckout(page, "petak-kosong");
-      await expect(page.getByTestId("total-layanan")).toContainText("Rp");
+      await pemesan.getByRole("button", { name: "Lanjut" }).click();
+      await expect(pemesan.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
+      await isiDataPemesan(pemesan);
+      pilihan = await pilihLayananCheckout(pemesan, "petak-kosong");
+      await expect(pemesan.getByTestId("total-layanan")).toContainText("Rp");
+      await pemesan.getByRole("button", { name: /Kirim pesanan/ }).first().click();
+      await expect(pemesan.getByRole("heading", { name: "Pesanan terkirim" })).toBeVisible({ timeout: 30_000 });
+      const tautan = (await pemesan.getByRole("link", { name: "Ikuti pesanan" }).getAttribute("href")) ?? "";
+      return nomorPemesananDi(tautan || (await pemesan.locator("main").innerText()));
     });
-    await manual(page, "Terencana: yang ditawarkan hanya item petak-kosong; Tagihan bayar-dulu dengan jatuh tempo paling awal memuat barisnya", "dibaca owner pada Tagihan sesudah Admin Lokasi mengonfirmasi; runner berhenti sebelum Kirim pesanan");
+    const admin = await sebagai("admin-lokasi");
+    await bukaBarisAntreanLokasi(admin, await lokasiIdDariNama(admin, DATA.lokasiTerencana()), "Konfirmasi Terencana", nomor);
+    await langkah(admin, "Admin Lokasi: konfirmasi pesanan Terencana, Tagihan bayar-dulu terbit", async () => {
+      await admin.getByTestId("konfirmasi-terencana").click();
+      await expect(admin.getByTestId("konfirmasi-terencana")).toHaveCount(0, { timeout: 30_000 });
+    });
+    await langkah(pemesan, "Tagihan: bayar-dulu (sebelum jatuh tempo), memuat baris Layanan petak-kosong", async () => {
+      await pemesan.goto(`/pesanan/${nomor}`);
+      await pemesan.getByTestId("bayar-terencana").click();
+      await expect(pemesan).toHaveURL(/\/dokumen\//);
+      await expect(pemesan.getByText("Jatuh tempo").first()).toBeVisible();
+      await expect(pemesan.getByText(/Mohon dibayar sebelum jatuh tempo/)).toBeVisible();
+      expect(angkaDiHalaman(await pemesan.locator("body").innerText()), `baris Layanan "${pilihan.nama}" (${pilihan.harga}) ada di Tagihan`).toContain(pilihan.harga);
+    });
+    await manual(pemesan, "Terencana: jatuh tempo Tagihan adalah yang paling awal dari Petak dan Layanan (24 jam)", "dibaca owner pada Tagihan: Tanggal terbit dan Jatuh tempo (screenshot); Tagihan tidak dibayar dan lapse sendiri, Petak lepas lagi");
   });
 
   test("§11 Layanan saat checkout (c) Perpanjangan: Tambah Layanan di Tagihan Perpanjangan, satu Biaya Layanan Platform, bayar sampai Lunas", async ({ sebagai }) => {

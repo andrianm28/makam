@@ -42,15 +42,23 @@ export async function isiDataPemesan(page: Page): Promise<void> {
 /** The three places a booking checkout offers Layanan: the id prefix the shared picker (`PilihLayanan`) gives its fields. */
 export type PermukaanLayanan = "petak-kosong" | "hari-h" | "tambah-layanan";
 
+/** The variant `pilihLayananCheckout` chose: its name, and its price as the digits the checkout showed ("Rp 1.200.000" is "1200000"). */
+export interface PilihanLayanan {
+  nama: string;
+  harga: string;
+}
+
 /**
  * Picks the first variant of the first Layanan the checkout offers, fills the text it asks for and, where the family
  * chooses the day (every surface but hari-H), the earliest date it allows. It FAILS when the checkout offers none: a
  * journey that asks for a Layanan and finds no picker has found a problem (the Layanan data of the checklist's P4 and
- * P6, or the page) and must not go green without one.
+ * P6, or the page) and must not go green without one. Returns the variant, so a later step can look for its row in the Tagihan.
  */
-export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayanan): Promise<void> {
+export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayanan): Promise<PilihanLayanan> {
   const pilih = page.locator(`select[id^="${permukaan}-"]`).first();
   await expect(pilih, `checkout "${permukaan}" tidak menawarkan Layanan: periksa data Layanan Lokasi dan Mitra Jasa (checklist P4, P6)`).toBeVisible({ timeout: 15_000 });
+  // The option reads "<varian> — Rp 1.200.000" (src/components/layanan/pilih-layanan.tsx).
+  const [nama, harga = ""] = ((await pilih.locator("option").nth(1).textContent()) ?? "").split(" — ");
   await pilih.selectOption({ index: 1 });
   const teks = page.locator(`input[id^="${permukaan}-teks-"]`).first();
   await teks.waitFor({ state: "visible", timeout: 1_000 }).then(() => teks.fill("Teks contoh uji UAT"), () => undefined);
@@ -59,6 +67,7 @@ export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayan
     await expect(tanggal, "kolom tanggal pengerjaan muncul setelah varian dipilih").toBeVisible();
     await tanggal.fill((await tanggal.getAttribute("min")) || tanggalWib(7));
   }
+  return { nama: nama.trim(), harga: harga.replace(/\D/g, "") };
 }
 
 /** A regular expression that matches `teks` literally, ignoring case. */
