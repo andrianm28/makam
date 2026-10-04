@@ -10,6 +10,9 @@ name: Smoke test staging
 # is still covered; the owner can also start it by hand after a rollback.
 on:
   workflow_dispatch:
+  # A staging deployment that just succeeded is smoked at once; the schedule
+  # and the manual start stay as they were.
+  deployment_status:
   schedule:
     - cron: "*/15 * * * *"
 
@@ -22,6 +25,7 @@ concurrency:
 jobs:
   smoke:
     name: Playwright smoke against dev.makam.co.id
+    if: github.event_name != 'deployment_status' || (github.event.deployment_status.state == 'success' && github.event.deployment.environment == 'staging')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -40,16 +44,35 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=staging&per_page=10" \
-            --jq '[.[] | select(.payload.image_digest != null)] | .[0].payload.image_digest // empty' > "$RUNNER_TEMP/digest"
-          digest=$(cat "$RUNNER_TEMP/digest")
-          if [ -z "$digest" ]; then
+            --jq '[.[] | select(.payload.image_digest != null)] | .[0] | select(. != null) | "\(.payload.image_digest) \(.ref)"' > "$RUNNER_TEMP/running"
+          read -r digest ref < "$RUNNER_TEMP/running" || true
+          if [ -z "${digest:-}" ]; then
             echo "Staging has no recorded deployment; nothing to smoke" >&2
             echo "found=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           echo "found=true" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "Staging is running $digest"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Staging is running $digest (release $ref)"
+      # The digest says what the host pulled; /api/health says what is really
+      # answering. A different release means the deploy did not take, so the
+      # digest must not be promoted: the result is recorded as failure below.
+      - name: Staging runs the release the Deployment names
+        id: release
+        if: steps.running.outputs.found == 'true'
+        env:
+          REF: ${{ steps.running.outputs.ref }}
+        run: |
+          body=$(curl -sS --retry 3 --retry-delay 5 --retry-all-errors "$BASE_URL/api/health" || true)
+          release=$(printf '%s' "$body" | jq -r '.release // empty' 2>/dev/null || true)
+          if [ -n "$release" ] && [ "$release" = "$REF" ]; then
+            echo "release_ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::Staging runs release '${release:-none}' but the Deployment names '$REF'"
+            echo "Staging runs release '${release:-none}' but the Deployment names '$REF'" >&2
+            echo "release_ok=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         if: steps.running.outputs.found == 'true'
         with:
@@ -93,8 +116,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DIGEST: ${{ steps.running.outputs.digest }}
           RESULT: ${{ job.status }}
+          RELEASE_OK: ${{ steps.release.outputs.release_ok }}
         run: |
-          if [ "$RESULT" = success ]; then state=success; else state=failure; fi
+          if [ "$RESULT" = success ] && [ "$RELEASE_OK" = true ]; then state=success; else state=failure; fi
           id=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=staging&per_page=20" \
             --jq "[.[] | select(.payload.image_digest == \"$DIGEST\")] | .[0].id // empty")
           if [ -z "$id" ]; then
