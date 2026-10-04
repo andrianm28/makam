@@ -204,10 +204,12 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const dir of tempRoots) await rm(dir, { recursive: true, force: true });
   // Only what this run started: a crashed test must not leave a stopped
-  // container on a host four agents share.
-  for (const name of [...foreignNames, ...(await newRestoreContainers())]) await docker(["rm", "-f", name]);
-  await docker(["rm", "-f", sourceName]);
-  // The hook's own budget, not the suite's: this is several `docker rm -f`
+  // container on a host four agents share. `rm -fv`, not `rm -f`: the Postgres
+  // image brings an anonymous volume, which `-f` alone leaves behind (five of
+  // them per run, on a disk that is shared).
+  for (const name of [...foreignNames, ...(await newRestoreContainers())]) await docker(["rm", "-fv", name]);
+  await docker(["rm", "-fv", sourceName]);
+  // The hook's own budget, not the suite's: this is several `docker rm -fv`
   // calls, and a busy host makes each of them seconds.
 }, 180_000);
 
@@ -433,7 +435,7 @@ describe("the restore check", () => {
       // --keep: the failed restore is still there to be looked at.
       expect(await newRestoreContainers()).toHaveLength(1);
     } finally {
-      for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
+      for (const name of await newRestoreContainers()) await docker(["rm", "-fv", name]);
     }
   }, 300_000);
 
@@ -485,7 +487,7 @@ describe("the restore check", () => {
       // dies before its own afterAll (planStackCleanup, tests/tooling/worktree.test.ts).
       expect(inspected.Config.Labels["makam.worktree"]).toBe(root);
     } finally {
-      for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
+      for (const name of await newRestoreContainers()) await docker(["rm", "-fv", name]);
     }
   }, 300_000);
 });
@@ -524,7 +526,7 @@ describe("a restore check this run does not own", () => {
       expect(await newRestoreContainers()).toEqual([mine]);
     } finally {
       // Exactly what afterAll does: remove what this run started, and no more.
-      for (const name of await newRestoreContainers()) await docker(["rm", "-f", name]);
+      for (const name of await newRestoreContainers()) await docker(["rm", "-fv", name]);
     }
 
     // The colleague's container is still there: it was never this run's to
