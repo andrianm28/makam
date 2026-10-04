@@ -1,6 +1,6 @@
 # Go-live documents: Hari switch, open release, sandbox rules, ADRs and spec
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none
 Spec: ADR 0006; ticket 65; `docs/ops/runbook.md` (Hari switch ~1940–2013, the open release ~840–877, sandbox ~1818–1873); `.scratch/makam-v1-build/go-live-rilis-1.md`; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -70,3 +70,16 @@ Branch `ticket-113-go-live-docs`, built on origin/main 7415fdf7 (tickets 106 to 
 **Unverified** (nothing ran on the host, GitHub, SumoPod, UptimeRobot or GlitchTip): the `data-contoh` interface (subcommands and flags) and the preflight "data contoh" line come from ticket 109's AC, so check them against its merged code; the UptimeRobot and GlitchTip screen names; `$P logs worker | grep -c ' skipped'` counting zero at level 3; the wording of the `deploy.log` lines the runbook quotes (read from `makam-deploy`).
 
 **Tests** (counts read off whole logs): `npx vitest run tests/tooling/go-live-docs.test.ts tests/tooling/nginx-blocks.test.ts tests/tooling/ticket-workflow.test.ts` was green at each step; `npx vitest run tests/tooling` on the final tree: 33 files, 560 tests passed, exit 0. `npm run lint` exit 0 (0 errors, 6 warnings, none in these files), `npm run typecheck` exit 0.
+
+### Review and merge (2026-10-04, orchestrator; fixed point 7415fdf7, head 7305e2b5)
+
+- **Two-axis review:** the Standards and Spec reviewers (sonnet) ran in parallel. Both reported **Hard: 0** on the first round; every acceptance criterion was MET.
+- **Verification:** merged in batch MB4 with 112 and 113; the full suite passed (364 files, 3651 tests).
+
+Soft follow-ups, deliberately left (the top ones):
+  - docs/ops/runbook.md:2294,2315: The G1 rehearsal block does `cd /opt/makam-v1/prod` and then runs `deploy/install-host.sh` by relative path. The installer finds its repo from its own
+  - docs/ops/runbook.md:504-542, :2251, :2413-2421; docs/adr/0007-producti: Ticket 109's interface (dist/data-contoh.mjs subcommands, flags, `cabut` exit 1, the preflight 'data contoh' SKIP/FAIL rule) is written as the exact p
+  - commits bd366547, b594ca51, 7305e2b5: No test(red) commit. Each commit lands the tests together with the docs they pin (19 tests with ADR/spec/CONTEXT, +37 with the 498-line runbook edit, 
+  - tests/tooling/go-live-docs.test.ts:53,254,335,397,440-441,448,528: Assertions that contradict the file's own header (:6-12, 'never a sentence'): phrase pins at :53, :254, :335, :397, :440-441 and :448, so a harmless r
+  - tests/tooling/nginx-blocks.test.ts:143-159 vs tests/tooling/go-live-do: Two idioms for one list. nginx-blocks re-pins 14 markers by step index while go-live-docs finds steps by title 'so a step may move without every test 
+  - .scratch/makam-v1-build/issues/00-index.md:291: The builder edited the index (the Spec AC asks for the pointer), but orchestration.md:111 says threads never change 00-index.md. The edit is prose onl

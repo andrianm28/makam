@@ -1,6 +1,6 @@
 # Rilis 2/3 gaps to close before production opens level 3
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none
 Spec: Release plan; owner decision 2026-10-02 (masa tenggang queue row stays); tickets 42, 44, 45; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -70,3 +70,17 @@ Builder (Sonnet, branch `ticket-112-rilis-2-3-gaps`, base `7415fdf7`; not a revi
 - `src/domain/inventory` + `src/domain/queues` folders: 29 files, 230 tests [0].
 - `npm run lint` [0], 0 errors (6 warnings, none in touched files); `npm run typecheck` [0].
 - Not run: `npm run build` (not needed; the page change is typechecked), the full suite and e2e (the orchestrator's). Unverified: the guide page rendered in a browser (no page test seam; its logic is in `content-pages.ts`, tested).
+
+### Review and merge (2026-10-04, orchestrator; fixed point 7415fdf7, head 08b0fccc)
+
+- **Two-axis review:** the Standards and Spec reviewers (sonnet) ran in parallel. Both reported **Hard: 0** on the first round; every acceptance criterion was MET.
+- **Verification:** merged in batch MB4 with 112 and 113; the full suite passed (364 files, 3651 tests).
+Owner sign-off (2026-10-04): the proposed TPU guide copy above is approved as written.
+
+Soft follow-ups, deliberately left (the top ones):
+  - docs/ops/runbook.md:2024-2033 vs src/lib/env.ts:408 and src/app/(site): The 'Going live' step says only the banner and the Bayar notice disappear when the SUMOPOD_BASE_URL line is deleted. pricesMayBeExamples now ties 'har
+  - src/domain/inventory/masa-berlaku.ts:69-75 (per-row read at :72): Removing the `hariIni > masaTenggangBerakhir` cutoff turns a list bounded to the 3-month Masa Tenggang into one that grows with every Kedaluwarsa Hak 
+  - src/lib/content-pages.ts:152-195, src/app/(site)/pengurusan-tpu/page.t: /pengurusan-tpu is itself gated on `tpu` (the proxy rewrites it to Segera hadir below Rilis 3) and all three ways in gate on `tpu` (content-pages.ts:1
+  - src/domain/queues/antrean-lokasi-rows.ts:144,149,152 and src/domain/in: The row is still labelled 'Hak Pakai dalam masa tenggang' when lewatMasaTenggang is true, and the subject line differs by one word (`berakhir` vs `sam
+  - src/app/(site)/pengurusan-tpu/page.tsx:104-110 and :11: Choosing between the example note and 'Harga ini berlaku sejak' is a nested ternary in JSX with no test seam, while catatanHargaContoh lives in conten
+  - src/domain/queues/antrean-lokasi.test.ts:122-135, src/lib/content-page: Tidy-ups. Helper hakPakaiBerakhir20261001 is declared inside the describe with a date in its name, while its neighbours (siapkanOperator, setupAntrean
