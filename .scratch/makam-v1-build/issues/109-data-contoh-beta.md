@@ -1,6 +1,6 @@
 # Production beta shows marked example data (Data Contoh): registry, Rilis 1 set, one-command removal
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (ADR 0007, written by 113 in parallel, records the decision; this ticket's Comments carry it meanwhile)
 Spec: Release plan (beta); ADR 0006; ticket 101 (trial banner); `docs/ops/runbook.md` "seed-contoh-publik"; Plan: /home/ubuntu/.claude/plans/plan-percepatan-full-rilis-vectorized-gizmo.md (owner-approved 2026-10-04; full-release acceleration, beta at RILIS_TERBUKA=1 then 3)
 
@@ -432,3 +432,26 @@ Answers to the round 2 review above, item by item. Each fix went test first: the
 - **Amounts (AC "Amounts", plan C2): approved as listed.** Biaya Layanan Platform contoh Rp 100.000; Biaya Pemakaman Rp 1.000.000 (tumpang Rp 500.000); Layanan Lokasi prices bunga Rp 100.000, nisan Rp 1.000.000, pembersihan Rp 200.000, perawatan Rp 300.000, laporan Rp 50.000; the Hak Pakai and Perpanjangan prices per contoh Lokasi and Jenis Makam in `src/cli/data-contoh/rilis1.ts`.
 - **Banner wording (AC "Marking", plan C11): approved as written.** "Data bertanda (Contoh) dan harganya adalah contoh; pesanan masa uji coba tidak dilayani sungguhan."
 - With these approvals, the four BELUM items of the final re-review (H2 and H3, in both axes) are answered. The code is unchanged since head 4653966a.
+
+### Review and merge (2026-10-04, orchestrator; fixed point 7415fdf7, head e8b68af5)
+
+**Two-axis review**, run as parallel reviewers on **opus** because this is money code (it writes tariffs and prices), with two fix passes.
+- **First round: 5 hard findings.** The main ones:
+  - the Pengaturan Operator production guard was tested through a helper;
+  - a killed `tanam` could leave a contoh price that `cabut` would not see;
+  - a later contoh version counted as a real successor;
+  - the amounts and the banner wording were not approved.
+- **After fix pass 2, both axes reported only the two owner approvals as open** (amounts, banner). The owner gave both on 2026-10-04 (recorded above), so **no hard finding remains**.
+- **Money checks confirmed by the reviewers:**
+  - `cabut` never retires a contoh price without a real successor; it exits 1 instead, also after a killed run;
+  - nothing seeded becomes a Pencairan without staff action;
+  - production is refused without `--izinkan-production`;
+  - every write is audited with the command and the environment;
+  - the migration (0064) only adds a table and indexes.
+- **Merged alone as batch MB3.** CONTEXT.md now holds one "Data Contoh" entry that combines 113's definition with this ticket's distinction from the ticket 86 flag.
+
+Soft follow-ups, deliberately left:
+- Whether a price is contoh is decided by an audit reason prefix ("data-contoh tanam"). The Tarif screen does not refuse that prefix, so a real fee entered with that reason would block `cabut`. Refuse the prefix outside the CLI, or use a structured marker.
+- `aktif()` reads a fee's price history on every call while a planted fee is in its book.
+- Two comments (browser-config, payment-trial) still describe `contohAktif` as registry-only.
+- The runbook's preflight table has no "data contoh" row.
