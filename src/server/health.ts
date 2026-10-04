@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { SystemClock } from "@/adapters/live/system-clock";
 import { workerHeartbeat, type WorkerHeartbeat } from "@/domain/scheduler";
 import type { AppEnvironment } from "@/lib/env";
+import { rilisAktif, type Rilis } from "@/lib/rilis";
 import type { Clock } from "@/ports/clock";
 import { serverRuntime } from "./runtime";
 
@@ -10,6 +11,10 @@ export interface HealthReport {
   ok: boolean;
   /** APP_ENV of this process (never a secret); null when the configuration could not be read. */
   environment: AppEnvironment | null;
+  /** The running commit (`SENTRY_RELEASE`, never a secret); null when unset. */
+  release: string | null;
+  /** The Rilis this environment has opened (1 to 3); null when the configuration could not be read. */
+  rilisTerbuka: Rilis | null;
   checkedAt: Date;
   database: { ok: boolean; error?: string };
   worker: WorkerHeartbeat | null;
@@ -34,6 +39,8 @@ export async function readHealth(): Promise<HealthReport> {
     return {
       ok: false,
       environment: null,
+      release: null,
+      rilisTerbuka: null,
       checkedAt: configurationErrorClock.now(),
       database: { ok: false, error: errorMessage(error, "configuration error") },
       worker: null,
@@ -42,6 +49,8 @@ export async function readHealth(): Promise<HealthReport> {
 
   const { database, adapters } = runtime;
   const environment = runtime.env.APP_ENV;
+  const release = process.env.SENTRY_RELEASE || null;
+  const rilisTerbuka = rilisAktif();
   const checkedAt = adapters.clock.now();
   try {
     await database.db.execute(sql`select 1`);
@@ -49,6 +58,8 @@ export async function readHealth(): Promise<HealthReport> {
     return {
       ok: false,
       environment,
+      release,
+      rilisTerbuka,
       checkedAt,
       database: { ok: false, error: errorMessage(error, "unreachable") },
       worker: null,
@@ -56,5 +67,5 @@ export async function readHealth(): Promise<HealthReport> {
   }
 
   const worker = await workerHeartbeat({ db: database.db }, checkedAt);
-  return { ok: worker.isFresh, environment, checkedAt, database: { ok: true }, worker };
+  return { ok: worker.isFresh, environment, release, rilisTerbuka, checkedAt, database: { ok: true }, worker };
 }
