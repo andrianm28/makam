@@ -180,6 +180,20 @@ check_dns_and_certificates() {
   done
 }
 
+# One pull of $IMAGE_REF with the Docker config $1. ghcr answers a TLS handshake
+# timeout now and then (six times on 2026-10-03), so a pull is tried up to three
+# times, 10 s and then 30 s apart, before it counts as failed: the same rule as
+# makam-deploy's pulls. The progress note goes to stderr, not into a PASS line.
+pull_image() {
+  local config=$1 attempt delay
+  for attempt in 1 2 3; do
+    DOCKER_CONFIG=$config docker pull "$IMAGE_REF" > /dev/null 2>&1 && return 0
+    case "$attempt" in 1) delay=10 ;; 2) delay=30 ;; *) return 1 ;; esac
+    echo "preflight: pull of $IMAGE_REF failed (try $attempt of 3); trying again in ${delay}s" >&2
+    sleep "$delay"
+  done
+}
+
 # The digest to prove is --digest, else the one deployed.env records. The pull
 # uses the ghcr read token when the env file holds GHCR_READ_TOKEN (in a
 # throwaway Docker config that is removed again), else the host's own login.
@@ -206,7 +220,7 @@ check_image_pull() {
       return 0
     fi
   fi
-  if DOCKER_CONFIG="${config:-${DOCKER_CONFIG:-$HOME/.docker}}" docker pull "$IMAGE_REF" > /dev/null 2>&1; then
+  if pull_image "${config:-${DOCKER_CONFIG:-$HOME/.docker}}"; then
     PULLED=1
     pass "02, 72" "ghcr pull" "pulled $IMAGE_REF with $login_note"
   else

@@ -98,7 +98,10 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'case "$1" in',
       '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
-      `  pull) ${INTERRUPT_AT("pull")}; exit "\${FAKE_PULL:-0}" ;;`,
+      // FAKE_PULL fails every pull; FAKE_PULL_FAIL_FIRST fails only the first N, as ghcr's TLS handshake timeout does now and then.
+      `  pull) ${INTERRUPT_AT("pull")}; [ "\${FAKE_PULL:-0}" = 0 ] || exit "$FAKE_PULL"`,
+      '        n=$(cat "$FAKE_LOG.pulls" 2> /dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FAKE_LOG.pulls"',
+      '        [ "$n" -gt "${FAKE_PULL_FAIL_FIRST:-0}" ] || { echo "Error response from daemon: net/http: TLS handshake timeout" >&2; exit 1; } ;;',
       "  login) cat > /dev/null ;;",
       '  image) echo "${FAKE_REVISION-' + REVISION + '}" ;;',
       '  run) case "$*" in',
@@ -210,6 +213,8 @@ function healthy(w: ReturnType<typeof world>) {
     ].join("\n"),
   );
   install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
+  // The backoff between pulls is recorded (install logs "sleep 10"), not waited for.
+  install(w.bin, "sleep", "exit 0");
   // Every unit is enabled unless FAKE_TIMER_STATES lists it as <unit>=<state>; "missing" is a unit systemd has never heard of.
   install(
     w.bin,
@@ -319,6 +324,40 @@ describe("makam-preflight", () => {
     expect(pulled.calls).toContain(`docker pull ghcr.io/andrianm28/makam@${DIGEST}`);
     expect(pulled.calls).not.toContain(SECRETS.GHCR_READ_TOKEN);
     expect(pulled.output).not.toContain(SECRETS.GHCR_READ_TOKEN);
+  });
+
+  describe("ghcr pull retries", () => {
+    it("pulls again after 10 s and then after 30 s when ghcr answers a TLS handshake timeout, and passes on the third try", () => {
+      const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL_FAIL_FIRST: "2" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 72\].*ghcr pull/));
+      expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
+      expect(result.calls).toMatch(/docker pull [^\n]*\nsleep 10\ndocker pull [^\n]*\nsleep 30\ndocker pull /);
+      // The owner is told, on stderr, instead of watching a quiet terminal for 40 seconds.
+      expect(result.output).toMatch(/pull of ghcr\.io\/andrianm28\/makam@sha256:b{64} failed \(try 1 of 3\); trying again in 10s/);
+      expect(result.output).toMatch(/\(try 2 of 3\); trying again in 30s/);
+    });
+
+    it("gives up after the third try with the message it has always had, and waits after neither the last try nor a first try that works", () => {
+      const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
+      expect(result.lines).toContainEqual(
+        expect.stringMatching(
+          /^FAIL .*\[02, 72\].*ghcr pull: could not pull ghcr\.io\/andrianm28\/makam@sha256:b{64} with the read token from prod\.env: check the token's read:packages scope and that the digest exists$/,
+        ),
+      );
+      expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
+      expect(result.calls.match(/^sleep /gm)).toEqual(["sleep ", "sleep "]);
+
+      const first = preflight(healthy(world()), ["--digest", DIGEST]);
+      expect(first.calls.match(/^docker pull /gm)).toHaveLength(1);
+      expect(first.calls).not.toMatch(/^sleep /m);
+    });
+
+    it("logs in once and keeps the throwaway Docker config for every try, then removes it", () => {
+      const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL_FAIL_FIRST: "2" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*ghcr pull.*the read token from prod\.env/));
+      expect(result.calls.match(/^docker login /gm)).toHaveLength(1);
+      expect(result.leftovers).toEqual([]);
+    });
   });
 
   it("runs makam-verify-image on the pulled digest and fails an image the production key did not sign", () => {
