@@ -199,6 +199,17 @@ function healthy(w: ReturnType<typeof world>) {
       'printf "%s" "$code"',
     ].join("\n"),
   );
+  install(
+    w.bin,
+    "systemctl",
+    [
+      'case "$1" in',
+      '  is-enabled) for off in ${FAKE_TIMERS_DISABLED:-}; do',
+      '      if [ "$2" = "$off" ] || [ "$2" = "$off.timer" ]; then echo disabled; exit 1; fi',
+      "    done; echo enabled ;;",
+      "esac",
+    ].join("\n"),
+  );
   install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
   return w;
 }
@@ -560,6 +571,25 @@ describe("makam-preflight", () => {
       expect(preflight(healthy(world()), ["--rilis", bad]).code).toBe(64);
     }
     expect(readFileSync(preflightScript, "utf8").split("\n").slice(0, 12).join("\n")).toContain("--rilis");
+  });
+
+  it("passes the production timers line when the four makam-prod timers are enabled, asking systemctl by name only", () => {
+    const result = preflight(healthy(world()));
+    expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*production timers.*db-backup.*files-backup.*restore-test.*health/));
+    for (const name of ["db-backup", "files-backup", "restore-test", "health"]) {
+      expect(result.calls).toContain(`systemctl is-enabled makam-prod-${name}.timer`);
+    }
+  });
+
+  it("fails the production timers line naming every makam-prod timer that is not enabled", () => {
+    const result = preflight(healthy(world()), [], { FAKE_TIMERS_DISABLED: "makam-prod-files-backup.timer makam-prod-health.timer" });
+    expect(result.code).toBe(1);
+    const failed = result.lines.filter((line) => /^FAIL .*production timers/.test(line));
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toContain("makam-prod-files-backup.timer");
+    expect(failed[0]).toContain("makam-prod-health.timer");
+    expect(failed[0]).not.toContain("makam-prod-db-backup.timer");
+    expect(failed[0]).not.toContain("makam-prod-restore-test.timer");
   });
 
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
