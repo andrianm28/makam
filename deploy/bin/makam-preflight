@@ -18,7 +18,8 @@
 #   SKIP [72] uptime monitor: .. cannot be checked from here; the instruction is on the line
 #
 # The bracket names the ticket items a check proves (02 infrastructure, 03 S3,
-# 04 SumoPod, 72 deploys). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
+# 04 SumoPod, 72 deploys, 64 and 108 the production backup timers, 107 the open
+# release). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
 #
 # Read-only, except for objects it names itself and removes again: the S3 probe
 # object, the GitHub probe Deployment and the Dump its own backup writes. One
@@ -626,7 +627,7 @@ check_rilis() {
   new_tmp
   body=$REPLY
   code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 10 "$url" 2> /dev/null) || code="no answer"
-  reported=$(sed -n 's/.*"rilisTerbuka" *: *"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p' "$body" 2> /dev/null | head -n 1)
+  reported=$(sed -n 's/.*"rilisTerbuka" *: *"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p' "$body" 2> /dev/null | head -n 1) || reported=""
   rm -f "$body"
   if [ "$code" = "no answer" ] || [ "$code" = 000 ]; then
     skip "72, 107" "open release (running stack)" "nothing answers on $url, so the release it runs is not checked: start the stack (the first deploy comes first) and run the preflight again"

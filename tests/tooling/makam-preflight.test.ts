@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // deploy/bin/makam-preflight is run by the owner on the VPS before the
-// production rehearsal: one line per prerequisite of tickets 02, 03, 04 and 72,
+// production rehearsal: one line per prerequisite of tickets 02, 03, 04 and 72
+// (and, since ticket 107, the open release and the production timers of 108),
 // PASS / FAIL / SKIP, exit non-zero on any FAIL. The fakes here stand in for
-// every external command (docker, curl, aws, openssl, getent, df, free,
-// cosign), so what is asserted is what the owner sees: the lines, the exit code,
-// and that no secret value is ever printed.
+// every external command (docker, curl, aws, openssl, getent, df, free, cosign,
+// systemctl, sleep), so what is asserted is what the owner sees: the lines, the
+// exit code, and that no secret value is ever printed.
 const repo = fileURLToPath(new URL("../..", import.meta.url));
 const preflightScript = path.join(repo, "deploy/bin/makam-preflight");
 const DIGEST = `sha256:${"b".repeat(64)}`;
@@ -603,6 +604,10 @@ describe("makam-preflight", () => {
 
       const three = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=3") })), ["--rilis", "3"], { FAKE_HEALTH_RILIS: "3" });
       expect(three.lines.filter((line) => /open release/.test(line)).every((line) => line.startsWith("PASS"))).toBe(true);
+
+      // The stack is read on the port the env file gives it, not on a fixed one.
+      const elsewhere = preflight(healthy(world({ envFile: ENV_FILE.replace("MAKAM_WEB_PORT=3100", "MAKAM_WEB_PORT=3110") })), ["--rilis", "1"]);
+      expect(elsewhere.calls).toMatch(/curl .*http:\/\/127\.0\.0\.1:3110\/api\/health/);
 
       // A stack whose worker heartbeat is stale answers 503 and still says which release it runs.
       const unhealthy = preflight(healthy(world()), ["--rilis", "1"], { FAKE_HEALTH_CODE: "503" });
