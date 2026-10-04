@@ -577,7 +577,10 @@ export async function batalkanPengurusan(
         ...hariH.baris,
       ];
       if (lines.length > 0) {
-        // "Penuh" only when everything comes back: nothing kept (or refunded before) and the Biaya Pengurusan included.
+        // Two flags, two meanings. `penuh` claims that everything comes back (before Dimakamkan, no Layanan kept or refunded earlier):
+        // Refunds refuses the request, and with it the cancellation, when the lines do not add up to the whole Tagihan. `penuhBilaLengkap`
+        // is the lenient one: before Dimakamkan the request is marked penuh when it completes the Tagihan with what was refunded earlier
+        // (a Terlambat job the Pemesan cancelled before), and is an ordinary partial request, never refused, when it does not.
         const diajukan = await deps.refunds.ajukanBaris(
           berlaku.id,
           { pihakBersalah: "pemesan", penuh: !sudahDimakamkan && hariH.tidakDikembalikan === 0, penuhBilaLengkap: !sudahDimakamkan, lines },

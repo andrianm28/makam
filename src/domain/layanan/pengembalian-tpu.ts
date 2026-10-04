@@ -1,4 +1,4 @@
-/** The refund of a TPU job's own line, asked of Refunds (ticket 57): shared by a refunded Keluhan and a cancelled Terlambat job. */
+/** The refund of a TPU job's own line, asked of Refunds (ticket 57): shared by a refunded Keluhan, a cancelled Terlambat job and a cancelled Saat Duka TPU order (ticket 117). */
 import { and, asc, eq, isNull } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { nilaiDibayarBaris } from "@/domain/billing";

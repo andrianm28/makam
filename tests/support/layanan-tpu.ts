@@ -1,6 +1,7 @@
+import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
 import { adminPlatformOf } from "./identity";
-import { mitraJasaLengkap, newLayananFor, signedInMitraJasa, siapkanOperatorLayanan, type LayananSetup } from "./layanan";
+import { layananOnTestDatabase, mitraJasaLengkap, newLayananFor, signedInMitraJasa, siapkanOperatorLayanan, type LayananSetup } from "./layanan";
 import { pemesanDenganEmail } from "./pemesanan";
 import { newTpuDki } from "./lokasi";
 import { signedInPetugasLapangan } from "./publish";
@@ -83,6 +84,46 @@ export async function mitraJasaUntuk(
   });
   const actor = await signedInMitraJasa(setup, siap.admin, email);
   return { ...mitra, actor };
+}
+
+/** The Mitra Jasa rate of a Bunga Tabur and of a Pembersihan Makam in the tests that pay a Mitra Jasa (`siapTpuBertarif`). */
+export const TARIF = 150_000;
+/** The bytes of a JPEG, as a Mitra Jasa's shot of the proof. */
+export const foto = () => new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
+
+/** `siapTpu` on the real Mitra Jasa job port, with the Mitra Jasa rate of both Layanan entered: where a test of a job's proof and pay starts. */
+export async function siapTpuBertarif(db: Database) {
+  const setup = layananOnTestDatabase(db, { pekerjaanNyata: true });
+  const tpuSiap = await siapTpu(setup);
+  for (const varian of [tpuSiap.bunga, tpuSiap.pembersihan]) {
+    const tarif = await setup.tariffs.setTarifMitraJasa(tpuSiap.admin, varian.id, { amount: TARIF, effectiveOn: "2026-10-01", reason: null });
+    if (!tarif.ok) throw new Error(`tarif refused: ${tarif.reason}`);
+  }
+  return { setup, ...tpuSiap };
+}
+export type SiapTpuBertarif = Awaited<ReturnType<typeof siapTpuBertarif>>;
+export type MitraJasaTpu = Awaited<ReturnType<typeof mitraJasaUntuk>>;
+
+/** Admin Platform hands the job to `mitra`, who accepts. */
+export async function diterima(s: SiapTpuBertarif, mitra: MitraJasaTpu, pekerjaanId: string) {
+  const tugas = await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId, mitraJasaId: mitra.id });
+  if (!tugas.ok) throw new Error(`assign refused: ${tugas.reason}`);
+  const jawab = await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId, jawaban: "terima" });
+  if (!jawab.ok) throw new Error(`accept refused: ${jawab.reason}`);
+}
+
+/** Admin Platform approves the job's proof; answers what the approval answered. */
+export async function setujui(s: SiapTpuBertarif, pekerjaanId: string) {
+  const hasil = await s.setup.layanan.setujuiBuktiTpu(s.admin, { pekerjaanId });
+  if (!hasil.ok) throw new Error(`approve refused: ${hasil.reason}`);
+  return hasil;
+}
+
+/** The TPU jobs the Mitra Jasa sees in their Pencairan. */
+export async function pencairanSaya(s: SiapTpuBertarif, mitra: MitraJasaTpu) {
+  const hasil = await s.setup.payouts.pencairanMitraJasa(mitra.actor);
+  if (!hasil.ok) throw new Error(hasil.reason);
+  return hasil.pekerjaan;
 }
 
 /** What the TPU order form sends: a described grave with no Makam TPU, one Layanan on it. */

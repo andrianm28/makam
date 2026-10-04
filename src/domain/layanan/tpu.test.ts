@@ -11,9 +11,7 @@ import {
   siapTpu,
 } from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
-import { eq, and } from "drizzle-orm";
 import { batasJawabPenugasan } from "./penugasan-tpu";
-import { pekerjaanLayananTpu } from "./schema";
 
 /**
  * Layanan at a DKI TPU, fulfilled by a Mitra Jasa (spec, Layanan; stories 23, 85,
@@ -629,39 +627,5 @@ describe("the Antrean's rows for TPU jobs", () => {
     const komposisi = queuesOnTestDatabase(db);
     komposisi.clock.set(wib("2026-10-05 07:00"));
     expect((await komposisi.queues.antrean(mitra.actor)).map((satu) => satu.type)).not.toContain("pekerjaan_tpu_tanpa_mitra");
-  });
-});
-
-describe("cancelling a paid Saat Duka TPU order that has hari-H Layanan", () => {
-  it("refunds only the Layanan not yet done: a hari-H Layanan already done stays paid for", async () => {
-    const s = await siap();
-    const { nomor, hasil } = await saatDukaTpuDikonfirmasi(s.setup, s, [{ layananVariantId: s.bunga.id, teks: "Mawar" }, { layananVariantId: s.bunga.id, teks: "Melati" }]);
-    const dibayar = await s.setup.billing.recordPayment(hasil.tagihan.id, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
-    if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
-    // The Bunga Tabur job is finished the public way: the Mitra Jasa sends the proof and Admin Platform approves it.
-    const [{ id: pekerjaanId }] = await db
-      .select({ id: pekerjaanLayananTpu.id })
-      .from(pekerjaanLayananTpu)
-      .where(and(eq(pekerjaanLayananTpu.nomor, nomor), eq(pekerjaanLayananTpu.posisi, 0)));
-    const tarif = await s.setup.tariffs.setTarifMitraJasa(s.admin, s.bunga.id, { amount: 150_000, effectiveOn: "2026-10-01", reason: null });
-    if (!tarif.ok) throw new Error(`tarif refused: ${tarif.reason}`);
-    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
-    const tugas = await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId, mitraJasaId: mitra.id });
-    if (!tugas.ok) throw new Error(`assign refused: ${tugas.reason}`);
-    const terima = await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId, jawaban: "terima" });
-    if (!terima.ok) throw new Error(`accept refused: ${terima.reason}`);
-    const foto = await s.setup.layanan.simpanBuktiTpu(mitra.actor, { pekerjaanId, kind: "foto_sesudah", takenAt: s.setup.clock.now(), file: { body: new Uint8Array([0xff, 0xd8, 0xff, 0, 1]), contentType: "image/jpeg" } });
-    if (!foto.ok) throw new Error(`shot refused: ${foto.reason}`);
-    const kirim = await s.setup.layanan.kirimBuktiTpu(mitra.actor, { pekerjaanId });
-    if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
-    const setuju = await s.setup.layanan.setujuiBuktiTpu(s.admin, { pekerjaanId });
-    if (!setuju.ok) throw new Error(`approve refused: ${setuju.reason}`);
-
-    const batal = await s.setup.pengurusan.batalkanPengurusan(s.pemesan, { nomor });
-    if (!batal.ok) throw new Error(`cancel refused: ${batal.reason}`);
-    expect(batal).toMatchObject({ ok: true, pengembalian: hasil.tagihan.total - HARGA_BUNGA_TABUR });
-    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
-    const jumlah = permintaan!.lines.map((baris) => baris.amount);
-    expect(jumlah.filter((nilai) => nilai === HARGA_BUNGA_TABUR)).toHaveLength(1);
   });
 });

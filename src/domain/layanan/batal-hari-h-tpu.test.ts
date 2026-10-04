@@ -1,8 +1,21 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { composeLayanan } from "@/composition/layanan";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { layananOnTestDatabase } from "../../../tests/support/layanan";
-import { HARGA_BUNGA_TABUR, mitraJasaUntuk, orderTpu, saatDukaTpuDikonfirmasi, siapTpu } from "../../../tests/support/layanan-tpu";
+import {
+  diterima,
+  foto,
+  HARGA_BUNGA_TABUR,
+  mitraJasaUntuk,
+  orderTpu,
+  pencairanSaya,
+  saatDukaTpuDikonfirmasi,
+  setujui,
+  siapTpuBertarif,
+  TARIF,
+  type MitraJasaTpu,
+  type SiapTpuBertarif,
+} from "../../../tests/support/layanan-tpu";
 import { queuesOnTestDatabase } from "../../../tests/support/queues";
 import { tandaiTerlambatTpu } from "./terlambat-tpu";
 
@@ -19,19 +32,11 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-const TARIF = 150_000;
 const LABEL_BUNGA = "Layanan – Bunga Tabur (Reguler)";
-const foto = () => new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 
-async function siap() {
-  const setup = layananOnTestDatabase(db, { pekerjaanNyata: true });
-  const tpuSiap = await siapTpu(setup);
-  const tarif = await setup.tariffs.setTarifMitraJasa(tpuSiap.admin, tpuSiap.bunga.id, { amount: TARIF, effectiveOn: "2026-10-01", reason: null });
-  if (!tarif.ok) throw new Error(`tarif refused: ${tarif.reason}`);
-  return { setup, ...tpuSiap };
-}
-type Siap = Awaited<ReturnType<typeof siap>>;
-type Mitra = Awaited<ReturnType<typeof mitraJasaUntuk>>;
+const siap = () => siapTpuBertarif(db);
+type Siap = SiapTpuBertarif;
+type Mitra = MitraJasaTpu;
 
 /** A confirmed Saat Duka TPU order with `jumlah` hari-H Bunga Tabur, paid (Lunas) or not. */
 async function pesananHariH(s: Siap, jumlah: number, options: { dibayar: boolean }) {
@@ -53,13 +58,6 @@ async function statusPekerjaan(s: Siap, nomor: string) {
 
 const batalkan = (s: Siap, nomor: string) => s.setup.pengurusan.batalkanPengurusan(s.pemesan, { nomor });
 
-async function diterima(s: Siap, mitra: Mitra, pekerjaanId: string) {
-  const tugas = await s.setup.layanan.tugaskanMitraJasa(s.admin, { pekerjaanId, mitraJasaId: mitra.id });
-  if (!tugas.ok) throw new Error(`assign refused: ${tugas.reason}`);
-  const jawab = await s.setup.layanan.jawabPenugasan(mitra.actor, { pekerjaanId, jawaban: "terima" });
-  if (!jawab.ok) throw new Error(`accept refused: ${jawab.reason}`);
-}
-
 /** The first shot: the job becomes Sedang Dikerjakan. */
 async function mulai(s: Siap, mitra: Mitra, pekerjaanId: string) {
   const diambil = await s.setup.layanan.simpanBuktiTpu(mitra.actor, { pekerjaanId, kind: "foto_sesudah", takenAt: s.setup.clock.now(), file: { body: foto(), contentType: "image/jpeg" } });
@@ -69,17 +67,6 @@ async function mulai(s: Siap, mitra: Mitra, pekerjaanId: string) {
 async function kirim(s: Siap, mitra: Mitra, pekerjaanId: string) {
   const dikirim = await s.setup.layanan.kirimBuktiTpu(mitra.actor, { pekerjaanId });
   if (!dikirim.ok) throw new Error(`send refused: ${dikirim.reason}`);
-}
-
-async function setujui(s: Siap, pekerjaanId: string) {
-  const disetujui = await s.setup.layanan.setujuiBuktiTpu(s.admin, { pekerjaanId });
-  if (!disetujui.ok) throw new Error(`approve refused: ${disetujui.reason}`);
-}
-
-async function pencairanSaya(s: Siap, mitra: Mitra) {
-  const hasil = await s.setup.payouts.pencairanMitraJasa(mitra.actor);
-  if (!hasil.ok) throw new Error(hasil.reason);
-  return hasil.pekerjaan;
 }
 
 /** What the Antrean shows Admin Platform for TPU jobs at `at`, on a second composition over the same database. */
@@ -106,7 +93,7 @@ describe("cancelling a paid Saat Duka TPU order whose hari-H Layanan is still Di
     expect(permintaan!.lines.reduce((jumlah, baris) => jumlah + baris.amount, 0)).toBe(tagihan.total);
   });
 
-  it("stops offering the job: Admin Platform's list, the picker and the Antrean no longer carry it, and it cannot be assigned", async () => {
+  it("stops offering the job: Admin Platform's list and the Antrean no longer carry it, and it cannot be assigned", async () => {
     const s = await siap();
     const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
     const { nomor, pekerjaan } = await pesananHariH(s, 1, { dibayar: true });
@@ -151,7 +138,7 @@ describe("cancelling a paid Saat Duka TPU order whose hari-H Layanan is still Di
     expect(await antreanTpu(s, wib("2026-10-03 09:00"))).toEqual([]);
   });
 
-  it("cancels a Terlambat one nobody did, and refunds it with the rest", async () => {
+  it("cancels a Terlambat one nobody started, and refunds it with the rest", async () => {
     const s = await siap();
     const { nomor, tagihan } = await pesananHariH(s, 1, { dibayar: true });
     s.setup.clock.set(wib("2026-10-05 09:00"));
@@ -208,6 +195,75 @@ describe("cancelling a Saat Duka TPU order whose hari-H Layanan is under way or 
     expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF }]);
   });
 
+  it("leaves a Terlambat Pekerjaan Layanan the Mitra Jasa already started: its line is not refunded and they keep it and are paid, while the one nobody started is cancelled", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor, tagihan, pekerjaan } = await pesananHariH(s, 2, { dibayar: true });
+    const [dimulai] = pekerjaan as [string, string];
+    await diterima(s, mitra, dimulai);
+    await mulai(s, mitra, dimulai);
+    // Two days past the burial the tick flags both: the one Sedang Dikerjakan and the one nobody touched.
+    s.setup.clock.set(wib("2026-10-05 09:00"));
+    expect(await tandaiTerlambatTpu(db, s.setup.clock.now())).toBe(2);
+    expect(await statusPekerjaan(s, nomor)).toEqual(["terlambat", "terlambat"]);
+
+    const batal = await batalkan(s, nomor);
+
+    expect(batal).toMatchObject({ ok: true, pengembalian: tagihan.total - HARGA_BUNGA_TABUR });
+    expect(await statusPekerjaan(s, nomor)).toEqual(["terlambat", "dibatalkan"]);
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ jumlah: tagihan.total - HARGA_BUNGA_TABUR, penuh: false });
+    expect(permintaan!.lines.filter((baris) => baris.label === LABEL_BUNGA)).toHaveLength(1);
+    // It is still the Mitra Jasa's: they finish it the usual way and are paid, as for a job Sedang Dikerjakan.
+    expect((await s.setup.layanan.pekerjaanTpuSaya(mitra.actor)).aktif).toHaveLength(1);
+    await kirim(s, mitra, dimulai);
+    await setujui(s, dimulai);
+    expect(await statusPekerjaan(s, nomor)).toEqual(["selesai", "dibatalkan"]);
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF }]);
+  });
+
+  it("leaves a Pekerjaan Layanan whose Mitra Jasa took the first shot only after the tick flagged it Terlambat: it has begun, so it keeps its price", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor, tagihan, pekerjaan } = await pesananHariH(s, 1, { dibayar: true });
+    const [pekerjaanId] = pekerjaan as [string];
+    await diterima(s, mitra, pekerjaanId);
+    s.setup.clock.set(wib("2026-10-05 09:00"));
+    expect(await tandaiTerlambatTpu(db, s.setup.clock.now())).toBe(1);
+    await mulai(s, mitra, pekerjaanId);
+    expect(await statusPekerjaan(s, nomor)).toEqual(["terlambat"]);
+
+    const batal = await batalkan(s, nomor);
+
+    // The one Layanan has begun, so its line is the only one that does not come back.
+    expect(batal).toMatchObject({ ok: true, pengembalian: tagihan.total - HARGA_BUNGA_TABUR });
+    expect(await statusPekerjaan(s, nomor)).toEqual(["terlambat"]);
+    await kirim(s, mitra, pekerjaanId);
+    await setujui(s, pekerjaanId);
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF }]);
+  });
+
+  it("leaves a Pekerjaan Layanan Menunggu Verifikasi: the work is done and only the approval waits, so it keeps its price and the Mitra Jasa is paid once it is approved", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor, tagihan, pekerjaan } = await pesananHariH(s, 2, { dibayar: true });
+    const [menunggu] = pekerjaan as [string, string];
+    await diterima(s, mitra, menunggu);
+    await mulai(s, mitra, menunggu);
+    await kirim(s, mitra, menunggu);
+    expect(await statusPekerjaan(s, nomor)).toEqual(["menunggu_verifikasi", "dijadwalkan"]);
+
+    const batal = await batalkan(s, nomor);
+
+    expect(batal).toMatchObject({ ok: true, pengembalian: tagihan.total - HARGA_BUNGA_TABUR });
+    expect(await statusPekerjaan(s, nomor)).toEqual(["menunggu_verifikasi", "dibatalkan"]);
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ jumlah: tagihan.total - HARGA_BUNGA_TABUR, penuh: false });
+    await setujui(s, menunggu);
+    expect(await statusPekerjaan(s, nomor)).toEqual(["selesai", "dibatalkan"]);
+    expect(await pencairanSaya(s, mitra)).toMatchObject([{ tarif: TARIF }]);
+  });
+
   it("does not refund a Terlambat Pekerjaan Layanan the Pemesan already cancelled: its line was asked of Refunds then, and the order's cancellation asks the rest", async () => {
     const s = await siap();
     const { nomor, tagihan, pekerjaan } = await pesananHariH(s, 2, { dibayar: true });
@@ -223,7 +279,8 @@ describe("cancelling a Saat Duka TPU order whose hari-H Layanan is under way or 
     // One request, joined: the whole Tagihan once, and the Layanan line of each job exactly once.
     const permintaan = await s.setup.refunds.permintaanTerbuka();
     expect(permintaan).toHaveLength(1);
-    expect(permintaan[0]).toMatchObject({ jumlah: tagihan.total });
+    // The earlier refund and this one together are the whole Tagihan, so the request is penuh though one job was not asked now.
+    expect(permintaan[0]).toMatchObject({ jumlah: tagihan.total, penuh: true });
     expect(permintaan[0]!.lines.filter((baris) => baris.label === LABEL_BUNGA)).toHaveLength(2);
     expect(permintaan[0]!.lines.reduce((jumlah, baris) => jumlah + baris.amount, 0)).toBe(tagihan.total);
   });
@@ -288,6 +345,59 @@ describe("cancelling a Saat Duka TPU order twice", () => {
     const permintaan = await s.setup.refunds.permintaanTerbuka();
     expect(permintaan).toHaveLength(1);
     expect(permintaan[0]).toMatchObject({ jumlah: tagihan.total });
+  });
+});
+
+describe("the Layanan's cancellation of a Saat Duka TPU order's hari-H Layanan while a Mitra Jasa takes the first shot", () => {
+  it("never both refunds a Pekerjaan Layanan and takes it off a Mitra Jasa who began it: either it is cancelled and the shot refused, or it is begun and kept", async () => {
+    const s = await siap();
+    const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor, pekerjaan } = await pesananHariH(s, 1, { dibayar: true });
+    const [pekerjaanId] = pekerjaan as [string];
+    await diterima(s, mitra, pekerjaanId);
+    // The same Layanan, whose Billing is asked for the Tagihan after the cancellation has read the job and before it writes: that is
+    // the moment the Mitra Jasa's first shot arrives, on its own connection. A shot that nothing holds up is taken well within 400 ms.
+    let bidikan: ReturnType<typeof s.setup.layanan.simpanBuktiTpu> | undefined;
+    const layananDiGanggu = composeLayanan({
+      db,
+      clock: s.setup.clock,
+      files: s.setup.files,
+      audit: s.setup.audit,
+      lokasi: s.setup.lokasi,
+      tariffs: s.setup.tariffs,
+      inventory: s.setup.inventory,
+      identity: s.setup.identity,
+      refunds: s.setup.refunds,
+      payouts: s.setup.payouts,
+      notifikasi: s.setup.notifikasi,
+      billing: {
+        ...s.setup.billing,
+        within: (tx) => {
+          const dalamTransaksi = s.setup.billing.within(tx);
+          return {
+            ...dalamTransaksi,
+            tagihanBerlaku: async (tagihanId) => {
+              bidikan = s.setup.layanan.simpanBuktiTpu(mitra.actor, { pekerjaanId, kind: "foto_sesudah", takenAt: s.setup.clock.now(), file: { body: foto(), contentType: "image/jpeg" } });
+              await Promise.race([bidikan, new Promise((selesai) => setTimeout(selesai, 400))]);
+              return dalamTransaksi.tagihanBerlaku(tagihanId);
+            },
+          };
+        },
+      },
+    });
+
+    // Not inside a transaction of the caller's: the Layanan holds the job from the read to the write by itself.
+    const hasil = await layananDiGanggu.batalkanHariHTpu(nomor, db);
+    const bidikanHasil = await bidikan;
+    if (!hasil.ok || !bidikanHasil) throw new Error("the cancellation was refused or the shot never came");
+
+    const [status] = await statusPekerjaan(s, nomor);
+    const dibatalkan = status === "dibatalkan";
+    expect(["dibatalkan", "sedang_dikerjakan"]).toContain(status);
+    // Cancelled: its line comes back, the shot is refused and it is no longer the Mitra Jasa's. Begun: no line, the shot stands and they keep it.
+    expect(hasil.baris).toHaveLength(dibatalkan ? 1 : 0);
+    expect(bidikanHasil.ok).toBe(!dibatalkan);
+    expect((await s.setup.layanan.pekerjaanTpuSaya(mitra.actor)).aktif).toHaveLength(dibatalkan ? 0 : 1);
   });
 });
 

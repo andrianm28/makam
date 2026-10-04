@@ -704,9 +704,10 @@ export interface Layanan {
    */
   jadwalkanHariHTpu(input: JadwalkanHariHTpuInput, within?: Database): Promise<number>;
   /**
-   * A Saat Duka TPU order ends: every hari-H job of it not yet done (Dijadwalkan, or Terlambat) becomes Dibatalkan and its
-   * assignment, if any, ends; the lines to refund for exactly those come back, in Pengurusan's own transaction (`within`). A job
-   * Sedang Dikerjakan, Menunggu Verifikasi, Selesai or in Keluhan keeps its price and is not returned. Idempotent (ticket 117).
+   * A Saat Duka TPU order ends: every hari-H job of it not yet done (Dijadwalkan, or Terlambat and never started) becomes
+   * Dibatalkan and its assignment, if any, ends; the lines to refund for exactly those come back, in Pengurusan's own
+   * transaction (`within`). A job Sedang Dikerjakan, Menunggu Verifikasi, Selesai or in Keluhan, or Terlambat but started,
+   * keeps its price and is not returned. Idempotent (ticket 117).
    */
   batalkanHariHTpu(nomor: string, within: Database): Promise<BatalkanHariHTpuResult>;
   /** Every Dijadwalkan TPU job with who holds it and what came before (Admin Platform). */

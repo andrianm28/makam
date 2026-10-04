@@ -29,7 +29,9 @@ export function PekerjaanTpuDaftar({ order, renderThread }: { order: PesananTpuT
             {formatTanggal(satu.jendela.sampai)})
           </p>
           {satu.teks ? <p className="mt-1 text-body">Tulisan: &ldquo;{satu.teks}&rdquo;</p> : null}
-          {satu.mitraJasa ? (
+          {satu.status === "dibatalkan" ? (
+            <p className="mt-3 text-small text-muted-foreground">Pekerjaan ini dibatalkan dan tidak akan dikerjakan.</p>
+          ) : satu.mitraJasa ? (
             <div className="mt-3 flex items-center gap-3" data-testid="mitra-jasa">
               {satu.mitraJasa.fotoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed URL of a private file
@@ -39,8 +41,6 @@ export function PekerjaanTpuDaftar({ order, renderThread }: { order: PesananTpuT
                 Dikerjakan oleh <span className="font-semibold">{satu.mitraJasa.namaDepan}</span>
               </p>
             </div>
-          ) : satu.status === "dibatalkan" ? (
-            <p className="mt-3 text-small text-muted-foreground">Pekerjaan ini dibatalkan dan tidak akan dikerjakan.</p>
           ) : (
             <p className="mt-3 text-small text-muted-foreground">Mitra Jasa akan ditugaskan sebelum tanggal target. Nama depan dan fotonya muncul di sini setelah ia menerima pekerjaan.</p>
           )}
