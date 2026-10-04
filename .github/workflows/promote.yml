@@ -56,12 +56,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG_INPUT: ${{ inputs.release_tag }}
         run: |
-          today="${TODAY_WIB:-$(TZ=Asia/Jakarta date +%Y.%m.%d)}"
-          # N counts the published v releases created today in WIB (createdAt is
+          today=$(TZ=Asia/Jakarta date +%Y.%m.%d)
+          # N counts the published v releases published today in WIB (publishedAt is
           # UTC, so add 7 hours before taking the date). A draft left by a failed
           # run does not count: re-running with the same tag completes it.
-          count=$(gh release list --limit 200 --json tagName,createdAt,isDraft \
-            | jq --arg today "$today" '[.[] | select((.isDraft | not) and (.tagName | startswith("v")) and ((.createdAt | fromdateiso8601 + 25200 | strftime("%Y.%m.%d")) == $today))] | length')
+          count=$(gh release list --limit 200 --json tagName,publishedAt,isDraft \
+            | jq --arg today "$today" '[.[] | select((.isDraft | not) and (.tagName | startswith("v")) and ((.publishedAt | fromdateiso8601 + 25200 | strftime("%Y.%m.%d")) == $today))] | length')
           expected="v$today-$((count + 1))"
           if [ "$RELEASE_TAG_INPUT" != "$expected" ]; then
             echo "refusing: the release tag must be typed exactly as $expected" >&2
@@ -91,9 +91,11 @@ jobs:
             || { echo "refusing: the staging host has not reported $digest healthy" >&2; exit 1; }
           # The smoke test records its own status on the same deployment, naming
           # the digest in the description. Promotion refuses a digest without one.
+          # The NEWEST smoke status for this digest decides (the API lists newest
+          # first): a later failure cancels an earlier success.
           printf '%s' "$statuses" \
-            | jq -e --arg digest "$digest" 'any(.[]; .state == "success" and ((.description // "") | startswith("smoke test against dev.makam.co.id for " + $digest)))' > /dev/null \
-            || { echo "refusing: $digest has no passed staging smoke test; run the \"Smoke test staging\" workflow" >&2; exit 1; }
+            | jq -e --arg digest "$digest" '[.[] | select((.description // "") | startswith("smoke test against dev.makam.co.id for " + $digest))] | .[0].state == "success"' > /dev/null \
+            || { echo "refusing: $digest has no passed staging smoke test as its latest; run the \"Smoke test staging\" workflow" >&2; exit 1; }
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
@@ -126,15 +128,29 @@ jobs:
           REASON: ${{ inputs.reason }}
         run: |
           err=$(mktemp)
-          if view=$(gh release view "$RELEASE_TAG" --json isDraft 2> "$err"); then
-            echo "Release $RELEASE_TAG already exists; not creating it again"
-            echo "published=$(printf '%s' "$view" | jq -r 'if .isDraft then "false" else "true" end')" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if ! grep -qi "not found" "$err"; then
-            echo "refusing: looking up release $RELEASE_TAG failed:" >&2
+          # `gh release view` does not find a draft: look in the list (a write
+          # token sees drafts), then read the notes through the API.
+          if ! listed=$(gh release list --limit 200 --json tagName,isDraft 2> "$err"); then
+            echo "refusing: listing the releases failed:" >&2
             cat "$err" >&2
             exit 1
+          fi
+          draft=$(printf '%s' "$listed" | jq -r --arg tag "$RELEASE_TAG" '[.[] | select(.tagName == $tag)] | .[0] | if . == null then "none" elif .isDraft then "true" else "false" end')
+          if [ "$draft" != "none" ]; then
+            if ! releases=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" 2> "$err"); then
+              echo "refusing: reading release $RELEASE_TAG failed:" >&2
+              cat "$err" >&2
+              exit 1
+            fi
+            # A re-run signs the CURRENT staging digest, so the release it found
+            # must be for that digest.
+            if ! printf '%s' "$releases" | jq -e --arg tag "$RELEASE_TAG" --arg digest "$DIGEST" 'any(.[]; .tag_name == $tag and ((.body // "") | contains($digest)))' > /dev/null; then
+              echo "refusing: release $RELEASE_TAG already exists and its notes do not name $DIGEST; use a new tag, or gh release delete $RELEASE_TAG if it is a leftover draft" >&2
+              exit 1
+            fi
+            echo "Release $RELEASE_TAG already exists for $DIGEST; not creating it again"
+            echo "published=$([ "$draft" = true ] && echo false || echo true)" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           # Only published releases are history; --notes-start-tag with no
           # previous release is an error, and the first promotion has none.
