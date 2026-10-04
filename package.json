@@ -19,6 +19,7 @@
     "migrate": "tsx src/cli/migrate.ts",
     "seed:admin": "tsx src/cli/seed-admin.ts",
     "seed:contoh-publik": "tsx src/cli/seed-contoh-publik.ts",
+    "data-contoh": "tsx src/cli/data-contoh.ts",
     "import:katalog-lama": "tsx src/cli/import-katalog-lama.ts",
     "import:data-peluncuran": "tsx src/cli/import-data-peluncuran.ts",
     "reset-totp": "tsx src/cli/reset-totp.ts",

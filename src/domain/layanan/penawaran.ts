@@ -3,7 +3,7 @@ import { z } from "zod";
 import { wibDateOf } from "@/lib/time/jakarta";
 import { layananKatalogResource, lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import type { NewAuditEntry } from "@/domain/audit";
-import type { HargaLayananVersion, SetHargaLayananInput, SetHargaLayananResult } from "@/domain/tariffs";
+import type { HargaLayananVersion, SetHargaLayananInput, SetHargaLayananResult, Tariffs } from "@/domain/tariffs";
 import type { Database } from "@/db/client";
 import type { LayananDeps } from "./deps";
 import { reasonOf } from "./nama";
@@ -23,6 +23,12 @@ import { findVarian, type VarianLayanan } from "./varian";
  * Tariffs module refuses rolls the offering back with it — a Lokasi Mitra is never
  * left offering something it does not price.
  */
+
+/**
+ * What offering and stopping a Layanan at a Lokasi Mitra need: no order machinery, so a caller that only
+ * keeps the offerings (the Data Contoh command, ticket 109) composes this much and no more.
+ */
+export type PenawaranDeps = Pick<LayananDeps, "db" | "clock" | "audit"> & { tariffs: Pick<Tariffs, "within"> };
 
 export type TawarkanLayananResult =
   | { ok: true; version: HargaLayananVersion }
@@ -49,7 +55,7 @@ const idSchema = z.uuid();
  * checked there and nowhere else.
  */
 export async function tawarkanLayanan(
-  deps: LayananDeps,
+  deps: PenawaranDeps,
   by: Actor,
   lokasiId: string,
   layananVariantId: string,
@@ -80,7 +86,7 @@ export async function tawarkanLayanan(
  * so offering it again is a change, and the log says so.
  */
 async function tawarkanDalam(
-  deps: LayananDeps,
+  deps: PenawaranDeps,
   tx: Database,
   by: Actor,
   lokasiId: string,
@@ -118,7 +124,7 @@ async function tawarkanDalam(
 }
 
 /** Admin Platform stops a Lokasi Mitra offering a Layanan variant; audited on that Lokasi. */
-export async function stopLayanan(deps: LayananDeps, by: Actor, lokasiId: string, layananVariantId: string, input: { reason: string | null }): Promise<StopLayananResult> {
+export async function stopLayanan(deps: PenawaranDeps, by: Actor, lokasiId: string, layananVariantId: string, input: { reason: string | null }): Promise<StopLayananResult> {
   const refusal = writeRefusal(by, "layanan.tawarkan", lokasiMitraResource(lokasiId));
   if (refusal) return refusal;
   if (!idSchema.safeParse(layananVariantId).success) return { ok: false, reason: "tidak_ditawarkan" };

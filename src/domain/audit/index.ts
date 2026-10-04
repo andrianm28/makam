@@ -49,6 +49,10 @@ export type AuditAction =
   | "akun.totp_reset"
   /** An old app's catalog code is bound to the Lokasi Mitra or Jenis Makam the import created from it (ticket 86). */
   | "katalog_lama.impor"
+  /** A Data Contoh set records an example entity it planted (ticket 109). */
+  | "data_contoh.tanam"
+  /** `data-contoh cabut` retires an example entity: its Lokasi Mitra hidden, its staff Akun Dinonaktifkan (ticket 109). */
+  | "data_contoh.cabut"
   /** Admin Platform changes Pengaturan Operator. */
   | "pengaturan_operator.ubah"
   /** An Akun Staf turns push on for a Perangkat Push. */

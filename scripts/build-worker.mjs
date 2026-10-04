@@ -14,6 +14,7 @@ await build({
     "seed-tagihan": "src/cli/seed-tagihan.ts",
     "seed-saat-duka": "src/cli/seed-saat-duka.ts",
     "seed-contoh-publik": "src/cli/seed-contoh-publik.ts",
+    "data-contoh": "src/cli/data-contoh.ts",
     "reset-totp": "src/cli/reset-totp.ts",
     "verify-email": "src/cli/verify-email.ts",
     "sentry-check": "src/cli/sentry-check.ts",
@@ -47,7 +48,7 @@ await build({
   logLevel: "info",
 });
 
-// seed-contoh-publik's fixture() resolves its Kunjungan Verifikasi JPEGs relative to
+// seed-contoh-publik's fixture() (and so data-contoh's, which reuses it) resolves its Kunjungan Verifikasi JPEGs relative to
 // its own file's import.meta.url, so once bundled to dist/seed-contoh-publik.mjs it
 // reads them from dist/fixtures/contoh-publik, not from src/cli/fixtures/contoh-publik
 // (the source layout, which the runtime image never gets: only dist/ is copied in).

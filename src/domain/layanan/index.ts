@@ -67,6 +67,7 @@ import {
   stopLayanan,
   tandaiBolehDiTpu,
   tawarkanLayanan,
+  type PenawaranDeps,
   type StopLayananResult,
   type TandaiBolehDiTpuResult,
   type TawarkanLayananResult,
@@ -311,7 +312,7 @@ export type {
   UbahLayananResult,
 } from "./katalog";
 export type { HapusVarianResult, NewVarian, TambahVarianResult, VarianDenganLayanan, VarianLayanan } from "./varian";
-export type { StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
+export type { PenawaranDeps, StopLayananResult, TandaiBolehDiTpuResult, TawarkanLayananResult } from "./penawaran";
 export type { BuatPaketResult, HapusPaketResult, NewPaket, PaketLayanan, PerubahanPaket, UbahPaketResult } from "./paket";
 export type { BerlanggananPaketResult, PesananPaketTerbaca, SiklusPaketTerbaca } from "./siklus";
 export { paketStatuses, type PaketStatus } from "./schema";
@@ -815,6 +816,18 @@ export function createKatalogLayanan(
     createLayanan: (by, input) => createLayananEntry(deps, by, input),
     ubahLayanan: (by, layananId, input) => ubahLayananEntry(deps, by, layananId, input),
     tambahVarian: (by, layananId, input) => tambahVarian(deps, by, layananId, input),
+  };
+}
+
+/**
+ * The catalog read and a Lokasi Mitra's offering of it (switch a variant on with its Lokasi price, stop it), for a
+ * caller that keeps both without the order machinery: the Data Contoh command (ticket 109).
+ */
+export function createPenawaranLayanan(deps: PenawaranDeps): Pick<Layanan, "katalog" | "tawarkanLayanan" | "stopLayanan"> {
+  return {
+    katalog: () => katalog(deps.db),
+    tawarkanLayanan: (by, lokasiId, layananVariantId, input) => tawarkanLayanan(deps, by, lokasiId, layananVariantId, input),
+    stopLayanan: (by, lokasiId, layananVariantId, input) => stopLayanan(deps, by, lokasiId, layananVariantId, input),
   };
 }
 
