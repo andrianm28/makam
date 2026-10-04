@@ -13,6 +13,8 @@
  * never written here.
  */
 
+import { terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
+
 /** One titled block of a content page. */
 export interface ContentSection {
   label: string;
@@ -46,33 +48,45 @@ export function tentangKamiParagrafs(legalName: string | null): string[] {
  * pages). Each section states the rule; the prices and the fees themselves are
  * read from Tariffs, Pengurusan and Pengaturan Operator on the pages that show
  * them, never written here.
+ *
+ * The third claim speaks of the TPU guide, so it follows the release: while TPU
+ * is closed the guide is not a page and the answer names the CS instead; once
+ * TPU is open it points at "Pengurusan di TPU DKI" (ADR 0006).
  */
-export const caraKamiBekerjaSections: ContentSection[] = [
-  {
-    label: "Kunjungan Verifikasi",
-    paragraphs: [
-      "Sebelum sebuah Lokasi Mitra boleh tampil di Daftar Lokasi, petugas kami datang ke lokasi itu. Yang diperiksa: nama dan alamat jalan, titik peta di mana lokasi berada, fasilitas yang benar-benar ada di sana, dan foto lokasi.",
-      "Hasil kunjungan itu yang menentukan boleh atau tidaknya Lokasi Mitra ditampilkan. Lokasi yang belum dikunjungi, atau yang tarifnya belum diperiksa, tidak tampil di Daftar Lokasi dan tidak menerima pesanan.",
-      "Kalau kemudian ada yang berubah di lokasi tersebut, Kunjungan Verifikasi diulang dan statusnya bisa kembali menjadi belum ditampilkan sampai pemeriksaan selesai.",
-    ],
-  },
-  {
-    label: "Harga di halaman sama dengan Tagihan",
-    paragraphs: [
-      "Harga yang tertera pada halaman Lokasi Mitra adalah harga yang akan masuk Tagihan Anda. Tidak ada jumlah lain yang muncul belakangan di luar yang tertulis di halaman itu.",
-      "Biaya Layanan Platform selalu ditulis terpisah dari Harga Hak Pakai, pada baris tersendiri di Tagihan. Jadi jelas berapa yang untuk makam dan berapa yang untuk layanan makam.co.id.",
-      "Kalau sebuah pesanan memakai Harga Khusus, jumlahnya dan masa berlakunya tertera pada Tagihan itu sendiri, bukan pada halaman Lokasi.",
-    ],
-  },
-  {
-    label: "Izin TPU gratis",
-    paragraphs: [
-      "Izin penggunaan tanah makam di Tempat Pemakaman Umum diterbitkan pemerintah daerah dan tidak dipungut biaya kepada keluarga. Ketentuan tentang biaya di tempat pemakaman itu sendiri tetap menjadi wewenang pemerintah daerah.",
-      "Keluarga boleh mengurus berkas ini sendiri, dan urutannya mengikuti ketentuan pemerintah daerah serta penjelasan dari TPU yang setempat. Panduan lengkap tentang pengurusan di TPU DKI belum kami terbitkan di makam.co.id, jadi untuk langkah yang tepat di daerah Anda, tanya CS lewat WhatsApp.",
-      "Kalau keluarga memilih meminta bantuan kami, yang kami kenakan adalah biaya layanan untuk dikerjakan dan dikoordinasikan oleh kami. Biaya itu adalah biaya kenyamanan, bukan biaya untuk izinnya.",
-    ],
-  },
-];
+export function caraKamiBekerjaSectionsUntuk(rilis: Rilis): ContentSection[] {
+  const panduanTpu = terbukaDi("tpu", rilis)
+    ? "Langkah mengurusnya sendiri kami tuliskan di halaman Pengurusan di TPU DKI. Untuk langkah yang tepat di daerah Anda, tanya CS lewat WhatsApp."
+    : "Panduan lengkap tentang pengurusan di TPU DKI belum kami terbitkan di makam.co.id, jadi untuk langkah yang tepat di daerah Anda, tanya CS lewat WhatsApp.";
+  return [
+    {
+      label: "Kunjungan Verifikasi",
+      paragraphs: [
+        "Sebelum sebuah Lokasi Mitra boleh tampil di Daftar Lokasi, petugas kami datang ke lokasi itu. Yang diperiksa: nama dan alamat jalan, titik peta di mana lokasi berada, fasilitas yang benar-benar ada di sana, dan foto lokasi.",
+        "Hasil kunjungan itu yang menentukan boleh atau tidaknya Lokasi Mitra ditampilkan. Lokasi yang belum dikunjungi, atau yang tarifnya belum diperiksa, tidak tampil di Daftar Lokasi dan tidak menerima pesanan.",
+        "Kalau kemudian ada yang berubah di lokasi tersebut, Kunjungan Verifikasi diulang dan statusnya bisa kembali menjadi belum ditampilkan sampai pemeriksaan selesai.",
+      ],
+    },
+    {
+      label: "Harga di halaman sama dengan Tagihan",
+      paragraphs: [
+        "Harga yang tertera pada halaman Lokasi Mitra adalah harga yang akan masuk Tagihan Anda. Tidak ada jumlah lain yang muncul belakangan di luar yang tertulis di halaman itu.",
+        "Biaya Layanan Platform selalu ditulis terpisah dari Harga Hak Pakai, pada baris tersendiri di Tagihan. Jadi jelas berapa yang untuk makam dan berapa yang untuk layanan makam.co.id.",
+        "Kalau sebuah pesanan memakai Harga Khusus, jumlahnya dan masa berlakunya tertera pada Tagihan itu sendiri, bukan pada halaman Lokasi.",
+      ],
+    },
+    {
+      label: "Izin TPU gratis",
+      paragraphs: [
+        "Izin penggunaan tanah makam di Tempat Pemakaman Umum diterbitkan pemerintah daerah dan tidak dipungut biaya kepada keluarga. Ketentuan tentang biaya di tempat pemakaman itu sendiri tetap menjadi wewenang pemerintah daerah.",
+        `Keluarga boleh mengurus berkas ini sendiri, dan urutannya mengikuti ketentuan pemerintah daerah serta penjelasan dari TPU yang setempat. ${panduanTpu}`,
+        "Kalau keluarga memilih meminta bantuan kami, yang kami kenakan adalah biaya layanan untuk dikerjakan dan dikoordinasikan oleh kami. Biaya itu adalah biaya kenyamanan, bukan biaya untuk izinnya.",
+      ],
+    },
+  ];
+}
+
+/** The claims as the first release has them: the TPU guide is not a page yet. */
+export const caraKamiBekerjaSections: ContentSection[] = caraKamiBekerjaSectionsUntuk(1);
 
 /**
  * The FAQ, in the order the release asks for (spec, Content pages). Answers say
@@ -120,5 +134,93 @@ export function faqQuestions(legalName: string | null): FaqEntry[] {
       answer:
         "Data keluarga dipakai untuk memproses pesanan, menerbitkan Tagihan dan Bukti, lalu disimpan di penyimpanan privat. Dokumen keluarga tidak dibagikan kepada pihak lain di luar proses pemakaman, dan setiap Staf hanya dapat membuka berkas yang memang diperlukan untuk pekerjaannya. Tagihan, Bukti dan kabar tentang pesanan dikirim ke alamat email yang Anda masukkan, bukan ke WhatsApp. Kalau Anda tidak punya email yang bisa dipakai, minta bantuan CS untuk mengirimkannya lewat WhatsApp.",
     },
+  ];
+}
+
+/**
+ * One of the three ways in on "Pengurusan di TPU DKI" (spec, Content pages: entries to Saat Duka TPU,
+ * Perpanjang IPTM and "Sudah dimakamkan? Kami urus IPTM-nya").
+ */
+export interface JalanMasukTpu {
+  kunci: "saat_duka" | "perpanjang_iptm" | "pengurusan_iptm";
+  label: string;
+  /** What it is, in the family's words. */
+  ringkas: string;
+  /** What limits it, said only once the way in is open. */
+  batas?: string;
+  /** Where it starts; absent while its feature is not in the open release, and the page says "Segera hadir." instead. */
+  href?: string;
+}
+
+type JalanMasukTpuTerdaftar = Omit<JalanMasukTpu, "href" | "batas"> & {
+  /** What the entry has once its feature is in the open release (ADR 0006), the way the Beranda's tiles do. */
+  bilaTerbuka: { fitur: Fitur; href: string; batas?: string };
+};
+
+const jalanMasukTpu: readonly JalanMasukTpuTerdaftar[] = [
+  {
+    kunci: "saat_duka",
+    label: "Saat Duka di TPU",
+    ringkas: "kami siapkan pemakamannya bersama TPU lalu mengurus IPTM-nya.",
+    bilaTerbuka: { fitur: "tpu", href: "/pesan-makam/saat-duka?jenis=tpu_dki" },
+  },
+  {
+    kunci: "perpanjang_iptm",
+    label: "Perpanjang IPTM",
+    ringkas: "memperpanjang izin makam yang akan berakhir.",
+    // The order starts from one Makam TPU, which only an IPTM the Operator filed has, so it starts at the Akun's Makam Keluarga.
+    bilaTerbuka: {
+      fitur: "tpu",
+      href: "/akun/makam",
+      batas:
+        "Hanya untuk IPTM yang kami ajukan lewat Makam.co.id. Buka Makam Keluarga di Akun dengan email yang tercatat pada makamnya, lalu pilih Perpanjang IPTM. IPTM yang diurus sendiri tidak termasuk; untuk itu ikuti ketentuan pemerintah daerah atau tanya CS.",
+    },
+  },
+  {
+    kunci: "pengurusan_iptm",
+    label: "Sudah dimakamkan? Kami urus IPTM-nya",
+    ringkas: "kalau keluarga sudah memakamkan sendiri, Anda hanya perlu berkas ini saja.",
+    bilaTerbuka: { fitur: "tpu", href: "/pesan-makam/pengurusan-iptm" },
+  },
+];
+
+/** The ways in as the release `rilis` shows them: one whose feature is open links to its page, the rest say "Segera hadir" (ADR 0006). */
+export function jalanMasukTpuUntuk(rilis: Rilis): JalanMasukTpu[] {
+  return jalanMasukTpu.map(({ bilaTerbuka, ...jalan }) =>
+    terbukaDi(bilaTerbuka.fitur, rilis)
+      ? { ...jalan, href: bilaTerbuka.href, ...(bilaTerbuka.batas ? { batas: bilaTerbuka.batas } : {}) }
+      : jalan,
+  );
+}
+
+/** What the page writes beside an amount that is an example price, during the beta. */
+export const LABEL_HARGA_CONTOH = "harga contoh";
+
+/** Under the prices while some are examples: what "harga contoh" means for the family. */
+export const catatanHargaContoh = "Selama masa uji coba, Biaya Pengurusan di atas adalah harga contoh, bukan harga yang berlaku.";
+
+/** One price row of "Pengurusan di TPU DKI": the amount, or null while Tariffs has none for it. */
+export interface BarisHargaTpu {
+  kunci: "pengurusan_pemakaman" | "pengurusan_berkas" | "retribusi_iptm";
+  label: string;
+  total: number | null;
+  /** The amount is an example price: the row carries `LABEL_HARGA_CONTOH`. */
+  contoh: boolean;
+}
+
+/**
+ * The three price rows, in the order the page lists them. While prices may be examples (`hargaContoh`, from the
+ * environment) the two Biaya Pengurusan, the Operator's own fees, are labelled; the Retribusi Pemda is the Pemda's
+ * to set and passed on at cost (Rp 0 where it charges nothing), so it is never an example. A price that is not set
+ * has nothing to label.
+ */
+export function barisHargaTpu(
+  harga: { pengurusanPemakaman: { total: number } | null; pengurusanBerkas: { total: number } | null; retribusiIptm: { total: number } | null },
+  hargaContoh: boolean,
+): BarisHargaTpu[] {
+  return [
+    { kunci: "pengurusan_pemakaman", label: "Mengatur pemakaman, lalu mengurus IPTM", total: harga.pengurusanPemakaman?.total ?? null, contoh: hargaContoh && harga.pengurusanPemakaman !== null },
+    { kunci: "pengurusan_berkas", label: "Hanya mengurus IPTM (keluarga sudah memakamkan sendiri)", total: harga.pengurusanBerkas?.total ?? null, contoh: hargaContoh && harga.pengurusanBerkas !== null },
+    { kunci: "retribusi_iptm", label: "Retribusi Pemda (IPTM)", total: harga.retribusiIptm?.total ?? null, contoh: false },
   ];
 }
