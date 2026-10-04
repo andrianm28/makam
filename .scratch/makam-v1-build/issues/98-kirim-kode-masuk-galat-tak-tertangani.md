@@ -86,3 +86,77 @@ Builder, the three new criteria of 2026-10-04 (branch `ticket-98-stale-form-addr
 **Spec gaps and decisions for the owner:** no requirement was narrowed. For the owner: (1) the null-MX refusal and the rethrow in the two `lokasi` boundaries go beyond the criteria's wording (both easy to drop); (2) stale-action errors are not reported to GlitchTip; (3) criterion 6 stays open until the owner decides on the CI secret and `deploymentId`; (4) per plan decision 7 the ticket closes after a re-test on a fresh digest (a form opened before the deploy, then submitted; and `uji98@contoh.makam.invalid` now answering "gagal kirim").
 
 **Verified** (whole logs read): `MAKAM_TEST_PG=shared npx vitest run` over `smtp-email-sender.test.ts`, `masuk/actions.test.ts`, `email-check-command.test.ts`, `fake-email-sender.test.ts`, `composition/adapters.test.ts` and the guard tests (no ticket numbers in copy, retired company name, brand tokens, dependency direction, copy scan, browser Sentry, scrub, theme scope, design tokens): exit 0, 14 files, 269 tests passed. `npm run typecheck` exit 0; `npm run lint` exit 0 (0 errors; 6 warnings in files this branch does not touch). `npm run build` once, exit 0, then `rm -rf .next dist`.
+
+### Review (2026-10-04, round 1; fixed point 0fd6bf41, head 1e97c271)
+
+Two reviewer reports, word for word. Every line is quoted (`> `) so that the reports' own `## Standards` and `## Spec` headings do not end this `## Comments` section (the ticket-workflow check reads a section up to the next `## ` heading).
+
+> ## Standards
+>
+> Reviewed `git diff 0fd6bf41...1e97c271` (16 files, +589/-34). Fixed point checked first: `origin/main` is `0fd6bf41`, the diff is non-empty, and `git diff --check` is clean.
+>
+> **Tests not run by me.** The brief asks for `npx vitest run`, but my reviewer role forbids running a test suite, so I have no exit code. The builder's "exit 0, 14 files, 269 tests" (ticket Comments) is unverified by me. The orchestrator should run `MAKAM_TEST_PG=shared npx vitest run src/adapters/live/smtp-email-sender.test.ts "src/app/(site)/masuk/actions.test.ts" src/cli/email-check-command.test.ts`. `e2e/stale-action.spec.ts` is Playwright and runs in main CI.
+>
+> ### Hard
+>
+> 1. `src/adapters/live/smtp-email-sender.test.ts:137` and `:204`: two older tests build `new SmtpEmailSender(settingsFor(...))` with no `resolver` and now send to `a@contoh.co.id`, so they query the real DNS. Every other test in the file goes through `senderFor`, which injects `mailEverywhere`. The commit message ("use a fake resolver"), the ticket AC ("Tested with a fake resolver") and `tests/support/mail-domain-resolver.ts:3-6` ("depends neither on the network nor on what a name happens to resolve to") all promise otherwise.
+>    - If the runner's DNS says NXDOMAIN for `contoh.co.id`, `send` throws `rejected` and `:142` and `:208` fail. The builder's own ticket note says the host it probed answers ENOTFOUND even for `example.com`.
+>    - If DNS drops queries, the check waits up to `ADDRESS_CHECK_TIMEOUT_MS` = 5 s (`smtp-email-sender.ts:12`) before the 15 s connect timeout, so `:209` (`toBeLessThan(16_000)`) fails at about 20 s.
+>    - This can turn the merge gate red depending on DNS. Fix: pass `{ resolver: mailEverywhere }` in both.
+>
+> ### Soft
+>
+> 1. `src/app/staf/admin-platform/lokasi/error.tsx:17` and `.../[lokasiId]/error.tsx:17` (also `halaman-galat.tsx:25`): the new `if (unstable_isUnrecognizedActionError(error)) throw error;` goes beyond the AC and has no test. Nothing renders these boundaries, although neighbours test components with `renderToStaticMarkup` (`src/components/makam/form-section.test.ts`). The block and comment are pasted into both files, and the `unstable_` Next export (absent from `node_modules/next/dist/docs`) is imported in three files. One exported predicate would give a single place to change and to test.
+> 2. `src/adapters/live/mail-domain.ts:27-32`: `mailDomain` returns `undefined` for no `@`, a `<...>` suffix or an IP literal, and the comment says the relay then decides. No test pins that branch. One `it.each` through `send` would cover it.
+> 3. `src/app/(site)/masuk/actions.test.ts:152-160`: the new live-relay test starts the relay and builds the sender before its `try`, so a throw leaks the relay (the test at :119-143 keeps it all inside). The 4-line `new SmtpEmailSender({...})` literal is repeated; the 2026-10-02 review already flagged that copy. A helper beside `startTestSmtpRelay` would serve both.
+>
+> ### Checked, no finding
+>
+> - Tests assert outcomes only (`relay.accepted`, error kind, exit code, what the browser sent to the DSN host). "Refused before connecting" is proved with a closed relay, so there are no call counts and no private helpers.
+> - No logging added. The refusal is `EmailSendError("rejected")` with no address. Browser reports go through `scrubEvent` (`scrub.ts:177`).
+> - Copy is Bahasa Indonesia. The copy guards read strings by AST, so the "(ticket 98)" comments pass. No domain barrel is imported on the client graph.
+> - No script, workflow, Dockerfile, deploy file or prune line is in the diff, so the bash, SHA-pinning and image-retention rules do not apply.
+> - Ticket Status is untouched and the ACs are not reworded. Decisions beyond the AC are reported under "Spec gaps and decisions for the owner".
+>
+> Standards: 4 findings (1 hard, 3 soft); worst: `smtp-email-sender.test.ts:137` and `:204` hit the real DNS; hard violations: yes.
+>
+> Hard: 1, soft: 3
+
+> ## Spec
+>
+> Fixed point `0fd6bf41` resolves; `git diff 0fd6bf41...1e97c271 --stat` is non-empty (16 files, 589 insertions, 34 deletions). Read-only: nothing was run and no DNS was queried. The builder's red/green claims are its own; its "42 tests (29 new, 13 older)" checks out by counting (5 contract + 8 + 29 expanded cases). The e2e claims are checked against Next 16.3.7's own server and client code, not a run.
+>
+> ### Acceptance criteria (ticket `.scratch/makam-v1-build/issues/98-kirim-kode-masuk-galat-tak-tertangani.md:17-22`)
+>
+> 1. Throwing sender gives "gagal kirim" and a retry, `/masuk` and both wizards: **PARTIAL** (carried, not changed here). `/masuk`: `src/app/(site)/masuk/actions.test.ts:78-91`, `:93-116` (rejected, unavailable, TypeError), `:118-148` (live adapter, refusing relay). Wizards only by shared wiring: `src/app/(site)/masuk/wiring.test.ts:19-23` matches page source text; no test drives a wizard.
+> 2. Cause named: **MET**. Ticket line 65 (old action id after a deploy, 404, `Failed to find Server Action`). It matches what Next really answers (`node_modules/next/dist/server/app-render/action-handler.js:378-390`).
+> 3. No message-log entry, no automatic retry: **PARTIAL** (carried). No retry: `actions.test.ts:109-115` (`email.sent` unchanged after +24 h). "No message-log entry" holds by construction (`src/domain/identity/kode-masuk.ts:49-52` and `otp.ts` never reference Notifications) but no test asserts it. The new refusal adds neither.
+> 4. Indonesian error pages: **MET**. `src/app/error.tsx:11-13` and `src/app/global-error.tsx:11-19` both render `src/components/makam/halaman-galat.tsx`. Next's client throws `UnrecognizedActionError` only for 404 plus `x-nextjs-action-not-found: 1` (`node_modules/next/dist/client/components/router-reducer/reducers/server-action-reducer.js:102-104`); any other non-RSC error response throws a plain `Error` (`:143`). `halaman-galat.tsx:25` splits on `unstable_isUnrecognizedActionError`: stale gives "Halaman ini sudah diperbarui" (`:42`, `:46`) with one "Muat ulang" (`:51`) and is not reported (`:29`); anything else gives "Halaman ini tidak bisa dimuat" with "Muat ulang" and "Beranda" (`:42`, `:47`, `:51`, `:56`) and goes to GlitchTip after `startBrowserSentry()` (`:34-35`; idempotent, `src/instrumentation-client.ts:41-45`). `e2e/stale-action.spec.ts:34-51` fakes exactly the server's answer (404, the header, text/plain, `Server action not found.`); `:53-77` fakes a plain 500 and reads the Sentry envelope at a DSN host the spec answers. No `.only`, no `@smoke` tag, so the CI e2e job runs it. The builder ran it on a local `next start` only; the first run on the CI image is on `main`.
+> 5. Address check: **MET** for behaviour; one defect in the test clause (HARD-1). Reserved last labels `src/adapters/live/mail-domain.ts:20,97`; MX first, then A/AAAA, and only ENOTFOUND/ENODATA count as "none" (`:40-68`); resolver injected (`src/adapters/live/smtp-email-sender.ts:22-25,51`); the check is the first statement of `send`, before any connection, and throws `EmailSendError("rejected")` (`:79`). Fake-resolver tests: `smtp-email-sender.test.ts:227-358` (reserved names, no records, A-only, AAAA-only, ESERVFAIL/ETIMEOUT/ECONNREFUSED/EREFUSED/ECANCELLED, one failed lookup, a silent DNS cut at 50 ms). The UAT checklist line is untouched (`.scratch/makam-v1-build/uat-rilis-1-checklist.md:21`, not in the diff).
+> 6. Optional stable action ids: **MET** as written (left out and said so, Build note part 3); the diff touches no `next.config.ts`, CI or Docker file.
+>
+> ### The four checks asked for
+>
+> - Stale page versus generic page: AC 4; both Indonesian, one `stale` flag decides.
+> - Refusal reaches "gagal kirim": `src/domain/identity/otp.ts:106-112` wraps `deliver` in try/catch for any thrown value, deletes the code row, returns `gagal_kirim`; `:136-139` gives the IP count back; `src/components/kode-masuk/state.ts:70-71` shows "Kode belum bisa dikirim lewat email. Silakan coba lagi." Shown through the real adapter by `actions.test.ts:150-170` (relay would accept; `relay.accepted` stays empty) and `src/cli/email-check-command.test.ts` (exit 1, `Gagal kirim: ... (rejected)`).
+> - A DNS hiccup never blocks a send: `recordsOf` maps only ENOTFOUND/ENODATA to "none" (`mail-domain.ts:40-50`); `mailHostOf` says "no" only when MX, A and AAAA all said none (`:67`); the whole check is capped at 5 s and then means "go ahead" (`:71-81,98`); nothing in it can throw.
+> - Dev fakes still accept `.invalid`: `src/adapters/memory/` has no diff; `actions.test.ts:112-115` sends to `...@contoh.makam.invalid` through the fake and expects "terkirim" and `email.sent` +1; `src/composition/adapters.ts:89` keeps fakes in development and test.
+> - Narrowing: none found (ACs untouched, ticket only appended). Two widenings, both flagged by the builder: the null-MX refusal and the lokasi rethrow.
+>
+> ### Findings
+>
+> **HARD-1** `src/adapters/live/smtp-email-sender.test.ts:137` and `:204`: two live-adapter tests build `new SmtpEmailSender(settingsFor(...))` with no `resolver`, so the address check asks the real system DNS about `contoh.co.id`. `:137` expects `kind: "unavailable"`; `:204` expects `code: "ETIMEDOUT"` and under 16 s. If `contoh.co.id` has no MX/A/AAAA, the send is refused as `rejected` and both fail; with a DNS that drops packets, the 5 s cap plus the 15 s greeting timeout breaks the 16 s bound. This contradicts AC 5 ("tested with a fake resolver"), the option's own doc (`smtp-email-sender.ts:22-25`, "none of them depends on the network") and the Build note ("use `mailEverywhere`"). The builder's host passed, so the outcome rests on a third party's DNS (not proven here). Fix: `{ resolver: mailEverywhere }` at both sites.
+>
+> **SOFT-1** `wiring.test.ts:19-23`, `actions.test.ts:109-115`: AC 1 (wizards) and AC 3 (message log) are inferred, not asserted. Carried from the 2026-10-02 review, no seam exists; keep them in the owner's gap list.
+>
+> **SOFT-2** `src/app/staf/admin-platform/lokasi/error.tsx:17`, `.../[lokasiId]/error.tsx:17`, `src/app/global-error.tsx:11-19`: the lokasi rethrow (beyond the AC) and `global-error.tsx` have no test; the e2e reaches `error.tsx` only. The builder flagged global-error, not the rethrow. Cover or drop.
+>
+> **SOFT-3** `src/app/global-error.tsx:13`, `src/app/globals.css:19,406`, `src/app/layout.tsx:42`: the Build note says global-error "falls back to system fonts". `html` uses `var(--font-plus-jakarta), ui-sans-serif...`, and global-error does not set that variable class, so the declaration is likely invalid and the browser default font shows. Cosmetic, rare path, unverified at runtime.
+>
+> **SOFT-4** `src/adapters/live/mail-domain.ts:54-60`, `docs/ops/runbook.md:1632-1641`: the null-MX refusal goes beyond the AC's list and also refuses `example.org`/`example.net` (builder's probe). A widening, documented, listed for the owner; the owner's call.
+>
+> **SOFT-5** `src/components/kode-masuk/state.ts:70-71`, `uat-rilis-1-checklist.md:21`: the check sees a domain with no mail host, not a missing mailbox on a real domain (relay accepts, bounces later, still "terkirim"), and the message says "coba lagi" for an address that can never work. The checklist reads ".invalid/tidak ada". Not in the builder's "Spec gaps" list; the re-test (decision 7) should use `.invalid` or a non-existent domain.
+>
+> Worst issue: HARD-1 (two tests depend on live DNS). hard violations: yes.
+>
+> Hard: 1, soft: 5
