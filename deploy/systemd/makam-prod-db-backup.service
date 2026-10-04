@@ -1,0 +1,26 @@
+# Nightly encrypted pg_dump of the makam-prod database, kept 7 days
+# (docs/ops/runbook.md, "Database backup and restore"). Installed by
+# deploy/install-host.sh, which enables its timer only once production runs
+# (ticket 108): until /opt/makam-v1/prod/deployed.env has a MAKAM_DIGEST there
+# is no makam-prod-postgres-1 to dump.
+[Unit]
+Description=Back up the makam-prod database (encrypted pg_dump, 7 days)
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-backup-db --env prod
+TimeoutStartSec=15min
+
+# Hardening, the same as staging's. It needs the docker socket (/run/docker.sock,
+# a socket, so a read-only /run does not block it) to run pg_dump in the
+# Postgres container, and write access to /opt/makam-v1 for the Dump and the
+# passphrase beside it.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/makam-v1

@@ -52,8 +52,7 @@ while [ $# -gt 0 ]; do
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
 done
-# `prod` is ticket 65's: no makam-prod-* unit is installed yet, and the runbook
-# says so. The value is here because that environment will run the same script.
+# Production runs the same script from makam-prod-restore-test.timer (ticket 108).
 case "$ENV_NAME" in
   staging|prod) ;;
   *) echo "--env must be staging or prod" >&2; exit 64 ;;

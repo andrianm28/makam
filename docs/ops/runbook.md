@@ -49,6 +49,7 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/glitchtip/api-token.txt` | GlitchTip API token (ops scripts) |
 | `/opt/makam-v1/glitchtip/dsn-makam-{staging,prod}-{internal,public}.txt` | DSNs per project |
 | `/etc/systemd/system/makam-staging-{deploy,health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/` |
+| `/etc/systemd/system/makam-prod-{health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/`: staging's mirrored with `--env prod`; `install-host.sh` enables them only once `/opt/makam-v1/prod/deployed.env` has a `MAKAM_DIGEST` (below, "Database backup and restore") |
 | `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for dev.makam.co.id (from `deploy/nginx/`) |
 | `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz` | nightly FileStore tar, kept 7 days (`makam-backup-files`) |
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.dump.enc` | nightly encrypted `pg_dump`, kept 7 days (`makam-backup-db`) |
@@ -60,7 +61,9 @@ After changing any file under `deploy/` or `docker-compose.prod.yml` on
 `main` (it refuses any other branch or a dirty tree; `--allow-branch` is for
 testing only). It copies the compose files, scripts, units and the nginx proxy
 snippet, runs `nginx -t`, and never touches env files, nginx sites, or reloads
-nginx.
+nginx. It enables staging's timers every time, and production's backup,
+restore-check and health timers only once production runs (below, "Database
+backup and restore").
 
 ### `staging.env`
 
@@ -1088,7 +1091,8 @@ never touches this host.
 
 ### The 85 % warning
 
-`makam-staging-health.timer` runs `makam-diskcheck /` every minute, after the
+`makam-staging-health.timer` and, once production is deployed,
+`makam-prod-health.timer` each run `makam-diskcheck /` every minute, after the
 `/api/health` check and in the same unit. At or above
 `MAKAM_DISK_WARN_PERCENT` (85) it logs one line to the journal at priority `err`
 with tag `makam-disk` and exits non-zero, so the unit shows as failed:
@@ -1103,9 +1107,11 @@ A use that cannot be read is treated as **no space at all**, the same way the
 backup scripts refuse to write when they cannot read a free-space figure. The
 order inside the unit is deliberate: systemd stops a oneshot at the first failing
 `ExecStart`, and the app check is the one an operator (and UptimeRobot) acts on,
-so a minute in which the app is already down may go without the disk figure. One
-check covers the whole host: production and every builder worktree share this
-root filesystem.
+so a minute in which the app is already down may go without the disk figure. Both
+units measure the same root filesystem, which staging, production and every
+builder worktree share, so with both timers enabled a full disk is reported
+twice (once per unit, same tag): production's watchdog does not depend on
+staging's timer staying enabled.
 
 ### What to do when it warns
 
@@ -1157,7 +1163,8 @@ refuses anything it does not match: a copied, altered or expired link 404s
 exactly like one for a file that never existed.
 
 **Backup**: `makam-<env>-files-backup.timer` runs `makam-backup-files --env
-<env>` nightly at 03:15 WIB. It reads the volume through a throwaway
+<env>` nightly (staging at 03:15 WIB, production at 01:45 WIB through
+`makam-prod-files-backup.timer`). It reads the volume through a throwaway
 container (`docker run --rm -v makam-<env>_files:/data:ro …`, read-only, so
 the backup itself cannot touch what it is backing up) and writes
 `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz`, then
@@ -1168,12 +1175,12 @@ days, the same window); the two run as separate units so losing one backup never
 touches the other.
 
 ```bash
-# What's backed up, and when
+# What's backed up, and when (production: /opt/makam-v1/prod/backups/files/)
 ls -la /opt/makam-v1/staging/backups/files/
 journalctl -t makam-files-backup -n 20 --no-pager
 systemctl list-timers 'makam-*-files-backup.timer'
 
-# Back up now instead of waiting for the timer
+# Back up now instead of waiting for the timer (or --env prod)
 /opt/makam-v1/bin/makam-backup-files --env staging
 
 # Restore: stop the app, empty the volume, untar into it, start the app again
@@ -1184,6 +1191,10 @@ docker run --rm -v makam-staging_files:/data -v /opt/makam-v1/staging/backups/fi
 docker compose -p makam-staging -f /opt/makam-v1/staging/compose.yml --env-file /opt/makam-v1/staging/staging.env --env-file /opt/makam-v1/staging/deployed.env start web worker
 sudo systemctl start makam-staging-deploy.timer
 ```
+
+For production it is the same with `-p makam-prod`, `/opt/makam-v1/prod/...`,
+`prod.env`, the volume `makam-prod_files` and `makam-prod-deploy.timer` (stop
+it too, if you turned it on).
 
 The beta holds no real personal or payment data (dummy content, SumoPod
 sandbox, ticket 86's read-only catalog import), so losing the host loses the
@@ -1202,17 +1213,50 @@ timer:
 | `makam-backup-db --env staging` | `makam-staging-db-backup.timer` | nightly 02:15 |
 | `makam-backup-files --env staging` | `makam-staging-files-backup.timer` | nightly 03:15 |
 | `makam-restore-test --env staging` | `makam-staging-restore-test.timer` | Mondays 04:15 |
+| `makam-backup-db --env prod` | `makam-prod-db-backup.timer` | nightly 01:15 |
+| `makam-backup-files --env prod` | `makam-prod-files-backup.timer` | nightly 01:45 |
+| `makam-restore-test --env prod` | `makam-prod-restore-test.timer` | Mondays 05:15 |
 
-**Only the `makam-staging-*` units are installed.** The scripts also take
-`--env prod` because production will run the very same ones, but there is no
-`makam-prod-db-backup.timer` or `makam-prod-restore-test.timer` in
-`deploy/systemd/`, and nothing enables one: those come with production (ticket
-65), together with the `makam-prod` environment itself. Until then the only way
-these run is staging's timers or your own hand.
+A nightly backup nobody has ever restored is a hope, not a backup, so the
+restore check is not optional bookkeeping: it restores the newest Dump into a
+throwaway Postgres and checks it against that night's row counts.
 
-A nightly backup nobody has ever restored is a hope, not a backup, so the third
-one is not optional bookkeeping: it restores the newest Dump into a throwaway
-Postgres and checks it against that night's row counts.
+### Production's units (ticket 108)
+
+Production runs the very same scripts from mirror units in `deploy/systemd/`:
+`makam-prod-db-backup`, `makam-prod-files-backup`, `makam-prod-restore-test`
+and `makam-prod-health` (the watchdog, "Uptime alarm"), each a `.service` and a
+`.timer`, with `--env prod`, the same hardening and the same timeouts as
+staging's. The hours (WIB) keep every job apart from every other, staging's
+included: each timer adds a random delay (2 minutes, 5 for the restore check)
+and each service may run for its `TimeoutStartSec`, and
+`tests/tooling/systemd-units.test.ts` fails if any two of those windows meet.
+
+**When they are enabled.** `deploy/install-host.sh` installs all of them every
+time, but enables the four `makam-prod-*` timers **only once production runs**:
+when `/opt/makam-v1/prod/deployed.env` has a `MAKAM_DIGEST`, which the first
+`makam-deploy --env prod --digest …` writes. Before that there is no
+`makam-prod-postgres-1` to dump, no `makam-prod_files` volume to tar and nothing
+on port 3100 to check, so an enabled timer would only fail every night. Until
+then the installer prints a `NOTE` with the command to enable them later. After
+the first production deploy, run `deploy/install-host.sh` again from a clean
+checkout of `main` (or by hand: `sudo systemctl enable --now
+makam-prod-db-backup.timer makam-prod-files-backup.timer
+makam-prod-restore-test.timer makam-prod-health.timer`). The database backup and
+the restore check also need `/opt/makam-v1/prod/backup-passphrase` ("The
+passphrase" below): without it both refuse (exit 78) and the unit shows as
+failed, and the installer prints a `NOTE` while it is missing.
+
+**Looking at them.**
+
+```bash
+systemctl list-timers 'makam-prod-*'     # four timers, each with a next run; fewer means one is not enabled
+systemctl is-enabled makam-prod-db-backup.timer makam-prod-files-backup.timer makam-prod-restore-test.timer makam-prod-health.timer
+systemctl --failed
+ls -la /opt/makam-v1/prod/backups/db/ /opt/makam-v1/prod/backups/files/    # a night older than 36 h is a problem
+journalctl -t makam-db-backup -t makam-files-backup -t makam-restore-test -p err --since '3 days ago'
+/opt/makam-v1/bin/makam-restore-test --env prod                            # the restore check, now
+```
 
 ### The passphrase (one thing a human must do)
 
@@ -1232,6 +1276,10 @@ umask 077
 openssl rand -base64 32 > /opt/makam-v1/staging/backup-passphrase   # 0600
 ```
 
+Production has a passphrase of its own, made the same way, at
+`/opt/makam-v1/prod/backup-passphrase` (`makam-preflight` requires it, "Hari
+switch" step 1).
+
 **Keep an offline copy of that file somewhere off this host** (Andrian holds
 these, with the other secrets): every Dump of the environment is unreadable
 without it, and there is no way around the encryption to get one back. Rotating
@@ -1241,11 +1289,11 @@ restore what you still need, take a fresh Dump, and only then replace the file.
 ### What a night's Dump is
 
 ```bash
-ls -la /opt/makam-v1/staging/backups/db/
+ls -la /opt/makam-v1/staging/backups/db/        # production: /opt/makam-v1/prod/backups/db/
 journalctl -t makam-db-backup -n 20 --no-pager
 systemctl list-timers 'makam-*-backup.timer' 'makam-*-restore-test.timer'
 
-# Dump now instead of waiting for the timer
+# Dump now instead of waiting for the timer (or --env prod)
 /opt/makam-v1/bin/makam-backup-db --env staging
 ```
 
@@ -1273,7 +1321,7 @@ the disk" below).
 ### The restore check
 
 ```bash
-/opt/makam-v1/bin/makam-restore-test --env staging             # newest Dump
+/opt/makam-v1/bin/makam-restore-test --env staging             # newest Dump (--env prod: production's)
 /opt/makam-v1/bin/makam-restore-test --env staging --dump /opt/makam-v1/staging/backups/db/makam-<stamp>.dump.enc
 /opt/makam-v1/bin/makam-restore-test --env staging --keep      # leave the container after a failure
 docker ps -a --filter label=makam.role=restore-test            # what is left over (should be empty)
@@ -1357,8 +1405,8 @@ every failure at `err` priority, so a missed or failed night is:
 ```bash
 systemctl --failed
 journalctl -t makam-db-backup -t makam-restore-test -p err --since '3 days ago'
-systemctl list-timers 'makam-staging-db-backup.timer' 'makam-staging-restore-test.timer'
-ls -la /opt/makam-v1/staging/backups/db/     # a night older than 36 h is a problem
+systemctl list-timers 'makam-*-db-backup.timer' 'makam-*-restore-test.timer'    # both environments
+ls -la /opt/makam-v1/staging/backups/db/ /opt/makam-v1/prod/backups/db/        # a night older than 36 h is a problem
 ```
 
 **A monitor that pings you is a separate decision, and nothing in the backup
@@ -1729,9 +1777,28 @@ systemctl status makam-staging-health.service
 The watchdog cannot page anyone and goes down with the host. It is not the
 alarm.
 
-The same timer also watches the **host's disk**: `makam-diskcheck` warns in the
-journal (tag `makam-disk`) when the root filesystem passes 85 %. See "Images on
-the host and the disk".
+**Production's local watchdog (ticket 108).** `makam-prod-health.timer` runs
+`makam-healthcheck http://127.0.0.1:3100/api/health` every minute: straight to the
+production web container's own port, not through nginx and TLS (until the switch
+`makam.co.id` still reaches the old app, and afterwards nginx and the
+certificate are the external monitor's to watch). Same tag, and the unit is
+marked failed the same way:
+
+```bash
+systemctl list-timers 'makam-prod-health.timer'        # a next run every minute; nothing listed means it is not enabled
+systemctl status makam-prod-health.service
+journalctl -t makam-health -p err --since today        # both environments log under this tag
+journalctl -u makam-prod-health.service --since today  # production's only
+```
+
+Like the backups it is enabled by `deploy/install-host.sh` only once
+`/opt/makam-v1/prod/deployed.env` has a `MAKAM_DIGEST` ("Database backup and
+restore"), and the external monitor on `https://makam.co.id/api/health` is still
+the alarm.
+
+Each health timer also watches the **host's disk**: `makam-diskcheck` warns in
+the journal (tag `makam-disk`) when the root filesystem passes 85 %. See "Images
+on the host and the disk".
 
 ## Rotating secrets
 
@@ -1810,8 +1877,11 @@ makam-deploy --env prod --digest sha256:<digest from the promotion>
 
 That digest is the one "Promosikan ke produksi" signed with the production
 key; a staging-signed digest is refused (exit 77). Seed the first Admin Platform
-with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Then follow "Hari switch" for the
-gated nginx switch.
+with `seed:admin` (above, with `-p makam-prod` and `prod.env`). Create
+`/opt/makam-v1/prod/backup-passphrase`, and once the first deploy has written
+`/opt/makam-v1/prod/deployed.env` run `deploy/install-host.sh` again: it enables
+production's backup, restore-check and health timers (ticket 108, "Database
+backup and restore"). Then follow "Hari switch" for the gated nginx switch.
 
 Note (2026-09-25): the errors site hides GlitchTip's own `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` (`proxy_hide_header`) so each is sent once, with the site-level value. Certbot rewrote the host copy of the site file (443 server, certificate lines, redirect); a pre-change backup is in `/opt/makam-v1/nginx-backups/`.
 
@@ -1968,7 +2038,9 @@ and the blocks under `/opt/makam-v1/nginx/`.
    an unproven archive.
 3. **Promotion.** Run `promote.yml` ("Promosikan ke produksi", owner only, the
    release tag typed again), then `makam-deploy --env prod --digest sha256:<digest>`
-   and check `curl -s http://127.0.0.1:3100/api/health`.
+   and check `curl -s http://127.0.0.1:3100/api/health`. Then run
+   `deploy/install-host.sh` again, so the production backup, restore-check and
+   health timers are enabled (ticket 108).
 4. **Switch.**
    ```bash
    sudo /opt/makam-v1/bin/makam-switch --cek            # lain: the old app's block is still there
