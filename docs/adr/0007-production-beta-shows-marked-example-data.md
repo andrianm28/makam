@@ -1,0 +1,25 @@
+# The production beta shows marked example data
+
+Owner decision, 2026-10-04 (decisions 1, 3 and 8 of the plan for the full release). `makam.co.id` switches to v1 as a beta while payments still go through SumoPod's sandbox (ADR 0006's amendment of the same day, ticket 101), and the real values do not exist yet: the owner's TPU prices and tariffs, real Mitra Jasa, a real Biaya Layanan Platform (ticket 06). So the beta runs with **Data Contoh**: many records named "(Contoh)", across every release and with their prices and tariffs, that staff and testers can walk and that one command retires before real operation. No real order is taken during the beta, and no money moves.
+
+## Decision
+
+- **The beta takes no real orders.** A sandbox payment is confirmed by SumoPod's "Simulate Payment", which anyone can press, so a paid order proves nothing. Production serves the owner's UAT and the staff's beta use. CS turns real orders away with the script in the runbook ("Production on SumoPod's sandbox"), the trial banner (ticket 101) says so to visitors, and staff close every order that is not a UAT order. No real Pencairan is made and no refund transfer is recorded from production: nothing was collected, so a Pencairan or a Bukti Pengembalian Dana would document money that never moved.
+- **Data Contoh is visible, marked and complete.** Every release has its set, prices and tariffs included, so each journey can be walked without waiting for real values. Rilis 1's set (ticket 109) is five Lokasi Mitra named "(Contoh)", taken through the real publish gate, with Layanan, their Lokasi prices, a contoh Biaya Layanan Platform and staff on `.invalid` addresses. Rilis 3's set (ticket 111) adds the DKI TPU prices and tariffs, Mitra Jasa and Nazhir. Every name carries "(Contoh)", and the trial banner shows a second line while any Data Contoh is active.
+- **One command plants it and one removes it.** `data-contoh tanam --set rilis1|rilis3` plants a set and records every record it created in a registry of its own. `data-contoh cabut` retires every registered record at once (Lokasi hidden and never publishable again, staff deactivated), and `data-contoh status` lists what is active. Each is a dry run unless `--tulis`, and refused on production without `--izinkan-production`.
+- **`cabut` before real operation, and the preflight guard.** Real operation, meaning the live SumoPod keys and real orders, starts only after `cabut` has exited 0. It exits 1 while a contoh price version is still in force (the version is listed and must first be replaced by a real one) and it reports open orders on a contoh Lokasi. The production preflight carries a line "data contoh": SKIP while `SUMOPOD_BASE_URL` is the sandbox host, FAIL when anything contoh is still active and it is not, so the live keys cannot be installed over example data without the preflight failing.
+- **Production seeding is allowed only for the Data Contoh command.** Example data enters production through `data-contoh tanam` and nothing else: `seed-contoh-publik` stays refused on production, `seed-tagihan` stays a development tool, and the old app's catalog is not imported into production (the 2026-10-03 decision of ticket 65 and ticket 86 are replaced by Data Contoh, which the owner accepted in the plan). Real data is not Data Contoh and keeps its own commands: `seed:admin`, `import-data-peluncuran`, and the staff screens for Pengaturan Operator and tariffs.
+
+## Considered options
+
+- **Reuse the `dataContoh` mark on a Lokasi (ticket 86) as the visible marker.** Rejected: the mark hides a Lokasi from every public read and the publish gate refuses it, which is what it is for. It becomes the *retired* state of Data Contoh instead: `cabut` sets it.
+- **Run `seed-contoh-publik` on production.** Rejected: it keeps no record of what it made, so nothing could remove exactly that, and its Lokasi are plain rows a family could not tell from real ones.
+- **Enter the examples through the staff screens.** Rejected: no registry and no single removal, and a price entered by hand during the beta is one a real price may forget to replace.
+- **Switch with an empty site, "Segera hadir" everywhere.** Rejected by the owner: a beta nobody can walk gives no UAT, and the real values are not coming within days.
+
+## Consequences
+
+- Data Contoh must be gone, or the sandbox still in use, whenever real money could move. The preflight is the gate, and "Going live" in the runbook has the order: `cabut`, close the beta orders, install the live keys.
+- Beta orders are test orders. The platform has no function that deletes an order, so cleaning them before real operation means closing the open ones. What to do with orders "paid" through the sandbox is a decision for the owner, taken before the live keys go in.
+- `import:katalog-lama` keeps its production allowance in code and no run of it is planned. The rule above is held by the runbook and the preflight, not by that command refusing production.
+- The trial banner has two lines while Data Contoh is active. Its wording is the owner's.

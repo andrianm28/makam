@@ -440,6 +440,10 @@ _Avoid_: Log (alone), histori
 The Operator's own reference values that no other screen owns, kept by Admin Platform: its legal name, registered address and contact, and the CS WhatsApp number with its reply hours. Each change takes effect from the moment it is made; an issued Tagihan or Bukti keeps the values in force when it was issued.
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
 
+**Data Contoh**:
+A record that stands in for a real one while the real values do not exist yet (an example Lokasi Mitra with its tariffs and Layanan prices, a Biaya Layanan Platform, a Mitra Jasa, a Nazhir), always named with "(Contoh)" and shown openly as an example. Once it must no longer be taken for real it is retired: hidden from the public and never published again, its prices replaced by real ones.
+_Avoid_: Dummy, seed, mock, data uji, data palsu
+
 **Peringatan Staf**:
 A message that tells a staff member about work needing them (a new order, an Antrean row, an assigned job); it goes by push to each of their Perangkat Push and by email.
 _Avoid_: Notifikasi (alone), alert, reminder (for staff)
