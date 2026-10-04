@@ -41,7 +41,6 @@ function ratakan(langkah: TestStep[], hasil: LangkahRingkas[] = []): LangkahRing
 }
 
 function bersihkan(teks: string): string {
-  // eslint-disable-next-line no-control-regex
   return teks.replace(/\u001b\[[0-9;]*m/g, "");
 }
 

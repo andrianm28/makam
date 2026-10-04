@@ -10,10 +10,10 @@ export { expect };
  * visitor with no session. Both refuse any request to production.
  */
 export const test = dasar.extend<{ sebagai: (nama: NamaPersona) => Promise<Page>; anonim: () => Promise<Page> }>({
-  sebagai: async ({ browser }, use) => {
+  sebagai: async ({ browser }, pakai) => {
     const sesi = new Map<NamaPersona, Page>();
     const konteks: BrowserContext[] = [];
-    await use(async (nama) => {
+    await pakai(async (nama) => {
       const ada = sesi.get(nama);
       if (ada && !ada.isClosed()) return ada;
       const hasil = await pastikanMasuk(browser, nama);
@@ -23,9 +23,9 @@ export const test = dasar.extend<{ sebagai: (nama: NamaPersona) => Promise<Page>
     });
     await Promise.all(konteks.map((context) => context.close()));
   },
-  anonim: async ({ browser }, use) => {
+  anonim: async ({ browser }, pakai) => {
     const konteks: BrowserContext[] = [];
-    await use(async () => {
+    await pakai(async () => {
       const context = await konteksBaru(browser);
       konteks.push(context);
       return context.newPage();
