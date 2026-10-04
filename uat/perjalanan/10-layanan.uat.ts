@@ -1,6 +1,6 @@
 import { bukaDataSaatDuka, perpanjangDanBayar } from "../support/alur";
 import { angkaDiHalaman, bayarDenganQris } from "../support/bayar";
-import { DATA, ambilSemuaBuktiKamera, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, persis, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
+import { DATA, ambilSemuaBuktiKamera, bukaBarisAntreanLokasi, envOpsional, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, pilihLayananCheckout, pilihOpsi, tanggalWib } from "../support/halaman";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -20,11 +20,13 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
     await langkah(page, "Makam Keluarga: cari Nomor Makam di Lokasi Mitra", async () => {
       // The menu's "Layanan" opens the hub with the Layanan branch chosen: only then does a found Petak offer "Pesan layanan di Petak …" (the "Layanan Makam" card goes to /layanan, which names no Petak).
       await page.goto("/makam-keluarga?aksi=layanan");
-      await pilihOpsi(page, "Lokasi Mitra", { teks: persis(DATA.lokasiTerencana()) });
+      // The options read "<nama> — <kota>"; with the " — " the name is matched whole, so "<nama> (Contoh)" is not taken for it.
+      await pilihOpsi(page, "Lokasi Mitra", { teks: `${DATA.lokasiTerencana()} — ` });
       // The radio "Nomor Makam" carries the same label as the field, so the field is found by its role.
       await page.getByRole("textbox", { name: "Nomor Makam" }).fill(DATA.petakTerencana());
       await page.getByRole("button", { name: "Cari makam" }).click();
-      await expect(page.getByText("Petak Makam").first()).toBeVisible();
+      // The found grave's card reads "Petak Makam · <nomor>"; the bare words are also in the "Perpanjang Makam" tile, which is there with no result at all.
+      await expect(page.getByText(`Petak Makam · ${DATA.petakTerencana()}`)).toBeVisible();
     });
     await langkah(page, "Layanan Makam: pilih varian dan tanggal target", async () => {
       await page.getByRole("link", { name: /Pesan layanan di Petak/ }).first().click();
@@ -58,8 +60,11 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
     const nomor = wajib("layanan.nomor", "§11 Layanan");
     const page = await sebagai("admin-lokasi");
     const lokasiId = await lokasiIdDariNama(page, DATA.lokasiTerencana());
-    await bukaBarisAntreanLokasi(page, lokasiId, /^Layanan (hari ini|akan datang)$/, nomor);
+    // A Layanan row names the Layanan and the Petak ("<Layanan – nama (varian)> · Petak A-01"), never the Nomor Pemesanan.
+    await bukaBarisAntreanLokasi(page, lokasiId, /^Layanan (hari ini|akan datang)$/, `Petak ${DATA.petakTerencana()}`);
     await langkah(page, "Mulai kerjakan, ambil bukti dengan kamera, Tandai selesai", async () => {
+      // The job page names the Nomor Pesanan: an older open job on the same Petak stops the journey here instead of being worked.
+      await expect(page.getByText(nomor, { exact: true })).toBeVisible();
       const mulai = page.getByRole("button", { name: "Mulai kerjakan" });
       if (await mulai.isVisible()) await mulai.click();
       await ambilSemuaBuktiKamera(page);
@@ -89,7 +94,8 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
     await langkah(page, "Keluhan: ajukan dalam jendela, muncul sebagai baris untuk Admin Platform", async () => {
       await page.getByLabel("Ada yang belum sesuai?").first().fill("Keluhan uji UAT: mohon diperiksa.");
       await page.getByRole("button", { name: "Ajukan keluhan" }).first().click();
-      await expect.soft(page.getByText(/keluhan/i).first()).toBeVisible();
+      // The filed Keluhan reads "Keluhan: Menunggu keputusan" and the form goes; /keluhan/i is also in the form's own label and button.
+      await expect.soft(page.getByText("Menunggu keputusan")).toBeVisible();
     });
     await manual(page, "Email pesan baru ke Pemesan tanpa isi pesan, dengan tautan balas", "dicek owner di mailbox");
     await manual(page, "Penilaian hanya terbaca Admin Platform (tidak Admin Lokasi, tidak Mitra Jasa)", "Admin Platform membuka daftar Penilaian; Admin Lokasi tidak menemukannya");
@@ -143,7 +149,8 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
     let pilihan = { nama: "", harga: "" };
     const nomor = await langkah(pemesan, "Terencana: pilih satu Petak, Data & kirim: pilih Layanan petak-kosong, Kirim pesanan", async () => {
       await pemesan.goto("/pesan-makam/terencana");
-      await pemesan.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
+      // The card's link is the Lokasi's name alone: exact, so the "<nama> (Contoh)" card is not the one clicked.
+      await pemesan.getByRole("link", { name: DATA.lokasiTerencana(), exact: true }).first().click();
       await petak.click();
       await pemesan.getByRole("button", { name: "Lanjut" }).click();
       await expect(pemesan.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
@@ -173,13 +180,20 @@ test.describe("§11 Layanan dari sisi keluarga", { tag: ["@rilis1", "@bayar"] },
   });
 
   test("§11 Layanan saat checkout (c) Perpanjangan: Tambah Layanan di Tagihan Perpanjangan, satu Biaya Layanan Platform, bayar sampai Lunas", async ({ sebagai }) => {
-    const hakPakai = wajib("saatduka.hakPakaiId", "§4 Saat Duka");
+    // A Perpanjangan offers its terms and "Tambah Layanan" only from 3 months before the end date to the end of the Masa Tenggang, so the
+    // 10-year Hak Pakai of §4 answers "bisa diperpanjang mulai <tanggal>" and has nothing to click (see §5): a record inside the window, used up here.
+    const hakPakai = envOpsional("UAT_HAK_PAKAI_PERPANJANGAN_LAYANAN");
+    test.skip(
+      !hakPakai,
+      "Isi UAT_HAK_PAKAI_PERPANJANGAN_LAYANAN: id Hak Pakai berjangka milik persona Pemesan yang Perpanjangannya sedang terbuka (tanggal akhir paling lama 3 bulan lagi, atau lewat dalam masa tenggang), selain yang dipakai §5. Hak Pakai 10 tahun dari bagian 4 baru bisa diperpanjang 3 bulan sebelum berakhir.",
+    );
     const page = await sebagai("pemesan");
     const tagihanUrl = await perpanjangDanBayar(page, `/perpanjangan/${hakPakai}`, { tambahLayanan: true });
     await langkah(page, "Tagihan Perpanjangan: baris Layanan dan satu Biaya Layanan Platform", async () => {
       await page.goto(tagihanUrl);
       await expect.soft(page.getByText("Biaya Layanan Platform")).toHaveCount(1);
-      await expect.soft(page.getByText(/Layanan/).first()).toBeVisible();
+      // A Layanan line reads "Layanan – <nama> (<varian>)"; /Layanan/ alone is also in "Biaya Layanan Platform".
+      await expect.soft(page.getByText(/Layanan – /).first()).toBeVisible();
     });
     await manual(page, "Perpanjangan: jatuh tempo tetap 3×24 jam dan tanggal target Layanan paling cepat lead time setelah jatuh tempo itu", "dibaca owner pada Tagihan dan halaman pesanan Layanan (screenshot)");
   });

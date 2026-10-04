@@ -33,14 +33,16 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await langkah(publik, "Daftar Lokasi: kartu TPU, buka halaman TPU", async () => {
       await publik.goto("/lokasi");
       await publik.locator('a[href^="/tpu/"]').first().click();
-      await expect(publik.getByRole("heading", { name: "Harga" })).toBeVisible();
+      // "Harga" is a card title (a div, not a heading); only the TPU's name is an h1.
+      await expect(publik.getByText("Harga", { exact: true })).toBeVisible();
     });
     await langkah(publik, "Halaman TPU: label resmi, kotak harga dengan Retribusi Rp 0 dan dua Biaya Pengurusan", async () => {
       await expect(publik.getByText("TPU resmi Pemerintah Provinsi DKI Jakarta").first()).toBeVisible();
       await expect(publik.getByText(/diperbarui/).first()).toBeVisible();
       await expect(publik.getByText("Terverifikasi")).toHaveCount(0);
       await expect(publik.getByText("Retribusi Pemda (IPTM)").first()).toBeVisible();
-      await expect(publik.locator("li, div, tr").filter({ hasText: "Retribusi Pemda (IPTM)" }).filter({ hasText: /Rp\s*0(?![\d.])/ }).first(), "Retribusi IPTM Rp 0 sebagai baris tersendiri").toBeVisible();
+      // The label's own row (the div holding the label and its amount): `locator("li, div, tr").first()` would be the whole card, whose intro says "Rp 0" too.
+      await expect(publik.getByText("Retribusi Pemda (IPTM)", { exact: true }).locator(".."), "Retribusi IPTM Rp 0 sebagai baris tersendiri").toContainText(/Rp\s*0(?![\d.])/);
       await expect(publik.getByText("Biaya Pengurusan (hanya berkas)").first()).toBeVisible();
       await expect(publik.getByText("Biaya Pengurusan (mengatur pemakaman)").first()).toBeVisible();
     });
@@ -51,12 +53,15 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     const publik = await anonim();
     await kunjungi(publik, "Pengurusan di TPU DKI", "/pengurusan-tpu", "Pengurusan di TPU DKI");
     await langkah(publik, "Bagian panduan gratis, jasa kami, daftar harga Layanan, dan tautan ke tiga jalan masuk", async () => {
-      await expect(publik.getByRole("heading", { name: "Mengurus sendiri, gratis" })).toBeVisible();
-      await expect(publik.getByRole("heading", { name: "Kalau kami yang menguruskan" })).toBeVisible();
-      await expect(publik.getByRole("heading", { name: "Harga Layanan di TPU DKI" })).toBeVisible();
-      await expect(publik.locator('a[href*="/pesan-makam/saat-duka"]').first()).toBeVisible();
-      await expect(publik.locator('a[href*="/pesan-makam/pengurusan-iptm"]').first()).toBeVisible();
-      await expect(publik.getByRole("link", { name: /Perpanjang IPTM/ }).first()).toBeVisible();
+      // The sections are cards, whose titles are divs, not headings.
+      await expect(publik.getByText("Mengurus sendiri, gratis", { exact: true })).toBeVisible();
+      await expect(publik.getByText("Kalau kami yang menguruskan", { exact: true })).toBeVisible();
+      await expect(publik.getByText("Harga Layanan di TPU DKI", { exact: true })).toBeVisible();
+      // In `main`: the top bar's own "Pesan Makam" link goes to /pesan-makam/saat-duka too.
+      const isi = publik.locator("main");
+      await expect(isi.locator('a[href*="/pesan-makam/saat-duka"]').first()).toBeVisible();
+      await expect(isi.locator('a[href*="/pesan-makam/pengurusan-iptm"]').first()).toBeVisible();
+      await expect(isi.getByRole("link", { name: /Perpanjang IPTM/ }).first()).toBeVisible();
     });
   });
 
@@ -65,7 +70,8 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await langkah(publik, "Pilih makam: bagian TPU dan chip penyaring", async () => {
       await publik.goto("/pesan-makam/saat-duka");
       await expect(publik.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
-      await expect(publik.locator('a[href*="/pesan-makam/saat-duka/tpu"]').first(), "ada TPU yang menerima makam baru (checklist P5)").toBeVisible();
+      // A TPU card is a radio in the "TPU DKI" group (it goes on to /saat-duka/tpu through "Lanjut"), not a link.
+      await expect(publik.getByRole("radiogroup", { name: "TPU DKI", exact: true }).getByRole("radio").first(), "ada TPU yang menerima makam baru (checklist P5)").toBeVisible();
       for (const chip of ["Semua", "Lokasi Mitra", "TPU DKI"]) await expect.soft(publik.getByText(chip, { exact: true }).first(), `chip ${chip}`).toBeVisible();
     });
     await manual(publik, "Setiap TPU yang tampil menerima makam baru, dan TPU yang tidak menerima tidak tampil; chip menyaring daftar", "dibandingkan owner dengan flag di Admin Platform → TPU; klik tiap chip pada screenshot");
@@ -75,19 +81,20 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     const page = await anonim();
     await langkah(page, "Wizard TPU: tidak KTP DKI dan tidak meninggal di Jakarta memblokir dan mengarahkan ke Lokasi Mitra", async () => {
       await bukaDataTpu(page);
-      await page.getByLabel("Tidak, KTP saya bukan DKI").check();
-      await page.getByLabel("Tidak, meninggal di luar Jakarta").check();
+      // The wizard's choices are radio buttons (role="radio" in a radiogroup named by the question), not labelled inputs.
+      await page.getByRole("radio", { name: "Tidak, KTP saya bukan DKI" }).click();
+      await page.getByRole("radio", { name: "Tidak, meninggal di luar Jakarta" }).click();
       await expect(page.getByRole("alert").filter({ hasText: "hanya untuk warga dengan KTP DKI" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Lihat pilihan Lokasi Mitra" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Kirim pengurusan" }).first()).toBeDisabled();
     });
     await langkah(page, "Meninggal di luar Jakarta saja tidak memblokir, tetapi menambah tiga dokumen", async () => {
-      await page.getByLabel("Ya, KTP saya DKI Jakarta").check();
+      await page.getByRole("radio", { name: "Ya, KTP saya DKI Jakarta" }).click();
       await expect(page.getByRole("alert").filter({ hasText: "hanya untuk warga dengan KTP DKI" })).toHaveCount(0);
       await expect(page.getByText(/Karena almarhum meninggal di luar Jakarta/)).toBeVisible();
     });
     await langkah(page, "Tumpang: deskripsi makam dan foto IPTM; dua daftar dokumen", async () => {
-      await page.getByLabel("Tumpang", { exact: true }).check();
+      await page.getByRole("radio", { name: "Tumpang", exact: true }).click();
       await expect(page.getByLabel("Blok dan nomor makam")).toBeVisible();
       await expect(page.getByLabel("Foto IPTM makam yang ditumpang")).toBeVisible();
       await expect(page.getByText("Dibawa saat pemakaman").first()).toBeVisible();
@@ -101,9 +108,11 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await langkah(page, "Wizard TPU: rincian harga tanpa Biaya Layanan Platform", async () => {
       await bukaDataTpu(page);
       await expect(page.getByTestId("total-semua-biaya")).toBeVisible();
+      // The lines are behind the sticky bar's total (closed at first). Its own note says "Di TPU tidak ada Biaya Layanan Platform", so only a row named exactly so is the fee.
+      await page.getByRole("button", { name: /Total semua biaya/ }).click();
       await expect(page.getByText("Biaya Pengurusan").first()).toBeVisible();
       await expect(page.getByText(/Retribusi/).first()).toBeVisible();
-      await expect(page.getByText("Biaya Layanan Platform")).toHaveCount(0);
+      await expect(page.getByText("Biaya Layanan Platform", { exact: true })).toHaveCount(0);
     });
     await manual(page, "Pengajuan malam (di luar 06:00–18:00): batas konfirmasi 2 jam layanan ('paling lambat pukul 08:00' untuk 23:00) dan nomor CS dengan jam balasnya", "dikirim owner pada malam hari; halaman pesanan menampilkan 'Pengajuan ini masuk di luar jam layanan TPU' dan batas konfirmasi");
   });
@@ -116,8 +125,9 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await konfirmasiTpuSaatDuka(admin, nomor);
     await langkah(admin, "Tugas Lapangan: Ambil surat pengantar ada setelah konfirmasi", async () => {
       await admin.goto("/staf/admin-platform/tugas-lapangan");
-      await expect(admin.getByRole("heading", { name: "Setiap Tugas Lapangan" })).toBeVisible();
-      await expect(admin.getByText("Ambil surat pengantar").first()).toBeVisible();
+      // "Setiap Tugas Lapangan" is a card title (a div). The create form's Jenis select also lists "Ambil surat pengantar" (an option, never visible), so the Tugas is read in its table row, whose subject carries the Nomor Pemesanan.
+      await expect(admin.getByText("Setiap Tugas Lapangan", { exact: true })).toBeVisible();
+      await expect(admin.getByRole("row").filter({ hasText: nomor }).getByText("Ambil surat pengantar", { exact: true })).toBeVisible();
     });
     await manual(admin, "Tugas dibuat hanya sekali per pesanan; baris Tier 2 saat belum ditugaskan atau terlambat; tawaran TPU lain (keluarga menerima atau menolak); eskalasi 30 dan 90 menit, baris malam 06:00", "dibaca owner di Antrean Admin Platform dan halaman pesanan; eskalasi butuh waktu");
   });
@@ -128,7 +138,8 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await langkah(pemesan, "Halaman pengurusan setelah konfirmasi: yang dibaca keluarga", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
       await expect(pemesan.getByText("Waktu pemakaman")).toBeVisible();
-      await expect(pemesan.getByText("Alamat TPU")).toBeVisible();
+      // The row is on the page twice (the confirmation and "Yang dipesan").
+      await expect(pemesan.getByText("Alamat TPU").first()).toBeVisible();
       await expect(pemesan.getByText("Kontak TPU")).toBeVisible();
       await expect(pemesan.getByText("Petugas TPU Uji, 081234500002")).toBeVisible();
       await expect(pemesan.getByRole("heading", { name: "Dokumen" })).toBeVisible();
@@ -189,6 +200,8 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     const nomor = await pesanPengurusanIptm(pemesan);
     await langkah(pemesan, "Sebelum dokumen lolos: tidak ada Tagihan", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
+      // The order page must really be there: on an error page "no Buka Tagihan link" holds for the wrong reason.
+      await expect(pemesan.getByTestId("nomor-pemesanan")).toHaveText(nomor);
       await expect(pemesan.getByRole("link", { name: /Buka Tagihan/ })).toHaveCount(0);
     });
     await unggahBerkasPengajuan(pemesan, nomor);

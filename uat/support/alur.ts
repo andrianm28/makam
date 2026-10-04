@@ -46,7 +46,8 @@ export async function pilihMasaLaluTagihan(page: Page, opsi: { tambahLayanan?: b
 export async function bukaTagihanDanBayar(page: Page): Promise<string> {
   const url = await langkah(page, "Buka Tagihan", async () => {
     // "Lanjut ke Tagihan" now lands on the Tagihan itself (2026-10-05); an older page showed a "Buka Tagihan" link first.
-    await expect(page.getByRole("link", { name: /Buka Tagihan/ }).first().or(page.getByRole("heading", { name: "Tagihan", exact: true }))).toBeVisible({ timeout: 30_000 });
+    // `.first()` on the union: a Layanan order page (/layanan/<nomor>) has the "Tagihan" heading and the "Buka Tagihan" link together, and two matches fail strict mode.
+    await expect(page.getByRole("link", { name: /Buka Tagihan/ }).first().or(page.getByRole("heading", { name: "Tagihan", exact: true })).first()).toBeVisible({ timeout: 30_000 });
     if (!/\/dokumen\//.test(page.url())) await page.getByRole("link", { name: /Buka Tagihan/ }).first().click();
     await expect(page).toHaveURL(/\/dokumen\//);
     return new URL(page.url()).pathname;
@@ -115,8 +116,9 @@ export async function pesanTpuSaatDuka(page: Page, opsi: { layananHariH?: boolea
     await isiDataPemesan(page);
     await page.getByLabel("Nama almarhum / almarhumah").first().fill("Almarhum TPU Uji UAT");
     await page.getByLabel("Tanggal wafat").fill(tanggalWib(0));
-    await page.getByLabel("Ya, KTP saya DKI Jakarta").check();
-    await page.getByLabel("Ya, meninggal di Jakarta").check();
+    // Pilihan renders each option as <button role="radio"> in a radiogroup: it has no label to find it by.
+    await page.getByRole("radio", { name: "Ya, KTP saya DKI Jakarta" }).click();
+    await page.getByRole("radio", { name: "Ya, meninggal di Jakarta" }).click();
     if (opsi.layananHariH) await pilihLayananCheckout(page, "hari-h");
     await page.getByRole("button", { name: "Kirim pengurusan" }).first().click();
     await expect(page).toHaveURL(/\/(pengurusan|pesanan)\/MKM-\d{4}-\d{6}/, { timeout: 30_000 });

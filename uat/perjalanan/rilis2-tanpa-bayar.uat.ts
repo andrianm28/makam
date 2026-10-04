@@ -1,5 +1,5 @@
-import type { Page } from "@playwright/test";
-import { DATA, envOpsional, isiDataPemesan, jpegContoh, kunjungi, lokasiIdDariNama, nomorPemesananDi, persis, tanggalWib } from "../support/halaman";
+import type { Locator, Page } from "@playwright/test";
+import { DATA, envOpsional, isiDataPemesan, jpegContoh, kunjungi, lokasiIdDariNama, nomorPemesananDi, tanggalWib } from "../support/halaman";
 import { baca } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -15,7 +15,8 @@ import { expect, test } from "../support/uji";
 async function kirimTumpang(pemesan: Page, hakPakai: string, almarhum: string): Promise<string> {
   return langkah(pemesan, `Makamkan di sini: ${almarhum}, Kirim permintaan`, async () => {
     await pemesan.goto(`/pesan-makam/makamkan-di-sini/${hakPakai}`);
-    await expect(pemesan.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
+    // The screen's h1 is "Makamkan di sini"; "Data & kirim" is only what the code calls it.
+    await expect(pemesan.getByRole("heading", { name: "Makamkan di sini" })).toBeVisible();
     await pemesan.getByLabel("Nama almarhum / almarhumah").fill(almarhum);
     await pemesan.getByLabel("Tanggal wafat").fill(tanggalWib(-1));
     await isiDataPemesan(pemesan);
@@ -30,11 +31,34 @@ async function lokasiB(admin: Page): Promise<string> {
   return baca("saatduka.lokasiId") ?? (await lokasiIdDariNama(admin, DATA.lokasiSaatDuka()));
 }
 
-/** The Pemesan's file request to extend a Hak Pakai by documents, by the path (`jalur`) the link names. Returns the request page's path. */
-async function ajukanPermohonanBerkas(pemesan: Page, hakPakai: string, jalur: RegExp): Promise<string> {
+/**
+ * The Antrean Lokasi row of one Perpanjangan request: its link is that request's review page, so the id at the end of the request's
+ * own path (what `ajukanPermohonanBerkas` returns) finds it among the older rows an earlier run left open.
+ */
+function barisPermohonan(admin: Page, permohonan: string): Locator {
+  return admin.locator(`a[href$="/perpanjangan/${permohonan.split("/").pop()}"]`);
+}
+
+/** The link of the Antrean Lokasi row captioned `label` that is about `subjek`: the caption is a line above the link, and the link names only the Petak or Kavling. */
+function barisAntrean(admin: Page, label: string, subjek: string): Locator {
+  return admin.locator('[data-slot="card"]').filter({ hasText: label }).filter({ hasText: subjek }).getByRole("link").first();
+}
+
+/** The Petak or Kavling a Hak Pakai request page is about ("Makam A-01"), as its Antrean row names it. */
+async function unitPermintaan(pemesan: Page): Promise<string> {
+  return (await pemesan.getByTestId("permintaan-petak").innerText()).replace(/^Makam\s+/, "").trim();
+}
+
+/**
+ * The Pemesan's file request to extend a Hak Pakai by documents, by the path (`jalur`, as the page's `?jalur=` names it).
+ * Returns the request page's path.
+ */
+async function ajukanPermohonanBerkas(pemesan: Page, hakPakai: string, jalur: "ktp" | "ahli_waris" | "klaim"): Promise<string> {
   return langkah(pemesan, `Perpanjang lewat berkas: jalur ${jalur}, unggah semua berkas, Ajukan permohonan`, async () => {
-    await pemesan.goto(`/perpanjangan/${hakPakai}/berkas`);
-    await pemesan.getByRole("navigation", { name: "Jalur permohonan" }).getByRole("link", { name: jalur }).first().click();
+    // The paths are links only for a Hak Pakai that fits more than one (KTP and ahli waris); a claim has no links, its form at once.
+    // So the address names the path, and since the page falls back to the first path it offers, the path it shows is checked.
+    await pemesan.goto(`/perpanjangan/${hakPakai}/berkas?jalur=${jalur}`);
+    await expect(pemesan.locator('input[name="jalur"]')).toHaveValue(jalur);
     await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
     await pemesan.locator('input[name="nomorTelepon"]').fill(DATA.telepon());
     for (const kolom of await pemesan.locator('input[type="file"]').all()) await kolom.setInputFiles(jpegContoh());
@@ -44,12 +68,12 @@ async function ajukanPermohonanBerkas(pemesan: Page, hakPakai: string, jalur: Re
   });
 }
 
-/** Admin Lokasi opens the oldest "Periksa dokumen Perpanjangan" row and approves it, leaving the recorded name, phone and end date as they are. */
-async function setujuiPermohonan(admin: Page, lokasiId: string): Promise<void> {
+/** Admin Lokasi opens the "Periksa dokumen Perpanjangan" row of the request at `permohonan` and approves it, leaving the recorded name, phone and end date as they are. */
+async function setujuiPermohonan(admin: Page, lokasiId: string, permohonan: string): Promise<void> {
   await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan, Setujui permohonan", async () => {
     await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
     await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
-    await admin.locator('a[href*="/perpanjangan/"]').first().click();
+    await barisPermohonan(admin, permohonan).click();
     await admin.getByTestId("setujui-permohonan").click();
     await expect(admin.getByTestId("setujui-permohonan")).toHaveCount(0, { timeout: 30_000 });
   });
@@ -88,13 +112,15 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const lokasiId = await lokasiB(admin);
     await langkah(admin, "Admin Lokasi: halaman pesanan, Catat persetujuan lisan dengan catatan", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
-      await expect(admin.getByRole("heading", { name: "Catat persetujuan" })).toBeVisible();
+      // "Catat persetujuan" is the legend of a fieldset (a group), not a heading.
+      await expect(admin.getByRole("group", { name: "Catat persetujuan" })).toBeVisible();
       await admin.getByLabel("Catatan").first().fill("Uji UAT: Pemegang Hak menyetujui lewat telepon");
       await admin.getByRole("button", { name: "Catat persetujuan" }).click();
-      await expect(admin.getByRole("alert")).toHaveCount(0);
-      await expect(admin.getByTestId("konsen-tumpang")).toBeVisible({ timeout: 30_000 });
+      // The consent line is on the page before and after, so its new words are what says it was saved. (`getByRole("alert")` always
+      // finds Next's route announcer, a role=alert in a shadow root, so it can never be zero.)
+      await expect(admin.getByTestId("konsen-tumpang")).toContainText("Disetujui lisan", { timeout: 30_000 });
     });
-    await manual(admin, "Persetujuan dari ahli waris: berkas bukti ahli waris dicatat dan muncul pengingat Ganti Pemegang Hak", "dicoba owner pada pesanan tumpang lain dengan mode ahli waris; pengingat dibaca di Antrean Lokasi");
+    await manual(admin, "Persetujuan dari ahli waris: berkas bukti ahli waris dicatat dan muncul pengingat Ganti Pemegang Hak", "dicoba owner pada pesanan tumpang lain dengan mode ahli waris; pengingat dibaca di panel pesanan dan di lonceng Peringatan Staf (bukan baris Antrean)");
   });
 
   test("R2-35.4 Pemeriksaan tumpang memblokir konfirmasi dengan alasan yang terlihat", async ({ sebagai }) => {
@@ -104,7 +130,8 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const admin = await sebagai("admin-lokasi");
     await langkah(admin, "Admin Lokasi: halaman pesanan tumpang, konfirmasi terkunci", async () => {
       await admin.goto(`/staf/admin-lokasi/${await lokasiB(admin)}/pesanan/${nomor}`);
-      await expect(admin.getByRole("heading", { name: "Pemakaman di Hak Pakai yang ada" })).toBeVisible();
+      // A card's title is a div, not a heading.
+      await expect(admin.getByText("Pemakaman di Hak Pakai yang ada", { exact: true })).toBeVisible();
       const tombol = admin.getByRole("button", { name: "Konfirmasi pemakaman" });
       expect((await tombol.count()) === 0 || (await tombol.first().isDisabled()), "konfirmasi diblokir oleh pemeriksaan tumpang").toBe(true);
     });
@@ -117,10 +144,20 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const publik = await anonim();
     await langkah(publik, "Denah Terencana: Petak dilepas tidak ditawarkan sebagai Tersedia", async () => {
       await publik.goto("/pesan-makam/terencana");
-      await publik.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
-      await expect(publik.getByRole("heading").first()).toBeVisible();
-      const tombol = publik.locator(`button[aria-label^="${petak}"]`);
-      if ((await tombol.count()) > 0) await expect(tombol.first()).not.toHaveAttribute("aria-label", /Tersedia/i);
+      // The whole name: the list also carries "<nama> (Contoh)" for each Lokasi.
+      await publik.getByRole("link", { name: DATA.lokasiTerencana(), exact: true }).first().click();
+      // The list has an h1 too, so the Denah's own h1 is what says the page changed.
+      await expect(publik.getByRole("heading", { name: "Pilih petak" })).toBeVisible({ timeout: 30_000 });
+      // The Denah draws one Blok at a time, so each Blok's tab is opened and the Petak looked for in all of them.
+      const blok = publik.getByRole("tablist", { name: "Blok" }).getByRole("tab");
+      let ditemukan = 0;
+      for (let urutan = 0; urutan < (await blok.count()); urutan += 1) {
+        await blok.nth(urutan).click();
+        const tombol = publik.locator(`button[aria-label^="${petak}, "]`);
+        ditemukan += await tombol.count();
+        for (const satu of await tombol.all()) await expect(satu).not.toHaveAttribute("aria-label", /Tersedia/i);
+      }
+      expect(ditemukan, `Petak ${petak} ada di Denah ${DATA.lokasiTerencana()}`).toBeGreaterThan(0);
     });
     await manual(publik, "Petak dilepas ditawarkan sebagai tumpang saja (kebijakan Lokasi dan minimum tahun terpenuhi)", "dibaca owner di Makamkan di sini pada Hak Pakai Lokasi itu");
   });
@@ -137,17 +174,19 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const hakPakai = envOpsional("UAT_HAK_PAKAI_KEMBALI");
     test.skip(!hakPakai, "Isi UAT_HAK_PAKAI_KEMBALI: id Hak Pakai persona Pemesan atas petak belum terpakai; uji ini mengakhirinya (P8g)");
     const pemesan = await sebagai("pemesan");
-    await langkah(pemesan, "Pemesan: Kembalikan Hak Pakai (peringatan kompensasi), ajukan", async () => {
+    const unit = await langkah(pemesan, "Pemesan: Kembalikan Hak Pakai (peringatan kompensasi), ajukan", async () => {
       await pemesan.goto(`/permintaan-hak-pakai/${hakPakai}`);
       await expect(pemesan.getByRole("heading", { name: "Kembalikan Hak Pakai" })).toBeVisible();
       await expect(pemesan.getByText(/kompensasi/i).first()).toBeVisible();
+      const petak = await unitPermintaan(pemesan);
       await pemesan.getByTestId("ajukan-pengembalian").click();
       await expect(pemesan.getByTestId("permintaan-status")).toBeVisible({ timeout: 30_000 });
+      return petak;
     });
     const admin = await sebagai("admin-lokasi");
     await langkah(admin, "Admin Lokasi: baris Antrean untuk permintaan pengembalian, Setujui", async () => {
       await admin.goto(`/staf/admin-lokasi/${await lokasiB(admin)}/antrean`);
-      await admin.getByRole("link", { name: /Pengembalian/i }).first().click();
+      await barisAntrean(admin, "Pengembalian Hak Pakai", unit).click();
       await admin.getByTestId("setujui-permintaan").click();
       await expect(admin.getByTestId("setujui-permintaan")).toHaveCount(0, { timeout: 30_000 });
     });
@@ -158,18 +197,20 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const hakPakai = envOpsional("UAT_HAK_PAKAI_GANTI");
     test.skip(!hakPakai, "Isi UAT_HAK_PAKAI_GANTI: id Hak Pakai persona Pemesan yang boleh berpindah Pemegang Hak; uji ini memindahkannya (P8h)");
     const pemesan = await sebagai("pemesan");
-    await langkah(pemesan, "Pemesan: Ajukan Ganti Pemegang Hak dengan data Pemegang Hak baru", async () => {
+    const unit = await langkah(pemesan, "Pemesan: Ajukan Ganti Pemegang Hak dengan data Pemegang Hak baru", async () => {
       await pemesan.goto(`/permintaan-hak-pakai/${hakPakai}`);
       await expect(pemesan.getByRole("heading", { name: "Ajukan Ganti Pemegang Hak" })).toBeVisible();
       await pemesan.getByLabel("Nama Pemegang Hak baru").fill("Uji UAT Pemegang Baru");
       await pemesan.getByLabel("Nomor telepon Pemegang Hak baru").fill("081234500003");
+      const petak = await unitPermintaan(pemesan);
       await pemesan.getByTestId("ajukan-ganti").click();
       await expect(pemesan.getByTestId("permintaan-status")).toBeVisible({ timeout: 30_000 });
+      return petak;
     });
     const admin = await sebagai("admin-lokasi");
     await langkah(admin, "Admin Lokasi: buka permintaan dari Antrean, Setujui", async () => {
       await admin.goto(`/staf/admin-lokasi/${await lokasiB(admin)}/antrean`);
-      await admin.getByRole("link", { name: /Ganti Pemegang Hak/i }).first().click();
+      await barisAntrean(admin, "Ganti Pemegang Hak", unit).click();
       await admin.getByTestId("setujui-permintaan").click();
       await expect(admin.getByTestId("setujui-permintaan")).toHaveCount(0, { timeout: 30_000 });
     });
@@ -182,35 +223,41 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const pemesan = await sebagai("pemesan");
     const admin = await sebagai("admin-lokasi");
     const lokasiId = await lokasiB(admin);
-    await langkah(pemesan, "Pemesan: Ajukan Ganti Pemegang Hak", async () => {
+    const unit = await langkah(pemesan, "Pemesan: Ajukan Ganti Pemegang Hak", async () => {
       await pemesan.goto(`/permintaan-hak-pakai/${hakPakai}`);
       await pemesan.getByLabel("Nama Pemegang Hak baru").fill("Uji UAT Pemegang Perbaikan");
       await pemesan.getByLabel("Nomor telepon Pemegang Hak baru").fill("081234500004");
+      const petak = await unitPermintaan(pemesan);
       await pemesan.getByTestId("ajukan-ganti").click();
       await expect(pemesan.getByTestId("permintaan-status")).toBeVisible({ timeout: 30_000 });
+      return petak;
     });
     await langkah(admin, "Admin Lokasi: Kirim kembali untuk diperbaiki dengan catatan keputusan", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
-      await admin.getByRole("link", { name: /Ganti Pemegang Hak/i }).first().click();
-      await admin.getByLabel("Catatan keputusan").first().fill("Uji UAT: data Pemegang Hak baru kurang jelas");
+      await barisAntrean(admin, "Ganti Pemegang Hak", unit).click();
+      // The field that carries the note is labelled "Yang perlu diperbaiki"; "Catatan keputusan" is only the row that shows it afterwards.
+      await admin.getByLabel("Yang perlu diperbaiki").fill("Uji UAT: data Pemegang Hak baru kurang jelas");
       await admin.getByTestId("perbaikan-permintaan").click();
       await expect(admin.getByTestId("perbaikan-permintaan")).toHaveCount(0, { timeout: 30_000 });
     });
     await langkah(pemesan, "Pemesan: ajukan ulang (kembali Diajukan), lalu tarik permintaan sebelum keputusan", async () => {
       await pemesan.goto(`/permintaan-hak-pakai/${hakPakai}`);
       await pemesan.getByTestId("ajukan-ulang-permintaan").click();
-      await expect(pemesan.getByTestId("tarik-permintaan")).toBeVisible({ timeout: 30_000 });
+      // "Tarik permintaan ini" is on the page in Perlu Perbaikan too, so the re-filing is awaited by its own form going: only Perlu Perbaikan has it.
+      await expect(pemesan.getByTestId("ajukan-ulang-permintaan")).toHaveCount(0, { timeout: 30_000 });
+      await expect(pemesan.getByTestId("tarik-permintaan")).toBeVisible();
       await pemesan.getByTestId("tarik-permintaan").click();
       await expect(pemesan.getByTestId("tarik-permintaan")).toHaveCount(0, { timeout: 30_000 });
     });
     await langkah(admin, "Admin Lokasi: Ubah kontak Pemegang Hak (nomor telepon baru, hasil pemeriksaan KTP, alasan)", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/hak-pakai/${hakPakai}`);
-      await expect(admin.getByRole("heading", { name: "Ubah kontak Pemegang Hak" })).toBeVisible();
+      // A card's title is a div, not a heading.
+      await expect(admin.getByText("Ubah kontak Pemegang Hak", { exact: true })).toBeVisible();
       await admin.getByLabel("Nomor telepon baru").fill(DATA.telepon());
       await admin.getByLabel("Hasil pemeriksaan KTP (JPEG, PNG atau PDF)").setInputFiles(jpegContoh("ktp.jpg"));
       await admin.getByLabel("Alasan", { exact: true }).fill("Uji UAT: nomor diganti setelah KTP dicek");
       await admin.getByRole("button", { name: "Ubah kontak" }).click();
-      await expect(admin.getByRole("alert")).toHaveCount(0);
+      await expect(admin.getByText("Kontak Pemegang Hak diubah")).toBeVisible({ timeout: 30_000 });
     });
     await manual(admin, "Penggantian nomor Pemegang Hak tercatat di Audit Log Lokasi; ahli waris Pemegang Hak yang wafat diarahkan ke hub Makam Keluarga", "dibaca owner pada Audit Log; arahan ahli waris dibaca pada halaman permintaan");
   });
@@ -219,13 +266,16 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const hakPakai = envOpsional("UAT_HAK_PAKAI_TUMPANG") ?? baca("saatduka.hakPakaiId");
     test.skip(!hakPakai, "Perlu Hak Pakai persona Pemesan: UAT_HAK_PAKAI_TUMPANG atau jalankan §4 Saat Duka");
     const pemesan = await sebagai("pemesan");
-    await langkah(pemesan, "Pemesan: isi label Calon Penghuni di halaman Hak Pakai, tersimpan langsung", async () => {
-      await pemesan.goto(`/permintaan-hak-pakai/${hakPakai}`);
-      const form = pemesan.getByTestId("form-calon-penghuni");
+    await langkah(pemesan, "Pemesan: isi label Calon Penghuni di tab Makam Keluarga, tersimpan langsung", async () => {
+      // The label forms are on the Makam tab, one per Petak inside the card of its Hak Pakai (found by its link), not on the request's page.
+      await pemesan.goto("/akun/makam");
+      const kartu = pemesan.locator("li").filter({ has: pemesan.locator(`a[href="/permintaan-hak-pakai/${hakPakai}"]`) });
+      const form = kartu.getByTestId("form-calon-penghuni").first();
       await expect(form).toBeVisible();
-      await form.getByRole("textbox").first().fill("Uji UAT Calon Penghuni");
-      await form.getByRole("button").first().click();
-      await expect(pemesan.getByText("Uji UAT Calon Penghuni").first()).toBeVisible({ timeout: 30_000 });
+      await form.getByRole("textbox").fill("Uji UAT Calon Penghuni");
+      await form.getByRole("button", { name: "Simpan" }).click();
+      // The label is an input's value, never page text: the form's own status line says it was saved.
+      await expect(form.getByRole("status")).toHaveText("Calon Penghuni diubah. Lokasi Mitra diberi tahu.", { timeout: 30_000 });
     });
     const admin = await sebagai("admin-lokasi");
     await langkah(admin, "Antrean Lokasi: tidak ada baris untuk perubahan label Calon Penghuni", async () => {
@@ -242,10 +292,10 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const pemesan = await sebagai("pemesan");
     const admin = await sebagai("admin-lokasi");
     const lokasiId = await lokasiB(admin);
-    for (const [hakPakai, jalur] of [[ahliWaris, /ahli waris/i], [klaim, /klaim/i]] as const) {
+    for (const [hakPakai, jalur] of [[ahliWaris, "ahli_waris"], [klaim, "klaim"]] as const) {
       if (!hakPakai) continue;
-      await ajukanPermohonanBerkas(pemesan, hakPakai, jalur);
-      await setujuiPermohonan(admin, lokasiId);
+      const permohonan = await ajukanPermohonanBerkas(pemesan, hakPakai, jalur);
+      await setujuiPermohonan(admin, lokasiId, permohonan);
     }
     await manual(admin, "Persetujuan jalur ahli waris mencatat Ganti Pemegang Hak (riwayat tersimpan); jalur klaim mencatat Pemegang Hak", "dibaca owner pada halaman Hak Pakai dan Audit Log Lokasi");
   });
@@ -255,11 +305,11 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     test.skip(!hakPakai, "Isi UAT_HAK_PAKAI_PERBAIKAN_BERKAS: id Hak Pakai tanpa email tercatat untuk permohonan yang dikirim kembali (P8c)");
     const pemesan = await sebagai("pemesan");
     const admin = await sebagai("admin-lokasi");
-    await ajukanPermohonanBerkas(pemesan, hakPakai!, /KTP/i);
+    const permohonan = await ajukanPermohonanBerkas(pemesan, hakPakai!, "ktp");
     await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan terbuka, halaman permohonan", async () => {
       await admin.goto(`/staf/admin-lokasi/${await lokasiB(admin)}/antrean`);
       await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
-      await admin.locator('a[href*="/perpanjangan/"]').first().click();
+      await barisPermohonan(admin, permohonan).click();
       await expect(admin.getByTestId("setujui-permohonan")).toBeVisible();
     });
     await manual(admin, "Perlu Perbaikan kembali ke Diajukan dan muncul di Perlu tindakan; Tolak dengan alasan terbaca pemohon", "dijalankan owner pada permohonan ini: Minta perbaikan, lalu pemohon mengunggah ulang, lalu Tolak");
@@ -271,7 +321,8 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const admin = await sebagai("admin-lokasi");
     const lokasiId = await lokasiB(admin);
     if (hakPakai) {
-      await kunjungi(admin, "Hak Pakai dalam masa tenggang: masa berlaku", `/staf/admin-lokasi/${lokasiId}/hak-pakai/${hakPakai}`, "Masa berlaku");
+      // "Masa berlaku" is a card's title (a div); the page's own heading is "Hak Pakai <Petak>".
+      await kunjungi(admin, "Hak Pakai dalam masa tenggang: masa berlaku", `/staf/admin-lokasi/${lokasiId}/hak-pakai/${hakPakai}`, "Hak Pakai");
     }
     await kunjungi(admin, "Antrean Lokasi: baris Telepon Pemesan untuk Hak Pakai tanpa email tercatat", `/staf/admin-lokasi/${lokasiId}/antrean`);
     await manual(admin, "Pengingat 60, 30 dan 7 hari sebelum berakhir serta mingguan di masa tenggang (08:00–20:00) ke email Pemegang Hak dan Admin Lokasi, dengan tautan Perpanjangan, berhenti saat Perpanjangan dipesan", "dibaca owner di mailbox alias Pemesan dan Admin Lokasi; waktu kirim dan tautan diperiksa");
@@ -284,7 +335,8 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const admin = await sebagai("admin-lokasi");
     await langkah(admin, "Admin Lokasi: Akhiri Hak Pakai dengan alasan, Catat Pembongkaran", async () => {
       await admin.goto(`/staf/admin-lokasi/${await lokasiB(admin)}/hak-pakai/${hakPakai}`);
-      await expect(admin.getByRole("heading", { name: "Akhiri Hak Pakai" })).toBeVisible();
+      // A card's title is a div, not a heading; the first match is the title, the button of the same words comes after it.
+      await expect(admin.getByText("Akhiri Hak Pakai", { exact: true }).first()).toBeVisible();
       await admin.getByLabel("Alasan mengakhiri").fill("Uji UAT: Hak Pakai diakhiri oleh Admin Lokasi");
       await admin.getByRole("button", { name: "Akhiri Hak Pakai" }).click();
       const dialog = admin.getByRole("alertdialog");
@@ -321,9 +373,12 @@ test.describe("Rilis 2 [TANPA-BAYAR]", { tag: ["@rilis2", "@tanpabayar"] }, () =
     const publik = await anonim();
     await langkah(publik, "Picker Terencana: legenda Pintu Masuk tampil bila Lokasi punya Pintu Masuk", async () => {
       await publik.goto("/pesan-makam/terencana");
-      await publik.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
-      await expect(publik.getByRole("heading").first()).toBeVisible();
+      // The whole name: the list also carries "<nama> (Contoh)" for each Lokasi.
+      await publik.getByRole("link", { name: DATA.lokasiTerencana(), exact: true }).first().click();
+      // The list has an h1 too, so the Denah's own h1 is what says the page changed.
+      await expect(publik.getByRole("heading", { name: "Pilih petak" })).toBeVisible({ timeout: 30_000 });
+      await expect(publik.getByText("Pintu Masuk (cara masuk lokasi)")).toBeVisible();
     });
-    await manual(admin, "Menandai satu sel atau banyak sel sebagai Pintu Masuk (Jadikan Pintu Masuk, dengan alasan); sel itu tidak pernah Petak dan tidak bisa dipilih; Petak terpakai atau ditahan tidak bisa menjadi Pintu Masuk; diaudit", "dikerjakan owner di editor Denah Lokasi uji; hasil dibaca di picker Terencana dan Audit Log");
+    await manual(admin, "Menandai satu sel atau banyak sel sebagai Pintu Masuk (Jadikan Pintu Masuk; editor tidak meminta alasan); sel itu tidak pernah Petak dan tidak bisa dipilih; Petak terpakai atau ditahan tidak bisa menjadi Pintu Masuk; diaudit", "dikerjakan owner di editor Denah Lokasi uji; hasil dibaca di picker Terencana dan Audit Log");
   });
 });

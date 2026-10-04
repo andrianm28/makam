@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { wibDateOf } from "../../src/lib/time/jakarta";
 import { langkah } from "./langkah";
 import { emailPersona } from "./persona";
@@ -167,25 +167,50 @@ export function nomorTagihanDi(teks: string): string | undefined {
   return /TGH\/\d{4}\/\d{6}/.exec(teks)?.[0];
 }
 
+/**
+ * Submits a form through its button and waits for the Server Action to answer, then reloads, so what follows reads the page as
+ * the server now has it. "The button is gone" alone proves nothing: while the action runs the button is renamed ("Mencatat…",
+ * "Menyimpan…"), so a count of 0 passes at once even when the action is then refused.
+ */
+export async function kirimLaluMuatUlang(page: Page, tombol: Locator): Promise<void> {
+  await Promise.all([
+    page.waitForResponse((jawaban) => jawaban.request().method() === "POST" && Boolean(jawaban.request().headers()["next-action"]), { timeout: 30_000 }),
+    tombol.click(),
+  ]);
+  await expect(page.getByRole("alert").filter({ hasText: /\S/ }), "aksi ditolak").toHaveCount(0);
+  await page.reload();
+}
+
 /** A tiny valid JPEG, for a form that wants a photo or a scan. */
 export function jpegContoh(nama = "bukti.jpg") {
   return { name: nama, mimeType: "image/jpeg", buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("contoh bukti uat")]) };
 }
 
 /**
- * On a job page of the staff (Admin Lokasi's Layanan, a Mitra Jasa's TPU job): takes every proof the page still asks for with the
- * app's camera (Chromium's fake one answers): open the camera, take the picture, save it, until the page asks for no more.
+ * On a job page of the staff (Admin Lokasi's Layanan, a Mitra Jasa's TPU job): takes every photo the page still asks for with the
+ * app's camera (Chromium's fake one answers): open the camera, wait for its first frame, take the picture, save it. A proof that is
+ * in says "Sudah ada. Ambil ulang kalau mau mengganti." on its own block (`bukti-<jenis>`, on a Mitra Jasa's page `bukti-tpu-<jenis>`),
+ * and that is the only sign it is done: the "Ambil dengan kamera" button stays on a block, and so do the picture and "Simpan bukti"
+ * after a save, so neither tells the page has no more to ask. A video proof ("Selesai merekam") is not taken here; the last lines refuse.
  */
 export async function ambilSemuaBuktiKamera(page: Page): Promise<void> {
+  const belum = page.locator('[data-testid^="bukti-"][data-testid*="foto_"]').filter({ hasNotText: "Sudah ada" });
   for (let bukti = 0; bukti < 4; bukti += 1) {
-    const ambil = page.getByRole("button", { name: "Ambil dengan kamera" }).first();
-    if (!(await ambil.isVisible())) break;
-    await ambil.click();
-    await page.getByRole("button", { name: "Ambil foto" }).click();
-    await page.getByRole("button", { name: "Simpan bukti" }).click();
-    await expect(page.getByAltText("Pratinjau bukti yang baru diambil")).toHaveCount(0, { timeout: 30_000 });
+    const sisa = await belum.count();
+    if (sisa === 0) break;
+    const blok = belum.first();
+    await blok.getByRole("button", { name: "Ambil dengan kamera" }).click();
+    // "Ambil foto" is on screen while the camera is still opening, and a click before its first frame takes nothing.
+    const kamera = blok.getByLabel("Pratinjau kamera");
+    await expect(kamera).toBeVisible();
+    await expect.poll(() => kamera.evaluate((video) => (video as HTMLVideoElement).videoWidth), { message: "kamera belum menampilkan gambar" }).toBeGreaterThan(0);
+    await blok.getByRole("button", { name: "Ambil foto" }).click();
+    await blok.getByRole("button", { name: "Simpan bukti" }).click();
+    await expect(belum).toHaveCount(sisa - 1, { timeout: 30_000 });
   }
+  // What is still missing: on an Admin Lokasi's page the line "Kurang: …" (`bukti-kurang`), on a Mitra Jasa's the hint under a disabled "Kirim bukti".
   await expect(page.getByTestId("bukti-kurang")).toHaveCount(0);
+  await expect(page.getByText("Ambil semua foto yang diminta dulu.")).toHaveCount(0);
 }
 
 /**

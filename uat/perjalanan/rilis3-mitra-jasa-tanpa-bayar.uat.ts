@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { DATA, ambilSemuaBuktiKamera, jpegContoh, kunjungi, pilihOpsi } from "../support/halaman";
+import { DATA, ambilSemuaBuktiKamera, jpegContoh, kirimLaluMuatUlang, kunjungi, persis, pilihOpsi } from "../support/halaman";
 import { baca } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { punyaPersona } from "../support/persona";
@@ -15,16 +15,28 @@ import { expect, test } from "../support/uji";
 const SYARAT_PEKERJAAN = "Jalankan R3-56.1 lebih dulu dengan UAT_OUT yang sama: pesanan Layanan TPU itu yang diikuti uji ini";
 const SYARAT_MITRA = "Isi UAT_EMAIL_MITRA_JASA: alias Gmail Mitra Jasa yang sudah di-onboarding (checklist P2, P6)";
 
-/** Admin Platform's page of the TPU job of `nomor` (from the job list); returns the job's id. */
+/**
+ * Admin Platform's page of the TPU job of `nomor`, from the list of Pekerjaan TPU; returns the job's id. The list holds Dijadwalkan jobs
+ * only, and the Nomor Pemesanan is in a row's text while its link says just "Tugaskan" or "Lihat", so the row is found by the nomor.
+ */
 async function bukaPekerjaanTpu(admin: Page, nomor: string): Promise<string> {
   return langkah(admin, `Admin Platform: daftar Pekerjaan TPU, buka pekerjaan ${nomor}`, async () => {
     await admin.goto("/staf/admin-platform/pekerjaan-tpu");
-    const semua = admin.locator('a[href^="/staf/admin-platform/pekerjaan-tpu/"]');
-    const milik = semua.filter({ hasText: nomor });
-    await ((await milik.count()) > 0 ? milik.first() : semua.first()).click();
+    await admin.locator("li").filter({ hasText: nomor }).locator('a[href^="/staf/admin-platform/pekerjaan-tpu/"]').first().click();
     await expect(admin.getByText("Penugasan").first()).toBeVisible();
     return /pekerjaan-tpu\/([0-9a-f-]{36})/.exec(admin.url())?.[1] ?? "";
   });
+}
+
+/**
+ * Admin Platform's Antrean: opens the row of kind `jenisBaris` for `nomor`. A row is a card: the kind is a plain line above the
+ * link, and the link's own text is "<Nomor Pemesanan> · <Layanan> · <TPU>", so the row is found by both, never by the kind alone.
+ */
+async function bukaBarisAntrean(admin: Page, jenisBaris: string, nomor: string): Promise<void> {
+  await admin.goto("/staf/admin-platform/antrean");
+  const baris = admin.locator('[data-slot="card"]').filter({ hasText: jenisBaris }).filter({ hasText: nomor }).first();
+  await expect(baris, `baris ${jenisBaris} untuk ${nomor} di Antrean`).toBeVisible();
+  await baris.getByRole("link", { name: persis(nomor) }).click();
 }
 
 test.describe("Rilis 3 Mitra Jasa [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, () => {
@@ -51,8 +63,9 @@ test.describe("Rilis 3 Mitra Jasa [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabaya
   test("R3-55.2 Mitra Jasa: Tidak tersedia, scorecard 90 hari, Pencairan tanpa Potongan, tak melihat dokumen keluarga atau audit log", async ({ sebagai }) => {
     test.skip(!punyaPersona("mitra-jasa"), SYARAT_MITRA);
     const mitra = await sebagai("mitra-jasa");
-    await kunjungi(mitra, "Mitra Jasa: Pekerjaan Layanan dengan Tidak tersedia, Skor 90 hari dan Riwayat", "/staf/mitra-jasa/pekerjaan", "Pekerjaan Layanan");
-    for (const bagian of ["Tidak tersedia", "Skor 90 hari", "Riwayat"]) await expect.soft(mitra.getByText(bagian).first(), `bagian ${bagian}`).toBeVisible();
+    await kunjungi(mitra, "Mitra Jasa: Pekerjaan Layanan dengan Tidak tersedia dan Skor 90 hari", "/staf/mitra-jasa/pekerjaan", "Pekerjaan Layanan");
+    // "Riwayat" is the card of assignments that have ended (declined, unanswered, released); a Mitra Jasa with none has no such card, so it is not asked for here.
+    for (const bagian of ["Tidak tersedia", "Skor 90 hari"]) await expect.soft(mitra.getByText(bagian).first(), `bagian ${bagian}`).toBeVisible();
     await kunjungi(mitra, "Mitra Jasa: Pencairan memuat pekerjaan, Layanan, tanggal dan tarif, tanpa Potongan", "/staf/mitra-jasa/pencairan", "Pencairan");
     await expect(mitra.getByText("Potongan")).toHaveCount(0);
     const lokasiId = baca("saatduka.lokasiId");
@@ -104,10 +117,12 @@ test.describe("Rilis 3 Mitra Jasa [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabaya
       await mitra.goto("/staf/mitra-jasa/pekerjaan");
       await ambilSemuaBuktiKamera(mitra);
       await mitra.getByRole("button", { name: "Kirim bukti" }).first().click();
-      await expect(mitra.getByText("Menunggu Verifikasi").first()).toBeVisible({ timeout: 30_000 });
+      // The Mitra Jasa's page never says "Menunggu Verifikasi" (that is the Pemesan's and Admin Platform's word for the status); it says this.
+      await expect(mitra.getByText("Bukti sudah dikirim dan sedang diperiksa Admin Platform").first()).toBeVisible({ timeout: 30_000 });
     });
     const admin = await sebagai("admin-platform");
-    await bukaPekerjaanTpu(admin, nomor!);
+    // With its first shot the job left the list of Pekerjaan TPU (Dijadwalkan jobs only): it is now the link of the Antrean's Tier 2 row.
+    await langkah(admin, "Admin Platform: Antrean, baris Foto bukti perlu disetujui, buka pekerjaan", () => bukaBarisAntrean(admin, "Foto bukti perlu disetujui", nomor!));
     await langkah(admin, "Admin Platform: Bukti pekerjaan, Setujui bukti", async () => {
       await expect(admin.getByText("Bukti pekerjaan").first()).toBeVisible();
       await admin.getByRole("button", { name: "Setujui bukti" }).click();
@@ -147,11 +162,13 @@ test.describe("Rilis 3 Mitra Jasa [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabaya
       await expect(pemesan.getByTestId("keluhan-tpu").first()).toBeVisible({ timeout: 30_000 });
     });
     const admin = await sebagai("admin-platform");
-    await langkah(admin, "Admin Platform: baris Keluhan pekerjaan TPU di Antrean, buka, Tolak keluhan", async () => {
-      await admin.goto("/staf/admin-platform/antrean");
-      await admin.getByText("Keluhan pekerjaan TPU").first().click();
-      await expect(admin.getByRole("heading", { name: "Keputusan" })).toBeVisible();
-      await admin.getByRole("button", { name: "Tolak keluhan" }).click();
+    await langkah(admin, "Admin Platform: baris Keluhan pekerjaan TPU di Antrean, buka, Tolak keluhan dengan catatan", async () => {
+      await bukaBarisAntrean(admin, "Keluhan pekerjaan TPU", nomor!);
+      // The decision is one form: the radios Kerjakan ulang / Kembalikan dana / Tolak keluhan, a note that is required, and "Simpan keputusan" (the form is gone once decided).
+      await admin.getByRole("radio", { name: /Tolak keluhan/ }).check();
+      await admin.getByLabel("Catatan keputusan").fill("Keputusan uji UAT: keluhan ditolak.");
+      await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Simpan keputusan" }));
+      await expect(admin.getByRole("button", { name: "Simpan keputusan" }), "keputusan Keluhan tidak tersimpan").toHaveCount(0);
     });
     await kunjungi(admin, "Admin Platform: Penilaian", "/staf/admin-platform/penilaian");
     const lokasi = await sebagai("admin-lokasi");
@@ -169,7 +186,8 @@ test.describe("Rilis 3 Mitra Jasa [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabaya
     const pemesan = await sebagai("pemesan");
     await langkah(pemesan, "Pemesan: kirim pesan teks (dan foto) di thread pekerjaan TPU", async () => {
       await pemesan.goto(`/layanan/${nomor}`);
-      const thread = pemesan.getByTestId("thread-pekerjaan").first();
+      // The Pemesan's thread is the region "Pesan untuk pekerjaan ini"; the test id `thread-pekerjaan` is the Mitra Jasa page's.
+      const thread = pemesan.getByRole("region", { name: "Pesan untuk pekerjaan ini" }).first();
       await expect(thread).toBeVisible();
       await thread.getByLabel("Tulis pesan").fill("Pesan uji UAT dari Pemesan untuk Mitra Jasa TPU.");
       const foto = thread.locator('input[type="file"]');

@@ -20,7 +20,8 @@ async function ajukanWakaf(pemesan: Page, kabupatenKota: string): Promise<void> 
     await isiKolom(pemesan, "Kabupaten/kota tanah", kabupatenKota);
     await isiKolom(pemesan, "Luas tanah (m²)", "500");
     await isiKolom(pemesan, "Hubungan Anda dengan tanah", "Pemilik");
-    await isiKolom(pemesan, "Tujuan wakaf", "Pemakaman umum");
+    // The Tujuan select has no placeholder: `isiKolom` would take its second option, "Keluarga", which asks for a Nama keluarga.
+    await pemesan.getByLabel("Tujuan wakaf").selectOption({ label: "Sosial (pemakaman umum)" });
     await isiKolom(pemesan, "Bukti kepemilikan", "Sertipikat uji UAT");
     await pemesan.getByRole("button", { name: /Kirim/ }).last().click();
     await expect(pemesan.getByText("Pengajuan wakaf diterima")).toBeVisible({ timeout: 30_000 });
@@ -36,9 +37,11 @@ test.describe("Rilis 3 Wakaf [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }
     const pemesan = await sebagai("pemesan");
     await ajukanWakaf(pemesan, "Kabupaten Bantul");
     await langkah(pemesan, "Di luar Jabodetabek: status Dirujuk dengan penunjuk KUA dan BWI", async () => {
-      await expect(pemesan.getByText("Dirujuk").first()).toBeVisible();
+      // The confirmation page carries the pointer only; the status word "Dirujuk" is on the Wakaf tab of Akun Saya.
       await expect(pemesan.getByText(/KUA/).first()).toBeVisible();
       await expect(pemesan.getByText(/BWI/).first()).toBeVisible();
+      await pemesan.goto("/akun/wakaf");
+      await expect(pemesan.getByText("Dirujuk").first()).toBeVisible();
     });
     await manual(publik, "Halaman Wakaf Tanah menjelaskan prosesnya, bahwa tanah diserahkan langsung ke Nazhir dan platform tidak menerima tanah atau uang; Kode Masuk diminta saat Kirim bila belum masuk", "dibaca owner pada screenshot halaman; jalur tamu dengan Kode Masuk dicoba owner sekali");
   });
@@ -49,19 +52,28 @@ test.describe("Rilis 3 Wakaf [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }
     const admin = await sebagai("admin-platform");
     await kunjungi(admin, "Admin Platform: daftar Pengajuan Wakaf", "/staf/admin-platform/wakaf");
     await langkah(admin, "Buka Pengajuan Wakaf uji: Wakif dan tanah, Catatan, Riwayat status", async () => {
-      await admin.locator('a[href^="/staf/admin-platform/wakaf/"]').filter({ hasText: "Uji UAT Wakif" }).first().click();
+      // A row reads "<nomor> · <Wakif> · <kab/kota>" and only the nomor is the link, so the row is found by its text (the list is newest first).
+      await admin.locator("li").filter({ hasText: "Uji UAT Wakif" }).filter({ hasText: "Kota Depok" }).locator('a[href^="/staf/admin-platform/wakaf/"]').first().click();
       for (const bagian of ["Wakif dan tanah", "Cocokkan Nazhir", "Pindah status", "Riwayat status", "Catatan"]) {
-        await expect.soft(admin.getByText(bagian).first(), `bagian ${bagian}`).toBeVisible();
+        await expect.soft(admin.getByRole("heading", { name: bagian }).first(), `bagian ${bagian}`).toBeVisible();
       }
     });
-    await langkah(admin, "Cocokkan Nazhir, lalu pindah ke Survei Dijadwalkan dengan tanggal survei", async () => {
+    await langkah(admin, "Cocokkan Nazhir", async () => {
       await pilihNazhirLaluCocokkan(admin);
+    });
+    await langkah(admin, "Pindah ke Ditinjau (dari Diajukan hanya Ditinjau, Ditolak dan Dirujuk yang ditawarkan)", async () => {
+      await admin.getByLabel("Pindah ke").selectOption({ label: "Ditinjau" });
+      await admin.getByRole("button", { name: "Pindahkan" }).click();
+      // The second line of the page header reads "<status> · diajukan <waktu>": it changes only once the move is saved.
+      await expect(admin.getByText(/^Ditinjau .+ diajukan /)).toBeVisible({ timeout: 30_000 });
+    });
+    await langkah(admin, "Pindah ke Survei Dijadwalkan dengan tanggal survei dan Petugas Lapangan", async () => {
       await admin.getByLabel("Pindah ke").selectOption({ label: "Survei Dijadwalkan" });
       await admin.getByLabel("Tanggal (survei atau ikrar)").fill(tanggalWib(3));
-      const petugas = admin.getByLabel("Petugas Lapangan (untuk Survei Dijadwalkan)");
-      if ((await petugas.count()) > 0) await petugas.selectOption({ index: 1 }).catch(() => undefined);
+      // Survei Dijadwalkan is refused without a Petugas Lapangan; option 0 of this select is "Belum dipilih".
+      await admin.getByLabel("Petugas Lapangan (untuk Survei Dijadwalkan)").selectOption({ index: 1 });
       await admin.getByRole("button", { name: "Pindahkan" }).click();
-      await expect(admin.getByText("Survei Dijadwalkan").first()).toBeVisible({ timeout: 30_000 });
+      await expect(admin.getByText(/^Survei Dijadwalkan .+ diajukan /)).toBeVisible({ timeout: 30_000 });
     });
     await langkah(pemesan, "Wakif: tab Wakaf di Akun Saya memuat pengajuan itu; tidak ada Tagihan", async () => {
       await pemesan.goto("/akun/wakaf");
@@ -73,13 +85,15 @@ test.describe("Rilis 3 Wakaf [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }
   });
 });
 
-/** Picks the first Nazhir in the "Cocokkan" form of the submission and sends it. */
+/**
+ * Sends the "Cocokkan" form of the submission. Its select has no placeholder and already holds the first Nazhir of the list,
+ * so there is nothing to pick. The form is there only while the list holds a Nazhir: a journey that matches one and finds
+ * none has found a problem (the Nazhir (Contoh) of the checklist's P6), so it fails instead of going green without matching.
+ */
 async function pilihNazhirLaluCocokkan(admin: Page): Promise<void> {
-  const nazhir = admin.getByLabel("Nazhir", { exact: true }).first();
-  if ((await nazhir.count()) > 0) await nazhir.selectOption({ index: 1 }).catch(() => undefined);
   const cocokkan = admin.getByRole("button", { name: "Cocokkan", exact: true });
-  if ((await cocokkan.count()) > 0) {
-    await cocokkan.first().click();
-    await expect(admin.getByRole("alert")).toHaveCount(0);
-  }
+  await expect(cocokkan, "formulir Cocokkan Nazhir tidak ada: daftar Nazhir kosong (checklist P6; Admin Platform, Wakaf Tanah, Daftar Nazhir)").toBeVisible();
+  await cocokkan.click();
+  // Not `getByRole("alert")`: Next's route announcer is always an alert on the page. The form says "Nazhir dicocokkan." (a status, and a toast).
+  await expect(admin.getByText("Nazhir dicocokkan.").first()).toBeVisible({ timeout: 30_000 });
 }
