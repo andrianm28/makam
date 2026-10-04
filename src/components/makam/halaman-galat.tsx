@@ -1,10 +1,10 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { unstable_isUnrecognizedActionError } from "next/navigation";
 import { useEffect } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { startBrowserSentry } from "@/instrumentation-client";
+import { isStaleActionError } from "./stale-action";
 
 /**
  * What `error.tsx` and `global-error.tsx` show when something threw that nothing
@@ -22,7 +22,7 @@ import { startBrowserSentry } from "@/instrumentation-client";
  * state cannot be trusted, and a stale bundle only a reload replaces.
  */
 export function HalamanGalat({ error }: { error: unknown }) {
-  const stale = unstable_isUnrecognizedActionError(error);
+  const stale = isStaleActionError(error);
 
   useEffect(() => {
     // The prerendered shell of global-error has no error at all; there is nothing to report then.
