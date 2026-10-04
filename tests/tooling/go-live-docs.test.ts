@@ -465,3 +465,66 @@ describe("the runbook's monitoring of production", () => {
     }
   });
 });
+
+describe("the go-live checklist, go-live-rilis-1.md", () => {
+  const text = read(".scratch/makam-v1-build/go-live-rilis-1.md");
+  const gate = (number: number): string => section(text, `G${number}`);
+
+  it("is a checklist of the gates G0 to G5, in order", () => {
+    expect(text.match(/^## G\d\b/gm)).toEqual(["## G0", "## G1", "## G2", "## G3", "## G4", "## G5"]);
+  });
+
+  it("gives every item of every gate exactly one evidence slot, so nothing is ticked on trust", () => {
+    for (let number = 0; number <= 5; number += 1) {
+      const items = gate(number).match(/^- \[[ x]\] /gm) ?? [];
+      const slots = gate(number).match(/^ {2}Evidence:/gm) ?? [];
+      expect(items.length, `gate G${number} has no items`).toBeGreaterThan(0);
+      expect(slots.length, `gate G${number}: items and evidence slots`).toBe(items.length);
+    }
+    const before = section(text, "Before the gates");
+    expect((before.match(/^ {2}Evidence:/gm) ?? []).length).toBe((before.match(/^- \[[ x]\] /gm) ?? []).length);
+  });
+
+  it("points each gate at the runbook section that holds its procedure, and does not copy it", () => {
+    expect(gate(1)).toContain("Rehearsal of the first production deploy");
+    expect(gate(3)).toContain("Hari switch");
+    expect(gate(5)).toContain("Which release is open");
+  });
+
+  it("holds G3 to the proof of the switch: the health body, the webhook, the banner, Data Contoh, monitoring, the archive, the fallback", () => {
+    const g3 = flat(gate(3));
+    for (const word of ["rilisTerbuka", "environment", "Save & Test", "PEMBAYARAN UJI COBA", "data-contoh", "UptimeRobot", "sentry-check", "makam-arsip-app-lama", "makam-switch --ke v1", "makam-switch --ke pemeliharaan"]) {
+      expect(g3, word).toContain(word);
+    }
+  });
+
+  it("holds G1 to the proof of the rehearsal: the order, exit 77, the forced rollback, the backups and four timers", () => {
+    const g1 = flat(gate(1));
+    for (const word of ["--rilis 1", "exit 77", "MAKAM_HEALTH_WAIT=0", "makam-restore-test --env prod", "makam-prod-"]) expect(g1, word).toContain(word);
+  });
+
+  it("holds G5 to the proof of level 3: the env line, the worker's start line, no skipped tick, health and the preflight", () => {
+    const g5 = flat(gate(5));
+    for (const word of ["RILIS_TERBUKA=3", "started (RILIS_TERBUKA=3)", "skipped", "rilisTerbuka", "--rilis 3"]) expect(g5, word).toContain(word);
+  });
+
+  it("says what it rests on: the beta at Rilis 1 on the sandbox, no real orders, Data Contoh, ADR 0006 and ADR 0007", () => {
+    const head = flat(text.slice(0, text.indexOf("\n## ")));
+    for (const word of ["RILIS_TERBUKA=1", "sandbox", "no real orders", "Data Contoh", "ADR 0006", "ADR 0007"]) expect(head, word).toContain(word);
+  });
+
+  it("keeps the rollback and its limit: migrations are forward-only, so only an image that tolerates the new schema can be rolled back to", () => {
+    const rollback = flat(section(text, "Rollback"));
+    expect(rollback).toContain("rollback.yml");
+    expect(rollback).toContain("makam-deploy --env prod --digest");
+    expect(rollback).toMatch(/forward-only/);
+  });
+
+  it("lists what waits until after the beta, each with the trigger to resume it", () => {
+    const after = section(text, "After the beta");
+    const rows = after.split("\n").filter((line) => line.startsWith("| ") && !/^\| (Item|-)/.test(line));
+    expect(rows.length).toBeGreaterThanOrEqual(6);
+    for (const row of rows) expect(row.split("|").filter((cell) => cell.trim() !== "").length, row).toBe(2);
+    for (const word of ["04", "06", "03", "02", "54"]) expect(after, word).toContain(word);
+  });
+});

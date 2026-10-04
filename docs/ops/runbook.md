@@ -2320,12 +2320,16 @@ systemctl list-timers 'makam-prod-*'                                          # 
   --webhook-url http://127.0.0.1:3100/api/webhooks/pembayaran
 ```
 
-**An image signed only with the staging key is refused (exit 77).** Take the digest
-staging runs that has not been promoted: it carries the staging signature and no
-production one. Nothing is touched, not even a Deployment:
+**An image signed only with the staging key is refused (exit 77).** Take a digest CI
+built and signed for staging that was never promoted, so it carries the staging
+signature and no production one: the image of an earlier `main` commit, or the
+digest staging runs now once it has moved on past A. Nothing is touched, not even a
+Deployment:
 
 ```bash
-/opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<staging-signed digest>; echo "exit=$?"   # 77
+docker pull ghcr.io/andrianm28/makam:sha-<an earlier commit>
+docker image inspect --format '{{index .RepoDigests 0}}' ghcr.io/andrianm28/makam:sha-<an earlier commit>   # ...@sha256:<digest>
+/opt/makam-v1/bin/makam-deploy --env prod --digest sha256:<that digest>; echo "exit=$?"   # 77
 tail -n 3 /opt/makam-v1/prod/deploy.log      # ERROR refusing ...: signature check exited ...; nothing changed
 grep '^MAKAM_DIGEST=' /opt/makam-v1/prod/deployed.env      # still A
 ```
