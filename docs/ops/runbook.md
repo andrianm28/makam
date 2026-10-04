@@ -1896,6 +1896,12 @@ makam-preflight --env prod --digest sha256:<released digest> --email-to <your ad
   keys exist; then a missing S3 setting is a FAIL.
 - `--webhook-url`: where the forged-signature check posts; before the nginx
   switch use `http://127.0.0.1:3100/api/webhooks/pembayaran`.
+- `--rilis N` (a positive integer, else exit 64): the release you mean to open
+  (`RILIS_TERBUKA`: 1 at the switch, 3 later). The "open release" line FAILs when
+  `prod.env` lacks `RILIS_TERBUKA=N` or the running stack's `/api/health`
+  reports another `rilisTerbuka`; it is a SKIP when the field is absent or the
+  stack is down. Without the flag the line is a PASS that prints the value it
+  found (unset means 1).
 
 One line per check: `PASS|FAIL|SKIP [tickets] name: reason`. Exit 0 if no line
 is FAIL, 1 otherwise. SKIP lines are yours to do by hand (the external uptime
@@ -1910,14 +1916,16 @@ What it checks, and what runs it:
 | Docker, compose plugin | `docker info`, `docker compose version` | 02 |
 | disk, memory | `makam-diskcheck /` (85 %), `free -m` (1024 MB available; `MAKAM_PREFLIGHT_MIN_MEM_MB`) | 02 |
 | DNS and certificate for `makam.co.id` and `www` | `getent ahostsv4` (103.92.214.243; `MAKAM_PREFLIGHT_EXPECTED_IP`), `openssl s_client` (14 days; `MAKAM_PREFLIGHT_CERT_DAYS`) | 02 |
-| ghcr pull of the digest | `docker pull`, with `GHCR_READ_TOKEN` from the env file in a throwaway Docker config, else the host's login | 02, 72 |
+| ghcr pull of the digest | `docker pull` (3 attempts, 10 s then 30 s apart, as `makam-deploy`; `MAKAM_PULL_BACKOFF="10 30"`), with `GHCR_READ_TOKEN` from the env file in a throwaway Docker config, else the host's login | 02, 72 |
 | image signature | `makam-verify-image --env prod` | 72 |
 | S3 probe object, bucket settings | `aws s3api` with `S3_*` from the env file: put, read, delete in `S3_BUCKET_FILES` with the app key; public access block, versioning, encryption where that key may read them (AccessDenied is a SKIP: check in the console) | 03 |
 | backups bucket, backup encryption key | `head-bucket` with the `S3_BACKUPS_*` key; `/opt/makam-v1/prod/backup-passphrase` present, non-empty, 0600 | 03 |
 | backup, then restore test | `makam-backup-db --env prod` then `makam-restore-test --env prod --dump <that Dump>`; the Dump it made is removed again | 03, 72 |
 | SMTP | `email-check` in the image | 04 |
 | SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; then the same call with a wrong key must be refused, else the line is a SKIP "path unverified"; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
-| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (ref `sha-<revision>`), set inactive, deleted | 72 |
+| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (the bare commit SHA as `ref`, which GitHub accepts), set inactive, deleted | 72 |
+| open release | `RILIS_TERBUKA` in `prod.env` (never sourced) against `rilisTerbuka` in `http://127.0.0.1:<MAKAM_WEB_PORT>/api/health`; with `--rilis N` both must be N | 72 |
+| production timers | `systemctl is-enabled` by name: `makam-prod-db-backup.timer`, `makam-prod-files-backup.timer`, `makam-prod-restore-test.timer`, `makam-prod-health.timer` (ticket 108); the FAIL names the missing ones | 72 |
 | production on the sandbox | one SKIP line, "production on the sandbox", when `SUMOPOD_BASE_URL` is SumoPod's sandbox host: payments are a trial until the live keys are installed and the override removed | 04, 101 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
 
