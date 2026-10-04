@@ -13,6 +13,11 @@ export function env(nama: string, bawaan: string): string {
   return process.env[nama]?.trim() || bawaan;
 }
 
+/** An optional staging value (an id of a test record) from the environment, or null: a journey without its data skips and says which variable to set. */
+export function envOpsional(nama: string): string | null {
+  return process.env[nama]?.trim() || null;
+}
+
 /** The staging data a run needs. The defaults are the Lokasi of the 2026-10 UAT; set the variables for other data. */
 export const DATA = {
   /** The phone number the personas give on forms (one number per Akun; set it if staging already has it on another Akun). */
@@ -42,15 +47,23 @@ export async function isiDataPemesan(page: Page): Promise<void> {
 /** The three places a booking checkout offers Layanan: the id prefix the shared picker (`PilihLayanan`) gives its fields. */
 export type PermukaanLayanan = "petak-kosong" | "hari-h" | "tambah-layanan";
 
+/** The variant `pilihLayananCheckout` chose: its name, and its price as the digits the checkout showed ("Rp 1.200.000" is "1200000"). */
+export interface PilihanLayanan {
+  nama: string;
+  harga: string;
+}
+
 /**
  * Picks the first variant of the first Layanan the checkout offers, fills the text it asks for and, where the family
  * chooses the day (every surface but hari-H), the earliest date it allows. It FAILS when the checkout offers none: a
  * journey that asks for a Layanan and finds no picker has found a problem (the Layanan data of the checklist's P4 and
- * P6, or the page) and must not go green without one.
+ * P6, or the page) and must not go green without one. Returns the variant, so a later step can look for its row in the Tagihan.
  */
-export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayanan): Promise<void> {
+export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayanan): Promise<PilihanLayanan> {
   const pilih = page.locator(`select[id^="${permukaan}-"]`).first();
   await expect(pilih, `checkout "${permukaan}" tidak menawarkan Layanan: periksa data Layanan Lokasi dan Mitra Jasa (checklist P4, P6)`).toBeVisible({ timeout: 15_000 });
+  // The option reads "<varian> — Rp 1.200.000" (src/components/layanan/pilih-layanan.tsx).
+  const [nama, harga = ""] = ((await pilih.locator("option").nth(1).textContent()) ?? "").split(" — ");
   await pilih.selectOption({ index: 1 });
   const teks = page.locator(`input[id^="${permukaan}-teks-"]`).first();
   await teks.waitFor({ state: "visible", timeout: 1_000 }).then(() => teks.fill("Teks contoh uji UAT"), () => undefined);
@@ -59,6 +72,7 @@ export async function pilihLayananCheckout(page: Page, permukaan: PermukaanLayan
     await expect(tanggal, "kolom tanggal pengerjaan muncul setelah varian dipilih").toBeVisible();
     await tanggal.fill((await tanggal.getAttribute("min")) || tanggalWib(7));
   }
+  return { nama: nama.trim(), harga: harga.replace(/\D/g, "") };
 }
 
 /** A regular expression that matches `teks` literally, ignoring case. */
@@ -153,4 +167,33 @@ export function nomorTagihanDi(teks: string): string | undefined {
 /** A tiny valid JPEG, for a form that wants a photo or a scan. */
 export function jpegContoh(nama = "bukti.jpg") {
   return { name: nama, mimeType: "image/jpeg", buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("contoh bukti uat")]) };
+}
+
+/**
+ * On a job page of the staff (Admin Lokasi's Layanan, a Mitra Jasa's TPU job): takes every proof the page still asks for with the
+ * app's camera (Chromium's fake one answers): open the camera, take the picture, save it, until the page asks for no more.
+ */
+export async function ambilSemuaBuktiKamera(page: Page): Promise<void> {
+  for (let bukti = 0; bukti < 4; bukti += 1) {
+    const ambil = page.getByRole("button", { name: "Ambil dengan kamera" }).first();
+    if (!(await ambil.isVisible())) break;
+    await ambil.click();
+    await page.getByRole("button", { name: "Ambil foto" }).click();
+    await page.getByRole("button", { name: "Simpan bukti" }).click();
+    await expect(page.getByAltText("Pratinjau bukti yang baru diambil")).toHaveCount(0, { timeout: 30_000 });
+  }
+  await expect(page.getByTestId("bukti-kurang")).toHaveCount(0);
+}
+
+/**
+ * Fills a form control found by its label whatever kind it is: a text box is typed into, a select takes its first real
+ * option (the placeholder is never one), a file input takes a small valid picture. For the forms whose control type this
+ * runner has not seen run (the Wakaf form).
+ */
+export async function isiKolom(page: Page, label: string | RegExp, nilai: string): Promise<void> {
+  const kontrol = page.getByLabel(label).first();
+  const jenis = await kontrol.evaluate((elemen) => (elemen.tagName === "INPUT" ? `input:${(elemen as HTMLInputElement).type}` : elemen.tagName.toLowerCase()));
+  if (jenis === "select") await kontrol.selectOption({ index: 1 });
+  else if (jenis === "input:file") await kontrol.setInputFiles(jpegContoh());
+  else await kontrol.fill(nilai);
 }

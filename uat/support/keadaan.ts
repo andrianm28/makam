@@ -23,6 +23,7 @@ export type KunciKeadaan =
   | "tumpang.nomor"
   | "tpu.layanan.nomor"
   | "iptm.nomor"
+  | "tpu.saatduka.nomor"
   | "berhenti.lokasiId";
 
 /** `$UAT_OUT`: set by the Playwright config for the main process and every worker. */
