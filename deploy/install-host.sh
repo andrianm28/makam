@@ -101,4 +101,16 @@ sudo systemctl enable --now makam-staging-deploy.timer makam-staging-health.time
   makam-staging-db-backup.timer makam-staging-restore-test.timer
 # makam-prod-deploy.timer is installed but NOT enabled: production follows an
 # explicit digest until the owner turns it on (runbook, "Production").
+
+# The production backups, restore test and health check are enabled only once
+# the prod stack really runs, i.e. its first deploy has written a digest to
+# deployed.env. Before that there is nothing to dump and the health check would
+# only report an app that is not there yet. Re-running this script after the
+# first prod deploy enables them.
+if grep -q '^MAKAM_DIGEST=.' "$ROOT/prod/deployed.env" 2> /dev/null; then
+  sudo systemctl enable --now makam-prod-health.timer makam-prod-files-backup.timer \
+    makam-prod-db-backup.timer makam-prod-restore-test.timer
+else
+  echo "NOTE: $ROOT/prod/deployed.env has no MAKAM_DIGEST (prod is not deployed yet), so the prod backup, restore-test and health timers are installed but not enabled; re-run deploy/install-host.sh after the first prod deploy, or: sudo systemctl enable --now makam-prod-{health,files-backup,db-backup,restore-test}.timer" >&2
+fi
 systemctl list-timers 'makam-*' --no-pager

@@ -1,0 +1,13 @@
+# Mondays at 05:15 WIB, clear of the staging restore check (04:15): the
+# night's own Dump (01:15) is four hours old, and the check finds out early in
+# the week whether the last night's production backup can be restored.
+[Unit]
+Description=Weekly makam-prod restore check
+
+[Timer]
+OnCalendar=Mon *-*-* 05:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

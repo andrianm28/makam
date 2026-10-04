@@ -1,0 +1,21 @@
+# Local watchdog for production: the app's /api/health on the loopback port the
+# prod stack publishes (127.0.0.1:3100). Failures go to the journal (tag
+# makam-health). Not the uptime alarm. The host's disk check is not repeated
+# here: makam-staging-health.service already runs it every minute and one check
+# covers the whole root filesystem (docs/ops/runbook.md, "The 85 % warning").
+[Unit]
+Description=Check makam-prod's /api/health
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-healthcheck http://127.0.0.1:3100/api/health
+
+# Hardening. It only runs curl, jq and logger (/dev/log); it writes nothing.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes

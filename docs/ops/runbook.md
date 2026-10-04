@@ -48,7 +48,7 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/glitchtip/admin-credentials.txt` | GlitchTip superuser login |
 | `/opt/makam-v1/glitchtip/api-token.txt` | GlitchTip API token (ops scripts) |
 | `/opt/makam-v1/glitchtip/dsn-makam-{staging,prod}-{internal,public}.txt` | DSNs per project |
-| `/etc/systemd/system/makam-staging-{deploy,health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/` |
+| `/etc/systemd/system/makam-staging-{deploy,health,files-backup,db-backup,restore-test}.{service,timer}` and `makam-prod-{health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/` |
 | `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for dev.makam.co.id (from `deploy/nginx/`) |
 | `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz` | nightly FileStore tar, kept 7 days (`makam-backup-files`) |
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.dump.enc` | nightly encrypted `pg_dump`, kept 7 days (`makam-backup-db`) |
@@ -1086,9 +1086,18 @@ input) and that nothing needs:
 Its summary lists every version it deleted. It runs on a GitHub-hosted runner and
 never touches this host.
 
+### The prod health check
+
+`makam-prod-health.timer` runs `makam-healthcheck http://127.0.0.1:3100/api/health`
+every minute (journal tag `makam-health`, same as staging). It is enabled by
+`deploy/install-host.sh` once prod has deployed (see "Database backup and
+restore"). Check it with `systemctl list-timers 'makam-prod-health.timer'` and
+`journalctl -t makam-health --since today`. It is the local watchdog; the
+external UptimeRobot alarm stays the one that pages.
+
 ### The 85 % warning
 
-`makam-staging-health.timer` runs `makam-diskcheck /` every minute, after the
+`makam-staging-health.timer` runs `makam-diskcheck /` every minute (the prod health unit does not repeat it), after the
 `/api/health` check and in the same unit. At or above
 `MAKAM_DISK_WARN_PERCENT` (85) it logs one line to the journal at priority `err`
 with tag `makam-disk` and exits non-zero, so the unit shows as failed:
@@ -1202,13 +1211,29 @@ timer:
 | `makam-backup-db --env staging` | `makam-staging-db-backup.timer` | nightly 02:15 |
 | `makam-backup-files --env staging` | `makam-staging-files-backup.timer` | nightly 03:15 |
 | `makam-restore-test --env staging` | `makam-staging-restore-test.timer` | Mondays 04:15 |
+| `makam-backup-db --env prod` | `makam-prod-db-backup.timer` | nightly 01:15 |
+| `makam-backup-files --env prod` | `makam-prod-files-backup.timer` | nightly 01:45 |
+| `makam-restore-test --env prod` | `makam-prod-restore-test.timer` | Mondays 05:15 |
 
-**Only the `makam-staging-*` units are installed.** The scripts also take
-`--env prod` because production will run the very same ones, but there is no
-`makam-prod-db-backup.timer` or `makam-prod-restore-test.timer` in
-`deploy/systemd/`, and nothing enables one: those come with production (ticket
-65), together with the `makam-prod` environment itself. Until then the only way
-these run is staging's timers or your own hand.
+The `makam-prod-*` units mirror the staging ones (same hardening, `--env prod`)
+at times that never overlap staging's. They are a **go-live blocker** (owner,
+2026-10-04): production uploads and data have no other backup.
+`deploy/install-host.sh` installs them always, but enables the four prod timers
+(these three plus `makam-prod-health.timer`) only once
+`/opt/makam-v1/prod/deployed.env` contains `MAKAM_DIGEST`, i.e. the prod stack
+really runs. Before that it prints a `NOTE:`; re-run the script after the first
+prod deploy, or enable them by hand:
+
+```bash
+sudo systemctl enable --now makam-prod-{health,files-backup,db-backup,restore-test}.timer
+systemctl list-timers 'makam-prod-*'                   # all four, with a next run
+journalctl -t makam-db-backup -n 20 --no-pager         # prod and staging share the tag
+ls -la /opt/makam-v1/prod/backups/db/ /opt/makam-v1/prod/backups/files/
+/opt/makam-v1/bin/makam-restore-test --env prod        # the restore test, by hand
+```
+
+Create `/opt/makam-v1/prod/backup-passphrase` (below) **before** the first
+night, or the prod database backup refuses.
 
 A nightly backup nobody has ever restored is a hope, not a backup, so the third
 one is not optional bookkeeping: it restores the newest Dump into a throwaway

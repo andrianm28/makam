@@ -1,0 +1,13 @@
+# Runs makam-backup-files nightly at 01:45 WIB, thirty minutes after the
+# production database dump (01:15) and clear of the staging backups (02:15,
+# 03:15) and the health check (every minute).
+[Unit]
+Description=Nightly makam-prod FileStore backup
+
+[Timer]
+OnCalendar=*-*-* 01:45:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

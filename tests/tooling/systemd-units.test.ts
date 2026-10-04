@@ -93,7 +93,7 @@ describe("install-host.sh and the production timers", () => {
     const enableCall = install.search(/systemctl enable[^\n]*\\?\n?[^\n]*makam-prod-db-backup\.timer/);
     expect(enableCall).toBeGreaterThan(gate);
     // enable --now of a prod timer sits inside the `if` block, never at top level
-    const block = install.slice(gate);
+    const block = install.slice(install.lastIndexOf("\n", gate));
     expect(block).toMatch(/^\s*if [\s\S]*?\bthen\b[\s\S]*?systemctl enable --now[\s\S]*?makam-prod-health\.timer[\s\S]*?\belse\b[\s\S]*?NOTE:/m);
   });
 

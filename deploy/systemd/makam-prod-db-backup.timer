@@ -1,0 +1,12 @@
+# Runs makam-backup-db nightly at 01:15 WIB, before the FileStore tar (01:45)
+# and clear of the staging backups (02:15, 03:15).
+[Unit]
+Description=Nightly makam-prod database backup
+
+[Timer]
+OnCalendar=*-*-* 01:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target
