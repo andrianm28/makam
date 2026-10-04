@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { hargaPilihanLayanan, kirimPesananLayanan, verifikasiKodeMasukDanKirimLayanan } from "./actions";
+import { itemPesananLayanan } from "./item-pesanan";
 import type { HargaPesananTerbaca, LayananTawarkan, TampilanPesananLayanan } from "./tampilan";
 
 /**
@@ -67,11 +68,7 @@ export function FormPesananLayanan({
     petakId: tampilan.petak?.id ?? "",
     pemesanName: nama.trim(),
     phoneNumber: telepon.trim(),
-    item: variantIds.flatMap((id) => {
-      const grup = tampilan.layanan.find((satu) => satu.varian.some((varian) => varian.id === id));
-      if (!grup) return [];
-      return [{ layananVariantId: id, targetDate: tanggal[id] ?? grup.targetPalingDini, teks: grup.teksLabel ? teks[id]?.trim() || null : null }];
-    }),
+    item: itemPesananLayanan(tampilan.layanan, { dipilih, tanggal, teks }),
   };
   const siap = variantIds.length > 0 && nama.trim() !== "" && telepon.trim() !== "" && email.trim() !== "";
 
