@@ -192,7 +192,7 @@ describe("Promosikan ke produksi: the release is a draft until the production si
     const api = existing ? [{ tag_name: "v2026.10.03-2", draft: existing.draft, body: existing.body }] : [];
     return `case "$*" in
 "release view"*) echo "release not found" >&2; exit 1;;
-"release list"*) ${listError ? `echo "${listError}" >&2; exit 1` : `cat <<'JSON'\n${JSON.stringify(listed)}\nJSON`};;
+"release list"*) ${listError ? `echo "${listError}" >&2; exit 1;;` : `cat <<'JSON'\n${JSON.stringify(listed)}\nJSON\n;;`}
 "api"*releases*) cat <<'JSON'\n${JSON.stringify(api)}\nJSON
 ;;
 esac`;
@@ -227,7 +227,7 @@ esac`;
   it.each([true, false])("refuses to go on with a release (draft: %s) whose notes name another digest", (draft) => {
     const r = run(draftStep(), ghFor({ draft, body: notes(OTHER) }), env);
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain("does not name");
+    expect(r.stderr).toContain("do not name");
     expect(r.stderr).toContain(DIGEST);
     expect(r.output).toBe("");
   });
