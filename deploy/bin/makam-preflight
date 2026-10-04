@@ -69,7 +69,6 @@ new_tmp() { REPLY=$(mktemp "$@"); TMP_PATHS+=("$REPLY"); }
 PENDING_S3_KEY=""
 PENDING_DEPLOY_ID=""
 PENDING_DEPLOY_REPO=""
-REMOVE_NOTE=""
 cleanup() {
   local path
   if [ -n "$PENDING_S3_KEY" ]; then
@@ -527,11 +526,13 @@ remove_probe_deployment() {
   PENDING_DEPLOY_ID=""
 }
 
-# Does makam-deploy-status work from this host? It creates a Deployment with
-# the image tag sha-<revision> as its ref; this probe does the same call (a
-# transient "preflight" environment), then marks it inactive and deletes it.
+# Does makam-deploy-status work from this host? It creates a Deployment whose ref
+# is the image's commit SHA, the revision label (GitHub takes a branch, tag or
+# commit SHA as a ref, and the image tag sha-<revision> is none of them: ticket
+# 102). This probe does the same call (a transient "preflight" environment), then
+# marks it inactive and deletes it.
 check_github_deployments() {
-  local repo rev ref code id message="" tried_plain=0
+  local repo rev code id message=""
   repo=$(setting MAKAM_GITHUB_REPOSITORY)
   repo=${repo:-andrianm28/makam}
   if [ -z "$(setting MAKAM_GITHUB_TOKEN)" ]; then
@@ -544,35 +545,24 @@ check_github_deployments() {
   fi
   rev=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF" 2> /dev/null || true)
   if [ -z "$rev" ]; then
-    fail "72" "github deployments" "the image has no org.opencontainers.image.revision label, so makam-deploy would send the ref sha- and GitHub would refuse it; rebuild the image from CI"
+    fail "72" "github deployments" "the image has no org.opencontainers.image.revision label, so makam-deploy has no commit to send as the Deployment's ref and GitHub would refuse it; rebuild the image from CI"
     return 0
   fi
-  ref="sha-$rev"
   new_tmp
   BODY_FILE=$REPLY
-  code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$ref\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
+  code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
   id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
   message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
   if [ -n "$id" ] && [ "$code" = 201 ]; then
     PENDING_DEPLOY_ID=$id
     PENDING_DEPLOY_REPO=$repo
     if remove_probe_deployment "$repo" "$id"; then
-      pass "72" "github deployments" "$repo accepted a Deployment with ref $ref and the probe was deleted again"
+      pass "72" "github deployments" "$repo accepted a Deployment with ref $rev and the probe was deleted again"
     else
-      fail "72" "github deployments" "$repo accepted a Deployment with ref $ref, but $REMOVE_PROBLEM"
+      fail "72" "github deployments" "$repo accepted a Deployment with ref $rev, but $REMOVE_PROBLEM"
     fi
   elif [ "$code" = 422 ]; then
-    # Diagnose the likely cause of "gh api .../deployments lists none": the ref.
-    code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[]}")
-    id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
-    if [ -n "$id" ] && [ "$code" = 201 ]; then
-      PENDING_DEPLOY_ID=$id
-      PENDING_DEPLOY_REPO=$repo
-      remove_probe_deployment "$repo" "$id" || REMOVE_NOTE=" Also: $REMOVE_PROBLEM."
-      fail "72" "github deployments" "ref $ref is not a branch, tag or commit SHA, so GitHub answers 422: makam-deploy-status sends the image tag as ref and every deploy then goes unreported (logged only in deploy.log); GitHub accepts the plain commit SHA $rev, so the ref must be the revision.${REMOVE_NOTE:-}"
-    else
-      fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}), also with the plain commit SHA: check the token's repository and Deployments: write"
-    fi
+    fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}): GitHub knows no commit $rev in $repo; was the image built from a commit that is pushed there?"
   else
     fail "72" "github deployments" "$repo refused the Deployment (HTTP $code${message:+, $message}): check the token's repository and Deployments: write"
   fi
