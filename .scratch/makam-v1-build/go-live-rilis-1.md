@@ -16,72 +16,72 @@ Legend: A, B and C are the three digests (A for the rehearsal, B for the switch,
 
 ## Before the gates: the owner's items
 
-- [ ] **Cosign key pairs** for staging and production exist; their public keys are installed by `deploy/install-host.sh` (ticket 72, "Rehearsal").
-  Evidence:
-- [ ] **GlitchTip release token**: `GLITCHTIP_AUTH_TOKEN` and the `GLITCHTIP_*` CI variables, and `MAKAM_GLITCHTIP_TOKEN` in each host env file (ticket 72, "Releases").
-  Evidence:
-- [ ] **`prod.env` is complete** ("Production (ticket 65)"): the sandbox set `SUMOPOD_BASE_URL`, `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` of the project staging uses (only these three are read; the `whtok_` token is not), SMTP, and `RILIS_TERBUKA=1` written down (plan B2), mode 0600.
-  Evidence:
-- [ ] **The first Admin Platform's email and phone** for `seed:admin` are chosen (plan C4).
-  Evidence:
-- [ ] **The Data Contoh amounts are approved** (the Lokasi and Layanan prices, the contoh Biaya Layanan Platform, the 22 DKI prices and the Mitra Jasa rates; plan C2), and **Retribusi Pemda at Rp 0 is accepted as a real value** (plan C3).
-  Evidence:
+- [x] **Cosign key pairs** for staging and production exist; their public keys are installed by `deploy/install-host.sh` (ticket 72, "Rehearsal").
+  Evidence: 2026-10-04: staging key in use since 2026-09-27; production key: GitHub secrets `COSIGN_PROD_PRIVATE_KEY`/`COSIGN_PROD_PASSWORD` exist, `/opt/makam-v1/prod/cosign.pub` installed (mode 644, sha256 `ae1be4be…6ffecf`, differs from staging); promote.yml signed `sha256:344c9503…` with it (run 37197591615).
+- [x] **GlitchTip release token**: `GLITCHTIP_AUTH_TOKEN` and the `GLITCHTIP_*` CI variables, and `MAKAM_GLITCHTIP_TOKEN` in each host env file (ticket 72, "Releases").
+  Evidence: 2026-10-04: `MAKAM_GLITCHTIP_TOKEN` in both env files (owner replaced the first token, which got 403); a manual `makam-glitchtip-release` created release `bc71fe22` in makam-staging. CI `GLITCHTIP_AUTH_TOKEN` exists; the source-map upload job has answered 408 since 11:13 UTC (nginx body timeout on errors.makam.co.id), non-blocking.
+- [x] **`prod.env` is complete** ("Production (ticket 65)"): the sandbox set `SUMOPOD_BASE_URL`, `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` of the project staging uses (only these three are read; the `whtok_` token is not), SMTP, and `RILIS_TERBUKA=1` written down (plan B2), mode 0600.
+  Evidence: 2026-10-04: written by the orchestrator (names only reported); sandbox `SUMOPOD_BASE_URL`, key and the rotated signing secret (same project as staging); `RILIS_TERBUKA=1` added; mode 600.
+- [x] **The first Admin Platform's email and phone** for `seed:admin` are chosen (plan C4).
+  Evidence: 2026-10-04: `admin@makam.co.id`, `+6282278911288` (owner); seeded on production the same day.
+- [x] **The Data Contoh amounts are approved** (the Lokasi and Layanan prices, the contoh Biaya Layanan Platform, the 22 DKI prices and the Mitra Jasa rates; plan C2), and **Retribusi Pemda at Rp 0 is accepted as a real value** (plan C3).
+  Evidence: 2026-10-04: owner approved ticket 109's and ticket 111's sheets as listed, and Retribusi Pemda Rp 0 as a real value (recorded in both tickets).
 - [ ] **Both backup passphrases are copied somewhere offline**, and the GlitchTip superuser password is changed (plan C5).
   Evidence:
 - [ ] **UptimeRobot account and alert contacts, and the GlitchTip alert recipients** exist (plan C9). GlitchTip's `EMAIL_URL` and the rule "Error baru (email)" on both projects are already in place (runbook, "errors.makam.co.id").
   Evidence:
-- [ ] **Texts approved**: the trial banner and its Data Contoh line, the CS script for turning real orders away ("Production on SumoPod's sandbox"), and the TPU guide copy (plan C11).
-  Evidence:
+- [x] **Texts approved**: the trial banner and its Data Contoh line, the CS script for turning real orders away ("Production on SumoPod's sandbox"), and the TPU guide copy (plan C11).
+  Evidence: 2026-10-04: owner approved the banner's Data Contoh line (ticket 109) and the TPU guide copy (ticket 112). The CS turn-away script is still to be confirmed.
 - [ ] **Accepted by the owner** (plan C12): the production import of the old catalog is skipped, because Data Contoh replaces it; the deferral lists below; and the trade-off of stable Server Action ids for ticket 98, whose key would live in the image.
   Evidence:
 - [ ] **Beta staff**: the Bertugas hours, a CS person, and the Petugas Lapangan accounts before G5 (plan C13).
   Evidence:
-- [ ] **Old-app data question answered** (ticket 65, AC1): answered on 2026-10-03, the old app holds test data only and is archived at the switch (ticket 65, "Comments").
-  Evidence:
+- [x] **Old-app data question answered** (ticket 65, AC1): answered on 2026-10-03, the old app holds test data only and is archived at the switch (ticket 65, "Comments").
+  Evidence: Answered 2026-10-03 (ticket 65).
 
 ## G0: the promotion path runs (D1 to D2)
 
 Procedure: runbook, "Promoting to production" and "The staging smoke gate".
 
-- [ ] **Ticket 105 is proved**: the staging smoke test recorded `success` against the digest staging runs.
+- [x] **Ticket 105 is proved**: the staging smoke test recorded `success` against the digest staging runs.
   Check: `gh api repos/andrianm28/makam/deployments/<id>/statuses` holds `... (sha256:...) healthy` and `smoke test against dev.makam.co.id for sha256:...: success`.
-  Evidence:
-- [ ] **Batch MB1 (tickets 106, 107, 108) is merged and staging runs digest A**; the smoke test records its own `success` on the Deployment's `deployment_status` event, not only on the 15-minute schedule.
+  Evidence: 2026-10-04 04:02 UTC: staging Deployment 6835948704 (09f3b8b8) got `success: smoke test against dev.makam.co.id for sha256:90b6c358…: success`.
+- [x] **Batch MB1 (tickets 106, 107, 108) is merged and staging runs digest A**; the smoke test records its own `success` on the Deployment's `deployment_status` event, not only on the 15-minute schedule.
   Check: the Deployment id and its newest smoke status, with the time.
-  Evidence:
-- [ ] **`/api/health` names the release and the open release.**
+  Evidence: 2026-10-04: MB1 merged at 7415fdf7; Deployment 6838395883 got `healthy` 07:51:54 and the smoke `success` 07:53:33 from a `deployment_status` run (no schedule wait).
+- [x] **`/api/health` names the release and the open release.**
   Check: `curl -s https://dev.makam.co.id/api/health | jq '{ok,release,rilisTerbuka}'` shows A's commit and `3`.
-  Evidence:
-- [ ] **The `actionlint` job is green on `main`.**
-  Evidence:
+  Evidence: 2026-10-04: staging answers `release` 7415fdf7 and `rilisTerbuka` 3; production answers `environment` production, `rilisTerbuka` 1.
+- [x] **The `actionlint` job is green on `main`.**
+  Evidence: 2026-10-04: green from 7415fdf7 on (run 37186207278).
 
 ## G1: the rehearsal on 127.0.0.1:3100 (D2)
 
 Procedure: runbook, "Rehearsal of the first production deploy". No nginx change: `makam.co.id` still serves the old app. The order is promote, deploy, `seed:admin`, the launch data, `install-host.sh` again, and only then the preflight, because the production timers exist only after the first deploy.
 
-- [ ] **P1: A is promoted** (the owner ran `promote.yml` and typed the tag; the first of a day is `-1`).
+- [x] **P1: A is promoted** (the owner ran `promote.yml` and typed the tag; the first of a day is `-1`).
   Check: `gh release view <tag> --json isDraft` shows `false`.
-  Evidence:
-- [ ] **`makam-deploy --env prod --digest A` exits 0** and the worker started at level 1.
+  Evidence: 2026-10-04: `v2026.10.04-1` published (not draft) targeting c04dd9c9, production digest `sha256:344c9503…` signed with the production key, on the first run (run 37197591615).
+- [x] **`makam-deploy --env prod --digest A` exits 0** and the worker started at level 1.
   Check: the exit code, and `$P logs worker | grep 'started (RILIS_TERBUKA=1)'`.
-  Evidence:
-- [ ] **The first Admin Platform and the launch data are in** (`seed:admin`, then `import-data-peluncuran --izinkan-production`, a dry run first).
+  Evidence: 2026-10-04 11:08 UTC: exit 0 after starting the never-run Postgres by hand (defect fixed in ticket 114); snapshot, migrate ok, healthy in 36 s; worker `started (RILIS_TERBUKA=1)`; production Deployment 6840180109 in_progress→success.
+- [x] **The first Admin Platform and the launch data are in** (`seed:admin`, then `import-data-peluncuran --izinkan-production`, a dry run first).
   Check: the two reports.
-  Evidence:
-- [ ] **`install-host.sh` ran again and four production timers are listed.**
+  Evidence: 2026-10-04: `seed:admin` created admin@makam.co.id; `import-data-peluncuran --izinkan-production` dry run then `--tulis`: 38 TPU DKI, 2 Biaya Pengurusan, 6 Katalog Layanan, 0 refused.
+- [x] **`install-host.sh` ran again and four production timers are listed.**
   Check: `systemctl list-timers 'makam-prod-*'` lists makam-prod-db-backup, -files-backup, -restore-test and -health.
-  Evidence:
-- [ ] **The preflight `--rilis 1` exits 0 with no FAIL**; SKIP only for S3, the sandbox, data contoh, the uptime monitor and nginx.
+  Evidence: 2026-10-04: makam-prod-db-backup, -files-backup, -restore-test and -health timers enabled.
+- [x] **The preflight `--rilis 1` exits 0 with no FAIL**; SKIP only for S3, the sandbox, data contoh, the uptime monitor and nginx.
   Check: the whole output (it never prints a secret).
-  Evidence:
-- [ ] **An image signed only with the staging key is refused**: exit 77, and nothing is touched.
+  Evidence: 2026-10-04, after ticket 114 was installed: exit 0, 22 PASS, SKIP only for the sandbox, data contoh, S3, the uptime monitor and nginx (the first run had 2 FAIL: disk 85%, freed to 80%, and the probe cleanup bug fixed in 114).
+- [x] **An image signed only with the staging key is refused**: exit 77, and nothing is touched.
   Check: the exit code, the `deploy.log` line, and `deployed.env` unchanged.
-  Evidence:
+  Evidence: 2026-10-04 11:09:45 UTC: `sha256:0d59a18f…` (staging-signed) refused, exit 77, "nothing changed".
 - [ ] **A forced rollback works**: `MAKAM_HEALTH_WAIT=0 ... --force` exits 1, the previous digest runs again, the Deployment ends `failure`, and a normal deploy then restores `healthy`.
   Check: the exit code, the `deploy.log` lines, the Deployment's statuses.
-  Evidence:
-- [ ] **The backups and the restore test pass**: `makam-backup-db --env prod`, `makam-backup-files --env prod` and `makam-restore-test --env prod` exit 0.
-  Evidence:
+  Evidence: 2026-10-04 11:10 UTC: `MAKAM_HEALTH_WAIT=0 … --force` exit 1, "rolled back to sha-c04dd9c9…", healthy again. Open: the Deployment's `failure` status was refused by GitHub (description > 140 characters) and the release read `sha-…`; both fixed by ticket 114. Re-prove at G3's cross-digest rollback.
+- [x] **The backups and the restore test pass**: `makam-backup-db --env prod`, `makam-backup-files --env prod` and `makam-restore-test --env prod` exit 0.
+  Evidence: 2026-10-04: makam-prod-db-backup, -files-backup and -restore-test services succeeded; restore test: 111 tables, none short of its rows, in 8 s.
 - [ ] **Ticket 72's Rehearsal items are ticked** (by the orchestrator, from this evidence; the ticket's wording is unchanged).
   Evidence:
 
