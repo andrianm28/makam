@@ -21,3 +21,8 @@ Spec: ticket 64 (backups of makam-staging and makam-prod); `docs/ops/runbook.md`
 ## Comments
 
 - 2026-10-04: Filed by the orchestrator from the approved plan (track A, MB1). Not money code. 107 checks these four timer names.
+- 2026-10-04 (ticket thread): built test-first (red 4506975, code 1bad691, docs fix after). Review, Standards: 0 blocking, 2 should-fix (red commit added all behaviours at once; code commit also fixed a wrong regex slice in the red test; history is pushed, not rewritten), 2 nit (brittle script-text regexes, nested ternary; left). Spec: 0 blocking, 1 should-fix (Uptime alarm section lacked a cross-reference; fixed in docs), 1 nit (long line, left). Re-review of the docs-only fix was not run. The prod health unit does not repeat the host disk check, which staging's unit already runs every minute for the whole root filesystem.
+
+### Spec gaps and decisions for the owner
+
+None.

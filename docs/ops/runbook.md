@@ -1740,6 +1740,8 @@ minutes):
    notice.
 
 For production (ticket 65), add a second monitor on `https://makam.co.id/api/health`.
+The local prod watchdog is `makam-prod-health.timer` (see "The prod health check"
+above and "Database backup and restore" for when it is enabled).
 
 **Local watchdog (installed).** `makam-staging-health.timer` runs
 `makam-healthcheck https://dev.makam.co.id/api/health` every minute, through
