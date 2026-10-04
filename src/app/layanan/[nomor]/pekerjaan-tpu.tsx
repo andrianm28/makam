@@ -39,6 +39,8 @@ export function PekerjaanTpuDaftar({ order, renderThread }: { order: PesananTpuT
                 Dikerjakan oleh <span className="font-semibold">{satu.mitraJasa.namaDepan}</span>
               </p>
             </div>
+          ) : satu.status === "dibatalkan" ? (
+            <p className="mt-3 text-small text-muted-foreground">Pekerjaan ini dibatalkan dan tidak akan dikerjakan.</p>
           ) : (
             <p className="mt-3 text-small text-muted-foreground">Mitra Jasa akan ditugaskan sebelum tanggal target. Nama depan dan fotonya muncul di sini setelah ia menerima pekerjaan.</p>
           )}

@@ -235,7 +235,11 @@ export interface Pengurusan {
    * the scan sent to the Pemesan and the Pemegang Hak whatever the Tagihan's status. Audited.
    */
   terbitkanIptm(by: Actor, input: unknown): Promise<TerbitkanIptmResult>;
-  /** The Pemesan cancels before the IPTM is filed: an unpaid Tagihan is voided, a paid one gets a refund request (the Biaya Pengurusan kept from Dimakamkan on). */
+  /**
+   * The Pemesan cancels before the IPTM is filed: an unpaid Tagihan is voided, a paid one gets a refund request (the Biaya Pengurusan
+   * kept from Dimakamkan on). A Saat Duka TPU order's hari-H Layanan not yet done are cancelled with it, in the same transaction, and
+   * refunded; one already begun or done keeps its price (ticket 117).
+   */
   batalkanPengurusan(pemesan: { accountId: string }, input: unknown): Promise<BatalkanPengurusanResult>;
   /** The Akun's Makam TPU records (its Makam tab). */
   makamTpuSaya(pemesan: { accountId: string }): Promise<MakamTpu[]>;

@@ -521,10 +521,15 @@ export type BatalkanPengurusanResult =
   | { ok: false; reason: "tagihan_tidak_dibatalkan" | "pengembalian_tidak_terbit" };
 
 
+/** Nothing to cancel: an order that is not a Saat Duka TPU one has no hari-H Layanan. */
+const TANPA_HARI_H = { ok: true as const, dibatalkan: 0, baris: [], tidakDikembalikan: 0 };
+
 /**
- * The Pemesan cancels before the IPTM is filed. The order, the Tagihan and the refund request all
- * commit together or not at all: an unpaid Tagihan is voided; a paid one is refunded in full before
- * Dimakamkan, and at or past it everything except the Biaya Pengurusan.
+ * The Pemesan cancels before the IPTM is filed. The order, its hari-H Layanan, the Tagihan and the refund request all
+ * commit together or not at all: an unpaid Tagihan is voided; a paid one is refunded in full before Dimakamkan, and
+ * at or past it everything except the Biaya Pengurusan. A Saat Duka TPU order's hari-H Layanan not yet done are
+ * cancelled with it (ticket 117) and are the only Layanan lines refunded: one already begun or done keeps its price, and
+ * the refund (owner decision 2026-10-02) is the order's own lines plus exactly the jobs cancelled here.
  */
 export async function batalkanPengurusan(
   deps: PengurusanDeps,
@@ -540,6 +545,7 @@ export async function batalkanPengurusan(
 
   const now = deps.clock.now();
   const sudahDimakamkan = STATUS_SUDAH_DIMAKAMKAN.includes(order.status);
+  const saatDukaTpu = order.kind === "saat_duka_tpu";
   return refusable<BatalkanPengurusanResult>(deps.db, async (tx) => {
     const moved = await tx
       .update(pengurusanTpu)
@@ -548,32 +554,35 @@ export async function batalkanPengurusan(
       .returning({ id: pengurusanTpu.id });
     if (moved.length === 0) return { ok: false as const, reason: "status_tidak_sesuai" as const };
 
+    // The hari-H Layanan end with the order, paid or not: Layanan cancels what is not yet done and names the lines to refund for it.
+    const hariH = saatDukaTpu ? await deps.layanan.batalkanHariHTpu(order.nomor, tx) : TANPA_HARI_H;
+    if (!hariH.ok) return { ok: false as const, reason: "pengembalian_tidak_terbit" as const };
+
     let tagihanDibatalkan = false;
     let pengembalian = 0;
     const berlaku = order.tagihanId ? await deps.billing.within(tx).tagihanBerlaku(order.tagihanId) : null;
     if (berlaku && berlaku.status === "lunas") {
-      // A hari-H Layanan already done is not refunded (owner decision 2026-10-02): each done job takes out one line of its label and price.
-      const selesai = [...(await deps.layanan.pekerjaanTpuSelesaiUntukTagihan(berlaku.id, tx))];
-      const sudahDikerjakan = (line: { kind: string; label: string; amount: number }) => {
-        if (line.kind !== "layanan") return false;
-        const posisi = selesai.findIndex((satu) => satu.label === line.label && satu.amount === line.amount);
-        if (posisi < 0) return false;
-        selesai.splice(posisi, 1);
-        return true;
-      };
-      const tanpaYangSelesai = berlaku.lines.filter((line) => !sudahDikerjakan(line));
-      const adaYangSelesai = tanpaYangSelesai.length < berlaku.lines.length;
-      const lines = tanpaYangSelesai
-        .filter((line) => line.kind !== "penyesuaian_harga_khusus" && line.kind !== "biaya_layanan_platform")
-        .filter((line) => !(sudahDimakamkan && line.kind === "biaya_pengurusan"))
-        .map((line) => ({
-          label: line.label,
-          amount: nilaiDibayarBaris(berlaku.lines, line),
-          lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null,
-        }))
-        .filter((line) => line.amount > 0);
+      const lines = [
+        ...berlaku.lines
+          // A hari-H Layanan line comes back only through its job, below: one begun or done is not refunded.
+          .filter((line) => !(saatDukaTpu && line.kind === "layanan"))
+          .filter((line) => line.kind !== "penyesuaian_harga_khusus" && line.kind !== "biaya_layanan_platform")
+          .filter((line) => !(sudahDimakamkan && line.kind === "biaya_pengurusan"))
+          .map((line) => ({
+            label: line.label,
+            amount: nilaiDibayarBaris(berlaku.lines, line),
+            lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null,
+          }))
+          .filter((line) => line.amount > 0),
+        ...hariH.baris,
+      ];
       if (lines.length > 0) {
-        const diajukan = await deps.refunds.ajukanBaris(berlaku.id, { pihakBersalah: "pemesan", penuh: !sudahDimakamkan && !adaYangSelesai, lines }, tx);
+        // "Penuh" only when everything comes back: nothing kept (or refunded before) and the Biaya Pengurusan included.
+        const diajukan = await deps.refunds.ajukanBaris(
+          berlaku.id,
+          { pihakBersalah: "pemesan", penuh: !sudahDimakamkan && hariH.tidakDikembalikan === 0, penuhBilaLengkap: !sudahDimakamkan, lines },
+          tx,
+        );
         if (!diajukan.ok) return { ok: false as const, reason: "pengembalian_tidak_terbit" as const };
         pengembalian = diajukan.jumlah;
       }

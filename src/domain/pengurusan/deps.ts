@@ -64,8 +64,9 @@ export interface PengurusanDeps {
   /**
    * The hari-H Layanan a Saat Duka TPU order may add (story 23, ticket 56): priced at
    * the DKI price for the Tagihan the confirmation issues, and scheduled as Pekerjaan
-   * Layanan inside that same transaction. Required: a missing wiring is a compile error,
-   * never a runtime refusal of an order that named such items.
+   * Layanan inside that same transaction, and cancelled with the order when it is cancelled
+   * (ticket 117), in the cancellation's own transaction. Required: a missing wiring is a compile
+   * error, never a runtime refusal of an order that named such items.
    */
-  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu" | "pekerjaanTpuSelesaiUntukTagihan">;
+  layanan: Pick<Layanan, "barisHariHTpu" | "jadwalkanHariHTpu" | "batalkanHariHTpu">;
 }
