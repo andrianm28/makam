@@ -608,6 +608,17 @@ describe("makam-preflight", () => {
     expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
   });
 
+  it("documents --rilis, the four production timers, the bare-revision probe and the pull retries in the runbook's preflight section", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Hari switch"));
+    expect(section).toContain("--rilis");
+    for (const name of ["db-backup", "files-backup", "restore-test", "health"]) {
+      expect(section).toContain(`makam-prod-${name}.timer`);
+    }
+    expect(section).not.toContain("sha-<revision>");
+    expect(section).toMatch(/3 attempts|3 times/);
+  });
+
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
     const result = preflight(healthy(world()));
     expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[02\].*uptime monitor.*outside the VPS.*alert contact/));
