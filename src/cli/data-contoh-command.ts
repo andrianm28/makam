@@ -36,6 +36,7 @@ import {
   type DataContoh,
   type EntriDataContoh,
   type HargaContohBerlaku,
+  type PekerjaanBerjalanMitraJasa,
   type RencanaCabut,
   type RencanaTanam,
   type VarianTakDitawarkan,
@@ -367,7 +368,7 @@ async function bacaPrasyaratRilis3(ctx: Konteks, admin: Actor): Promise<{ ok: tr
   const belumAda = aturan.filter((satu) => !satu.lokasi);
   if (belumAda.length > 0) kurang.push(`Lokasi (Contoh) belum ditanam (${belumAda.map((satu) => tandaContoh(satu.aturan.lokasi)).join(", ")}): jalankan tanam --set rilis1 dulu.`);
   if (kurang.length > 0) {
-    return { ok: false, output: ["Ditolak: tanam --set rilis3 bertumpu pada data peluncuran dan set Rilis 1, dan keduanya belum lengkap; tidak ada yang ditanam:", ...kurang.map((baris) => `  - ${baris}`)].join("\n") };
+    return { ok: false, output: ["Ditolak: tanam --set rilis3 bertumpu pada data peluncuran dan set Rilis 1, dan yang berikut belum ada; tidak ada yang ditanam:", ...kurang.map((baris) => `  - ${baris}`)].join("\n") };
   }
   return { ok: true, prasyarat: { varian, tpuDkiIds: tpu.map((satu) => satu.id), aturan: aturan.map((satu) => ({ aturan: satu.aturan, kode: satu.kode, lokasiId: satu.lokasi!.entitasId })) } };
 }
@@ -575,7 +576,15 @@ async function tanamRilis3(ctx: Konteks, perintah: Perintah): Promise<Hasil> {
   if (!retribusi.ok) return { exitCode: 1, output: `Ditolak: Retribusi Pemda IPTM tidak tersimpan (${retribusi.reason}).` };
   const tertanam = await dataContoh.tanam(admin, { himpunan: "rilis3", reason: perintah.alasan, rencana: rencanaRilis3(ctx, admin, prasyarat.prasyarat, hariIni, perintah.alasan) });
   if (!tertanam.ok) {
-    return { exitCode: 1, output: "alasan" in tertanam ? `Ditolak: ${tertanam.kode} gagal ditanam (${tertanam.alasan}); yang sudah dibuatnya dicabut kembali.` : `Ditolak: ${tertanam.reason}.` };
+    const gagal =
+      "alasan" in tertanam
+        ? [
+            `Ditolak: ${tertanam.kode} gagal ditanam (${tertanam.alasan}); yang sudah dibuatnya dicabut kembali.`,
+            "Bagian yang sudah selesai sebelumnya tetap tercatat: jalankan tanam lagi setelah masalahnya diperbaiki.",
+          ]
+        : [`Ditolak: ${tertanam.reason}.`];
+    // The Retribusi Pemda went in first and is a real value: a failed run does not take it back, and `cabut` never touches it.
+    return { exitCode: 1, output: [...gagal, `Retribusi Pemda IPTM ${rupiah(retribusi.jumlah)} (nilai asli) tetap berlaku: ia bukan Data Contoh dan tidak ikut dicabut.`].join("\n") };
   }
   const baris = [
     tertanam.dibuat.length === 0 && !retribusi.baru
@@ -597,7 +606,7 @@ function laporanRencanaCabut(rencana: RencanaCabut, nama: Map<string, string>): 
   const baris =
     rencana.aktif.length > 0
       ? [`${rencana.aktif.length} entri aktif akan dicabut:`, ...entriPerJenis(rencana.aktif)]
-      : [rencana.diblokir.length === 0 ? "Tidak ada Data Contoh yang aktif." : "Registri tidak memegang entri aktif."];
+      : [rencana.diblokir.length === 0 && rencana.tidakDitawarkan.length === 0 ? "Tidak ada Data Contoh yang aktif." : "Registri tidak memegang entri aktif."];
   if (rencana.diblokir.length > 0) baris.push(...laporanDiblokir(rencana.diblokir));
   baris.push(...laporanTidakDitawarkan(rencana.tidakDitawarkan, nama, true));
   baris.push(...laporanPesanan(rencana.pesananTerbuka));
@@ -613,7 +622,20 @@ function laporanTidakDitawarkan(daftar: VarianTakDitawarkan[], nama: Map<string,
       const sebab = [satu.hargaDki ? "harga DKI contoh" : null, satu.tarifMitraJasa ? "tarif Mitra Jasa contoh" : null].filter((teks) => teks !== null).join(", ");
       return `  - ${nama.get(satu.layananVariantId) ?? satu.layananVariantId} (${sebab})`;
     }),
-    "Masukkan harga DKI dan tarif Mitra Jasa asli lewat layar Layanan, lalu tandai variannya lagi bila perlu.",
+    dryRun
+      ? "Agar varian itu tetap ditawarkan, masukkan harga DKI dan tarif Mitra Jasa asli lewat layar Layanan sebelum cabut --tulis."
+      : "Masukkan harga DKI dan tarif Mitra Jasa asli lewat layar Layanan, lalu tandai variannya lagi bila perlu.",
+    "Pesanan TPU yang sudah masuk dengan harga itu tidak dibatalkan di sini: tinjau lewat Antrean.",
+  ];
+}
+
+/** The jobs a Mitra Jasa (Contoh) still has in progress when it is set to Berhenti: left to it, for Admin Platform to reassign. */
+function laporanPekerjaanBerjalan(daftar: PekerjaanBerjalanMitraJasa[]): string[] {
+  const jumlah = daftar.reduce((total, satu) => total + satu.pekerjaan.length, 0);
+  if (jumlah === 0) return [];
+  return [
+    `${jumlah} pekerjaan masih berjalan pada Mitra Jasa (Contoh) yang diberhentikan dan tidak dilepas; tugaskan ulang lewat layar Layanan:`,
+    ...daftar.flatMap((satu) => satu.pekerjaan.map((job) => `  - ${satu.kode}: pekerjaan ${job.id} (${job.status}, target ${job.targetDate})`)),
   ];
 }
 
@@ -641,6 +663,7 @@ async function cabut(ctx: Konteks, perintah: Perintah): Promise<Hasil> {
   const nama = new Map((await varianKatalog(ctx)).map((satu) => [satu.id, satu.nama] as const));
   if (!perintah.tulis) {
     const rencana = await dataContoh.rencanaCabut(admin);
+    if (!rencana.ok) return { exitCode: 1, output: `Ditolak: ${rencana.reason}.` };
     return {
       exitCode: rencana.diblokir.length > 0 ? 1 : 0,
       output: ["[data-contoh] Mode dry-run: tidak ada yang ditulis.", ...laporanRencanaCabut(rencana, nama), "Gunakan --tulis untuk mencabutnya."].join("\n"),
@@ -652,8 +675,13 @@ async function cabut(ctx: Konteks, perintah: Perintah): Promise<Hasil> {
     return {
       exitCode: 0,
       output: [
-        jumlah.length === 0 ? "Tidak ada Data Contoh yang aktif; tidak ada yang dicabut." : `Data Contoh dicabut (${jumlah.join(", ")}). Tidak ada yang aktif lagi.`,
+        jumlah.length === 0
+          ? hasil.tidakDitawarkan.length === 0
+            ? "Tidak ada Data Contoh yang aktif; tidak ada yang dicabut."
+            : "Registri tidak memegang entri aktif; tidak ada entri yang dicabut."
+          : `Data Contoh dicabut (${jumlah.join(", ")}). Tidak ada yang aktif lagi.`,
         ...laporanTidakDitawarkan(hasil.tidakDitawarkan, nama, false),
+        ...laporanPekerjaanBerjalan(hasil.pekerjaanBerjalan),
         ...laporanPesanan(hasil.pesananTerbuka),
       ].join("\n"),
     };
@@ -665,6 +693,7 @@ async function cabut(ctx: Konteks, perintah: Perintah): Promise<Hasil> {
       output: [
         `Ditolak: ${hasil.sisa.length} entri masih aktif setelah dicabut:`,
         ...hasil.gagal.map((satu) => `  - ${satu.kode}: ${satu.alasan}`),
+        ...laporanPekerjaanBerjalan(hasil.pekerjaanBerjalan),
         ...laporanPesanan(hasil.pesananTerbuka),
       ].join("\n"),
     };

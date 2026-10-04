@@ -40,10 +40,13 @@
  * versions too and cannot be retired, but `cabut` does not wait for a real successor over them the way it does over a global
  * price: a variant is offered at a TPU only while Admin Platform's "boleh di TPU DKI" mark is on, so `cabut` takes the mark off
  * every variant whose DKI price or Mitra Jasa rate in force is still a contoh version (the Operator would pay a Mitra Jasa an
- * example amount), and leaves the mark on a variant whose prices both have real successors. A Mitra Jasa (Contoh) is set to
- * Berhenti, a Nazhir (Contoh) is removed from the list, and the Rilis 2 rules entered on a contoh Lokasi Mitra go with the
- * Lokasi (hidden for good), so their row is only marked retired. A real value a set enters, the Retribusi Pemda of an IPTM,
- * is no entry here: it is not contoh, and a registry row would make `cabut` wait for it to be superseded.
+ * example amount), and leaves the mark on a variant whose prices both have real successors. It looks at EVERY variant offered
+ * now, whether or not an active registry row names it: a variant somebody marked again after an earlier `cabut`, or one whose
+ * contoh price a killed `tanam` entered unrecorded, is offered at an example price all the same, and the Audit Log still tells
+ * the example version. A Mitra Jasa (Contoh) is set to Berhenti (the jobs it has in progress are left to it and reported, for
+ * Admin Platform to reassign), a Nazhir (Contoh) is removed from the list, and the Rilis 2 rules entered on a contoh Lokasi
+ * Mitra go with the Lokasi (hidden for good), so their row is only marked retired. A real value a set enters, the Retribusi
+ * Pemda of an IPTM, is no entry here: it is not contoh, and a registry row would make `cabut` wait for it to be superseded.
  *
  * Only Admin Platform writes here, under `lokasi.buat` (the action creating or
  * hiding a Lokasi Mitra is), like the Katalog Lama ledger. Each owning module
@@ -54,7 +57,7 @@ import { z } from "zod";
 import type { Database } from "@/db/client";
 import type { AuditEntry, AuditLog } from "@/domain/audit";
 import { semuaLokasiMitraResource, writeRefusal, type Actor, type Identity, type WriteRefusal } from "@/domain/identity";
-import type { Layanan } from "@/domain/layanan";
+import type { Layanan, ReleasedJob } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { PesananBerjalan } from "@/domain/pemesanan";
 import type { GlobalTariffKey, Tariffs } from "@/domain/tariffs";
@@ -195,6 +198,14 @@ export interface VarianTakDitawarkan {
   tarifMitraJasa: boolean;
 }
 
+/** The jobs a Mitra Jasa (Contoh) still has in progress when `cabut` ends it: left alone (that is the family's work in the ground), for Admin Platform to reassign. */
+export interface PekerjaanBerjalanMitraJasa {
+  /** The fixture code of the Mitra Jasa (Contoh). */
+  kode: string;
+  mitraJasaId: string;
+  pekerjaan: ReleasedJob[];
+}
+
 export interface RencanaCabut {
   /** Every entry still active, in the order `cabut` retires them. */
   aktif: EntriDataContoh[];
@@ -205,13 +216,29 @@ export interface RencanaCabut {
   pesananTerbuka: PesananTerbukaDiLokasiContoh[];
 }
 
+/** The dry run: the plan, or the refusal of an actor who is not Admin Platform (the Mitra Jasa rates it reads are Admin Platform's). */
+export type RencanaCabutResult = ({ ok: true } & RencanaCabut) | WriteRefusal;
+
 export type CabutResult =
-  | { ok: true; dicabut: Partial<Record<JenisDataContoh, number>>; tidakDitawarkan: VarianTakDitawarkan[]; pesananTerbuka: PesananTerbukaDiLokasiContoh[] }
+  | {
+      ok: true;
+      dicabut: Partial<Record<JenisDataContoh, number>>;
+      tidakDitawarkan: VarianTakDitawarkan[];
+      pesananTerbuka: PesananTerbukaDiLokasiContoh[];
+      pekerjaanBerjalan: PekerjaanBerjalanMitraJasa[];
+    }
   | WriteRefusal
   | { ok: false; reason: "alasan_wajib" }
   | { ok: false; reason: "harga_contoh_masih_berlaku"; diblokir: HargaContohBerlaku[]; pesananTerbuka: PesananTerbukaDiLokasiContoh[] }
   /** Something could not be retired, or an entry is still active after the run: listed, and the command exits 1. */
-  | { ok: false; reason: "masih_aktif"; gagal: { kode: string; alasan: string }[]; sisa: EntriDataContoh[]; pesananTerbuka: PesananTerbukaDiLokasiContoh[] };
+  | {
+      ok: false;
+      reason: "masih_aktif";
+      gagal: { kode: string; alasan: string }[];
+      sisa: EntriDataContoh[];
+      pesananTerbuka: PesananTerbukaDiLokasiContoh[];
+      pekerjaanBerjalan: PekerjaanBerjalanMitraJasa[];
+    };
 
 export interface DataContohDeps {
   db: Database;
@@ -234,8 +261,8 @@ export interface DataContoh {
   catat(by: Actor, input: CatatInput): Promise<CatatResult>;
   /** Plants a set: builds each fixture the registry does not already hold complete, and records it. */
   tanam(by: Actor, input: { himpunan: HimpunanDataContoh; reason: string; rencana: RencanaTanam[] }): Promise<TanamResult>;
-  /** What `cabut` would do right now, without writing anything (the dry run); `by` is the Admin Platform whose reads the Mitra Jasa rates need. */
-  rencanaCabut(by: Actor): Promise<RencanaCabut>;
+  /** What `cabut` would do right now, without writing anything (the dry run); `by` is the Admin Platform whose reads the Mitra Jasa rates need, so anyone else is refused. */
+  rencanaCabut(by: Actor): Promise<RencanaCabutResult>;
   /** Retires every active entry, or refuses and changes nothing while a contoh price is still in force. */
   cabut(by: Actor, input: { reason: string }): Promise<CabutResult>;
   /**
@@ -554,7 +581,9 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
    * up). A Layanan variant's own prices are different: `cabut` takes the variant's mark off before any row is retired (see
    * `rencanaTidakDitawarkan`), so what is left to retire here is the row alone.
    */
-  async function cabutEntri(by: Actor, row: Row, reason: string): Promise<{ ok: true } | { ok: false; alasan: string }> {
+  async function cabutEntri(by: Actor, row: Row, reason: string): Promise<{ ok: true; berjalan: ReleasedJob[] } | { ok: false; alasan: string }> {
+    // The jobs a Mitra Jasa had in progress when it was set to Berhenti: `ubahStatus` leaves them to it and returns them.
+    let berjalan: ReleasedJob[] = [];
     if (row.jenis === "tarif_global") {
       if (await hargaMasihBerlaku(by, row)) return { ok: false, alasan: `harga contoh ${bacaVersiTarif(row.entitasId)?.key} masih berlaku, belum digantikan versi asli` };
     } else if (row.jenis === "lokasi_mitra") {
@@ -567,12 +596,13 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       // Berhenti: no new job, its record and history stay (a Mitra Jasa ended by Admin Platform already is the same state).
       const hasil = await deps.layanan.ubahStatus(by, row.entitasId, { status: "berhenti", alasan: reason });
       if (!hasil.ok && hasil.reason !== "status_sama" && hasil.reason !== "tidak_ditemukan") return { ok: false, alasan: `Mitra Jasa tidak bisa diberhentikan (${hasil.reason})` };
+      if (hasil.ok) berjalan = hasil.berjalan;
     } else if (row.jenis === "nazhir") {
       const hasil = await deps.wakaf.hapusNazhir(by, { nazhirId: row.entitasId });
       if (!hasil.ok && hasil.reason !== "nazhir_tidak_ditemukan") return { ok: false, alasan: `Nazhir tidak bisa dihapus (${hasil.reason})` };
     }
     await tandaiDicabut(by, row, reason);
-    return { ok: true };
+    return { ok: true, berjalan };
   }
 
   /** Retires an entry and everything recorded under it, the children first. */
@@ -626,22 +656,19 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
   }
 
   /**
-   * The variants `cabut` stops offering at a TPU: every one a TPU row is about that is offered now (marked "boleh di TPU DKI")
-   * while its DKI price or its Mitra Jasa rate in force is still a contoh version, whoever set the mark. Offering it would
-   * charge a family an example price, or pay a Mitra Jasa an example rate; a price version cannot be erased, so the offer is
-   * what stops. A variant whose two prices both have real successors keeps its mark.
+   * The variants `cabut` stops offering at a TPU: every one that is offered now (marked "boleh di TPU DKI") while its DKI price
+   * or its Mitra Jasa rate in force is still a contoh version, whoever set the mark. Offering it would charge a family an
+   * example price, or pay a Mitra Jasa an example rate; a price version cannot be erased, so the offer is what stops. A variant
+   * whose two prices both have real successors keeps its mark.
+   *
+   * Every offered variant of the catalog is looked at, not only the ones an active registry row names: a variant somebody
+   * marked again after an earlier `cabut` has no active row left, and one whose contoh price a killed `tanam` entered has none
+   * yet, yet both are offered at an example price. The Audit Log tells an example version whether or not a row names it.
    */
   async function rencanaTidakDitawarkan(by: Actor, aktif: Row[]): Promise<VarianTakDitawarkan[]> {
-    const varian = new Set<string>();
-    for (const row of aktif) {
-      const id = varianDariRow(row);
-      if (id) varian.add(id);
-    }
-    if (varian.size === 0) return [];
-    const ditawarkan = new Set((await deps.layanan.katalog()).flatMap((layanan) => layanan.varian.filter((satu) => satu.bolehDiTpu).map((satu) => satu.id)));
+    const ditawarkan = (await deps.layanan.katalog()).flatMap((layanan) => layanan.varian.filter((satu) => satu.bolehDiTpu).map((satu) => satu.id));
     const rencana: VarianTakDitawarkan[] = [];
-    for (const id of varian) {
-      if (!ditawarkan.has(id)) continue;
+    for (const id of ditawarkan) {
       const hargaDki = (await versiContohBerlaku(bukuHargaLayanan(by, "harga_layanan_dki", id), aktif)).length > 0;
       const tarifMitraJasa = (await versiContohBerlaku(bukuHargaLayanan(by, "tarif_mitra_jasa", id), aktif)).length > 0;
       if (hargaDki || tarifMitraJasa) rencana.push({ layananVariantId: id, hargaDki, tarifMitraJasa });
@@ -649,7 +676,8 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
     return rencana;
   }
 
-  async function rencanaCabut(by: Actor): Promise<RencanaCabut> {
+  /** What `cabut` would do right now, for an actor already known to be Admin Platform. */
+  async function susunRencanaCabut(by: Actor): Promise<RencanaCabut> {
     const aktif = (await semuaAktif()).sort((a, b) => URUTAN_CABUT[a.jenis as JenisDataContoh] - URUTAN_CABUT[b.jenis as JenisDataContoh]);
     return {
       aktif: aktif.map(toEntri),
@@ -657,6 +685,13 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       tidakDitawarkan: await rencanaTidakDitawarkan(by, aktif),
       pesananTerbuka: await pesananTerbukaDi(),
     };
+  }
+
+  /** The dry run: only Admin Platform reads the Mitra Jasa rates, so for anyone else the plan would silently leave variants out. */
+  async function rencanaCabut(by: Actor): Promise<RencanaCabutResult> {
+    const refusal = writeRefusal(by, "lokasi.buat", semuaLokasiMitraResource());
+    if (refusal) return refusal;
+    return { ok: true, ...(await susunRencanaCabut(by)) };
   }
 
   return {
@@ -766,14 +801,16 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
       const reason = reasonSchema.safeParse(raw.reason);
       if (!reason.success) return { ok: false, reason: "alasan_wajib" };
 
-      const rencana = await rencanaCabut(by);
+      const rencana = await susunRencanaCabut(by);
       if (rencana.diblokir.length > 0) {
         return { ok: false, reason: "harga_contoh_masih_berlaku", diblokir: rencana.diblokir, pesananTerbuka: rencana.pesananTerbuka };
       }
       const dicabut: Partial<Record<JenisDataContoh, number>> = {};
       const gagal: { kode: string; alasan: string }[] = [];
       // A variant offered at a TPU at an example price stops being offered first, before any row of its own is let go of: if its
-      // mark cannot be taken off, its rows stay active and the run fails, because the variant would still be offered.
+      // mark cannot be taken off, its rows stay active and the run fails, because the variant would still be offered. Layanan
+      // refuses the mark only to an actor who is not Admin Platform, whom `cabut` has already refused, so no real call lands in
+      // that branch today; it is kept so that a rule Layanan adds later stops the retirement instead of leaving a variant offered.
       const tidakDitawarkan: VarianTakDitawarkan[] = [];
       const tetapDitawarkan = new Set<string>();
       for (const satu of rencana.tidakDitawarkan) {
@@ -785,16 +822,19 @@ export function createDataContoh(deps: DataContohDeps): DataContoh {
         }
       }
       const aktif = await db.select().from(dataContohEntri).where(isNull(dataContohEntri.dicabutPada));
+      const pekerjaanBerjalan: PekerjaanBerjalanMitraJasa[] = [];
       for (const row of aktif.sort((a, b) => URUTAN_CABUT[a.jenis as JenisDataContoh] - URUTAN_CABUT[b.jenis as JenisDataContoh])) {
         const varian = varianDariRow(row);
         if (varian && tetapDitawarkan.has(varian)) continue;
         const hasil = await cabutEntri(by, row, reason.data);
-        if (hasil.ok) dicabut[row.jenis as JenisDataContoh] = (dicabut[row.jenis as JenisDataContoh] ?? 0) + 1;
-        else gagal.push({ kode: row.kode, alasan: hasil.alasan });
+        if (hasil.ok) {
+          dicabut[row.jenis as JenisDataContoh] = (dicabut[row.jenis as JenisDataContoh] ?? 0) + 1;
+          if (hasil.berjalan.length > 0) pekerjaanBerjalan.push({ kode: row.kode, mitraJasaId: row.entitasId, pekerjaan: hasil.berjalan });
+        } else gagal.push({ kode: row.kode, alasan: hasil.alasan });
       }
       const sisa = (await semuaAktif()).map(toEntri);
-      if (gagal.length > 0 || sisa.length > 0) return { ok: false, reason: "masih_aktif", gagal, sisa, pesananTerbuka: rencana.pesananTerbuka };
-      return { ok: true, dicabut, tidakDitawarkan, pesananTerbuka: rencana.pesananTerbuka };
+      if (gagal.length > 0 || sisa.length > 0) return { ok: false, reason: "masih_aktif", gagal, sisa, pesananTerbuka: rencana.pesananTerbuka, pekerjaanBerjalan };
+      return { ok: true, dicabut, tidakDitawarkan, pesananTerbuka: rencana.pesananTerbuka, pekerjaanBerjalan };
     },
 
     async status() {

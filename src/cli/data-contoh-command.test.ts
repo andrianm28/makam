@@ -40,6 +40,7 @@ const env = (APP_ENV = "test") => ({ APP_ENV, DATABASE_URL: inject("databaseUrl"
 /** The same instant the test support reads back through, so a version entered "today" is in force (ticket 100). */
 const clock = () => new FakeClock(wib("2026-10-01 09:00"));
 const SET = ["tanam", "--set", "rilis1"];
+const SET3 = ["tanam", "--set", "rilis3"];
 
 /** One small example Lokasi Mitra (Bukit Sejuk's, with three Tersedia Petak and one photo), so a case does not build five full Denah. */
 const kecil = [
@@ -105,6 +106,11 @@ describe("data-contoh: where it may run", () => {
     const production = await dataContohCommand([...SET, "--tulis"], { APP_ENV: "production" });
     expect(production).toMatchObject({ exitCode: 1 });
     expect(production.output).toContain("di production perlu --izinkan-production");
+    // The Rilis 3 set (TPU prices, Mitra Jasa) is no way round it.
+    for (const argv of [[...SET3, "--tulis"], SET3, ["cabut", "--tulis"]]) {
+      expect((await dataContohCommand(argv, { APP_ENV: "production" })).output, argv.join(" ")).toContain("di production perlu --izinkan-production");
+      expect((await dataContohCommand(argv, { APP_ENV: "staging" })).output, argv.join(" ")).toContain("di staging perlu --izinkan-staging");
+    }
 
     const staging = await dataContohCommand(["status"], { APP_ENV: "staging" });
     expect(staging).toMatchObject({ exitCode: 1 });
@@ -154,6 +160,14 @@ describe("data-contoh: where it may run", () => {
     const hasil = await jalan([...SET, "--tulis"]);
     expect(hasil).toMatchObject({ exitCode: 1 });
     expect(hasil.output).toContain("Jalankan seed:admin dulu");
+  });
+
+  it("asks for seed:admin first for the dry run of cabut too, because the Mitra Jasa rates it checks are read as Admin Platform", async () => {
+    for (const argv of [["cabut"], ["cabut", "--tulis"]]) {
+      const hasil = await jalan(argv);
+      expect(hasil, argv.join(" ")).toMatchObject({ exitCode: 1 });
+      expect(hasil.output, argv.join(" ")).toContain("Jalankan seed:admin dulu");
+    }
   });
 });
 
@@ -427,7 +441,6 @@ describe("data-contoh cabut", () => {
 
 /* The Rilis 2/3 set (ticket 111) */
 
-const SET3 = ["tanam", "--set", "rilis3"];
 const sekarang = () => wib("2026-10-01 09:00");
 
 /** One example Lokasi Mitra of the Rilis 1 set cut down (one Jenis Makam, three Tersedia Petak, one photo), so a case does not build a full Denah. */
@@ -522,10 +535,40 @@ describe("data-contoh tanam --set rilis3", () => {
     expect((await jalan(SET3)).exitCode).toBe(1);
   });
 
-  it("asks for seed:admin first when the stack has no Admin Platform", async () => {
+  it("asks for seed:admin first when the stack has no Admin Platform, for the dry run too (it reads the Mitra Jasa rates as Admin Platform)", async () => {
+    for (const argv of [[...SET3, "--tulis"], SET3]) {
+      const hasil = await jalan(argv);
+      expect(hasil, argv.join(" ")).toMatchObject({ exitCode: 1 });
+      expect(hasil.output, argv.join(" ")).toContain("Jalankan seed:admin dulu");
+    }
+  });
+
+  it("names only what is missing: with the launch data there and the Rilis 1 Lokasi (Contoh) not, it does not blame both", async () => {
+    await stackDenganDataPeluncuran({ lokasi: false });
+
     const hasil = await jalan([...SET3, "--tulis"]);
-    expect(hasil).toMatchObject({ exitCode: 1 });
-    expect(hasil.output).toContain("Jalankan seed:admin dulu");
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain("tanam --set rilis1");
+    expect(hasil.output).not.toContain("katalog Layanan kosong");
+    expect(hasil.output).not.toContain("belum ada TPU DKI");
+    expect(hasil.output).not.toContain("keduanya");
+  });
+
+  it("says the Retribusi Pemda it entered stays when a later fixture fails, because it is a real value and no registry row holds it", async () => {
+    const { setup, admin } = await stackDenganDataPeluncuran();
+    const mitra = MITRA_JASA_DATA_CONTOH[0];
+    // Somebody else already has this NIK: the Mitra Jasa (Contoh) cannot be created.
+    const lain = await createMitraJasaDaftar({ db, clock: setup.clock, audit: setup.audit }).buatMitraJasa(admin, "orang.lain@contoh.makam.invalid", { namaLengkap: "Orang Lain", nik: mitra.nik, area: mitra.area });
+    if (!lain.ok) throw new Error(`buatMitraJasa refused: ${lain.reason}`);
+
+    const hasil = await jalan([...SET3, "--tulis"]);
+
+    expect(hasil.exitCode).toBe(1);
+    expect(hasil.output).toContain(`rilis3/mitra-jasa/${mitra.slug} gagal ditanam`);
+    expect(hasil.output).toContain("Retribusi Pemda IPTM Rp 0");
+    expect(hasil.output).toContain("tetap berlaku");
+    expect((await setup.tariffs.globalTariff("retribusi_pemda_iptm", sekarang()))?.amount).toBe(0);
   });
 
   it("is a dry run without --tulis: it says what it would plant and writes nothing", async () => {
@@ -752,6 +795,37 @@ describe("data-contoh cabut after tanam --set rilis3", () => {
     expect((await daftar.daftarNazhir(admin)).map((satu) => satu.nama)).toEqual(["Nazhir Asli"]);
     expect((await setup.tariffs.globalTariff("retribusi_pemda_iptm", sekarang()))?.amount).toBe(0);
     expect(await setup.tariffs.quote([{ kind: "retribusi_pemda", retribusi: "iptm" }], sekarang())).toMatchObject({ ok: true });
+  });
+
+  it("tells the dry run to enter real prices before cabut --tulis, and only the run itself to mark the variants again, because nothing has been unmarked before it", async () => {
+    await stackDenganRilis3();
+
+    const dryRun = await jalan(["cabut"]);
+    const hasil = await jalan(["cabut", "--tulis"]);
+
+    expect(dryRun.output).toContain("lagi ditawarkan di TPU");
+    expect(dryRun.output).toContain("sebelum cabut --tulis");
+    expect(dryRun.output).not.toContain("tandai variannya lagi");
+    expect(hasil.output).toContain("tandai variannya lagi");
+  });
+
+  it("takes a variant somebody marked again after cabut, still at its example price, off the TPU listing at the next cabut, and the dry run lists it first", async () => {
+    const { setup, admin, varian } = await stackDenganRilis3();
+    berhasil(await jalan(["cabut", "--tulis"]));
+    expect(await hargaDiTpu(setup)).toEqual({});
+    const [satu] = varian;
+    expect((await setup.layanan.tandaiBolehDiTpu(admin, satu.id, { boleh: true, reason: "ditandai lagi" })).ok).toBe(true);
+    expect(await hargaDiTpu(setup)).toEqual({ [satu.id]: HARGA_DKI_DATA_CONTOH[satu.jenis] });
+
+    const dryRun = await jalan(["cabut"]);
+    const hasil = await jalan(["cabut", "--tulis"]);
+
+    berhasil(dryRun);
+    expect(dryRun.output).toContain("Registri tidak memegang entri aktif");
+    expect(dryRun.output).toContain(satu.nama);
+    expect(await hargaDiTpu(setup)).toEqual({});
+    berhasil(hasil);
+    expect(hasil.output).toContain(satu.nama);
   });
 
   it("keeps a variant offered at a TPU once the Operator has entered a real DKI price and a real Mitra Jasa rate for it, and stops offering the rest", async () => {
