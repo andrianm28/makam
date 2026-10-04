@@ -524,6 +524,13 @@ describe("makam-preflight", () => {
     expect(liveOverride.lines.filter((line) => /production on the sandbox/.test(line))).toEqual([]);
   });
 
+  it("reads SUMOPOD_BASE_URL the way the app does, so a quoted value or a path still names the sandbox", () => {
+    for (const value of ['"https://api-pay-sandbox.sumopod.com"', "'https://api-pay-sandbox.sumopod.com'", "https://api-pay-sandbox.sumopod.com/api/v1", " https://API-PAY-SANDBOX.sumopod.com "]) {
+      const result = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=${value}\n` })));
+      expect(result.lines.filter((line) => /^SKIP .*\[04\].*production on the sandbox/.test(line)), value).toHaveLength(1);
+    }
+  });
+
   it("fails when the SumoPod webhook secret is not set or is not a Svix secret, without printing it", () => {
     const set = preflight(healthy(world()));
     expect(set.lines).toContainEqual(expect.stringMatching(/^PASS .*\[04\].*sumopod webhook secret.*whsec_/));
@@ -927,6 +934,26 @@ describe("makam-preflight", () => {
       // An override at the live host is the same as none.
       const live = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay.sumopod.com\n` })), [], { FAKE_CONTOH: "true" });
       expect(live.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[109\].*data contoh/));
+    });
+
+    it("reads SUMOPOD_BASE_URL the way the app does: quotes, padding, a path or capital letters still name the sandbox, and nothing is asked of the stack", () => {
+      for (const value of ['"https://api-pay-sandbox.sumopod.com"', "'https://api-pay-sandbox.sumopod.com'", "https://api-pay-sandbox.sumopod.com/api/v1", " https://API-PAY-SANDBOX.sumopod.com "]) {
+        const result = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=${value}\n` })), [], { FAKE_CONTOH: "true" });
+        expect(result.lines.filter((one) => /^SKIP .*\[109\].*data contoh: .*trial/.test(one)), value).toHaveLength(1);
+        expect(result.lines.filter((one) => /^FAIL .*\[109\]/.test(one)), value).toEqual([]);
+        expect(result.calls, value).not.toContain("/api/browser-config");
+      }
+    });
+
+    it("does not take a value that is not a URL for the sandbox, as the app does not: the stack is asked", () => {
+      const result = preflight(healthy(world({ envFile: `${ENV_FILE}SUMOPOD_BASE_URL=api-pay-sandbox.sumopod.com\n` })), [], { FAKE_CONTOH: "true" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[109\].*data contoh/));
+    });
+
+    it("needs the env file: with none to read it is a SKIP that says so, and the stack is not asked", () => {
+      const result = preflight(healthy(world({ envFile: null })), [], { FAKE_CONTOH: "true" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[109\].*data contoh: needs the env file/));
+      expect(result.calls).not.toContain("/api/browser-config");
     });
 
     it("passes when the running stack says no Data Contoh is active, reading the stack on its own port", () => {

@@ -468,11 +468,31 @@ sumopod_get() {
   printf '%s' "$code"
 }
 
+# Whether payments are a trial: SUMOPOD_BASE_URL in the env file names SumoPod's
+# sandbox host, read the way the app reads it (paymentsAreTrial, src/lib/env.ts):
+# a URL, compared by host, so a path or capital letters do not matter, after the
+# quotes and padding Compose removes. Anything else, a value that is not a URL and
+# an env file that cannot be read included, is "no": payments are taken as live.
+# The checks for the SumoPod key and for Data Contoh both ask this one question.
+payments_are_trial() {
+  local base host
+  [ -r "$ENV_FILE" ] || return 1
+  base=$(setting SUMOPOD_BASE_URL | tr -d '[:space:]"'"'")
+  case "$base" in
+    *://*) ;;
+    *) return 1 ;;
+  esac
+  host=${base#*://}
+  host=${host%%[/?#]*}
+  host=${host##*@}
+  [ "$(printf '%s' "$host" | tr 'A-Z' 'a-z')" = "api-pay-sandbox.sumopod.com" ]
+}
+
 check_sumopod_key() {
   local base code control url
   base=$(setting SUMOPOD_BASE_URL)
   base=${base:-https://api-pay.sumopod.com}
-  if [ "$base" = "https://api-pay-sandbox.sumopod.com" ] || [ "$base" = "https://api-pay-sandbox.sumopod.com/" ]; then
+  if payments_are_trial; then
     skip "04" "production on the sandbox" "SUMOPOD_BASE_URL points at SumoPod's sandbox: payments on makam.co.id are a trial (banner and Bayar notice show) until the live keys are installed and the override is removed (runbook, \"Production (ticket 65)\")"
   fi
   url="$base${MAKAM_PREFLIGHT_SUMOPOD_PATH:-/api/v1/payments/makam-preflight-no-such-payment}"
@@ -650,10 +670,12 @@ check_rilis() {
 # check_rilis asks /api/health, so no database is touched from here. An answer that
 # is not a plain true or false proves nothing and is a SKIP, never a PASS.
 check_data_contoh() {
-  local base port url body code reported
-  base=$(setting SUMOPOD_BASE_URL)
-  base=${base:-https://api-pay.sumopod.com}
-  if [ "$base" = "https://api-pay-sandbox.sumopod.com" ] || [ "$base" = "https://api-pay-sandbox.sumopod.com/" ]; then
+  local port url body code reported
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "109" "data contoh" "needs the env file (above)"
+    return 0
+  fi
+  if payments_are_trial; then
     skip "109" "data contoh" "payments are still a trial (SUMOPOD_BASE_URL names SumoPod's test host), so the marked (Contoh) records are allowed; before the live keys go in, remove them with data-contoh cabut (runbook, \"Data Contoh\") and run this preflight again"
     return 0
   fi

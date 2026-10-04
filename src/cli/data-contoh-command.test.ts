@@ -74,6 +74,17 @@ async function stackDenganAdmin() {
   return { setup, admin };
 }
 
+describe("the Rilis 1 set's names", () => {
+  it("marks every name it seeds with (Contoh): Lokasi Mitra, pengelola, Kontak Siaga, Jenis Makam and the Blok of a Denah", () => {
+    expect(LOKASI_RILIS1).toHaveLength(5);
+    for (const lokasi of LOKASI_RILIS1) {
+      const nama = [lokasi.name, lokasi.pengelolaName, lokasi.kontakSiagaName, ...lokasi.jenisMakam.map((jm) => jm.name), ...(lokasi.denahPrototipe ?? []).map((blok) => blok.nama)];
+      for (const satu of nama) expect(satu, lokasi.name).toMatch(/\(Contoh\)$/);
+    }
+    expect(LOKASI_RILIS1.flatMap((lokasi) => lokasi.denahPrototipe ?? []).length).toBeGreaterThan(0);
+  });
+});
+
 describe("data-contoh: where it may run", () => {
   it("refuses production without --izinkan-production, and staging without --izinkan-staging, before any database is touched", async () => {
     const production = await dataContohCommand([...SET, "--tulis"], { APP_ENV: "production" });

@@ -215,3 +215,47 @@ Worktree `/home/ubuntu/makam-t109`; paths below are relative to it. The fixed po
 Findings: 10. Worst: H1, after an interrupted `tanam` the contoh platform fee can stay in force unrecorded, so `cabut` exits 0 and the preflight passes. Hard violations: yes (must fix before merge; none breaks an AGENTS.md rule).
 
 Hard: 4, soft: 6
+
+### Fix pass 1 (2026-10-04)
+
+Answers to the round 1 review above, item by item. Each fix went test first (a failing test, then the change); where the behaviour already existed the test was shown to fail without it.
+
+**Standards**
+
+- **Hard 1, the production test checked a helper: fixed.** `pengaturanOperatorBolehDiisi` is gone (the guard is one inline line). The case is now "on production, with its flag and the SumoPod sandbox, plants the set but never enters Pengaturan Operator, and names the environment in every write": `stagingEnv()` plus `APP_ENV=production` and the sandbox `SUMOPOD_BASE_URL`, `tanam --tulis --izinkan-production`, then `operatorSettings.current()` is still null and every new Entri Audit has the reason `data-contoh tanam (production, --izinkan-production)`. Mutation check: with the guard turned into `|| true` the test failed (`expected {…} to be null`); restored.
+- **Soft 1, preflight string match: fixed.** One helper `payments_are_trial` in `makam-preflight`, asked by `check_sumopod_key` and `check_data_contoh`: the host of `SUMOPOD_BASE_URL` after Compose's quotes and padding are removed, a path or capital letters ignored, a scheme required (a bare host is not a URL, so not a trial, as in `paymentsAreTrial`). `check_data_contoh` now has `check_rilis`'s guard: an unreadable env file is a SKIP "needs the env file (above)", the stack is not asked. Tests: quoted, single-quoted, path and padded/uppercase values still SKIP on both lines; a non-URL value is asked of the stack; no env file.
+- **Soft 2, hanging read: fixed.** The route gives the registry read 2 s (`Promise.race`) and answers null when it runs out. Test with fake timers and a read that never answers.
+- **Soft 3, `fetchPaymentTrial`: removed.** Its ticket 101 tests keep their names and assertions and ask `fetchBrowserTrial(...).paymentTrial`.
+- **Soft 4, runbook: fixed.** "Production preflight" lists ticket 109 and has the `data contoh` row (and says a SKIP there at go-live proves nothing); the Data Contoh section says what a cut-short fee and a future-dated price do.
+- **Soft 5, comments: fixed.** Domain: the claim is now a test, "leaves a Lokasi Mitra it has retired unpublishable" (the publish gate answers `data_contoh_tidak_bisa_diterbitkan`). Command: the comment says what the assertion checks (three Petak Tersedia).
+- **Soft 6, timeout: fixed.** 600 s became 120 s, like the older seed's test.
+- **Soft 7, `.parse`: fixed.** `safeParse` throughout. A blank reason is `{ ok: false, reason: "alasan_wajib" }` from `catat` and `tanam`, as `cabut` already answered. A code, set or id that is not one is the plan's own bug, so a clear `Error("Data Contoh: kode tidak valid: …")`, as the Katalog Lama ledger throws. A `tarif_global` entity that is not `<key>:<version>` is refused at `catat` (it would have broken every later `cabut`).
+- **Soft 8, AGENTS.md: fixed.** The module list names `data-contoh` only; the note moved to `docs/agents/orchestration.md` ("Domain module notes").
+
+**Spec**
+
+- **H1, `tanam` could drop a contoh price from the registry: fixed, the three parts the reviewer named.**
+  - `cabutEntri` refuses a `tarif_global` row while its version is, or will be, in force, whoever asks (`cabut`, or `tanam` cleaning up a cut-short or failed fixture). The row stays active and the failure is reported.
+  - A cut-short `tarif_global` row whose price is in force is finished (counted `sudahAda`), not retired. One whose price a real version has since superseded is retired and rebuilt, as before.
+  - The fee fixture records a contoh version a killed run entered but never recorded. It tells it from a real fee by the Audit Log: the Entri Audit at the version's place in the entry order (one is written with each version) has a reason starting `data-contoh tanam`. An Operator's own fee is never adopted (the existing test "does not enter the contoh Biaya Layanan Platform when a version of it is already set"). I chose the Audit Log over matching the amount because a real fee of Rp 100.000 would otherwise be adopted as example data. If the version count and the entry count differ it adopts nothing.
+  - Tests: domain "a tanam cut short after the platform fee was entered finishes the fee…" (red before), "retires a cut-short fixture whose price a real version has since superseded…" (guards the other branch), command "records the contoh Biaya Layanan Platform a killed tanam left unrecorded…" (red before).
+- **H2, amounts not approved: open, the owner's.** No amount changed in this pass; the list in the Build entry stands.
+- **H3, banner wording not confirmed: open, the owner's.** `BARIS_DATA_CONTOH` is unchanged.
+- **H4, audit reasons: fixed, without changing Lokasi or Fieldwork.** The Audit Log takes an optional default reason (`createAuditLog({ …, alasanBawaan })`, passed by `composeIdentity` and by `susunModul`'s fourth argument). `data-contoh` composes its modules with the run's reason, so every Entri Audit of a run that has none of its own carries `data-contoh <subcommand> (<environment>, <flag>)`: agreement, Jam Operasional, Kontak Siaga, both Tugas Lapangan, publish, checklist, policies, Terencana, the Denah, and whatever ticket 111's set adds. `web` and `worker` pass none, so they are unchanged. The finishing mark is now audited too (`data_contoh.selesai`, "Data Contoh selesai ditanam"). Tests: the Audit Log's two cases; command "every Entri Audit a tanam writes, in whichever module, carries a reason naming the command and the environment" (staging) and the production case above (red before). The "spec gap" the Build entry reported on this is closed. The writes are still attributed to the stack's first Admin Platform: that is the CLI pattern the AC asks for.
+- **S1, SKIP when it cannot tell: no code change.** The AC says FAIL when something contoh is active, and "cannot tell" is not "active". The runbook now says the line has to read PASS at go-live. **For the owner**: if a non-sandbox host that cannot be asked should FAIL instead, say so; it is one line.
+- **S2, empty catalog switches on no Layanan: no change.** Decision 6 stands; the owner's call.
+- **S3, future-dated contoh version: fixed.** A contoh price counts as live when it is the version in force at the later of now and its own date, so a scheduled contoh version blocks `cabut` until a real version for that date takes over (the hint says so). Test (red before).
+- **S4, decision 7 (production refuses `tanam` beside live payments): no change, the owner to confirm.**
+- **S5, e2e cases not run: still not run** (they need a stack); the new Vitest cases cover the route and the banner lines.
+- **S6, Denah Blok names: fixed.** `sebagaiDataContoh` marks the Blok names "(Contoh)"; test over `LOKASI_RILIS1` (red before: "Blok Utama").
+
+### Build (2026-10-04), fix pass 1
+
+**What changed.** Data Contoh module (`src/domain/data-contoh/index.ts`): the price check inside `cabutEntri`, the cut-short completion, scheduled-version check, `safeParse`, audited finishing. Audit module and `composeIdentity`: the optional default reason. `src/cli/data-contoh-command.ts` and `data-contoh/rilis1.ts`: the fee adoption, the run's default reason, the inline production guard, marked Blok names, the hint. `deploy/bin/makam-preflight`: `payments_are_trial`. `src/app/api/browser-config/route.ts`: the time limit. `src/lib/payment-trial.ts`: the dead wrapper removed. Docs: runbook, AGENTS.md, `docs/agents/orchestration.md`, `src/lib/lokasi-labels.ts` (label for `data_contoh.selesai`). No migration, no new dependency.
+
+**Decisions.**
+1. For H4 an explicit default reason on the Audit Log of one run, not an `options.reason` threaded through nine Lokasi and Fieldwork functions (a new function would silently miss it) and not ambient state such as `AsyncLocalStorage` (hidden state in a domain module).
+2. The fee fixture adopts by the Audit Log, not by amount (see H1).
+3. A price in force is never let go of by the registry: not by `cabut`, not by cleanup.
+
+**Tests** (read from whole logs). `npx vitest run` over `src/domain/data-contoh`, `src/domain/audit`, `src/cli/data-contoh-command.test.ts`, `src/cli/seed-contoh-publik-command.test.ts`, `src/app/api/browser-config`, `src/lib/payment-trial.test.ts`, `tests/tooling/makam-preflight.test.ts`, `data-contoh-bundle.test.ts`, `katalog-lama-runbook.test.ts`, `image-retention.test.ts`, `ticket-workflow.test.ts`: 11 files, 226 tests, exit 0, 169 s, read from the whole log (the Data Contoh domain file alone ran 20 tests, the Audit Log file 10, the preflight file 62). `npm run lint` exit 0 (the same 6 warnings, none in a file this ticket touches), `npm run typecheck` exit 0. No `npm run build`, no full suite, no Playwright.

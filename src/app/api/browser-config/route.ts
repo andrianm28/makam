@@ -11,8 +11,9 @@ import { serverRuntime } from "@/server/runtime";
  *
  * `contohAktif` (ticket 109) is whether the Data Contoh registry holds an active entry, which
  * adds a line to the trial banner and which `makam-preflight` reads from the running stack.
- * It is null, never false, when the registry cannot be read: the browser reads null as "not
- * active", the preflight as "unknown", and a failed read must never pass for an empty registry.
+ * It is null, never false, when the registry cannot be read (an error, or no answer within a
+ * short time limit): the browser reads null as "not active", the preflight as "unknown", and a
+ * failed read must never pass for an empty registry.
  *
  * The DSN is public by design, so the browser may ask for it. `no-store`: two
  * environments share this code, and a proxy must not hand one environment's DSN
@@ -25,10 +26,19 @@ export async function GET() {
   return Response.json({ sentryDsn, paymentTrial, contohAktif: await contohAktif() }, { headers: { "cache-control": "no-store" } });
 }
 
+/** How long the registry read may take: the browser asks for the DSN on every page, so a database that hangs must not hold the answer up. */
+const BATAS_BACA_MS = 2_000;
+
 async function contohAktif(): Promise<boolean | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    return await serverRuntime().dataContoh.aktif();
+    const habis = new Promise<null>((selesai) => {
+      timer = setTimeout(() => selesai(null), BATAS_BACA_MS);
+    });
+    return await Promise.race([serverRuntime().dataContoh.aktif(), habis]);
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }

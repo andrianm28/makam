@@ -84,6 +84,24 @@ describe("GET /api/browser-config", () => {
     });
   });
 
+  describe("a registry read that hangs", () => {
+    it("says null once a short time limit runs out, so a database that never answers does not hold up the DSN the browser asks for", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      process.env.NEXT_PUBLIC_SENTRY_DSN = stagingDsn;
+      const runtime = serverRuntime();
+      const asli = runtime.dataContoh;
+      runtime.dataContoh = { ...asli, aktif: () => new Promise<boolean>(() => {}) };
+      try {
+        const menunggu = GET();
+        await vi.advanceTimersByTimeAsync(5_000);
+        expect(await (await menunggu).json()).toMatchObject({ sentryDsn: stagingDsn, contohAktif: null });
+      } finally {
+        runtime.dataContoh = asli;
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe("paymentTrial", () => {
     const keys = ["APP_ENV", "SUMOPOD_BASE_URL"] as const;
     const before = Object.fromEntries(keys.map((k) => [k, process.env[k]]));

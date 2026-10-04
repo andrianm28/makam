@@ -28,10 +28,6 @@ export async function fetchBrowserTrial(fetcher: typeof fetch = fetch): Promise<
   }
 }
 
-export async function fetchPaymentTrial(fetcher: typeof fetch = fetch): Promise<boolean> {
-  return (await fetchBrowserTrial(fetcher)).paymentTrial;
-}
-
 /** The trial banner's first line (ticket 101). */
 export const BARIS_PEMBAYARAN_UJI_COBA = "PEMBAYARAN UJI COBA — pembayaran di Makam.co.id saat ini masih percobaan, tidak ada uang yang berpindah.";
 

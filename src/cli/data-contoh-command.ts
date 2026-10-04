@@ -306,7 +306,7 @@ function laporanDiblokir(diblokir: RencanaCabut["diblokir"]): string[] {
   return [
     `Ditolak: ${diblokir.length} harga contoh masih berlaku, belum digantikan versi asli (tidak ada yang dicabut):`,
     ...diblokir.map((harga) => `  - ${harga.kode}: ${harga.key} ${rupiah(harga.amount)}`),
-    "Masukkan harga asli lewat layar Tarif (berlaku mulai hari ini), lalu jalankan cabut lagi.",
+    "Masukkan harga asli lewat layar Tarif (berlaku mulai hari ini, atau mulai tanggal yang sama bila harga contoh itu berjangka), lalu jalankan cabut lagi.",
   ];
 }
 

@@ -99,7 +99,7 @@ export function sebagaiDataContoh(spec: ContohLokasiSpec, nomor: number): Contoh
         hargaBaru: jm.hargaBaru && harga.hargaBaru !== undefined ? { effectiveOn: jm.hargaBaru.effectiveOn, hargaHakPakai: harga.hargaBaru } : undefined,
       };
     }),
-    denahPrototipe: spec.denahPrototipe?.map((blok) => ({ ...blok, jenisMakam: tandaContoh(blok.jenisMakam) })),
+    denahPrototipe: spec.denahPrototipe?.map((blok) => ({ ...blok, nama: tandaContoh(blok.nama), jenisMakam: tandaContoh(blok.jenisMakam) })),
     adminLokasiEmail: `data-contoh.${slug(spec.name)}@contoh.makam.invalid`,
     adminLokasiPhone: `08510001000${nomor}`,
     kontakSiagaName: tandaContoh(spec.kontakSiagaName),
