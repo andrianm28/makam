@@ -9,6 +9,8 @@ export async function GET() {
     {
       ok: health.ok,
       environment: health.environment,
+      release: health.release,
+      rilisTerbuka: health.rilisTerbuka,
       checkedAt: health.checkedAt.toISOString(),
       database: { ok: health.database.ok },
       worker: health.worker && {

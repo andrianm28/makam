@@ -94,7 +94,13 @@ to run unless the first three match `--env`:
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
 script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
-shows the running `APP_ENV` (`staging`) without any secret.
+shows the running `APP_ENV` (`staging`) without any secret. The same body names
+`release` (the commit the process runs: `SENTRY_RELEASE`, which `makam-deploy`
+sets from the image's revision) and `rilisTerbuka` (the release number the host
+has opened, 1 to 3, ADR 0006), so `jq '{release, rilisTerbuka}'` says what is
+running and what is open on staging or production without reading the host.
+Neither is a secret, and the staging smoke test compares `release` with the
+commit of the Deployment it is recording against (see "The staging smoke gate").
 
 ## First Admin Platform (`seed:admin`)
 
@@ -589,6 +595,7 @@ never checked twice. On `main` the job graph is:
 ```
 check (lint, typecheck, npm audit, Vitest) → image (build, push sha-<commit>) ─┬→ e2e  ─┐
 secrets (gitleaks) ────────────────────────────────────────────────────────────┤         ├→ deploy-gate ─→ sign (cosign, then tag :latest)
+actionlint (every workflow, shellcheck on every script) ───────────────────────┤         │
 migrations (upgrade from the running release) ─────────────────────────────────┴→ scan ─┘
                                                                                       └→ sourcemaps
 ```
@@ -654,6 +661,13 @@ output. A warm `main` run takes about 11 to 12 minutes.
   (`trivy-findings`: `trivy.sarif` and `critical.txt`, 30 days). Code scanning
   is not available on this private repo on GitHub Free; if it ever is, set the
   repo variable `CODE_SCANNING=true`.
+- **actionlint** (ticket 106) lints every file under `.github/workflows` with
+  `rhysd/actionlint`, pinned by version and image digest like gitleaks, and runs
+  shellcheck on every `run:` script. A `needs.<job>.outputs.<name>` that the job
+  does not export, an unknown expression property, a quoting slip: each fails
+  here, not on a promotion's first run. Run it locally the same way:
+  `docker run --rm -v "$PWD":/repo -w /repo rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667`.
+  A new version is a manual bump (Dependabot cannot see a `docker run`).
 - **deploy-gate** needs every other job. It moves no tags: it only says the image
   passed everything.
 - **sign** is the job that makes a deploy possible (ticket 72): it signs the
@@ -827,15 +841,41 @@ The same facts are on the host in `deploy.log` (one line per step) and
 `deployed.env` (what is running). `deploy.log` is the ground truth when GitHub
 was unreachable: reporting is best effort and never blocks a deploy.
 
+The `success` status whose description ends `(<digest>) healthy` is **the host's
+own word** that `/api/health` answered 200 on that digest (`makam-deploy` writes
+it after the restart). It is the only status that says staging is healthy: a
+digest that failed and rolled back has a `failure` status instead, and the smoke
+test's `success` status on the same Deployment says nothing about it. The
+Deployment's `ref` is the bare commit SHA (not `sha-<commit>`), the same string
+`/api/health` reports as `release`.
+
 ## The staging smoke gate
 
 `.github/workflows/staging-smoke.yml` runs `e2e/smoke.spec.ts` (health, home,
-Masuk) from a hosted runner against the real `https://dev.makam.co.id` every 15
-minutes, and on demand. It runs for **the digest staging is actually running**
-and records the result as a status on that digest's staging deployment, naming
-the digest in the description. Promotion refuses any digest without a passed
-smoke test, so after a rollback or a fresh deploy you can either wait 15 minutes
-or start the workflow by hand.
+Masuk) from a hosted runner against the real `https://dev.makam.co.id`. It runs
+
+- when the host reports a staging deploy healthy (a `deployment_status` event for
+  the `staging` environment with state `success`; the smoke test's own statuses
+  are ignored), so a deploy is smoked within minutes;
+- every 15 minutes, so a digest staging picks up in between is still covered;
+- on demand (`workflow_dispatch`).
+
+It runs for **the digest staging is actually running**: the newest staging
+Deployment that names one. It records the result as a status on that Deployment,
+naming the digest in the description (`smoke test against dev.makam.co.id for
+<digest>: success` or `: failure`). A pass is recorded only when `/api/health`
+reports a `release` equal to that Deployment's `ref`: a deploy that failed and
+rolled back leaves a Deployment for a digest the site is *not* running, and the
+pages passing then proves nothing about that digest, so it records `failure`
+(the job log says which release the site runs and which commit it expected). The
+same goes for a site that cannot be asked or reports no release. Promotion
+refuses any digest whose newest smoke result is not a pass, so after a rollback
+or a fresh deploy you can either wait for the deploy's own run or start the
+workflow by hand.
+
+A staging Deployment gets a smoke status every 15 minutes; promotion reads all of
+its statuses (every page), so the host's `healthy` status is still found a week
+later.
 
 ## Which release is open (`RILIS_TERBUKA`, ADR 0006)
 
@@ -882,22 +922,51 @@ Closing a release again is the same change in reverse; rows already written stay
 only. It refuses, in this order, unless all of it holds:
 
 1. `github.actor` is the repository owner;
-2. the release tag input is the exact tag it expects (`vYYYY.MM.DD-N`, WIB),
-   typed again — a mistyped promotion is the one mistake with no undo;
+2. the release tag input is the exact tag it expects, typed again — a mistyped
+   promotion is the one mistake with no undo. The tag is `vYYYY.MM.DD-N`, the day
+   in **WIB**, and N is the number of non-draft `v` releases **published that day
+   in WIB**, plus 1 (so the first promotion of a day is `-1`, and a draft left by
+   a failed run does not move N). The workflow prints the tag it expects when you
+   type another;
 3. the newest staging deployment that names a digest has a `success` status
-   (staging is healthy);
-4. that digest has a **passed smoke test** recorded against it.
+   **written by the host** whose description ends `(<digest>) healthy` (staging
+   is healthy; the smoke test's own status never counts for this);
+4. that digest's **newest smoke result** is a pass, recorded against it by the
+   smoke workflow ("The staging smoke gate" above);
+5. the deployment's `ref` is a full commit SHA, because the release is created
+   at that commit.
 
-Then it signs the digest with the **production** key and creates the release tag
-with generated notes. Only a production-signed digest is acceptable to the
-production host; a staging-signed one is refused there, which is the whole point
-of two keys.
+Then, in this order (a production signature cannot be taken back, so the release
+exists before it and is published after it):
+
+1. it creates the release as a **draft** at the staging commit, with notes that
+   name the digest (your reason, the digest and its commit, then the generated
+   change list from the previous release);
+2. it signs the digest with the **production** key;
+3. it **publishes** the release, which creates the tag at that commit.
+
+Only a production-signed digest is acceptable to the production host; a
+staging-signed one is refused there, which is the whole point of two keys. No
+production signature exists without a release, draft or published, naming that
+digest.
+
+**A run that fails half-way** leaves a draft release (and perhaps the
+signature). Start the workflow again with the **same tag**: it finds the draft,
+updates its notes and carries on to the signature and the publication instead of
+failing on a tag that is already there. A tag that is already a *published*
+release is refused; the next promotion then expects the next N. To abandon a
+promotion instead, delete the draft (`gh release delete <tag> --yes`); a digest
+already signed with the production key stays deployable by hand
+(`makam-deploy --env prod --digest ...`), so abandon one only after checking that
+is what you want.
 
 ```bash
 # What is running where
 gh api 'repos/andrianm28/makam/deployments?environment=production&per_page=1' \
   --jq '.[0] | {ref, digest: .payload.image_digest, statuses: [.statuses_url]}'
 gh release list
+# What staging reports about itself (the commit, and the release number it opened)
+curl -s https://dev.makam.co.id/api/health | jq '{release, rilisTerbuka}'
 ```
 
 The production host deploys on its own timer or by hand
@@ -907,9 +976,16 @@ the production key signed it.
 ### Rolling back
 
 `.github/workflows/rollback.yml`, owner only: give it an earlier release tag and
-a reason. It finds the digest that release went out as, re-signs it with the
-production key, and records the rollback as a production deployment. It creates
-**no** new release: the release list stays the history of what went out.
+a reason. It finds that release (and refuses a draft, which never went out), finds
+the digest it went out as from the production Deployment at the release's commit,
+re-signs it with the production key, and records the rollback as a production
+deployment (the status description is cut at GitHub's 140 characters; the whole
+reason is in the job summary). It creates **no** new release: the release list
+stays the history of what went out.
+
+The lookup says "there is no release X" only when GitHub answers "release not
+found"; any other failure (a bad token, an outage, a repository it cannot find)
+is printed as it is, so the owner is not sent looking for a release that exists.
 
 By hand, the same thing without the workflow:
 
@@ -923,7 +999,10 @@ sudo systemctl stop makam-staging-deploy.timer   # not needed for prod
 A staging rollback is the same with `--env staging --tag sha-<commit>`; stop the
 staging timer first, or it re-follows `:latest` within 2 minutes. Note that
 `latest` is not what runs after a by-hand rollback, which is why the migration
-upgrade test reads the deployed digest rather than the tag.
+upgrade test reads the deployed digest rather than the tag. After a by-hand
+staging rollback the newest staging Deployment is the one the rollback made, so
+the smoke workflow and "Promosikan ke produksi" look at the digest staging runs
+now, not at the one that was rolled back from.
 
 ### Production safety
 

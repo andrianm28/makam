@@ -1,10 +1,10 @@
 name: Roll back production
 
-# Owner-only rollback to an earlier released digest (ticket 72). It re-signs
-# that digest with the production key, because the production host accepts only
-# production-signed images, and it deliberately creates no new release: the
-# release list stays the history of what went out, and the rollback is recorded
-# as a deployment instead.
+# Owner-only rollback to an earlier released digest (ticket 72; made right for
+# its first run in ticket 106). It re-signs that digest with the production key,
+# because the production host accepts only production-signed images, and it
+# deliberately creates no new release: the release list stays the history of
+# what went out, and the rollback is recorded as a deployment instead.
 #
 # The by-hand path is in the runbook ("Rolling back") and is the same command
 # this workflow ends with:
@@ -23,6 +23,12 @@ on:
 
 permissions: {}
 
+# `bash -eo pipefail` for every script (a step with no `shell:` runs `bash -e`,
+# where a failing gh at the head of a pipe goes unnoticed).
+defaults:
+  run:
+    shell: bash
+
 concurrency:
   group: promote-production
   cancel-in-progress: false
@@ -40,26 +46,45 @@ jobs:
       - name: Only the repository owner may roll back
         if: github.actor != github.repository_owner
         run: |
-          echo "refusing: ${{ github.actor }} is not the owner of ${{ github.repository }}" >&2
+          echo "refusing: $GITHUB_ACTOR is not the owner of $GITHUB_REPOSITORY" >&2
           exit 1
+      # This step runs before the checkout, so gh has no git remote: GH_REPO is
+      # what tells it the repository. The owner's inputs reach the script
+      # through env, never pasted into its text.
       - name: The release exists, and the digest it went out as
         id: release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          release=$(gh release view "${{ inputs.release_tag }}" --json tagName,targetCommitish 2>/dev/null) \
-            || { echo "refusing: there is no release ${{ inputs.release_tag }}" >&2; exit 1; }
-          sha=$(printf '%s' "$release" | jq -r '.targetCommitish')
-          digest=$(gh api "repos/${GITHUB_REPOSITORY}/deployments?environment=production&per_page=50" \
-            --jq "[.[] | select(.ref == \"$sha\" and .payload.image_digest != null)] | .[0].payload.image_digest // empty")
-          [ -n "$digest" ] || {
-            echo "refusing: no production deployment records a digest for $sha, so this release never reached production" >&2
-            exit 1
+          refuse() { echo "refusing: $*" >&2; exit 1; }
+          # gh's own message is kept: only "release not found" means there is no
+          # such release. A missing repository, a bad token or an outage is
+          # something else, and reading it as "no such release" sends the owner
+          # looking at the wrong thing.
+          error="$RUNNER_TEMP/gh-release-view.err"
+          release=$(gh release view "$RELEASE_TAG" --json tagName,targetCommitish,isDraft 2> "$error") || {
+            if grep -qi 'release not found' "$error"; then
+              refuse "there is no release $RELEASE_TAG"
+            fi
+            refuse "could not look up the release $RELEASE_TAG: $(cat "$error")"
           }
-          echo "tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "digest=$digest" >> "$GITHUB_OUTPUT"
-          echo "Rolling back to ${{ inputs.release_tag }} ($digest, from $sha)"
+          [ "$(jq -r '.isDraft' <<< "$release")" = false ] \
+            || refuse "$RELEASE_TAG is a draft: it never went out, so there is nothing to go back to"
+          sha=$(jq -r '.targetCommitish' <<< "$release")
+          # The payload is an object when the host wrote it, and a JSON string when a
+          # Deployment was made with `gh api -F payload=...`.
+          digest=$(gh api "repos/$GITHUB_REPOSITORY/deployments?environment=production&per_page=50" \
+            | jq -r --arg sha "$sha" 'def digest: (.payload | if type == "string" then (try fromjson catch null) else . end) | objects | .image_digest;
+                                      [.[] | select(.ref == $sha) | digest | select(. != null)] | .[0] // empty')
+          [ -n "$digest" ] || refuse "no production deployment records a digest for $sha, so this release never reached production"
+          {
+            echo "tag=$RELEASE_TAG"
+            echo "sha=$sha"
+            echo "digest=$digest"
+          } >> "$GITHUB_OUTPUT"
+          echo "Rolling back to $RELEASE_TAG ($digest, from $sha)"
       # A **local** composite action is read out of the checked-out repository,
       # so this job needs the tree before it. Without it the job dies in 0
       # seconds with "Can't find 'action.yml' ... Did you forget to run
@@ -76,18 +101,31 @@ jobs:
       - name: Record the rollback as a production deployment
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          REASON: ${{ inputs.reason }}
           DIGEST: ${{ steps.release.outputs.digest }}
           SHA: ${{ steps.release.outputs.sha }}
         run: |
-          id=$(gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments" \
-            -f ref="$SHA" -F environment=production -F auto_merge=false \
-            -F "payload={\"image_digest\":\"$DIGEST\"}" --jq '.id')
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/deployments/$id/statuses" \
-            -f state=in_progress -f environment=production \
-            -f "log_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            -f "description=rolling back to ${{ inputs.release_tag }} ($DIGEST): ${{ inputs.reason }}"
+          # A JSON body, so that `required_contexts` can be the empty list (the
+          # host's own Deployments send it too: without it GitHub refuses a
+          # Deployment at a commit whose checks are not all green) and the
+          # payload is an object, which is what every reader of the digest expects.
+          deployment=$(jq -n --arg sha "$SHA" --arg digest "$DIGEST" --arg tag "$RELEASE_TAG" \
+            '{ref: $sha, environment: "production", auto_merge: false, required_contexts: [],
+              payload: {image_digest: $digest}, description: ("Rollback to " + $tag)}')
+          id=$(printf '%s' "$deployment" | gh api --method POST "repos/$GITHUB_REPOSITORY/deployments" --input - --jq '.id')
+          # GitHub keeps a status description to 140 characters, and a digest
+          # alone is 71 of them: the status is cut there and the whole reason
+          # goes into the job summary below.
+          status=$(jq -n --arg full "rolling back to $RELEASE_TAG ($DIGEST): $REASON" \
+            --arg url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{state: "in_progress", environment: "production", log_url: $url, description: $full[0:140]}')
+          printf '%s' "$status" | gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --input - > /dev/null
           {
-            echo "## Rolling back production to \`${{ inputs.release_tag }}\`"
+            echo "## Rolling back production to \`$RELEASE_TAG\`"
+            echo
+            echo "Reason: $REASON"
             echo
             echo "The digest \`$DIGEST\` is signed with the production key again. Deploy it on the host:"
             echo
