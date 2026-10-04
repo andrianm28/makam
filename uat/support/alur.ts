@@ -1,11 +1,11 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { bayarDenganQris } from "./bayar";
-import { DATA, isiDataPemesan, nomorPemesananDi, persis, pilihLayananCheckout, tanggalWib } from "./halaman";
+import { DATA, isiDataPemesan, jpegContoh, kirimLaluMuatUlang, nomorPemesananDi, persis, pilihLayananCheckout, tanggalWib } from "./halaman";
 import { langkah } from "./langkah";
 import { mintaKodeMasuk } from "./masuk";
 import { emailPersona, type NamaPersona } from "./persona";
 
-/* Flows more than one journey walks: Perpanjangan to Lunas, the anonymous Kirim pesanan, and the Saat Duka TPU order. */
+/* Flows more than one journey walks: Perpanjangan to Lunas, the document request of a Perpanjangan (the Pemesan's file, Admin Lokasi's approval), the anonymous Kirim pesanan, and the Saat Duka TPU order. */
 
 /**
  * On a Perpanjangan page (/perpanjangan/<hakPakaiId>): the code to the Pemegang Hak's email when asked,
@@ -45,12 +45,63 @@ export async function pilihMasaLaluTagihan(page: Page, opsi: { tambahLayanan?: b
 /** Follows "Buka Tagihan" to the Tagihan page and pays it. Returns the Tagihan's path. */
 export async function bukaTagihanDanBayar(page: Page): Promise<string> {
   const url = await langkah(page, "Buka Tagihan", async () => {
-    await page.getByRole("link", { name: /Buka Tagihan/ }).first().click();
+    // "Lanjut ke Tagihan" now lands on the Tagihan itself (2026-10-05); an older page showed a "Buka Tagihan" link first.
+    // `.first()` on the union: a Layanan order page (/layanan/<nomor>) has the "Tagihan" heading and the "Buka Tagihan" link together, and two matches fail strict mode.
+    await expect(page.getByRole("link", { name: /Buka Tagihan/ }).first().or(page.getByRole("heading", { name: "Tagihan", exact: true })).first()).toBeVisible({ timeout: 30_000 });
+    if (!/\/dokumen\//.test(page.url())) await page.getByRole("link", { name: /Buka Tagihan/ }).first().click();
     await expect(page).toHaveURL(/\/dokumen\//);
     return new URL(page.url()).pathname;
   });
   await bayarDenganQris(page, url);
   return url;
+}
+
+/**
+ * The Antrean Lokasi row of one Perpanjangan request: its link is that request's review page, so the id at the end of the request's
+ * own path (what `ajukanPermohonanBerkas` returns) finds it among the older rows an earlier run left open.
+ */
+export function barisPermohonan(admin: Page, permohonan: string): Locator {
+  return admin.locator(`a[href$="/perpanjangan/${permohonan.split("/").pop()}"]`);
+}
+
+/**
+ * The Pemesan's file request to extend a Hak Pakai by documents, by the path (`jalur`, as the page's `?jalur=` names it).
+ * Returns the request page's path.
+ */
+export async function ajukanPermohonanBerkas(pemesan: Page, hakPakai: string, jalur: "ktp" | "ahli_waris" | "klaim"): Promise<string> {
+  return langkah(pemesan, `Perpanjang lewat berkas: jalur ${jalur}, unggah semua berkas, Ajukan permohonan`, async () => {
+    // The paths are links only for a Hak Pakai that fits more than one (KTP and ahli waris); a claim has no links, its form at once.
+    // So the address names the path, and since the page falls back to the first path it offers, the path it shows is checked.
+    await pemesan.goto(`/perpanjangan/${hakPakai}/berkas?jalur=${jalur}`);
+    await expect(pemesan.locator('input[name="jalur"]')).toHaveValue(jalur);
+    await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
+    await pemesan.locator('input[name="nomorTelepon"]').fill(DATA.telepon());
+    for (const kolom of await pemesan.locator('input[type="file"]').all()) await kolom.setInputFiles(jpegContoh());
+    await pemesan.getByRole("button", { name: "Ajukan permohonan" }).click();
+    await expect(pemesan).toHaveURL(/\/perpanjangan\/permohonan\/[0-9a-f-]{36}/, { timeout: 30_000 });
+    return new URL(pemesan.url()).pathname;
+  });
+}
+
+/**
+ * Admin Lokasi opens the "Periksa dokumen Perpanjangan" row of the request at `permohonan` and approves it, leaving the recorded name and
+ * phone as they are. The module requires a reason (`setujuiPermohonanSchema`) though its textarea is not marked required, so one is always
+ * written; the end date is filled only when the form asks for it (a Hak Pakai flagged Perlu Verifikasi that has none).
+ */
+export async function setujuiPermohonan(admin: Page, lokasiId: string, permohonan: string): Promise<void> {
+  await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan, Setujui permohonan", async () => {
+    await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
+    await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
+    // This request's own row (its link ends in the request's id), not the soonest due one, which may be another family's.
+    await barisPermohonan(admin, permohonan).click();
+    // The click is a client navigation and count() does not wait: wait for the approval card before looking for its optional date.
+    await expect(admin.getByTestId("setujui-permohonan")).toBeVisible();
+    const berakhir = admin.locator('input[name="endDate"]');
+    if (await berakhir.count()) await berakhir.fill(tanggalWib(30));
+    await admin.getByLabel("Alasan (dicatat di Audit Log)").fill("Uji UAT: berkas sesuai");
+    await admin.getByTestId("setujui-permohonan").click();
+    await expect(admin.getByTestId("setujui-permohonan")).toHaveCount(0, { timeout: 30_000 });
+  });
 }
 
 /**
@@ -74,13 +125,18 @@ export async function kirimPesananDenganKodeMasuk(page: Page, nama: NamaPersona)
   });
 }
 
-/** Saat Duka at a Lokasi Mitra: picks the Lokasi × Jenis Makam card and goes on to "Data & kirim". */
+/**
+ * Saat Duka at a Lokasi Mitra: picks the Lokasi × Jenis Makam card and goes on to "Data & kirim". The Lokasi is found by
+ * its exact name, through its card group ("Jenis Makam di <nama>"), never by a piece of text in the card: staging also
+ * carries a "<nama> (Contoh)" copy of each Lokasi (Data Contoh, tickets 109 and 111), the list is sorted by the lowest
+ * total, and the copy is the cheaper one, so a substring match picks it, a Lokasi the Admin Lokasi persona does not manage.
+ */
 export async function bukaDataSaatDuka(page: Page): Promise<void> {
   await page.goto("/pesan-makam/saat-duka");
   await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
   const kartu = page
+    .getByRole("radiogroup", { name: `Jenis Makam di ${DATA.lokasiSaatDuka()}`, exact: true })
     .getByRole("radio")
-    .filter({ hasText: persis(DATA.lokasiSaatDuka()) })
     .filter({ hasText: persis(DATA.jenisSaatDuka()) })
     .first();
   await kartu.click();
@@ -91,9 +147,13 @@ export async function bukaDataSaatDuka(page: Page): Promise<void> {
 /** The Saat Duka TPU wizard's "Data & kirim": from the list, the TPU `UAT_TPU` names or the first one offered. */
 export async function bukaDataTpu(page: Page): Promise<void> {
   await page.goto("/pesan-makam/saat-duka");
+  await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
+  // The TPU DKI cards are radios in the "TPU DKI" group of the one Pilih makam list (with the Lokasi Mitra), then "Lanjut"; not links.
+  const grup = page.getByRole("radiogroup", { name: "TPU DKI", exact: true });
   const tpu = process.env.UAT_TPU?.trim();
-  const tautan = tpu ? page.getByRole("link", { name: persis(tpu) }).first() : page.locator('a[href*="/pesan-makam/saat-duka/tpu"]').first();
-  await tautan.click();
+  const kartu = tpu ? grup.getByRole("radio").filter({ hasText: persis(tpu) }).first() : grup.getByRole("radio").first();
+  await kartu.click();
+  await page.getByRole("button", { name: "Lanjut" }).click();
   await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
 }
 
@@ -104,8 +164,9 @@ export async function pesanTpuSaatDuka(page: Page, opsi: { layananHariH?: boolea
     await isiDataPemesan(page);
     await page.getByLabel("Nama almarhum / almarhumah").first().fill("Almarhum TPU Uji UAT");
     await page.getByLabel("Tanggal wafat").fill(tanggalWib(0));
-    await page.getByLabel("Ya, KTP saya DKI Jakarta").check();
-    await page.getByLabel("Ya, meninggal di Jakarta").check();
+    // Pilihan renders each option as <button role="radio"> in a radiogroup: it has no label to find it by.
+    await page.getByRole("radio", { name: "Ya, KTP saya DKI Jakarta" }).click();
+    await page.getByRole("radio", { name: "Ya, meninggal di Jakarta" }).click();
     if (opsi.layananHariH) await pilihLayananCheckout(page, "hari-h");
     await page.getByRole("button", { name: "Kirim pengurusan" }).first().click();
     await expect(page).toHaveURL(/\/(pengurusan|pesanan)\/MKM-\d{4}-\d{6}/, { timeout: 30_000 });
@@ -127,7 +188,8 @@ export async function konfirmasiTpuSaatDuka(admin: Page, nomor: string): Promise
     if (await petugas.count()) await petugas.selectOption({ index: 1 }).catch(() => undefined);
     await admin.locator('input[name="kontakTpuName"]').fill("Petugas TPU Uji");
     await admin.locator('input[name="kontakTpuPhone"]').fill("081234500002");
-    await admin.getByRole("button", { name: "Konfirmasi pemakaman" }).click();
-    await expect(admin.getByRole("button", { name: "Konfirmasi pemakaman" })).toHaveCount(0, { timeout: 30_000 });
+    await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Konfirmasi pemakaman" }));
+    // The card gives way to "Sudah dikonfirmasi" once the order is confirmed; a refusal leaves it (and its message) on the page.
+    await expect(admin.getByRole("button", { name: "Konfirmasi pemakaman" }), "Konfirmasi pemakaman tidak tercatat").toHaveCount(0);
   });
 }

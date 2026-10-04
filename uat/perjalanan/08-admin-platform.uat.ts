@@ -43,7 +43,15 @@ test.describe("§8 Admin Platform", { tag: ["@rilis1"] }, () => {
     await langkah(admin, "Pengaturan Operator: tidak ada kolom isian yang kosong", async () => {
       const kosong = await admin
         .locator("main input:not([type=hidden]):not([type=file]):not([type=checkbox]):not([type=radio]), main textarea")
-        .evaluateAll((kolom) => kolom.filter((satu) => !(satu as HTMLInputElement).value.trim()).length);
+        .evaluateAll((kolom) =>
+          kolom.filter((satu) => {
+            const isian = satu as HTMLInputElement;
+            // An optional field ("Alasan perubahan (opsional)") may stay empty.
+            const label = isian.id ? (document.querySelector(`label[for="${isian.id}"]`)?.textContent ?? "") : "";
+            if (/opsional/i.test(label) || /opsional/i.test(isian.closest("label")?.textContent ?? "")) return false;
+            return !isian.value.trim();
+          }).length,
+        );
       expect.soft(kosong, "kolom Pengaturan Operator yang masih kosong").toBe(0);
     });
     await manual(admin, "Nilai Pengaturan Operator benar", "nama resmi, alamat, kontak dan nomor CS dibaca owner dari screenshot");

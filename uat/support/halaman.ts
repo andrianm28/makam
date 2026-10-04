@@ -1,4 +1,4 @@
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 import { wibDateOf } from "../../src/lib/time/jakarta";
 import { langkah } from "./langkah";
 import { emailPersona } from "./persona";
@@ -80,6 +80,14 @@ export function persis(teks: string): RegExp {
   return new RegExp(teks.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
 }
 
+/**
+ * What the `aria-label` of a Petak's button on the Denah holds when the Petak can be picked: the label ends in the status ("A-01, Makam
+ * Biasa, Tersedia", src/app/pesan-makam/terencana/denah-picker.tsx). The status of one that cannot be is "Tidak Tersedia", which holds the
+ * same word, so a pattern of the bare word is satisfied by a Petak that cannot be picked: a positive check on it passes when it should
+ * fail, and a negative one fails on a correct page. Use this for every check of that status.
+ */
+export const PETAK_TERSEDIA = /(?<!tidak )tersedia/i;
+
 /** The WIB calendar date `hari` days from today, "YYYY-MM-DD". */
 export function tanggalWib(hari = 0, sekarang: Date = new Date()): string {
   return wibDateOf(new Date(sekarang.getTime() + hari * 86_400_000));
@@ -116,10 +124,13 @@ export async function pilihOpsi(page: Page, label: string | RegExp, pilihan: { u
   await opsi.first().click();
 }
 
-/** The id of a Lokasi by its name, read from its public page link (so no staff session is needed to find it). */
+/**
+ * The id of a Lokasi by its name, read from its public page link (so no staff session is needed to find it). The name
+ * must be the whole name: "Makam Masjid Nurul Huda" is not "Makam Masjid Nurul Huda (Contoh)", a Lokasi of its own.
+ */
 export async function lokasiIdDariNama(page: Page, nama: string): Promise<string> {
   await page.goto("/lokasi");
-  const href = (await page.getByRole("link", { name: persis(nama) }).first().getAttribute("href")) ?? "";
+  const href = (await page.getByRole("link", { name: nama, exact: true }).first().getAttribute("href")) ?? "";
   const id = /\/lokasi\/([0-9a-f-]{36})/.exec(href)?.[1];
   if (!id) throw new Error(`Lokasi "${nama}" tidak ada di daftar Lokasi publik (/lokasi).`);
   return id;
@@ -164,25 +175,66 @@ export function nomorTagihanDi(teks: string): string | undefined {
   return /TGH\/\d{4}\/\d{6}/.exec(teks)?.[0];
 }
 
+/** The attribute `kirimLaluMuatUlang` puts on the form it submits, to find the form again while its button has another name. */
+const PENANDA_FORM_DIKIRIM = "data-uat-kirim";
+
+/**
+ * Submits a form through its button and waits for the Server Action to answer, then reloads, so what follows reads the page as
+ * the server now has it. "The button is gone" alone proves nothing: while the action runs the button is renamed ("Mencatat…",
+ * "Menyimpan…"), so a count of 0 passes at once even when the action is then refused.
+ *
+ * A refusal is the `role="alert"` message the app draws inside the form it refused, so that is where this looks for one: never at the
+ * alerts of the whole page, because Next's route announcer is a `role="alert"` node on every page (in a shadow root) that holds the
+ * new page's title after a client navigation, and a look at the page fails on a correct app. The form is marked before the click,
+ * since the button is renamed while the action runs and a locator built from its name would then find no form and pass at once.
+ * It sees what the page has drawn when the answer arrives; what the caller reads after the reload is the proof of the outcome.
+ */
+export async function kirimLaluMuatUlang(page: Page, tombol: Locator): Promise<void> {
+  const dalamForm = await tombol.evaluate((elemen, penanda) => {
+    const form = elemen.closest("form");
+    form?.setAttribute(penanda, "");
+    return form !== null;
+  }, PENANDA_FORM_DIKIRIM);
+  if (!dalamForm) throw new Error("kirimLaluMuatUlang: tombol ini bukan tombol sebuah form, jadi penolakannya tidak bisa dicari di form-nya");
+  await Promise.all([
+    page.waitForResponse((jawaban) => jawaban.request().method() === "POST" && Boolean(jawaban.request().headers()["next-action"]), { timeout: 30_000 }),
+    tombol.click(),
+  ]);
+  const penolakan = await page.locator(`form[${PENANDA_FORM_DIKIRIM}]`).getByRole("alert").filter({ hasText: /\S/ }).allInnerTexts();
+  expect(penolakan, "aksi ditolak").toEqual([]);
+  await page.reload();
+}
+
 /** A tiny valid JPEG, for a form that wants a photo or a scan. */
 export function jpegContoh(nama = "bukti.jpg") {
   return { name: nama, mimeType: "image/jpeg", buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from("contoh bukti uat")]) };
 }
 
 /**
- * On a job page of the staff (Admin Lokasi's Layanan, a Mitra Jasa's TPU job): takes every proof the page still asks for with the
- * app's camera (Chromium's fake one answers): open the camera, take the picture, save it, until the page asks for no more.
+ * On a job page of the staff (Admin Lokasi's Layanan, a Mitra Jasa's TPU job): takes every photo the page still asks for with the
+ * app's camera (Chromium's fake one answers): open the camera, wait for its first frame, take the picture, save it. A proof that is
+ * in says "Sudah ada. Ambil ulang kalau mau mengganti." on its own block (`bukti-<jenis>`, on a Mitra Jasa's page `bukti-tpu-<jenis>`),
+ * and that is the only sign it is done: the "Ambil dengan kamera" button stays on a block, and so do the picture and "Simpan bukti"
+ * after a save, so neither tells the page has no more to ask. A video proof ("Selesai merekam") is not taken here; the last lines refuse.
  */
 export async function ambilSemuaBuktiKamera(page: Page): Promise<void> {
+  const belum = page.locator('[data-testid^="bukti-"][data-testid*="foto_"]').filter({ hasNotText: "Sudah ada" });
   for (let bukti = 0; bukti < 4; bukti += 1) {
-    const ambil = page.getByRole("button", { name: "Ambil dengan kamera" }).first();
-    if (!(await ambil.isVisible())) break;
-    await ambil.click();
-    await page.getByRole("button", { name: "Ambil foto" }).click();
-    await page.getByRole("button", { name: "Simpan bukti" }).click();
-    await expect(page.getByAltText("Pratinjau bukti yang baru diambil")).toHaveCount(0, { timeout: 30_000 });
+    const sisa = await belum.count();
+    if (sisa === 0) break;
+    const blok = belum.first();
+    await blok.getByRole("button", { name: "Ambil dengan kamera" }).click();
+    // "Ambil foto" is on screen while the camera is still opening, and a click before its first frame takes nothing.
+    const kamera = blok.getByLabel("Pratinjau kamera");
+    await expect(kamera).toBeVisible();
+    await expect.poll(() => kamera.evaluate((video) => (video as HTMLVideoElement).videoWidth), { message: "kamera belum menampilkan gambar" }).toBeGreaterThan(0);
+    await blok.getByRole("button", { name: "Ambil foto" }).click();
+    await blok.getByRole("button", { name: "Simpan bukti" }).click();
+    await expect(belum).toHaveCount(sisa - 1, { timeout: 30_000 });
   }
+  // What is still missing: on an Admin Lokasi's page the line "Kurang: …" (`bukti-kurang`), on a Mitra Jasa's the hint under a disabled "Kirim bukti".
   await expect(page.getByTestId("bukti-kurang")).toHaveCount(0);
+  await expect(page.getByText("Ambil semua foto yang diminta dulu.")).toHaveCount(0);
 }
 
 /**

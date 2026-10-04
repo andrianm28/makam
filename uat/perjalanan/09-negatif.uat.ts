@@ -1,4 +1,4 @@
-import { DATA, persis } from "../support/halaman";
+import { DATA, PETAK_TERSEDIA } from "../support/halaman";
 import { baca } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -23,10 +23,11 @@ test.describe("§9 Negatif dan tepi", { tag: ["@rilis1"] }, () => {
     const page = await anonim();
     await langkah(page, "Denah publik: Petak tidak bisa dipilih", async () => {
       await page.goto("/pesan-makam/terencana");
-      await page.getByRole("link", { name: persis(DATA.lokasiTerencana()) }).first().click();
+      // The whole name: the list also carries "<nama> (Contoh)" for each Lokasi.
+      await page.getByRole("link", { name: DATA.lokasiTerencana(), exact: true }).first().click();
       const petak = page.locator(`button[aria-label^="${DATA.petakTerencana()}"]`);
       await expect(petak).toBeVisible({ timeout: 30_000 });
-      await expect(petak).not.toHaveAttribute("aria-label", /Tersedia/i);
+      await expect(petak).not.toHaveAttribute("aria-label", PETAK_TERSEDIA);
       await petak.click();
       await expect(petak).not.toHaveAttribute("aria-pressed", "true");
     });
@@ -38,7 +39,7 @@ test.describe("§9 Negatif dan tepi", { tag: ["@rilis1"] }, () => {
     const page = await anonim();
     await langkah(page, "Terencana di Lokasi di atas cap: Lanjut tetap nonaktif", async () => {
       await page.goto("/pesan-makam/terencana");
-      await page.getByRole("link", { name: persis(lokasi!) }).first().click();
+      await page.getByRole("link", { name: lokasi!, exact: true }).first().click();
       const petak = page.locator('button[aria-pressed]').filter({ hasText: /./ }).first();
       await expect(petak).toBeVisible({ timeout: 30_000 });
       await petak.click();

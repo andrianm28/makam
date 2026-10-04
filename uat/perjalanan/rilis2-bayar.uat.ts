@@ -1,6 +1,6 @@
-import { perpanjangDanBayar, pilihMasaLaluTagihan, bukaTagihanDanBayar } from "../support/alur";
+import { ajukanPermohonanBerkas, bukaTagihanDanBayar, perpanjangDanBayar, pilihMasaLaluTagihan, setujuiPermohonan } from "../support/alur";
 import { bayarDenganQris } from "../support/bayar";
-import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, jpegContoh, lokasiIdDariNama, nomorPemesananDi, persis, tanggalWib } from "../support/halaman";
+import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, kirimLaluMuatUlang, lokasiIdDariNama, nomorPemesananDi, tanggalWib } from "../support/halaman";
 import { baca, simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -23,7 +23,8 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
     const pemesan = await sebagai("pemesan");
     await langkah(pemesan, "Makamkan di sini: Almarhum dan Pemesan, Kirim permintaan", async () => {
       await pemesan.goto(`/pesan-makam/makamkan-di-sini/${hakPakai}`);
-      await expect(pemesan.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
+      // The screen's own h1; "Data & kirim" is the heading of the Saat Duka wizards, not of this one.
+      await expect(pemesan.getByRole("heading", { name: "Makamkan di sini" })).toBeVisible();
       await pemesan.getByLabel("Nama almarhum / almarhumah").fill("Almarhum Tumpang Uji UAT");
       await pemesan.getByLabel("Tanggal wafat").fill(tanggalWib(-1));
       await isiDataPemesan(pemesan);
@@ -39,13 +40,16 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
       await expect.soft(admin.getByTestId("konsen-tumpang")).toBeVisible();
       await admin.getByLabel("Pemakaman", { exact: true }).fill(`${tanggalWib(1)}T10:00`);
       await admin.getByRole("button", { name: "Konfirmasi pemakaman" }).click();
-      await expect(admin.getByRole("button", { name: "Konfirmasi pemakaman" })).toHaveCount(0, { timeout: 30_000 });
+      // The Tumpang panel stays on the page once confirmed (its button only turns disabled): the order's next card, Catat pemakaman, is the signal.
+      await expect(admin.getByRole("button", { name: "Catat pemakaman" })).toBeVisible({ timeout: 30_000 });
     });
     await langkah(admin, "Catat Pemakaman (lapis 2): masuk ke Hak Pakai, jam Tagihan 3×24 jam mulai", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`);
       await admin.getByLabel("Tanggal pemakaman").fill(tanggalWib(0));
       await admin.getByLabel("Lapis").fill("2");
-      await admin.getByRole("button", { name: "Catat pemakaman" }).click();
+      await kirimLaluMuatUlang(admin, admin.getByRole("button", { name: "Catat pemakaman" }));
+      // The card closes once the order is Dimakamkan; a refusal leaves it (and its message) on the page.
+      await expect(admin.getByRole("button", { name: "Catat pemakaman" }), "Pemakaman tidak tercatat").toHaveCount(0);
     });
     await langkah(pemesan, "Pemesan: buka dan bayar Tagihan bayar-belakang tumpang", async () => {
       await pemesan.goto(`/pesanan/${nomor}`);
@@ -63,29 +67,14 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
     const hakPakai = dariEnv("UAT_HAK_PAKAI_TANPA_EMAIL");
     test.skip(!hakPakai, "Isi UAT_HAK_PAKAI_TANPA_EMAIL: id Hak Pakai tanpa email tercatat (P8c)");
     const pemesan = await sebagai("pemesan");
-    await langkah(pemesan, "Perpanjang lewat berkas: jalur KTP, unggah, Ajukan permohonan", async () => {
-      await pemesan.goto(`/perpanjangan/${hakPakai}/berkas`);
-      await pemesan.getByRole("navigation", { name: "Jalur permohonan" }).getByRole("link", { name: /KTP/i }).first().click().catch(() => undefined);
-      await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
-      await pemesan.locator('input[name="nomorTelepon"]').fill(DATA.telepon());
-      for (const kolom of await pemesan.locator('input[type="file"]').all()) await kolom.setInputFiles(jpegContoh());
-      await pemesan.getByRole("button", { name: "Ajukan permohonan" }).click();
-      await expect(pemesan).toHaveURL(/\/perpanjangan\/permohonan\/[0-9a-f-]{36}/, { timeout: 30_000 });
-      simpan("perpanjangan.permohonan", new URL(pemesan.url()).pathname);
-    });
+    // The path is named in the address and checked on the page (`ajukanPermohonanBerkas`), not clicked in the nav, where a miss was swallowed.
+    const permohonan = await ajukanPermohonanBerkas(pemesan, hakPakai!, "ktp");
+    simpan("perpanjangan.permohonan", permohonan);
     const admin = await sebagai("admin-lokasi");
     const lokasiId = baca("saatduka.lokasiId") ?? (await lokasiIdDariNama(admin, DATA.lokasiSaatDuka()));
-    await langkah(admin, "Admin Lokasi: baris Periksa dokumen Perpanjangan, Setujui permohonan", async () => {
-      await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
-      await expect(admin.getByText("Periksa dokumen Perpanjangan", { exact: true }).first()).toBeVisible();
-      await admin.locator('a[href*="/perpanjangan/"]').first().click();
-      const berakhir = admin.locator('input[name="endDate"]');
-      if (await berakhir.count()) await berakhir.fill(tanggalWib(30));
-      await admin.getByTestId("setujui-permohonan").click();
-      await expect(admin.getByTestId("setujui-permohonan")).toHaveCount(0, { timeout: 30_000 });
-    });
+    await setujuiPermohonan(admin, lokasiId, permohonan);
     await langkah(pemesan, "Pemohon: pilih masa, Lanjut ke Tagihan", async () => {
-      await pemesan.goto(wajib("perpanjangan.permohonan", "R2-41.1"));
+      await pemesan.goto(permohonan);
       await pilihMasaLaluTagihan(pemesan);
     });
     await bukaTagihanDanBayar(pemesan);
@@ -97,14 +86,17 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
     test.skip(!hakPakai, "Isi UAT_HAK_PAKAI_MASA_TENGGANG: id Hak Pakai Kedaluwarsa dalam masa tenggang milik persona Pemesan (P8b)");
     const admin = await sebagai("admin-lokasi");
     const lokasiId = baca("saatduka.lokasiId") ?? (await lokasiIdDariNama(admin, DATA.lokasiSaatDuka()));
+    // The Antrean has one such row for every Kedaluwarsa Hak Pakai of the Lokasi: this one's row is the link to its own page.
+    const barisHak = admin.locator(`a[href$="/hak-pakai/${hakPakai}"]`);
     await langkah(admin, "Antrean Lokasi: baris Hak Pakai dalam masa tenggang", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
       await expect(admin.getByText("Hak Pakai dalam masa tenggang", { exact: true }).first()).toBeVisible();
+      await expect(barisHak).toBeVisible();
     });
     await perpanjangDanBayar(await sebagai("pemesan"), `/perpanjangan/${hakPakai}`);
     await langkah(admin, "Baris masa tenggang tertutup sesudah Perpanjangan dibayar", async () => {
       await admin.goto(`/staf/admin-lokasi/${lokasiId}/antrean`);
-      await expect.soft(admin.getByText("Hak Pakai dalam masa tenggang", { exact: true })).toHaveCount(0);
+      await expect.soft(barisHak).toHaveCount(0);
     });
   });
 
@@ -130,7 +122,8 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
       await publik.goto(`/lokasi/${lokasiId}`);
       await expect(publik.getByText(/sementara tidak menerima pesanan/i).first()).toBeVisible();
       await publik.goto("/pesan-makam/terencana");
-      await expect(publik.getByRole("link", { name: persis(lokasi!) })).toHaveCount(0);
+      // The whole name, as the card's link says it: a "<nama> (Contoh)" twin may be listed as well.
+      await expect(publik.getByRole("link", { name: lokasi!, exact: true })).toHaveCount(0);
     });
     await perpanjangDanBayar(await sebagai("pemesan"), `/perpanjangan/${hakPakai}`);
   });

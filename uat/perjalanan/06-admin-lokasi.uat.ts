@@ -1,4 +1,5 @@
 import { DATA, kunjungi, lokasiIdDariNama } from "../support/halaman";
+import { baca } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
 
@@ -28,7 +29,14 @@ test.describe("§6 Job desk Admin Lokasi", { tag: ["@rilis1"] }, () => {
     await kunjungi(page, "Tagihan lewat jatuh tempo (chasing) di Lokasi", `${dasar}/tagihan-lewat-jatuh-tempo`, /Tagihan/);
     await kunjungi(page, "Audit Log Lokasi", `${dasar}/audit-log`, /Audit Log/);
     await langkah(page, "Audit Log mencatat konfirmasi pesanan dari bagian 2", async () => {
-      await expect.soft(page.getByText(/konfirmasi|pesanan/i).first()).toBeVisible();
+      // The log lists the oldest entry first, 15 to a page, so on a Lokasi with more than 15 entries today's confirmation is
+      // on the last page, not on the one that opens. The search box finds it (it matches the "Perubahan" column), and the
+      // Tagihan the confirmation issued picks out the one of bagian 2.
+      const kataCari = "dikonfirmasi";
+      await page.getByRole("searchbox", { name: "Cari oleh, perubahan atau alasan" }).fill(kataCari);
+      const konfirmasi = page.getByRole("row", { name: /Pesanan Terencana dikonfirmasi/ });
+      const nomorTagihan = baca("terencana.nomorTagihan");
+      await expect.soft(nomorTagihan ? konfirmasi.filter({ hasText: nomorTagihan }).first() : konfirmasi.first(), "Entri Audit konfirmasi pesanan bagian 2").toBeVisible();
     });
 
     await manual(page, "Denah: buat/edit Blok, tandai Petak/Kavling/Jalan/Bukan Petak/Pintu Masuk, clearing Petak (Perlu Verifikasi)", "mengubah data bersama; dikerjakan dan dilihat owner");

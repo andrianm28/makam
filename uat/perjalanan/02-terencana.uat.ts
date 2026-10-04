@@ -1,6 +1,6 @@
 import { baca, simpan, wajib } from "../support/keadaan";
 import { kirimPesananDenganKodeMasuk } from "../support/alur";
-import { DATA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, nomorTagihanDi, persis } from "../support/halaman";
+import { DATA, PETAK_TERSEDIA, bukaBarisAntreanLokasi, isiDataPemesan, lokasiIdDariNama, nomorPemesananDi, nomorTagihanDi } from "../support/halaman";
 import { langkah, manual } from "../support/langkah";
 import { simpanSesi } from "../support/masuk";
 import { expect, test } from "../support/uji";
@@ -23,13 +23,14 @@ test.describe("§2 Terencana (Lokasi Mitra)", { tag: ["@rilis1"] }, () => {
 
     await langkah(page, "Kartu Lokasi tampil dan ada filter kota", async () => {
       await page.goto("/pesan-makam/terencana");
-      await expect(page.getByRole("link", { name: persis(lokasi) }).first()).toBeVisible();
+      // The whole name: the list also carries "<nama> (Contoh)" for each Lokasi.
+      await expect(page.getByRole("link", { name: lokasi, exact: true }).first()).toBeVisible();
       await expect.soft(page.getByRole("group", { name: "Kota" })).toBeVisible();
     });
     await langkah(page, "Pilih Lokasi: Denah dengan Petak Tersedia", async () => {
-      await page.getByRole("link", { name: persis(lokasi) }).first().click();
+      await page.getByRole("link", { name: lokasi, exact: true }).first().click();
       await expect(petak(page)).toBeVisible({ timeout: 30_000 });
-      await expect(petak(page)).toHaveAttribute("aria-label", /Tersedia/i);
+      await expect(petak(page)).toHaveAttribute("aria-label", PETAK_TERSEDIA);
     });
     await langkah(page, "Pilih Petak lalu Lanjut", async () => {
       await petak(page).click();
@@ -55,7 +56,7 @@ test.describe("§2 Terencana (Lokasi Mitra)", { tag: ["@rilis1"] }, () => {
     const publik = await anonim();
     await langkah(publik, "Denah publik: Petak itu Dipesan dan tidak bisa dipilih lagi", async () => {
       await publik.goto("/pesan-makam/terencana");
-      await publik.getByRole("link", { name: persis(lokasi) }).first().click();
+      await publik.getByRole("link", { name: lokasi, exact: true }).first().click();
       await expect(petak(publik)).toBeVisible({ timeout: 30_000 });
       await expect(petak(publik)).toHaveAttribute("aria-label", /Dipesan/i);
     });

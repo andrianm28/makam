@@ -4,9 +4,10 @@ import { describe, expect, it } from "vitest";
 import { kataPencarian, polaDariTemplate } from "../../uat/support/kata-selektor";
 
 /*
- * No journey of the runner has met a stack yet: every button, label, heading and test id it looks for was read off the
- * pages' source. This is the cheap proof that those words are still in the app, so a journey that waits for "Hentikan"
- * when the page says "Berhenti" fails here, in seconds, instead of stalling a staging run (ticket 110).
+ * Every button, label, heading and test id a journey looks for was first read off the pages' source. The journeys of Rilis 1 and
+ * several of Rilis 2 and 3 have since run against staging (2026-10-04 and 05); the ones that have not run yet get no other check.
+ * This is the cheap proof that those words are still in the app, so a journey that waits for "Hentikan" when the page says
+ * "Berhenti" fails here, in seconds, instead of stalling a staging run (ticket 110).
  */
 
 describe("the words a journey looks for", () => {
@@ -85,7 +86,7 @@ describe("a word the app assembles from a template literal", () => {
 /** What the sandbox checkout of SumoPod says: its page is the provider's, not ours, so these words are not in `src/`. */
 const KATA_PENYEDIA: Record<string, string> = {
   "Simulate Payment": "tombol checkout sandbox SumoPod",
-  "waiting for confirmation": "teks checkout sandbox SumoPod setelah Simulate Payment",
+  "simulate your payment": "tautan banner Test Mode checkout sandbox SumoPod (2026-10-04)",
 };
 
 function berkasTs(dir: string): string[] {

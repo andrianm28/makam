@@ -1,7 +1,7 @@
 import { bukaTagihanDanBayar, konfirmasiTpuSaatDuka, pesanTpuSaatDuka } from "../support/alur";
 import { angkaDiHalaman } from "../support/bayar";
 import { DATA, kunjungi, nomorPemesananDi, tanggalWib } from "../support/halaman";
-import { TUNGGU_TICK_MS, ajukanIptm, catatPutusanPtsp, pesanPengurusanIptm, periksaDokumen, periksaDokumenLaluBayar, terbitkanIptm, tungguDiproses, unggahBerkasPengajuan } from "../support/iptm";
+import { TUNGGU_TICK_MS, ajukanIptm, catatPutusanPtsp, pesanPengurusanIptm, periksaDokumen, periksaDokumenLaluBayar, tagihanPesanan, terbitkanIptm, tungguDiproses, unggahBerkasPengajuan } from "../support/iptm";
 import { simpan, wajib } from "../support/keadaan";
 import { langkah, manual } from "../support/langkah";
 import { expect, test } from "../support/uji";
@@ -49,7 +49,8 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
     await langkah(pemesan, "Batalkan pengurusan sebelum IPTM Diajukan", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
       await pemesan.getByRole("button", { name: "Batalkan pengurusan" }).click();
-      await expect(pemesan.getByText("Dibatalkan").first()).toBeVisible({ timeout: 30_000 });
+      // Exact: the cancel section's own text ("Bisa dibatalkan sampai IPTM diajukan...") holds the word too, and is there before the cancel.
+      await expect(pemesan.getByText("Dibatalkan", { exact: true }).first()).toBeVisible({ timeout: 30_000 });
     });
     // The order page no longer lists the hari-H jobs once it is Dibatalkan; the same jobs are on the Layanan page of the same Nomor Pemesanan.
     await langkah(pemesan, "R3-53.1: setiap Layanan hari-H pesanan itu Dibatalkan (tak ada yang Sedang Dikerjakan)", async () => {
@@ -78,6 +79,8 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
     await unggahBerkasPengajuan(pemesan, nomor);
     await langkah(pemesan, "Dokumen belum diperiksa: belum ada Tagihan", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
+      // The order page must really be there: on an error page "no Buka Tagihan link" holds for the wrong reason.
+      await expect(pemesan.getByTestId("nomor-pemesanan")).toHaveText(nomor);
       await expect(pemesan.getByRole("link", { name: /Buka Tagihan/ })).toHaveCount(0);
     });
     await periksaDokumen(pemesan, admin, nomor);
@@ -107,9 +110,13 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
     await unggahBerkasPengajuan(pemesan, nomor);
     await periksaDokumenLaluBayar(pemesan, admin, nomor);
     await ajukanIptm(admin, nomor);
-    const tagihan = () => pemesan.getByRole("link", { name: /Buka Tagihan/ }).evaluateAll((tautan) => tautan.map((satu) => satu.getAttribute("href")));
-    await pemesan.goto(`/pengurusan/${nomor}`);
-    const sebelum = await tagihan();
+    // The family's page shows the Tagihan only while the order is Menunggu Pembayaran (ticket 116), so at IPTM Diajukan it holds no link
+    // to compare. The Tagihan is read on Admin Platform's Tagihan search, which lists every Tagihan issued for this Nomor Pemesanan.
+    const sebelum = await langkah(admin, "IPTM Diajukan: pesanan ini punya satu Tagihan (bayar-dulu)", async () => {
+      const daftar = await tagihanPesanan(admin, nomor);
+      expect(daftar, "pesanan Pengurusan IPTM punya tepat satu Tagihan (bayar-dulu) sebelum penolakan PTSP").toHaveLength(1);
+      return daftar;
+    });
 
     await catatPutusanPtsp(admin, nomor, "perbaikan", "Uji UAT: foto Surat Kuasa kurang jelas");
     await langkah(pemesan, "Perlu Perbaikan: alasan terbaca, unggah ulang tanpa biaya baru", async () => {
@@ -119,16 +126,16 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
     });
     await unggahBerkasPengajuan(pemesan, nomor);
     await ajukanIptm(admin, nomor);
-    await langkah(pemesan, "Diajukan ulang: tidak ada Tagihan baru", async () => {
-      await pemesan.goto(`/pengurusan/${nomor}`);
-      expect.soft(await tagihan(), "tautan Tagihan sebelum dan sesudah diajukan ulang").toEqual(sebelum);
+    await langkah(admin, "Diajukan ulang: tidak ada Tagihan baru, daftar Tagihan pesanan tetap sama", async () => {
+      expect.soft(await tagihanPesanan(admin, nomor), "Tagihan pesanan ini sebelum dan sesudah diajukan ulang").toEqual(sebelum);
     });
 
     await catatPutusanPtsp(admin, nomor, "final", "Uji UAT: ditolak final oleh PTSP");
     await langkah(pemesan, "Ditolak: alasan terbaca dan seluruh pembayaran dikembalikan", async () => {
       await pemesan.goto(`/pengurusan/${nomor}`);
       await expect(pemesan.getByRole("heading", { name: "Pengajuan ditolak PTSP" })).toBeVisible();
-      await expect(pemesan.getByText(/Uji UAT: ditolak final oleh PTSP/)).toBeVisible();
+      // Twice on the page (the "Pengajuan ditolak PTSP" section and the "Alasan" row of "Yang dipesan"): `.first()` for strict mode.
+      await expect(pemesan.getByText(/Uji UAT: ditolak final oleh PTSP/).first()).toBeVisible();
       await expect(pemesan.getByText(/Seluruh pembayaran Anda, Biaya Pengurusan termasuk, dikembalikan/)).toBeVisible();
     });
     await kunjungi(admin, "Pengembalian dana: permintaan refund penuh untuk pesanan yang ditolak", "/staf/admin-platform/pengembalian", /Pengembalian/);
@@ -194,7 +201,8 @@ test.describe("Rilis 3 [BAYAR]", { tag: ["@rilis3", "@bayar"] }, () => {
       await pemesan.getByLabel("Nama lengkap Anda").fill("Uji UAT Pemesan");
       await pemesan.getByLabel("Nomor telepon", { exact: true }).fill(DATA.telepon());
       await pemesan.getByRole("button", { name: "Pesan layanan" }).click();
-      await expect(pemesan).toHaveURL(/\/layanan\/[A-Za-z0-9-]+$/, { timeout: 30_000 });
+      // The Nomor Pemesanan, not any word: the form's own address /layanan/tpu would match at once and "tpu" would be saved.
+      await expect(pemesan).toHaveURL(/\/layanan\/MKM-\d{4}-\d{6}$/, { timeout: 30_000 });
       simpan("tpu.layanan.nomor", new URL(pemesan.url()).pathname.split("/").pop()!);
     });
     await bukaTagihanDanBayar(pemesan);
