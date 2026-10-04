@@ -6,11 +6,12 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 // deploy/bin/makam-preflight is run by the owner on the VPS before the
-// production rehearsal: one line per prerequisite of tickets 02, 03, 04 and 72,
+// production rehearsal: one line per prerequisite of tickets 02, 03, 04 and 72
+// (and, since ticket 107, the open release and the production timers of 108),
 // PASS / FAIL / SKIP, exit non-zero on any FAIL. The fakes here stand in for
-// every external command (docker, curl, aws, openssl, getent, df, free,
-// cosign), so what is asserted is what the owner sees: the lines, the exit code,
-// and that no secret value is ever printed.
+// every external command (docker, curl, aws, openssl, getent, df, free, cosign,
+// systemctl, sleep), so what is asserted is what the owner sees: the lines, the
+// exit code, and that no secret value is ever printed.
 const repo = fileURLToPath(new URL("../..", import.meta.url));
 const preflightScript = path.join(repo, "deploy/bin/makam-preflight");
 const DIGEST = `sha256:${"b".repeat(64)}`;
@@ -33,6 +34,7 @@ const ENV_FILE = [
   "MAKAM_APP_ENV=production",
   "MAKAM_WEB_PORT=3100",
   "APP_BASE_URL=https://makam.co.id",
+  "RILIS_TERBUKA=1",
   ...Object.entries(SECRETS).map(([key, value]) => `${key}=${value}`),
   "SMTP_USER=smtp-user",
   "S3_REGION=ap-southeast-3",
@@ -97,7 +99,10 @@ function healthy(w: ReturnType<typeof world>) {
     [
       'case "$1" in',
       '  info) exit "${FAKE_DOCKER_INFO:-0}" ;;',
-      `  pull) ${INTERRUPT_AT("pull")}; exit "\${FAKE_PULL:-0}" ;;`,
+      // FAKE_PULL fails every pull; FAKE_PULL_FAIL_FIRST fails only the first N, as ghcr's TLS handshake timeout does now and then.
+      `  pull) ${INTERRUPT_AT("pull")}; [ "\${FAKE_PULL:-0}" = 0 ] || exit "$FAKE_PULL"`,
+      '        n=$(cat "$FAKE_LOG.pulls" 2> /dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FAKE_LOG.pulls"',
+      '        [ "$n" -gt "${FAKE_PULL_FAIL_FIRST:-0}" ] || { echo "Error response from daemon: net/http: TLS handshake timeout" >&2; exit 1; } ;;',
       "  login) cat > /dev/null ;;",
       '  image) echo "${FAKE_REVISION-' + REVISION + '}" ;;',
       '  run) case "$*" in',
@@ -184,6 +189,12 @@ function healthy(w: ReturnType<typeof world>) {
       'case "$url" in',
       `  *api-pay*) ${INTERRUPT_AT("sumopod")}; code=\${FAKE_SUMOPOD_CODE:-404}; case "$hdr" in *makam-preflight-wrong-key*) code=\${FAKE_SUMOPOD_WRONG_KEY_CODE:-401} ;; esac ;;`,
       '  *webhooks*) code=${FAKE_WEBHOOK_CODE:-401} ;;',
+      // The running stack's /api/health: the release it reports (ticket 106), or no such field, or nothing answering.
+      '  */api/health)',
+      '    [ "${FAKE_HEALTH_DOWN:-0}" != 1 ] || { printf 000; exit 7; }',
+      '    code=${FAKE_HEALTH_CODE:-200}',
+      '    if [ "${FAKE_HEALTH_RILIS:-1}" = absent ]; then body="{\\"ok\\":true,\\"environment\\":\\"production\\"}"',
+      '    else body="{\\"ok\\":true,\\"environment\\":\\"production\\",\\"rilisTerbuka\\":${FAKE_HEALTH_RILIS:-1}}"; fi ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
       `      "POST "*/deployments) ${INTERRUPT_AT("gh-create")}`,
@@ -191,7 +202,7 @@ function healthy(w: ReturnType<typeof world>) {
       "        shaRef=0; case \"$data\" in *'\"ref\":\"sha-'*) shaRef=1 ;; esac",
       '        if [ "${FAKE_GH_REJECT_SHA_PREFIX:-0}" = 1 ] && [ "$shaRef" = 1 ]; then',
       "          code=422; body='{\"message\":\"No ref found for: sha-0123\"}'",
-      "        else code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"Bad credentials\"}'; fi ;;",
+      "        else code=${FAKE_GITHUB_CODE:-201}; body='{\"id\": 42}'; [ \"$code\" = 201 ] || body='{\"message\":\"Bad credentials\"}'; [ \"$code\" != 422 ] || body='{\"message\":\"No ref found for: that ref\"}'; fi ;;",
       `      "POST "*/statuses) ${INTERRUPT_AT("statuses")}; code=\${FAKE_GH_STATUS_CODE:-201} ;;`,
       '      "DELETE "*) code=${FAKE_GH_DELETE_CODE:-204} ;;',
       "    esac ;;",
@@ -203,6 +214,26 @@ function healthy(w: ReturnType<typeof world>) {
     ].join("\n"),
   );
   install(w.bin, "makam-restore-test", 'exit "${FAKE_RESTORE_CODE:-0}"');
+  // The backoff between pulls is recorded (install logs "sleep 10"), not waited for.
+  install(w.bin, "sleep", "exit 0");
+  // Every unit is enabled unless FAKE_TIMER_STATES lists it as <unit>=<state>; "missing" is a unit systemd has never heard of.
+  install(
+    w.bin,
+    "systemctl",
+    [
+      'case "$1" in',
+      "  is-enabled)",
+      "    for entry in ${FAKE_TIMER_STATES:-}; do",
+      '      if [ "${entry%%=*}" = "$2" ]; then',
+      '        state=${entry#*=}',
+      '        if [ "$state" = missing ]; then echo "Failed to get unit file state for $2: No such file or directory" >&2; else echo "$state"; fi',
+      "        exit 1",
+      "      fi",
+      "    done",
+      "    echo enabled ;;",
+      "esac",
+    ].join("\n"),
+  );
   return w;
 }
 
@@ -294,6 +325,40 @@ describe("makam-preflight", () => {
     expect(pulled.calls).toContain(`docker pull ghcr.io/andrianm28/makam@${DIGEST}`);
     expect(pulled.calls).not.toContain(SECRETS.GHCR_READ_TOKEN);
     expect(pulled.output).not.toContain(SECRETS.GHCR_READ_TOKEN);
+  });
+
+  describe("ghcr pull retries", () => {
+    it("pulls again after 10 s and then after 30 s when ghcr answers a TLS handshake timeout, and passes on the third try", () => {
+      const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL_FAIL_FIRST: "2" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 72\].*ghcr pull/));
+      expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
+      expect(result.calls).toMatch(/docker pull [^\n]*\nsleep 10\ndocker pull [^\n]*\nsleep 30\ndocker pull /);
+      // The owner is told, on stderr, instead of watching a quiet terminal for 40 seconds.
+      expect(result.output).toMatch(/pull of ghcr\.io\/andrianm28\/makam@sha256:b{64} failed \(try 1 of 3\); trying again in 10s/);
+      expect(result.output).toMatch(/\(try 2 of 3\); trying again in 30s/);
+    });
+
+    it("gives up after the third try with the message it has always had, and waits after neither the last try nor a first try that works", () => {
+      const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL: "1" });
+      expect(result.lines).toContainEqual(
+        expect.stringMatching(
+          /^FAIL .*\[02, 72\].*ghcr pull: could not pull ghcr\.io\/andrianm28\/makam@sha256:b{64} with the read token from prod\.env: check the token's read:packages scope and that the digest exists$/,
+        ),
+      );
+      expect(result.calls.match(/^docker pull /gm)).toHaveLength(3);
+      expect(result.calls.match(/^sleep /gm)).toEqual(["sleep ", "sleep "]);
+
+      const first = preflight(healthy(world()), ["--digest", DIGEST]);
+      expect(first.calls.match(/^docker pull /gm)).toHaveLength(1);
+      expect(first.calls).not.toMatch(/^sleep /m);
+    });
+
+    it("logs in once and keeps the throwaway Docker config for every try, then removes it", () => {
+      const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_PULL_FAIL_FIRST: "2" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^PASS .*ghcr pull.*the read token from prod\.env/));
+      expect(result.calls.match(/^docker login /gm)).toHaveLength(1);
+      expect(result.leftovers).toEqual([]);
+    });
   });
 
   it("runs makam-verify-image on the pulled digest and fails an image the production key did not sign", () => {
@@ -487,6 +552,9 @@ describe("makam-preflight", () => {
   it("creates a probe GitHub Deployment as makam-deploy would, marks it inactive and deletes it again", () => {
     const ok = preflight(healthy(world()), ["--digest", DIGEST]);
     expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72\].*github deployments.*andrianm28\/makam/));
+    // Since ticket 102 makam-deploy-status sends the bare commit SHA as the ref, so the probe does too.
+    expect(ok.calls).toContain(`"ref":"${REVISION}"`);
+    expect(ok.calls).not.toContain('"ref":"sha-');
     expect(ok.calls).toMatch(/curl .*-X POST .*https:\/\/api\.github\.com\/repos\/andrianm28\/makam\/deployments(\s|$)/);
     expect(ok.calls).toMatch(/-X POST .*https:\/\/api\.github\.com\/repos\/andrianm28\/makam\/deployments\/42\/statuses/);
     expect(ok.calls).toMatch(/-X DELETE .*https:\/\/api\.github\.com\/repos\/andrianm28\/makam\/deployments\/42/);
@@ -504,13 +572,153 @@ describe("makam-preflight", () => {
     expect(notPulled.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72\].*github deployments.*pull/));
   });
 
-  it("explains why no Deployments are listed when GitHub accepts the commit SHA but not the sha-<sha> image tag makam-deploy-status sends", () => {
+  it("passes the Deployment probe on a GitHub that refuses the sha-<sha> image tag as a ref, without the old diagnosis", () => {
     const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GH_REJECT_SHA_PREFIX: "1" });
     expect(result.lines).toContainEqual(
-      expect.stringMatching(/^FAIL .*\[72\].*github deployments.*sha-0123456789abcdef.*not a branch, tag or commit SHA.*makam-deploy-status.*accepts the plain commit SHA/),
+      expect.stringMatching(/^PASS .*\[72\].*github deployments.*ref 0123456789abcdef0123456789abcdef01234567.*deleted/),
     );
-    // The probe made with the plain SHA is cleaned up too.
+    expect(result.output).not.toMatch(/not a branch, tag or commit SHA|accepts the plain commit SHA/);
+    // One probe, made once, and removed again.
+    expect(result.calls.match(/-X POST .*\/deployments(\s|$)/g)).toHaveLength(1);
     expect(result.calls).toMatch(/-X DELETE .*deployments\/42/);
+  });
+
+  it("reports a Deployment GitHub refuses even for the bare commit SHA as that refusal, probing once and naming the revision", () => {
+    const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_GITHUB_CODE: "422" });
+    expect(result.lines).toContainEqual(
+      expect.stringMatching(/^FAIL .*\[72\].*github deployments.*HTTP 422.*No ref found.*commit 0123456789abcdef0123456789abcdef01234567/),
+    );
+    expect(result.output).not.toMatch(/sha-0123|plain commit SHA/);
+    expect(result.calls.match(/-X POST .*\/deployments(\s|$)/g)).toHaveLength(1);
+  });
+
+  describe("the open release (--rilis N, RILIS_TERBUKA)", () => {
+    const withoutRilis = ENV_FILE.split("\n").filter((line) => !line.startsWith("RILIS_TERBUKA=")).join("\n");
+
+    it("passes when the env file and the running stack both carry the Rilis that --rilis asks for, reading the stack on its own port", () => {
+      const ok = preflight(healthy(world()), ["--rilis", "1"]);
+      expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72, 107\].*open release: .*RILIS_TERBUKA=1/));
+      expect(ok.lines).toContainEqual(expect.stringMatching(/^PASS .*\[72, 107\].*open release \(running stack\): .*rilisTerbuka=1/));
+      expect(ok.calls).toMatch(/curl .*http:\/\/127\.0\.0\.1:3100\/api\/health/);
+      expect(ok.lines.filter((line) => /open release/.test(line) && !line.startsWith("PASS"))).toEqual([]);
+
+      const three = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=3") })), ["--rilis", "3"], { FAKE_HEALTH_RILIS: "3" });
+      expect(three.lines.filter((line) => /open release/.test(line)).every((line) => line.startsWith("PASS"))).toBe(true);
+
+      // The stack is read on the port the env file gives it, not on a fixed one.
+      const elsewhere = preflight(healthy(world({ envFile: ENV_FILE.replace("MAKAM_WEB_PORT=3100", "MAKAM_WEB_PORT=3110") })), ["--rilis", "1"]);
+      expect(elsewhere.calls).toMatch(/curl .*http:\/\/127\.0\.0\.1:3110\/api\/health/);
+
+      // A stack whose worker heartbeat is stale answers 503 and still says which release it runs.
+      const unhealthy = preflight(healthy(world()), ["--rilis", "1"], { FAKE_HEALTH_CODE: "503" });
+      expect(unhealthy.lines).toContainEqual(expect.stringMatching(/^PASS .*open release \(running stack\): .*rilisTerbuka=1/));
+    });
+
+    it("fails when the env file does not say the Rilis, because production then silently opens Rilis 1", () => {
+      const unset = preflight(healthy(world({ envFile: withoutRilis })), ["--rilis", "1"]);
+      expect(unset.code).toBe(1);
+      expect(unset.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72, 107\].*open release: .*does not set RILIS_TERBUKA.*silently opens Rilis 1.*--rilis 1/));
+
+      const other = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=3") })), ["--rilis", "1"]);
+      expect(other.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72, 107\].*open release: .*RILIS_TERBUKA=3.*--rilis asked for 1/));
+
+      const empty = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", "RILIS_TERBUKA=") })), ["--rilis", "1"]);
+      expect(empty.lines).toContainEqual(expect.stringMatching(/^FAIL .*open release: .*does not set RILIS_TERBUKA/));
+    });
+
+    it("reads a quoted or padded value as the number compose hands the app, and the last of two lines", () => {
+      const quoted = preflight(healthy(world({ envFile: ENV_FILE.replace("RILIS_TERBUKA=1", 'RILIS_TERBUKA="1" ') })), ["--rilis", "1"]);
+      expect(quoted.lines).toContainEqual(expect.stringMatching(/^PASS .*open release: .*RILIS_TERBUKA=1/));
+
+      const twice = preflight(healthy(world({ envFile: `${ENV_FILE}RILIS_TERBUKA=3\n` })), ["--rilis", "3"], { FAKE_HEALTH_RILIS: "3" });
+      expect(twice.lines).toContainEqual(expect.stringMatching(/^PASS .*open release: .*RILIS_TERBUKA=3/));
+    });
+
+    it("fails when the running stack reports another Rilis than --rilis, naming the restart that reads the env file again", () => {
+      const stale = preflight(healthy(world()), ["--rilis", "1"], { FAKE_HEALTH_RILIS: "3" });
+      expect(stale.code).toBe(1);
+      expect(stale.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72, 107\].*open release \(running stack\): .*rilisTerbuka=3.*not 1.*restart.*web and worker/));
+      // The env file part is its own line and is still right.
+      expect(stale.lines).toContainEqual(expect.stringMatching(/^PASS .*open release: .*RILIS_TERBUKA=1/));
+    });
+
+    it("skips, with a clear line, the running stack when its /api/health has no rilisTerbuka yet or nothing answers, and never fails the host for it", () => {
+      const old = preflight(healthy(world()), ["--digest", DIGEST, "--rilis", "1"], { FAKE_HEALTH_RILIS: "absent" });
+      expect(old.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72, 107\].*open release \(running stack\): .*does not report rilisTerbuka.*started \(RILIS_TERBUKA=/));
+      expect(old.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+      expect(old.code).toBe(0);
+
+      const down = preflight(healthy(world()), ["--digest", DIGEST, "--rilis", "1"], { FAKE_HEALTH_DOWN: "1" });
+      expect(down.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72, 107\].*open release \(running stack\): .*nothing answers.*127\.0\.0\.1:3100.*first deploy/));
+      expect(down.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+      expect(down.code).toBe(0);
+    });
+
+    it("prints the value it found in the env file when --rilis is not given, as a SKIP that says how to prove it, and does not touch the stack", () => {
+      const found = preflight(healthy(world()));
+      expect(found.lines).toContainEqual(expect.stringMatching(/^SKIP .*\[72, 107\].*open release: .*RILIS_TERBUKA=1.*--rilis N/));
+      expect(found.calls).not.toContain("/api/health");
+
+      const unset = preflight(healthy(world({ envFile: withoutRilis })));
+      expect(unset.lines).toContainEqual(expect.stringMatching(/^SKIP .*open release: .*does not set RILIS_TERBUKA.*opens Rilis 1.*--rilis N/));
+      expect(unset.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+    });
+
+    it("waits for the env file instead of reporting a missing RILIS_TERBUKA when the file itself is missing", () => {
+      const result = preflight(healthy(world({ envFile: null })), ["--rilis", "1"]);
+      expect(result.lines).toContainEqual(expect.stringMatching(/^SKIP .*open release: .*needs the env file/));
+      expect(result.lines.filter((line) => /^FAIL .*open release/.test(line))).toEqual([]);
+    });
+
+    it("refuses a --rilis that is not 1, 2 or 3 as a usage error before it runs any check", () => {
+      for (const value of ["0", "4", "x", ""]) {
+        const result = preflight(healthy(world()), ["--rilis", value]);
+        expect(result.code, `--rilis "${value}"`).toBe(64);
+        expect(result.output).toContain("--rilis must be 1, 2 or 3");
+        expect(result.calls).toBe("");
+      }
+    });
+
+    it("lists --rilis in its usage text", () => {
+      const result = preflight(healthy(world()), ["--help"]);
+      expect(result.code).toBe(0);
+      expect(result.output).toMatch(/--rilis N/);
+    });
+  });
+
+  describe("the production timers (ticket 108)", () => {
+    it("passes when the db-backup, files-backup, restore-test and health timers of makam-prod are enabled", () => {
+      const ok = preflight(healthy(world()));
+      expect(ok.lines).toContainEqual(
+        expect.stringMatching(
+          /^PASS .*\[64, 108\].*production timers: .*makam-prod-db-backup\.timer.*makam-prod-files-backup\.timer.*makam-prod-restore-test\.timer.*makam-prod-health\.timer.*enabled/,
+        ),
+      );
+      for (const timer of ["db-backup", "files-backup", "restore-test", "health"]) {
+        expect(ok.calls).toContain(`systemctl is-enabled makam-prod-${timer}.timer`);
+      }
+      expect(ok.calls).not.toMatch(/systemctl is-enabled makam-staging/);
+    });
+
+    it("fails naming each timer that is not enabled and what state it is in, and how to enable them after the first production deploy", () => {
+      const result = preflight(healthy(world()), [], {
+        FAKE_TIMER_STATES: "makam-prod-db-backup.timer=disabled makam-prod-files-backup.timer=masked makam-prod-health.timer=missing",
+      });
+      expect(result.code).toBe(1);
+      const line = result.lines.find((l) => /production timers/.test(l)) ?? "";
+      expect(line).toMatch(/^FAIL .*\[64, 108\]/);
+      expect(line).toContain("makam-prod-db-backup.timer (disabled)");
+      expect(line).toContain("makam-prod-files-backup.timer (masked)");
+      expect(line).toContain("makam-prod-health.timer (not installed)");
+      expect(line).not.toContain("makam-prod-restore-test");
+      expect(line).toMatch(/install-host\.sh.*MAKAM_DIGEST.*after the first production deploy/);
+      expect(result.lines.filter((l) => /^PASS .*production timers/.test(l))).toEqual([]);
+    });
+
+    it("counts only an enabled timer: a unit with no [Install] section (static) does not make the backups run", () => {
+      const result = preflight(healthy(world()), [], { FAKE_TIMER_STATES: "makam-prod-restore-test.timer=static" });
+      expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*production timers: .*makam-prod-restore-test\.timer \(static\)/));
+    });
   });
 
   it("lists the external uptime monitor and the nginx switch as manual steps, SKIP with the instruction", () => {
@@ -524,7 +732,8 @@ describe("makam-preflight", () => {
     const ready = preflight(healthy(world()), args);
     expect(ready.code).toBe(0);
     expect(ready.lines.filter((line) => line.startsWith("FAIL"))).toEqual([]);
-    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(3);
+    // The S3 move to v2, the open release without --rilis, the uptime monitor, the nginx switch.
+    expect(ready.lines.filter((line) => line.startsWith("SKIP"))).toHaveLength(4);
 
     const broken = preflight(healthy(world()), args, {
       FAKE_DOCKER_INFO: "1",
@@ -559,6 +768,18 @@ describe("makam-preflight", () => {
 
     const ticket = readFileSync(path.join(repo, ".scratch/makam-v1-build/issues/72-deploys-through-github-actions.md"), "utf8");
     expect(ticket).toMatch(/\*\*Rehearsal\*\*[^\n]*first step[^\n]*makam-preflight/);
+  });
+
+  it("documents --rilis, the production timers, the bare-SHA Deployment probe and the pull retries in the runbook's preflight section", () => {
+    const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+    const section = runbook.slice(runbook.indexOf("## Production preflight"), runbook.indexOf("## Hari switch"));
+    expect(section).toMatch(/--rilis N[\s\S]*RILIS_TERBUKA[\s\S]*rilisTerbuka/);
+    for (const timer of ["makam-prod-db-backup", "makam-prod-files-backup", "makam-prod-restore-test", "makam-prod-health"]) {
+      expect(section).toContain(timer);
+    }
+    expect(section).toMatch(/Deployment[^\n]*ref[^\n]*bare commit SHA/);
+    expect(section).not.toContain("ref `sha-<revision>`");
+    expect(section).toMatch(/ghcr pull[^\n]*3 tries, 10 s and 30 s apart/);
   });
 
   it("skips every S3 check by default because v1 goes live without S3, and runs them only with --met-s3", () => {
@@ -641,7 +862,7 @@ describe("makam-preflight", () => {
     expect(section).toMatch(/public access, versioning and encryption[^.]*console[^.]*unless[^.]*read-capable key/i);
   });
 
-  it("fails with a clear reason when the image carries no revision label instead of probing the ref sha-", () => {
+  it("fails with a clear reason when the image carries no revision label instead of probing GitHub with no commit to send", () => {
     const result = preflight(healthy(world()), ["--digest", DIGEST], { FAKE_REVISION: "" });
     expect(result.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[72\].*github deployments.*no org\.opencontainers\.image\.revision label/));
     expect(result.calls).not.toMatch(/-X POST .*\/deployments(\s|$)/);

@@ -757,7 +757,12 @@ minutes as `ubuntu`, which has a `read:packages` ghcr login in
 `~/.docker/config.json`. The script:
 
 1. pulls `:latest` (or the `--tag` / `--digest` it was given) and **resolves it
-   to a digest** — a tag is only a pointer;
+   to a digest** — a tag is only a pointer. ghcr answers a TLS handshake timeout
+   now and then (six times on 2026-10-03), so a failed pull is retried: 3 tries,
+   10 s and 30 s apart, with one `WARNING pull … failed` line in `deploy.log` per
+   retry. After the third the deploy gives up with `ERROR pull … failed; nothing
+   changed` and exit 1. The roll back's pull of the previous digest follows the
+   same rule;
 2. **verifies the digest's cosign signature** with `/opt/makam-v1/staging/cosign.pub`.
    Unsigned, or signed with another key, exits **77** and nothing is touched;
 3. exits if that digest is already running and healthy;
@@ -2031,14 +2036,14 @@ banner and the notice disappear; the preflight SKIP line goes with them.
 
 Run this on the VPS before the production rehearsal (ticket 72) and again
 before the nginx switch. It answers one question: which prerequisite of tickets
-02, 03, 04 and 72 is still missing? It is read-only, except for three things it
+02, 03, 04, 72, 107 and 108 is still missing? It is read-only, except for three things it
 names and removes again (an S3 object, a GitHub Deployment, and the Dump its own
 backup writes), and it never prints a secret value. One exception stays:
 `makam-backup-db` prunes Dumps older than 7 days on every run, so a preflight can
 age out the oldest night's Dump.
 
 ```bash
-makam-preflight --env prod --digest sha256:<released digest> --email-to <your address>
+makam-preflight --env prod --digest sha256:<released digest> --email-to <your address> [--rilis N]
 ```
 
 - `--digest`: a released image (the digest the promotion printed). Without it
@@ -2051,10 +2056,19 @@ makam-preflight --env prod --digest sha256:<released digest> --email-to <your ad
   keys exist; then a missing S3 setting is a FAIL.
 - `--webhook-url`: where the forged-signature check posts; before the nginx
   switch use `http://127.0.0.1:3100/api/webhooks/pembayaran`.
+- `--rilis N`: the release production must open (`RILIS_TERBUKA`, ADR 0006: 1 at
+  the switch, 3 later). FAIL unless `prod.env` says `RILIS_TERBUKA=N` (an unset
+  value means Rilis 1 on production without a word, so it has to be written
+  down) and the running stack's `/api/health` reports the same `rilisTerbuka`
+  (ticket 106). That second line is a SKIP, with the reason, when the field is
+  absent (an image from before ticket 106) or nothing answers (before the first
+  deploy). Web and worker read the env file only when they start, so a changed
+  value needs the restart in "Which release is open". Without `--rilis` the
+  line is a SKIP that prints the value `prod.env` holds.
 
 One line per check: `PASS|FAIL|SKIP [tickets] name: reason`. Exit 0 if no line
 is FAIL, 1 otherwise. SKIP lines are yours to do by hand (the external uptime
-monitor, the nginx switch, a missing `--email-to`).
+monitor, the nginx switch, a missing `--email-to`, a missing `--rilis`).
 
 What it checks, and what runs it:
 
@@ -2065,16 +2079,23 @@ What it checks, and what runs it:
 | Docker, compose plugin | `docker info`, `docker compose version` | 02 |
 | disk, memory | `makam-diskcheck /` (85 %), `free -m` (1024 MB available; `MAKAM_PREFLIGHT_MIN_MEM_MB`) | 02 |
 | DNS and certificate for `makam.co.id` and `www` | `getent ahostsv4` (103.92.214.243; `MAKAM_PREFLIGHT_EXPECTED_IP`), `openssl s_client` (14 days; `MAKAM_PREFLIGHT_CERT_DAYS`) | 02 |
-| ghcr pull of the digest | `docker pull`, with `GHCR_READ_TOKEN` from the env file in a throwaway Docker config, else the host's login | 02, 72 |
+| ghcr pull of the digest | `docker pull` (3 tries, 10 s and 30 s apart, as `makam-deploy` does), with `GHCR_READ_TOKEN` from the env file in a throwaway Docker config, else the host's login | 02, 72 |
 | image signature | `makam-verify-image --env prod` | 72 |
 | S3 probe object, bucket settings | `aws s3api` with `S3_*` from the env file: put, read, delete in `S3_BUCKET_FILES` with the app key; public access block, versioning, encryption where that key may read them (AccessDenied is a SKIP: check in the console) | 03 |
 | backups bucket, backup encryption key | `head-bucket` with the `S3_BACKUPS_*` key; `/opt/makam-v1/prod/backup-passphrase` present, non-empty, 0600 | 03 |
 | backup, then restore test | `makam-backup-db --env prod` then `makam-restore-test --env prod --dump <that Dump>`; the Dump it made is removed again | 03, 72 |
 | SMTP | `email-check` in the image | 04 |
 | SumoPod key, webhook secret, forged signature | a GET of a payment that does not exist (`X-Api-Key`; 200/404 = accepted, 401/403 = refused; then the same call with a wrong key must be refused, else the line is a SKIP "path unverified"; `MAKAM_PREFLIGHT_SUMOPOD_PATH`), `SUMOPOD_WEBHOOK_SECRET` is a `whsec_`, a POST with a forged Svix signature must answer 401 | 04 |
-| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (ref `sha-<revision>`), set inactive, deleted | 72 |
+| GitHub Deployment reporting | a probe Deployment created exactly as `makam-deploy-status` does (its ref is the image's revision label, the bare commit SHA: GitHub takes no `sha-<revision>` image tag as a ref), set inactive, deleted | 72 |
+| open release | `RILIS_TERBUKA` in the env file, and with `--rilis N` the `rilisTerbuka` that `http://127.0.0.1:<MAKAM_WEB_PORT>/api/health` reports (SKIP when the field is absent or the stack is down) | 72, 107 |
+| production timers | `systemctl is-enabled` of `makam-prod-db-backup.timer`, `makam-prod-files-backup.timer`, `makam-prod-restore-test.timer` and `makam-prod-health.timer` (ticket 108): FAIL unless all four say `enabled`; `deploy/install-host.sh` enables them once `deployed.env` names a `MAKAM_DIGEST`, so run it again after the first production deploy | 64, 108 |
 | production on the sandbox | one SKIP line, "production on the sandbox", when `SUMOPOD_BASE_URL` is SumoPod's sandbox host: payments are a trial until the live keys are installed and the override removed | 04, 101 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
+
+Before the first production deploy the lines that need the running stack FAIL or
+SKIP by design: the backup and restore test (it needs the `makam-prod` stack), the
+production timers (`install-host.sh` enables them only once the stack runs) and
+the release the stack reports. Run the preflight again after the rehearsal's deploy.
 
 Public access, versioning and encryption of the buckets are a console check
 (AWS console, bucket, Permissions / Properties) unless `S3_ACCESS_KEY_ID` is a

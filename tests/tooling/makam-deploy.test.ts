@@ -75,6 +75,13 @@ function fakeDocker() {
     "    echo \"$IMAGE@sha256:$(printf '%s' \"$ref\" | sha256sum | cut -c1-64)\" ;;",
     "  *'image inspect'*) exit 0 ;;",
     "  *'ps --status running -q'*) echo 'container-id' ;;",
+    // FAKE_PULL_FAIL_FIRST=N fails the first N pulls (of refs containing FAKE_PULL_FAIL_MATCH, all by default), as ghcr's TLS handshake timeout does now and then.
+    "  'pull '*)",
+    '    case "$*" in',
+    '      *"${FAKE_PULL_FAIL_MATCH:-}"*)',
+    '        n=$(cat "$FAKE_DOCKER_LOG.pulls" 2>/dev/null || echo 0); n=$((n + 1)); echo "$n" > "$FAKE_DOCKER_LOG.pulls"',
+    '        [ "$n" -gt "${FAKE_PULL_FAIL_FIRST:-0}" ] || { echo "Error response from daemon: net/http: TLS handshake timeout" >&2; exit 1; } ;;',
+    "    esac ;;",
     "  *'image ls'*) [ -r \"${FAKE_DOCKER_IMAGES:-/nonexistent}\" ] && cat \"$FAKE_DOCKER_IMAGES\" ;;",
     '  *"run --rm --quiet-pull migrate"*) [ "${FAKE_MIGRATE_OK:-1}" = 1 ] || exit 1 ;;',
     '  *"up -d --wait"*)\n'
@@ -110,6 +117,20 @@ function fakeCurl() {
   ].join("\n");
 }
 
+/**
+ * A fake `sleep`: it records every call, returns at once for the 10 s and 30 s
+ * pull backoffs, and really sleeps for the health loop's one-second naps.
+ */
+function fakeSleep() {
+  return [
+    "#!/usr/bin/env bash",
+    'echo "sleep $*" >> "$FAKE_DOCKER_LOG"',
+    '[ "${1:-0}" -lt 10 ] 2>/dev/null && exec /usr/bin/sleep "$@"',
+    "exit 0",
+    "",
+  ].join("\n");
+}
+
 function install(bin: string, name: string, body: string): void {
   writeFileSync(path.join(bin, name), body);
   chmodSync(path.join(bin, name), 0o755);
@@ -127,6 +148,7 @@ function run(
   // The fake `up` counter counts within one run, so a test can say "the first up
   // works, the roll back's does not" without counting the previous deploy.
   rmSync(`${log}.up`, { force: true });
+  rmSync(`${log}.pulls`, { force: true });
   const env: NodeJS.ProcessEnv = {
     PATH: `${path.join(world.root, "bin")}:/usr/bin:/bin`,
     MAKAM_ROOT: world.root,
@@ -210,6 +232,7 @@ describe("makam-deploy", () => {
     install(world.bin, "cosign", fakeCosign());
     install(world.bin, "docker", fakeDocker());
     install(world.bin, "curl", fakeCurl());
+    install(world.bin, "sleep", fakeSleep());
     return world;
   }
 
@@ -364,6 +387,84 @@ describe("makam-deploy", () => {
     });
     expect(result.code).toBe(1);
     expect(result.calls).not.toContain("image rm");
+  });
+
+  describe("a ghcr pull that fails now and then (a TLS handshake timeout)", () => {
+    const backoffs = (calls: string) => calls.match(/^sleep (?:10|30)$/gm) ?? [];
+    const pulls = (calls: string) => calls.match(/^docker pull /gm) ?? [];
+
+    it("is tried again after 10 s and then after 30 s, and the deploy goes on when the third pull works, however the target is named", () => {
+      for (const target of [[], ["--tag", TAG_ONE], ["--digest", DIGEST]]) {
+        const world = staging();
+        const result = run(deployScript, ["--env", world.env, ...target], world, { FAKE_PULL_FAIL_FIRST: "2" });
+        const how = target.join(" ") || "the timer's :latest";
+        expect(result.code, how).toBe(0);
+        expect(pulls(result.calls), how).toHaveLength(3);
+        expect(result.calls, how).toMatch(/docker pull [^\n]*\nsleep 10\ndocker pull [^\n]*\nsleep 30\ndocker pull /);
+        expect(result.calls, how).toContain("run --rm --quiet-pull migrate");
+        expect(result.deployLog(), how).toMatch(/WARNING pull \S+ failed \(try 1 of 3\); trying again in 10s/);
+        expect(result.deployLog(), how).toMatch(/WARNING pull \S+ failed \(try 2 of 3\); trying again in 30s/);
+      }
+    });
+
+    it("gives up after the third pull with the message it has always had, and touches nothing", () => {
+      const world = staging();
+      const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world, { FAKE_PULL_FAIL_FIRST: "99" });
+      expect(result.code).toBe(1);
+      expect(pulls(result.calls)).toHaveLength(3);
+      // Two waits for three tries: nothing is waited for after the last one.
+      expect(backoffs(result.calls)).toEqual(["sleep 10", "sleep 30"]);
+      expect(result.deployLog()).toContain(`ERROR pull ${IMAGE}:${TAG_ONE} failed; nothing changed`);
+      expect(result.calls).not.toContain("migrate");
+      expect(readFileSync(path.join(world.root, world.env, "deployed.env"), "utf8")).not.toContain(TAG_ONE);
+    });
+
+    it("costs a healthy host no wait at all", () => {
+      const world = staging();
+      const result = run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world);
+      expect(result.code).toBe(0);
+      expect(pulls(result.calls)).toHaveLength(1);
+      expect(backoffs(result.calls)).toEqual([]);
+    });
+
+    it("is also tried three times when the roll back pulls the previous digest, and the roll back works on the third pull", () => {
+      const world = staging();
+      expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+      // Only a pull by digest fails: the new tag's own pull and the health check are as usual.
+      const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, {
+        FAKE_HEALTH_OK: "0",
+        FAKE_PULL_FAIL_MATCH: "@sha256:",
+        FAKE_PULL_FAIL_FIRST: "2",
+      });
+      expect(second.code).toBe(1);
+      expect(second.deployLog()).toMatch(/rolled back to sha-1111111111111111111111111111111111111111/);
+      expect(second.calls.match(/^docker pull -q \S+@sha256:/gm)).toHaveLength(3);
+      expect(backoffs(second.calls)).toEqual(["sleep 10", "sleep 30"]);
+    });
+
+    it("is explained in the runbook's staging deploy section: three tries, 10 s and 30 s apart, the roll back's pull included", () => {
+      const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8");
+      // Prose is re-wrapped by editors, so read it as one line.
+      const section = runbook
+        .slice(runbook.indexOf("## Staging deploy"), runbook.indexOf("## Reading a deploy in GitHub"))
+        .replace(/\s+/g, " ");
+      expect(section).toContain("3 tries, 10 s and 30 s apart");
+      expect(section).toContain("roll back's pull of the previous digest");
+    });
+
+    it("leaves the unhealthy release running and exits 2 when all three pulls of the roll back fail, with the roll back's own message", () => {
+      const world = staging();
+      expect(run(deployScript, ["--env", world.env, "--tag", TAG_ONE], world).code).toBe(0);
+      const second = run(deployScript, ["--env", world.env, "--tag", TAG_TWO], world, {
+        FAKE_HEALTH_OK: "0",
+        FAKE_PULL_FAIL_MATCH: "@sha256:",
+        FAKE_PULL_FAIL_FIRST: "99",
+      });
+      expect(second.code).toBe(2);
+      expect(second.calls.match(/^docker pull -q \S+@sha256:/gm)).toHaveLength(3);
+      expect(backoffs(second.calls)).toEqual(["sleep 10", "sleep 30"]);
+      expect(second.deployLog()).toMatch(/ERROR roll back to sha256:[0-9a-f]{64} failed; sha-2222222222222222222222222222222222222222 \(sha256:[0-9a-f]{64}\) is still running/);
+    });
   });
 });
 

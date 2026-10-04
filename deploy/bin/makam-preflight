@@ -2,7 +2,12 @@
 # makam-preflight: which prerequisite of the production go-live is still missing?
 #
 #   makam-preflight --env prod [--digest sha256:...] [--email-to <address>]
-#                   [--met-s3] [--webhook-url <url>]
+#                   [--met-s3] [--webhook-url <url>] [--rilis N]
+#
+# --rilis N is the release production must open (RILIS_TERBUKA, ADR 0006: 1 at
+# the switch, 3 later): FAIL unless the env file says RILIS_TERBUKA=N and the
+# running stack's /api/health reports the same rilisTerbuka. Without it the line
+# only prints the value the env file holds.
 #
 # Run by the owner on the VPS before the production rehearsal (ticket 72,
 # "Added 2026-10-03"; docs/ops/runbook.md, "Production preflight"). One line per
@@ -13,7 +18,8 @@
 #   SKIP [72] uptime monitor: .. cannot be checked from here; the instruction is on the line
 #
 # The bracket names the ticket items a check proves (02 infrastructure, 03 S3,
-# 04 SumoPod, 72 deploys). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
+# 04 SumoPod, 72 deploys, 64 and 108 the production backup timers, 107 the open
+# release). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
 #
 # Read-only, except for objects it names itself and removes again: the S3 probe
 # object, the GitHub probe Deployment and the Dump its own backup writes. One
@@ -34,6 +40,7 @@ DIGEST=""
 EMAIL_TO=""
 MET_S3=0
 WEBHOOK_URL=""
+RILIS=""
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed -n 's/^# \{0,1\}//p' | sed '$d'; exit "${1:-0}"; }
 
@@ -44,6 +51,10 @@ while [ $# -gt 0 ]; do
     --email-to) EMAIL_TO=${2:?}; shift 2 ;;
     --met-s3) MET_S3=1; shift ;;
     --webhook-url) WEBHOOK_URL=${2:?}; shift 2 ;;
+    --rilis)
+      RILIS=${2:-}
+      case "$RILIS" in 1|2|3) ;; *) echo "--rilis must be 1, 2 or 3" >&2; usage 64 ;; esac
+      shift 2 ;;
     -h|--help) usage 0 ;;
     *) echo "unknown argument: $1" >&2; usage 64 ;;
   esac
@@ -69,7 +80,6 @@ new_tmp() { REPLY=$(mktemp "$@"); TMP_PATHS+=("$REPLY"); }
 PENDING_S3_KEY=""
 PENDING_DEPLOY_ID=""
 PENDING_DEPLOY_REPO=""
-REMOVE_NOTE=""
 cleanup() {
   local path
   if [ -n "$PENDING_S3_KEY" ]; then
@@ -171,6 +181,20 @@ check_dns_and_certificates() {
   done
 }
 
+# One pull of $IMAGE_REF with the Docker config $1. ghcr answers a TLS handshake
+# timeout now and then (six times on 2026-10-03), so a pull is tried up to three
+# times, 10 s and then 30 s apart, before it counts as failed: the same rule as
+# makam-deploy's pulls. The progress note goes to stderr, not into a PASS line.
+pull_image() {
+  local config=$1 attempt delay
+  for attempt in 1 2 3; do
+    DOCKER_CONFIG=$config docker pull "$IMAGE_REF" > /dev/null 2>&1 && return 0
+    case "$attempt" in 1) delay=10 ;; 2) delay=30 ;; *) return 1 ;; esac
+    echo "preflight: pull of $IMAGE_REF failed (try $attempt of 3); trying again in ${delay}s" >&2
+    sleep "$delay"
+  done
+}
+
 # The digest to prove is --digest, else the one deployed.env records. The pull
 # uses the ghcr read token when the env file holds GHCR_READ_TOKEN (in a
 # throwaway Docker config that is removed again), else the host's own login.
@@ -197,7 +221,7 @@ check_image_pull() {
       return 0
     fi
   fi
-  if DOCKER_CONFIG="${config:-${DOCKER_CONFIG:-$HOME/.docker}}" docker pull "$IMAGE_REF" > /dev/null 2>&1; then
+  if pull_image "${config:-${DOCKER_CONFIG:-$HOME/.docker}}"; then
     PULLED=1
     pass "02, 72" "ghcr pull" "pulled $IMAGE_REF with $login_note"
   else
@@ -527,11 +551,13 @@ remove_probe_deployment() {
   PENDING_DEPLOY_ID=""
 }
 
-# Does makam-deploy-status work from this host? It creates a Deployment with
-# the image tag sha-<revision> as its ref; this probe does the same call (a
-# transient "preflight" environment), then marks it inactive and deletes it.
+# Does makam-deploy-status work from this host? It creates a Deployment whose ref
+# is the image's commit SHA, the revision label (GitHub takes a branch, tag or
+# commit SHA as a ref, and the image tag sha-<revision> is none of them: ticket
+# 102). This probe does the same call (a transient "preflight" environment), then
+# marks it inactive and deletes it.
 check_github_deployments() {
-  local repo rev ref code id message="" tried_plain=0
+  local repo rev code id message=""
   repo=$(setting MAKAM_GITHUB_REPOSITORY)
   repo=${repo:-andrianm28/makam}
   if [ -z "$(setting MAKAM_GITHUB_TOKEN)" ]; then
@@ -544,39 +570,93 @@ check_github_deployments() {
   fi
   rev=$(docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' "$IMAGE_REF" 2> /dev/null || true)
   if [ -z "$rev" ]; then
-    fail "72" "github deployments" "the image has no org.opencontainers.image.revision label, so makam-deploy would send the ref sha- and GitHub would refuse it; rebuild the image from CI"
+    fail "72" "github deployments" "the image has no org.opencontainers.image.revision label, so makam-deploy has no commit to send as the Deployment's ref and GitHub would refuse it; rebuild the image from CI"
     return 0
   fi
-  ref="sha-$rev"
   new_tmp
   BODY_FILE=$REPLY
-  code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$ref\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
+  code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[],\"description\":\"makam-preflight probe\"}")
   id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
   message=$(sed -n 's/.*"message": *"\([^"]*\)".*/\1/p' "$BODY_FILE" | head -n 1)
   if [ -n "$id" ] && [ "$code" = 201 ]; then
     PENDING_DEPLOY_ID=$id
     PENDING_DEPLOY_REPO=$repo
     if remove_probe_deployment "$repo" "$id"; then
-      pass "72" "github deployments" "$repo accepted a Deployment with ref $ref and the probe was deleted again"
+      pass "72" "github deployments" "$repo accepted a Deployment with ref $rev and the probe was deleted again"
     else
-      fail "72" "github deployments" "$repo accepted a Deployment with ref $ref, but $REMOVE_PROBLEM"
+      fail "72" "github deployments" "$repo accepted a Deployment with ref $rev, but $REMOVE_PROBLEM"
     fi
   elif [ "$code" = 422 ]; then
-    # Diagnose the likely cause of "gh api .../deployments lists none": the ref.
-    code=$(gh_call POST "/repos/$repo/deployments" "{\"ref\":\"$rev\",\"environment\":\"preflight\",\"transient_environment\":true,\"auto_merge\":false,\"required_contexts\":[]}")
-    id=$(sed -n 's/.*"id": *\([0-9][0-9]*\).*/\1/p' "$BODY_FILE" | head -n 1)
-    if [ -n "$id" ] && [ "$code" = 201 ]; then
-      PENDING_DEPLOY_ID=$id
-      PENDING_DEPLOY_REPO=$repo
-      remove_probe_deployment "$repo" "$id" || REMOVE_NOTE=" Also: $REMOVE_PROBLEM."
-      fail "72" "github deployments" "ref $ref is not a branch, tag or commit SHA, so GitHub answers 422: makam-deploy-status sends the image tag as ref and every deploy then goes unreported (logged only in deploy.log); GitHub accepts the plain commit SHA $rev, so the ref must be the revision.${REMOVE_NOTE:-}"
-    else
-      fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}), also with the plain commit SHA: check the token's repository and Deployments: write"
-    fi
+    fail "72" "github deployments" "$repo refused the Deployment (HTTP 422${message:+, $message}): GitHub knows no commit $rev in $repo; was the image built from a commit that is pushed there?"
   else
     fail "72" "github deployments" "$repo refused the Deployment (HTTP $code${message:+, $message}): check the token's repository and Deployments: write"
   fi
   rm -f "$BODY_FILE"
+}
+
+# The release production opens (RILIS_TERBUKA, ADR 0006): 1 at the switch, 3 later.
+# Production reads an unset value as 1 without a word, so --rilis N wants N written
+# in the env file; and web and worker read that file only when they start, so the
+# running stack's own /api/health (rilisTerbuka, ticket 106) must say N as well.
+# Without --rilis there is nothing to prove: the line says what it found.
+check_rilis() {
+  local found port url body code reported
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "72, 107" "open release" "needs the env file (above)"
+    return 0
+  fi
+  # Compose hands the app the value without quotes or padding.
+  found=$(setting RILIS_TERBUKA | tr -d '[:space:]"'"'")
+  if [ -z "$RILIS" ]; then
+    if [ -n "$found" ]; then
+      skip "72, 107" "open release" "$ENV_FILE has RILIS_TERBUKA=$found; pass --rilis N (1 at the switch, 3 later) to prove it is the release you mean to open"
+    else
+      skip "72, 107" "open release" "$ENV_FILE does not set RILIS_TERBUKA, so production opens Rilis 1; pass --rilis N (1 at the switch, 3 later) to prove the release you mean to open"
+    fi
+    return 0
+  fi
+  if [ "$found" = "$RILIS" ]; then
+    pass "72, 107" "open release" "$ENV_FILE has RILIS_TERBUKA=$found"
+  elif [ -z "$found" ]; then
+    fail "72, 107" "open release" "$ENV_FILE does not set RILIS_TERBUKA, so production silently opens Rilis 1, and --rilis $RILIS wants the number written down: add RILIS_TERBUKA=$RILIS, then restart web and worker (runbook, \"Which release is open\")"
+  else
+    fail "72, 107" "open release" "$ENV_FILE has RILIS_TERBUKA=$found, but --rilis asked for $RILIS: set RILIS_TERBUKA=$RILIS, then restart web and worker (runbook, \"Which release is open\")"
+  fi
+  port=$(setting MAKAM_WEB_PORT)
+  url="http://127.0.0.1:${port:-3100}/api/health"
+  new_tmp
+  body=$REPLY
+  code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 10 "$url" 2> /dev/null) || code="no answer"
+  reported=$(sed -n 's/.*"rilisTerbuka" *: *"\{0,1\}\([0-9][0-9]*\)"\{0,1\}.*/\1/p' "$body" 2> /dev/null | head -n 1) || reported=""
+  rm -f "$body"
+  if [ "$code" = "no answer" ] || [ "$code" = 000 ]; then
+    skip "72, 107" "open release (running stack)" "nothing answers on $url, so the release it runs is not checked: start the stack (the first deploy comes first) and run the preflight again"
+  elif [ -z "$reported" ]; then
+    skip "72, 107" "open release (running stack)" "$url (HTTP $code) does not report rilisTerbuka, so what it runs is not checked (an image from before ticket 106); read the worker's log instead: docker compose -p makam-prod logs worker | grep \"started (RILIS_TERBUKA=\""
+  elif [ "$reported" = "$RILIS" ]; then
+    pass "72, 107" "open release (running stack)" "$url reports rilisTerbuka=$reported"
+  else
+    fail "72, 107" "open release (running stack)" "$url reports rilisTerbuka=$reported, not $RILIS: the env file is read only when the stack starts, so restart web and worker after changing it (runbook, \"Which release is open\")"
+  fi
+}
+
+# Ticket 108's four production timers. deploy/install-host.sh enables them once
+# the production stack really runs (deployed.env names a MAKAM_DIGEST); without
+# them no production Dump is taken, no restore test runs and nothing watches
+# /api/health. systemctl says "enabled" for an enabled timer and anything else
+# for the rest: disabled, masked, static (no [Install] section), and nothing at
+# all for a unit it has never heard of.
+check_production_timers() {
+  local timer state missing=""
+  for timer in makam-prod-db-backup makam-prod-files-backup makam-prod-restore-test makam-prod-health; do
+    state=$(systemctl is-enabled "$timer.timer" 2> /dev/null) || true
+    [ "$state" = enabled ] || missing="${missing:+$missing, }$timer.timer (${state:-not installed})"
+  done
+  if [ -z "$missing" ]; then
+    pass "64, 108" "production timers" "makam-prod-db-backup.timer, makam-prod-files-backup.timer, makam-prod-restore-test.timer and makam-prod-health.timer are enabled"
+  else
+    fail "64, 108" "production timers" "not enabled: $missing; deploy/install-host.sh enables them once $DIR/deployed.env names a MAKAM_DIGEST, so run it again after the first production deploy (runbook, \"Database backup and restore\")"
+  fi
 }
 
 # What no script on this host can prove.
@@ -598,9 +678,11 @@ check_sumopod_key
 check_webhook_secret
 check_webhook_forged
 check_github_deployments
+check_rilis
 check_s3
 check_backup_key
 check_backup_and_restore
+check_production_timers
 check_manual_steps
 
 echo
