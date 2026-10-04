@@ -3,6 +3,9 @@ import type { AddressInfo } from "node:net";
 import { simpleParser, type ParsedMail } from "mailparser";
 import { generate } from "selfsigned";
 import { SMTPServer } from "smtp-server";
+import { SmtpEmailSender, type SmtpEmailSenderOptions } from "@/adapters/live/smtp-email-sender";
+import type { SmtpSettings } from "@/lib/env";
+import { mailEverywhere } from "./mail-domain-resolver";
 
 /**
  * A local stand-in for the SumoPod relay (never the real one): an in-process
@@ -115,6 +118,29 @@ export async function startTestSmtpRelay(options: { tls?: boolean } = {}): Promi
     },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
+}
+
+/**
+ * The live SumoPod adapter pointed at `relay`, logged in as the relay's user. It trusts the relay's self-signed
+ * certificate when the relay has one, and asks a DNS in which every domain has a mail host, so a test of the adapter
+ * that is not about the address check depends neither on the network nor on what its recipient's domain resolves to.
+ */
+export function liveSenderFor(
+  relay: { host: string; port: number; certificate?: string },
+  settings: Partial<SmtpSettings> = {},
+  options: Partial<SmtpEmailSenderOptions> = {},
+): SmtpEmailSender {
+  return new SmtpEmailSender(
+    {
+      host: relay.host,
+      port: relay.port,
+      user: RELAY_USER,
+      password: RELAY_PASSWORD,
+      from: { address: "no-reply@makam.co.id", name: "Makam.co.id" },
+      ...settings,
+    },
+    { trustedCertificate: relay.certificate, resolver: mailEverywhere, ...options },
+  );
 }
 
 /** A TCP server that accepts connections and never says anything: a relay that hangs. */

@@ -41,7 +41,7 @@ export function emailSenderContract(name: string, createHarness: () => Promise<E
 
     it("delivers a Tagihan copy with subject, text, HTML and its PDF, and returns a message id", async () => {
       const { messageId } = await harness.sender.send({
-        to: "pemesan@example.test",
+        to: "pemesan@contoh.co.id",
         subject: "Tagihan TAG-2026-000123",
         text: "Terlampir Tagihan Anda.",
         html: "<p>Terlampir <b>Tagihan</b> Anda.</p>",
@@ -51,7 +51,7 @@ export function emailSenderContract(name: string, createHarness: () => Promise<E
       expect(messageId).toMatch(/\S/);
       const [email] = await harness.delivered();
       expect(email).toMatchObject({
-        to: "pemesan@example.test",
+        to: "pemesan@contoh.co.id",
         subject: "Tagihan TAG-2026-000123",
         text: "Terlampir Tagihan Anda.",
         html: "<p>Terlampir <b>Tagihan</b> Anda.</p>",
@@ -62,17 +62,17 @@ export function emailSenderContract(name: string, createHarness: () => Promise<E
     });
 
     it("delivers a text-only Kode Masuk email with no attachments", async () => {
-      await harness.sender.send({ to: "staf@example.test", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
+      await harness.sender.send({ to: "staf@contoh.co.id", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
 
       const [email] = await harness.delivered();
-      expect(email).toMatchObject({ to: "staf@example.test", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
+      expect(email).toMatchObject({ to: "staf@contoh.co.id", subject: "Kode Masuk", text: "Kode Masuk Anda: 123456" });
       expect(email.html).toBeUndefined();
       expect(email.attachments).toEqual([]);
     });
 
     it("gives every email its own message id", async () => {
-      const first = await harness.sender.send({ to: "a@example.test", subject: "Satu", text: "1" });
-      const second = await harness.sender.send({ to: "a@example.test", subject: "Dua", text: "2" });
+      const first = await harness.sender.send({ to: "a@contoh.co.id", subject: "Satu", text: "1" });
+      const second = await harness.sender.send({ to: "a@contoh.co.id", subject: "Dua", text: "2" });
       expect(first.messageId).not.toBe(second.messageId);
     });
 
@@ -80,23 +80,23 @@ export function emailSenderContract(name: string, createHarness: () => Promise<E
       harness.refuseNextSend();
 
       const failure = await harness.sender
-        .send({ to: "ditolak@example.test", subject: "Kode Masuk", text: "Kode Masuk Anda: 654321" })
+        .send({ to: "ditolak@contoh.co.id", subject: "Kode Masuk", text: "Kode Masuk Anda: 654321" })
         .catch((error: unknown) => error);
 
       expect(failure).toBeInstanceOf(EmailSendError);
       expect((failure as EmailSendError).kind).toBe("rejected");
       const shown = `${(failure as Error).message} ${JSON.stringify(failure)}`;
-      expect(shown).not.toContain("ditolak@example.test");
+      expect(shown).not.toContain("ditolak@contoh.co.id");
       expect(shown).not.toContain("654321");
       expect(await harness.delivered()).toEqual([]);
     });
 
     it("a refused send does not affect the next one, and nothing is retried", async () => {
       harness.refuseNextSend();
-      await expect(harness.sender.send({ to: "a@example.test", subject: "Satu", text: "1" })).rejects.toBeInstanceOf(
+      await expect(harness.sender.send({ to: "a@contoh.co.id", subject: "Satu", text: "1" })).rejects.toBeInstanceOf(
         EmailSendError,
       );
-      await harness.sender.send({ to: "a@example.test", subject: "Dua", text: "2" });
+      await harness.sender.send({ to: "a@contoh.co.id", subject: "Dua", text: "2" });
 
       expect((await harness.delivered()).map((email) => email.subject)).toEqual(["Dua"]);
     });

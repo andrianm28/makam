@@ -2,11 +2,14 @@ import { randomUUID } from "node:crypto";
 import { createTransport, type Transporter } from "nodemailer";
 import type { SmtpSettings } from "@/lib/env";
 import { EmailSendError, type EmailMessage, type EmailSender } from "@/ports/email-sender";
+import { cannotReceiveMail, systemMailDomainResolver, type MailDomainResolver } from "./mail-domain";
 
 /** Connection, greeting and DNS each give up after this long (ticket 68: at most 15 s). */
 const CONNECT_TIMEOUT_MS = 15_000;
 /** Idle limit once connected (e.g. while a PDF is uploading). */
 const SOCKET_TIMEOUT_MS = 30_000;
+/** The address check (DNS) gets this long in all; after it the send goes ahead, so a slow DNS never holds a Kode Masuk back. */
+const ADDRESS_CHECK_TIMEOUT_MS = 5_000;
 
 export interface SmtpEmailSenderOptions {
   /**
@@ -16,12 +19,22 @@ export interface SmtpEmailSenderOptions {
    * against the system roots.
    */
   trustedCertificate?: string;
+  /**
+   * The DNS the address check asks (see `send`). Tests give a fake, so none of
+   * them depends on the network.
+   */
+  resolver?: MailDomainResolver;
+  /** How long the address check may take before the send goes ahead without it. For tests; the default is 5 s. */
+  addressCheckTimeoutMs?: number;
 }
 
 /**
  * The live EmailSender: the SumoPod SMTP relay (smtp.sumopod.com:465), implicit
  * TLS with the certificate verified, never plaintext, one connection per send
  * and no retries (Notifications owns retries; the email Kode Masuk is sent once).
+ *
+ * An address that cannot receive mail is refused before connecting (`mail-domain.ts`): the relay would take
+ * the message and bounce it later, and the person would be told it was sent.
  *
  * Nothing is logged, and a failure is an EmailSendError that carries only its
  * kind and codes: no address, code, body, relay reply text or credential.
@@ -30,9 +43,13 @@ export class SmtpEmailSender implements EmailSender {
   readonly #transport: Transporter;
   readonly #from: SmtpSettings["from"];
   readonly #messageIdDomain: string;
+  readonly #resolver: MailDomainResolver;
+  readonly #addressCheckTimeoutMs: number;
 
   constructor(settings: SmtpSettings, options: SmtpEmailSenderOptions = {}) {
     this.#from = settings.from;
+    this.#resolver = options.resolver ?? systemMailDomainResolver();
+    this.#addressCheckTimeoutMs = options.addressCheckTimeoutMs ?? ADDRESS_CHECK_TIMEOUT_MS;
     this.#messageIdDomain = settings.from.address.split("@").pop()!.toLowerCase();
     this.#transport = createTransport({
       host: settings.host,
@@ -57,6 +74,9 @@ export class SmtpEmailSender implements EmailSender {
   }
 
   async send(message: EmailMessage): Promise<{ messageId: string }> {
+    // A relay accepts mail for an address that cannot receive it and bounces it later, and the person is then told
+    // "terkirim" for a Kode Masuk that never arrives: refuse such an address here, before connecting.
+    if (await cannotReceiveMail(message.to, this.#resolver, this.#addressCheckTimeoutMs)) throw new EmailSendError("rejected");
     const messageId = `<${randomUUID()}@${this.#messageIdDomain}>`;
     try {
       await this.#transport.sendMail({

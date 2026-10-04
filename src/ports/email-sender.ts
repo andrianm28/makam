@@ -30,7 +30,8 @@ export interface EmailSender {
 
 /**
  * Why a send failed:
- * - `rejected`: the relay answered and refused (recipient, sender or message refused, or login refused);
+ * - `rejected`: the relay answered and refused (recipient, sender or message refused, or login refused), or the
+ *   adapter itself refused an address that cannot receive mail before connecting (a reserved name, no mail host in DNS);
  * - `unavailable`: no usable connection (DNS, connect, TLS, certificate, timeout, dropped connection).
  */
 export type EmailSendFailure = "rejected" | "unavailable";
