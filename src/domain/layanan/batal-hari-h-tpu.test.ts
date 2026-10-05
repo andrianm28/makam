@@ -417,3 +417,141 @@ describe("the Layanan's cancellation of a Saat Duka TPU order's hari-H Layanan",
     expect(await statusPekerjaan(s, nomor)).toEqual(["menunggu_pembayaran"]);
   });
 });
+
+/**
+ * Ticket 121, owner rule C1: cancelling a Saat Duka TPU order while one of its hari-H Layanan is being redone (a Keluhan upheld, the
+ * redo handed to a Mitra Jasa) cancels the redo and the original job's Pencairan item too, and the family is refunded the Layanan,
+ * once. Before it the item stayed Belum Jatuh Tempo for good: the window-close tick reads Selesai jobs only and the redo's approval,
+ * which would have released or cancelled it, never came.
+ */
+describe("cancelling a Saat Duka TPU order while a hari-H Layanan is being redone after a Keluhan", () => {
+  /** One hari-H Bunga Tabur that `asal` did and Admin Platform approved, a Keluhan on it upheld, and its redo handed to `ulang` (not yet answered). */
+  async function sedangDikerjakanUlang(s: Siap, asal: Mitra, ulang: Mitra, options: { dibayar?: boolean } = {}) {
+    const { nomor, tagihan, pekerjaan } = await pesananHariH(s, 1, { dibayar: options.dibayar ?? true });
+    const [pekerjaanId] = pekerjaan as [string];
+    await diterima(s, asal, pekerjaanId);
+    await mulai(s, asal, pekerjaanId);
+    await kirim(s, asal, pekerjaanId);
+    await setujui(s, pekerjaanId);
+    const keluhan = await s.setup.layanan.ajukanKeluhanTpu(s.pemesan, { pekerjaanId, alasan: "Bunganya sudah layu" });
+    if (!keluhan.ok) throw new Error(`Keluhan refused: ${keluhan.reason}`);
+    const putus = await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: keluhan.keluhanId, keputusan: "kerjakan_ulang", catatan: "Ulangi", mitraJasaId: ulang.id });
+    if (!putus.ok) throw new Error(`decision refused: ${putus.reason}`);
+    const [ulangId] = (await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin)).map((satu) => satu.id).filter((id) => id !== pekerjaanId);
+    if (!ulangId) throw new Error("no redo job");
+    return { nomor, tagihan, pekerjaanId, ulangId };
+  }
+
+  it.each([
+    ["by the same Mitra Jasa", false],
+    ["by another Mitra Jasa", true],
+  ] as const)("cancels the redo %s and the original job's Pencairan, refunds the Layanan once, and pays nothing out for it", async (_label, lain) => {
+    const s = await siap();
+    const asal = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const ulang = lain ? await mitraJasaUntuk(s.setup, s, s.bunga.id, { email: "kedua@contoh.id" }) : asal;
+    const { nomor, tagihan } = await sedangDikerjakanUlang(s, asal, ulang);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "belum_jatuh_tempo", tarif: TARIF }]);
+
+    const batal = await batalkan(s, nomor);
+
+    expect(batal).toEqual({ ok: true, status: "dibatalkan", tagihanDibatalkan: false, pengembalian: tagihan.total });
+    // The redo is Dibatalkan with its order; the original stays what it was, and its Pencairan is no longer owed to its Mitra Jasa.
+    expect(await statusPekerjaan(s, nomor)).toEqual(["keluhan", "dibatalkan"]);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan", tarif: TARIF }]);
+    // The family gets the Layanan back, once, with the rest of the Tagihan: the whole of it.
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ nomorPemesanan: nomor, jumlah: tagihan.total, penuh: true, status: "diajukan" });
+    expect(permintaan!.lines.filter((baris) => baris.label === LABEL_BUNGA).map((baris) => baris.amount)).toEqual([HARGA_BUNGA_TABUR]);
+    expect(permintaan!.lines.reduce((jumlah, baris) => jumlah + baris.amount, 0)).toBe(tagihan.total);
+    // Nothing is paid out for it, however long the Keluhan window runs: the run holds nothing for a Mitra Jasa.
+    await s.setup.layanan.tutupJendelaKeluhan(wib("2026-11-30 10:00"));
+    expect(await s.setup.payouts.jalankanPencairan(s.admin)).toEqual([]);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan" }]);
+    // Asked again, the Layanan has no line left to return and no job to cancel.
+    expect(await s.setup.layanan.batalkanHariHTpu(nomor, db)).toMatchObject({ ok: true, dibatalkan: 0, baris: [] });
+  });
+
+  it("cancels the original job's Pencairan with the order of a family that never paid, and raises no refund", async () => {
+    const s = await siap();
+    const asal = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor } = await sedangDikerjakanUlang(s, asal, asal, { dibayar: false });
+
+    const batal = await batalkan(s, nomor);
+
+    expect(batal).toEqual({ ok: true, status: "dibatalkan", tagihanDibatalkan: true, pengembalian: 0 });
+    expect(await s.setup.refunds.permintaanTerbuka()).toEqual([]);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan", tarif: TARIF }]);
+  });
+
+  it("leaves a redo already begun running, with the original's Pencairan held for its approval and the Layanan not refunded", async () => {
+    const s = await siap();
+    const asal = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor, tagihan, ulangId } = await sedangDikerjakanUlang(s, asal, asal);
+    expect((await s.setup.layanan.jawabPenugasan(asal.actor, { pekerjaanId: ulangId, jawaban: "terima" })).ok).toBe(true);
+    await mulai(s, asal, ulangId);
+
+    const batal = await batalkan(s, nomor);
+
+    expect(batal).toMatchObject({ ok: true, pengembalian: tagihan.total - HARGA_BUNGA_TABUR });
+    expect(await statusPekerjaan(s, nomor)).toEqual(["keluhan", "sedang_dikerjakan"]);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "belum_jatuh_tempo" }]);
+    // The redo is finished the usual way: its approval releases the original's Pencairan, as the pay rules say.
+    await kirim(s, asal, ulangId);
+    await setujui(s, ulangId);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "jatuh_tempo", tarif: TARIF }]);
+  });
+
+  it("never asks Refunds for the Layanan a second time when a Keluhan refund already returned it and Admin Platform then had the job redone", async () => {
+    const s = await siap();
+    const asal = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const { nomor, tagihan, pekerjaan } = await pesananHariH(s, 1, { dibayar: true });
+    const [pekerjaanId] = pekerjaan as [string];
+    await diterima(s, asal, pekerjaanId);
+    await mulai(s, asal, pekerjaanId);
+    await kirim(s, asal, pekerjaanId);
+    await setujui(s, pekerjaanId);
+    const keluhan = await s.setup.layanan.ajukanKeluhanTpu(s.pemesan, { pekerjaanId, alasan: "Bunganya sudah layu" });
+    if (!keluhan.ok) throw new Error(`Keluhan refused: ${keluhan.reason}`);
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: keluhan.keluhanId, keputusan: "kembalikan_dana", catatan: "Dikembalikan" })).toEqual({ ok: true });
+    expect(await s.setup.layanan.kerjaUlangTpu(s.admin, { pekerjaanId, mitraJasaId: asal.id })).toMatchObject({ ok: true });
+
+    const batal = await batalkan(s, nomor);
+
+    // The refund of the Layanan is already in the open request: the order's cancellation adds the other lines to it, and the Tagihan is returned once.
+    expect(batal).toMatchObject({ ok: true, pengembalian: tagihan.total - HARGA_BUNGA_TABUR });
+    const permintaan = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan).toHaveLength(1);
+    expect(permintaan[0]).toMatchObject({ jumlah: tagihan.total, penuh: true });
+    expect(permintaan[0]!.lines.filter((baris) => baris.label === LABEL_BUNGA).map((baris) => baris.amount)).toEqual([HARGA_BUNGA_TABUR]);
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan" }]);
+  });
+
+  it("cancels every Pencairan the redone line holds when the redo is itself a redo: a second Keluhan after the first redo was approved", async () => {
+    const s = await siap();
+    const a = await mitraJasaUntuk(s.setup, s, s.bunga.id);
+    const b = await mitraJasaUntuk(s.setup, s, s.bunga.id, { email: "kedua@contoh.id" });
+    const { nomor, tagihan, pekerjaanId, ulangId } = await sedangDikerjakanUlang(s, a, a);
+    // The first redo, by the same Mitra Jasa, is approved: the original's Pencairan is released (now due) and the redo's proof is shown.
+    expect((await s.setup.layanan.jawabPenugasan(a.actor, { pekerjaanId: ulangId, jawaban: "terima" })).ok).toBe(true);
+    await mulai(s, a, ulangId);
+    await kirim(s, a, ulangId);
+    await setujui(s, ulangId);
+    expect(await pencairanSaya(s, a)).toMatchObject([{ status: "jatuh_tempo" }]);
+    // The family complains of the redo too, and Admin Platform has it done again, by another Mitra Jasa.
+    const keluhan = await s.setup.layanan.ajukanKeluhanTpu(s.pemesan, { pekerjaanId: ulangId, alasan: "Masih layu" });
+    if (!keluhan.ok) throw new Error(`Keluhan refused: ${keluhan.reason}`);
+    expect(await s.setup.layanan.putuskanKeluhanTpu(s.admin, { keluhanId: keluhan.keluhanId, keputusan: "kerjakan_ulang", catatan: "Sekali lagi", mitraJasaId: b.id })).toEqual({ ok: true });
+    expect(await statusPekerjaan(s, nomor)).toEqual(["selesai", "keluhan", "dijadwalkan"]);
+    expect(pekerjaanId).toBeTruthy();
+
+    const batal = await batalkan(s, nomor);
+
+    expect(batal).toEqual({ ok: true, status: "dibatalkan", tagihanDibatalkan: false, pengembalian: tagihan.total });
+    expect(await statusPekerjaan(s, nomor)).toEqual(["selesai", "keluhan", "dibatalkan"]);
+    // The line is returned to the family once, so what the first job would have been paid is not paid either.
+    const [permintaan] = await s.setup.refunds.permintaanTerbuka();
+    expect(permintaan!.lines.filter((baris) => baris.label === LABEL_BUNGA).map((baris) => baris.amount)).toEqual([HARGA_BUNGA_TABUR]);
+    expect(await pencairanSaya(s, a)).toMatchObject([{ status: "dibatalkan" }]);
+    expect(await s.setup.payouts.jalankanPencairan(s.admin)).toEqual([]);
+  });
+});
