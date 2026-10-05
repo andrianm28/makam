@@ -160,7 +160,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
   const nama = new Map([["lokasi-1", "Makam Keluarga Sawah"]]);
 
   it("carries the status in words, the end date, every Pemakaman and every document handed in", () => {
-    const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }]);
+    const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", jenis: "Bukti Pemesanan", href: "/dokumen/abc123" }]);
 
     expect(kartu).toEqual({
       hakPakaiId: "hak-pakai-1",
@@ -171,7 +171,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
       status: { key: "aktif", label: "Aktif", arti: expect.any(String) },
       tanggalBerakhir: "2031-10-02",
       pemakaman: [{ almarhumName: "Siti Nur", date: "2019-04-02" }],
-      dokumen: [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }],
+      dokumen: [{ nomor: "BPM/2026/000001", jenis: "Bukti Pemesanan", href: "/dokumen/abc123" }],
       alamat: "/makam-keluarga?lokasi=lokasi-1&cari=nomor_makam&nomor=A-01",
       hanyaBaca: false,
       pengelola: null,
@@ -192,7 +192,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
 
   it("shows a Hak Pakai at a Berhenti Lokasi after the effective date as read-only: kept with its documents, no Perpanjang or Layanan", () => {
     const berhenti = new Map([["lokasi-1", { pengelolaName: "Pak Haji Rahmat", address: "Jl. Pemakaman No. 1, Bekasi", telepon: "+6281234567890", email: "rahmat@example.com" }]]);
-    const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }], berhenti);
+    const kartu = kartuMakamSaya(makamSaya(), nama, [{ nomor: "BPM/2026/000001", jenis: "Bukti Pemesanan", href: "/dokumen/abc123" }], berhenti);
 
     expect(kartu.hanyaBaca).toBe(true);
     expect(kartu.pengelola).toEqual({
@@ -201,7 +201,7 @@ describe("the Akun Saya Makam tab's own card: the full record, not a shortcut", 
       telepon: "0812-3456-7890",
       email: "rahmat@example.com",
     });
-    expect(kartu.dokumen).toEqual([{ nomor: "BPM/2026/000001", href: "/dokumen/abc123" }]);
+    expect(kartu.dokumen).toEqual([{ nomor: "BPM/2026/000001", jenis: "Bukti Pemesanan", href: "/dokumen/abc123" }]);
     expect(kartu.pemakaman).toHaveLength(1);
     expect(kartuMakamSaya(makamSaya(), nama, [], new Map([["lokasi-lain", { pengelolaName: "X", address: "Y", telepon: null, email: null }]])).hanyaBaca).toBe(false);
     expect(kartuMakamSaya(makamSaya(), nama, []).hanyaBaca).toBe(false);

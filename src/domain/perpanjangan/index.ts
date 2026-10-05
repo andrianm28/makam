@@ -23,7 +23,7 @@
  * overdue-Tagihan block from Pemesanan, the code from Identity, the messages
  * from Notifications.
  */
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import type { Actor } from "@/domain/identity";
 import type { PerpanjanganDeps } from "./deps";
@@ -114,6 +114,14 @@ export interface PerpanjanganTercatat {
   buktiId: string | null;
 }
 
+/** The Bukti Perpanjangan of a Hak Pakai, as a family's tab links it: its number and the unguessable link of its page. */
+export interface BuktiPerpanjanganHakPakai {
+  id: string;
+  /** `BPP/2026/000123`. */
+  nomor: string;
+  link: string;
+}
+
 export interface Perpanjangan {
   /** Whether a Perpanjangan is open for this Hak Pakai today, or the note that replaces the button. `dengan` is the signed-in Akun, whose recorded email skips the code. */
   status(hakPakaiId: string, dengan?: Pemohon | null): Promise<StatusPerpanjangan>;
@@ -155,6 +163,16 @@ export interface Perpanjangan {
   perpanjanganOf(id: string): Promise<PerpanjanganTercatat | null>;
   /** Every Perpanjangan of a Hak Pakai, newest first: what ticket 42's reminders read to stop once one is ordered. */
   perpanjanganUntukHakPakai(hakPakaiId: string): Promise<PerpanjanganTercatat[]>;
+  /**
+   * The Bukti Perpanjangan of the latest Perpanjangan of a Hak Pakai that was paid and applied, or null when none ever was (Akun
+   * Saya's Makam tab, ticket 120; owner rule C4, 2026-10-05). A Perpanjangan still waiting for its payment, or whose payment could
+   * not be applied, has no Bukti, so it never stands in for an earlier one.
+   *
+   * **No actor, and deliberately so: the same contract as `Pemesanan.buktiUntukHakPakai`.** Whose Hak Pakai this is is not
+   * re-checked here. The caller must already have established that `hakPakaiId` is the asking Akun's own, which the Makam tab does by
+   * reading it back from `inventory.makamKeluargaSaya({ email })` before it asks, never from a request parameter.
+   */
+  buktiPerpanjanganTerbaru(hakPakaiId: string): Promise<BuktiPerpanjanganHakPakai | null>;
 }
 
 export function createPerpanjangan(deps: PerpanjanganDeps): Perpanjangan {
@@ -205,6 +223,18 @@ export function createPerpanjangan(deps: PerpanjanganDeps): Perpanjangan {
     perpanjanganUntukHakPakai: async (hakPakaiId) => {
       const rows = await deps.db.select().from(perpanjangan).where(eq(perpanjangan.hakPakaiId, hakPakaiId)).orderBy(desc(perpanjangan.dibuatPada));
       return Promise.all(rows.map(tercatat));
+    },
+    buktiPerpanjanganTerbaru: async (hakPakaiId) => {
+      // The Bukti is issued in the transaction that applies the payment, so a row with one is a Perpanjangan that extended the Hak Pakai.
+      const [terbaru] = await deps.db
+        .select({ buktiId: perpanjangan.buktiId })
+        .from(perpanjangan)
+        .where(and(eq(perpanjangan.hakPakaiId, hakPakaiId), isNotNull(perpanjangan.buktiId)))
+        .orderBy(desc(perpanjangan.dibayarPada), desc(perpanjangan.dibuatPada))
+        .limit(1);
+      if (!terbaru?.buktiId) return null;
+      const bukti = await deps.billing.buktiPerpanjanganById(terbaru.buktiId);
+      return bukti && { id: bukti.id, nomor: bukti.nomor, link: bukti.link };
     },
   };
 }
