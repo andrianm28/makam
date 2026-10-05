@@ -266,3 +266,9 @@ Soft follow-ups (found offline; the first staging run will show them, and they g
 
 **App gaps the runs found:** tickets 115, 116 and 117, plus the owner triage list in the session summary of 2026-10-05.
 
+**R2-59.1 follow-up (2026-10-05, commits 64717435 and 43f0b50a).**
+- On staging, right after Tangguhkan, two "Pulihkan" buttons were on the page. The step now lets the closing confirm dialog go before it counts the one Pulihkan.
+- Reviewed by one sonnet reviewer under both axes: Hard 0, soft 3. Two were fixed in 43f0b50a: the comment, and moving the 30 s wait to the Pulihkan count.
+- The third is an app finding for the owner's Rilis 2 triage: the reused ConfirmDialog carries the Tangguhkan reason into the Pulihkan dialog.
+- R2-59.1 and R2-59.2 then passed on staging.
+
