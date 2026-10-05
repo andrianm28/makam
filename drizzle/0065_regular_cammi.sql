@@ -1,0 +1,1 @@
+ALTER TABLE "pencairan_item" ADD COLUMN "tpu_nama" text;

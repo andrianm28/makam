@@ -281,7 +281,12 @@ function semuaStaffMenu(role: StaffRole, scope: { lokasiId?: string }): NavGroup
               icon: BriefcaseIcon,
               description: "Pekerjaan yang ditugaskan ke Anda: terima atau tolak, lokasi makam dan tanggal target; tanggal tidak tersedia dan skor Anda.",
             },
-            { label: "Pencairan", href: `${home}/pencairan`, icon: BanknoteIcon, description: SEGERA },
+            {
+              label: "Pencairan",
+              href: `${home}/pencairan`,
+              icon: BanknoteIcon,
+              description: "Pembayaran Operator untuk pekerjaan Anda: statusnya, tanggalnya, dan tarif tiap pekerjaan, dengan Bukti Pencairannya.",
+            },
             {
               label: "Peringatan",
               href: `${home}/peringatan`,

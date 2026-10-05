@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
+import { wib } from "@/lib/time/jakarta";
 import { adminPlatformOf } from "./identity";
 import { layananOnTestDatabase, mitraJasaLengkap, newLayananFor, signedInMitraJasa, siapkanOperatorLayanan, type LayananSetup } from "./layanan";
 import { pemesanDenganEmail } from "./pemesanan";
@@ -124,6 +125,52 @@ export async function pencairanSaya(s: SiapTpuBertarif, mitra: MitraJasaTpu) {
   const hasil = await s.setup.payouts.pencairanMitraJasa(mitra.actor);
   if (!hasil.ok) throw new Error(hasil.reason);
   return hasil.pekerjaan;
+}
+
+/** The Mitra Jasa's Pencairan as their page lists it, newest first: a transfer made as one entry, every other Pencairan as its own. */
+export async function daftarPencairanSaya(s: SiapTpuBertarif, mitra: MitraJasaTpu) {
+  const hasil = await s.setup.payouts.daftarPencairanMitraJasa(mitra.actor);
+  if (!hasil.ok) throw new Error(hasil.reason);
+  return hasil.pencairan;
+}
+
+/** The Mitra Jasa takes every shot the catalog requires for the job and sends the proof. */
+export async function kirimBukti(s: SiapTpuBertarif, mitra: MitraJasaTpu, pekerjaanId: string) {
+  const perlu = (await s.setup.layanan.buktiTpuSaya(mitra.actor, pekerjaanId))?.dibutuhkan ?? [];
+  for (const kind of perlu) {
+    const diambil = await s.setup.layanan.simpanBuktiTpu(mitra.actor, { pekerjaanId, kind, takenAt: s.setup.clock.now(), file: { body: foto(), contentType: "image/jpeg" } });
+    if (!diambil.ok) throw new Error(`shot refused: ${diambil.reason}`);
+  }
+  const kirim = await s.setup.layanan.kirimBuktiTpu(mitra.actor, { pekerjaanId });
+  if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
+}
+
+/**
+ * A paid TPU order for one Layanan, handed to `mitra`, who accepts and sends the proof, which Admin Platform approves:
+ * the Mitra Jasa's Pencairan exists from here on, Belum jatuh tempo until the Keluhan window has closed. The order is
+ * placed at `dipesanPada` (default: the fake Clock's usual start, a Thursday at 09:00 WIB, well before its target date) and
+ * the proof is sent and approved at `disetujuiPada` (default: straight away), as a Mitra Jasa does the work on the day.
+ */
+export async function pekerjaanDisetujui(
+  s: SiapTpuBertarif,
+  mitra: MitraJasaTpu,
+  opsi: { varianId?: string; targetDate?: string; dipesanPada?: string; disetujuiPada?: string } = {},
+) {
+  s.setup.clock.set(wib(opsi.dipesanPada ?? "2026-10-01 09:00"));
+  const dipesan = await s.setup.layanan.placePesananLayananTpu(
+    s.pemesan,
+    orderTpu(s, [{ layananVariantId: opsi.varianId ?? s.bunga.id, targetDate: opsi.targetDate ?? "2026-10-05" }]),
+  );
+  if (!dipesan.ok) throw new Error(`order refused: ${dipesan.reason}`);
+  const dibayar = await s.setup.billing.recordPayment(dipesan.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: s.setup.clock.now() });
+  if (!dibayar.ok) throw new Error("payment refused");
+  const job = (await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin)).find((satu) => satu.nomor === dipesan.pesanan.nomor);
+  if (!job) throw new Error("the order has no job");
+  await diterima(s, mitra, job.id);
+  if (opsi.disetujuiPada) s.setup.clock.set(wib(opsi.disetujuiPada));
+  await kirimBukti(s, mitra, job.id);
+  await setujui(s, job.id);
+  return { pekerjaanId: job.id, nomor: dipesan.pesanan.nomor, tagihanId: dipesan.tagihan.id };
 }
 
 /** What the TPU order form sends: a described grave with no Makam TPU, one Layanan on it. */

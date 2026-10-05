@@ -268,6 +268,7 @@ export async function setujuiBuktiTpu(deps: LayananDeps, by: Actor, rawInput: un
         lokasiId: null,
         pekerjaan: `${job.label} – ${job.tpuName}`,
         layanan: job.label,
+        tpu: job.tpuName,
         tanggal: job.targetDate,
         tarif: tarif.amount,
         nomorPemesanan: null,

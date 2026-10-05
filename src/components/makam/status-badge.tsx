@@ -47,6 +47,14 @@ export const statusVocabulary = {
   // A Perpanjangan TPU or filing-only order that is paid and waiting to be filed (ticket 48).
   diproses: { label: "Diproses", tone: "info" },
   disetujui: { label: "Disetujui", tone: "success" },
+  /**
+   * A Pencairan on the Mitra Jasa's own page: waiting for its job's Keluhan window to close, due and waiting for Admin
+   * Platform's transfer, held out by Admin Platform for now, and transferred (`dibatalkan` is shared).
+   */
+  belum_jatuh_tempo: { label: "Belum Jatuh Tempo", tone: "neutral" },
+  jatuh_tempo: { label: "Jatuh Tempo", tone: "info" },
+  ditahan: { label: "Ditahan", tone: "warning" },
+  dicairkan: { label: "Dicairkan", tone: "success" },
 } as const satisfies Record<string, { label: string; tone: StatusTone }>;
 
 export type StatusKey = keyof typeof statusVocabulary;

@@ -29,6 +29,10 @@ describe("the status vocabulary", () => {
       "Perlu Perbaikan",
       "Diproses",
       "Disetujui",
+      "Belum Jatuh Tempo",
+      "Jatuh Tempo",
+      "Ditahan",
+      "Dicairkan",
     ]);
   });
 
@@ -59,5 +63,14 @@ describe("the status vocabulary", () => {
   it("shows a Ditolak order as needing a decision, and a Dibatalkan one as ended for good", () => {
     expect(statusVocabulary.ditolak.tone).toBe("warning");
     expect(statusVocabulary.dibatalkan.tone).toBe("neutral");
+  });
+
+  it("shows a Pencairan by where it stands: not yet due is neutral, due is waiting on Admin Platform, held is amber, transferred is green", () => {
+    expect([
+      statusVocabulary.belum_jatuh_tempo.tone,
+      statusVocabulary.jatuh_tempo.tone,
+      statusVocabulary.ditahan.tone,
+      statusVocabulary.dicairkan.tone,
+    ]).toEqual(["neutral", "info", "warning", "success"]);
   });
 });

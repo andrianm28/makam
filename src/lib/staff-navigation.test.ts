@@ -95,6 +95,15 @@ describe("the staff menu of each role", () => {
     }
   });
 
+  it("says what the Mitra Jasa's Pencairan page holds now that it is built, and no longer that it is coming", () => {
+    const pencairan = staffMenu("mitra_jasa")
+      .flatMap((group) => group.items)
+      .find((item) => item.label === "Pencairan");
+
+    expect(pencairan?.description).toMatch(/Pencairan/);
+    expect(pencairan?.description).not.toBe("Segera hadir.");
+  });
+
   it("Petugas Lapangan and Mitra Jasa are the two roles with a bottom navigation instead of a sidebar on phones", () => {
     expect(bottomNavRoles).toEqual(["petugas_lapangan", "mitra_jasa"]);
     expect(staffRoles.filter(hasBottomNav)).toEqual(["petugas_lapangan", "mitra_jasa"]);
