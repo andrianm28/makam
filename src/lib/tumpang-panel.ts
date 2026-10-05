@@ -19,6 +19,8 @@ export interface TumpangPanel {
   peringatan: string[];
   /** After an heirship proof: the reminder to record a Ganti Pemegang Hak. */
   pengingatGanti: string | null;
+  /** The heirship proof's file is on file: the screen says so and links to open it (a signed link is made when it is clicked). */
+  buktiAhliWarisAda: boolean;
 }
 
 export function tumpangPanel(tumpang: TumpangUntukStaf, status: PemesananStatus): TumpangPanel {
@@ -51,5 +53,6 @@ export function tumpangPanel(tumpang: TumpangUntukStaf, status: PemesananStatus)
     blokKonfirmasi: blok,
     peringatan: tumpang.tagihanSebelumnyaBelumLunas.map((satu) => `Tagihan ${satu.nomorTagihan} untuk pesanan ${satu.nomorPesanan} di Hak Pakai ini belum lunas.`),
     pengingatGanti: tumpang.gantiPemegangHakDiingatkan ? "Catat Ganti Pemegang Hak ke ahli waris yang membawa bukti ini." : null,
+    buktiAhliWarisAda: tumpang.buktiAhliWarisAda,
   };
 }

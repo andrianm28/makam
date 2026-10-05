@@ -33,6 +33,7 @@ import { daytimeHoursDeadline } from "@/domain/lokasi";
 import { keluhanLayananResource, lokasiMitraResource, normaliseEmail, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { buktiUntukPekerjaan, type BuktiTerbaca } from "./bukti";
 import type { LayananDeps, PemesanLayanan } from "./deps";
+import { penilaianTpuUntukDaftar } from "./penilaian-tpu";
 import { ajukanKeluhanSchema, beriPenilaianSchema, putuskanKeluhanSchema, sesuaikanPencairanKeluhanSchema } from "./pesanan-schema";
 import {
   keluhanLayanan,
@@ -531,15 +532,22 @@ export async function beriPenilaian(deps: LayananDeps, pemesan: PemesanLayanan, 
   return ditulis ? { ok: true } : { ok: false, reason: "sudah_dinilai" };
 }
 
-/** One Penilaian with the job it is about, for Admin Platform's list. */
+/**
+ * One Penilaian with the job it is about, for Admin Platform's list. A job at a TPU is named where the Lokasi is, and the grave
+ * as the family described it (block and number) where the Petak is: `sumber` says which kind of job it is.
+ */
 export interface PenilaianDenganPekerjaan extends PenilaianTerbaca {
+  sumber: "lokasi" | "tpu";
   lokasi: { id: string; name: string };
   petak: string;
   pesanan: string;
   label: string;
 }
 
-/** Every Penilaian, newest first: Admin Platform only, and the only read of them there is. */
+/**
+ * Every Penilaian, a Lokasi Mitra's job and a TPU's alike, newest first: Admin Platform only, and the only read of them there
+ * is. (A Mitra Jasa's scorecard carries the mean of the ones given to their own jobs, and nothing more.)
+ */
 export async function daftarPenilaian(deps: LayananDeps, by: Actor, limit = 200): Promise<PenilaianDenganPekerjaan[]> {
   if (writeRefusal(by, "keluhan.kelola", keluhanLayananResource())) return [];
   const rows = await deps.db
@@ -550,16 +558,27 @@ export async function daftarPenilaian(deps: LayananDeps, by: Actor, limit = 200)
     .innerJoin(pesananLayananItem, eq(pesananLayananItem.id, pekerjaanLayanan.pesananItemId))
     .orderBy(desc(penilaianLayanan.dibuatAt), desc(penilaianLayanan.id))
     .limit(limit);
-  return rows.map((row) => ({
-    pekerjaanId: row.nilai.pekerjaanId,
-    bintang: row.nilai.bintang,
-    komentar: row.nilai.komentar,
-    dibuatAt: row.nilai.dibuatAt,
-    lokasi: { id: row.lokasiId, name: row.order.lokasiName },
-    petak: row.order.petakNomor,
-    pesanan: row.order.nomor,
-    label: row.item.label,
+  const diLokasi = rows.map((row) => ({
+    id: row.nilai.id,
+    nilai: {
+      sumber: "lokasi" as const,
+      pekerjaanId: row.nilai.pekerjaanId,
+      bintang: row.nilai.bintang,
+      komentar: row.nilai.komentar,
+      dibuatAt: row.nilai.dibuatAt,
+      lokasi: { id: row.lokasiId, name: row.order.lokasiName },
+      petak: row.order.petakNomor,
+      pesanan: row.order.nomor,
+      label: row.item.label,
+    },
   }));
+  // The two kinds sit in two tables, so the top of the merged list is the top of each, ordered together (newest first, then by id as each query did).
+  const terbaruDulu = (a: { id: string; nilai: PenilaianDenganPekerjaan }, b: { id: string; nilai: PenilaianDenganPekerjaan }) =>
+    b.nilai.dibuatAt.getTime() - a.nilai.dibuatAt.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+  return [...diLokasi, ...(await penilaianTpuUntukDaftar(deps.db, limit))]
+    .sort(terbaruDulu)
+    .slice(0, limit)
+    .map((satu) => satu.nilai);
 }
 
 /** Which of these jobs have been rated: all a Pemesan's own page needs to know (their stars are not read back to anyone). */

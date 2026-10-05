@@ -5,7 +5,9 @@
  * ticket 23). A projection like the Antrean: rows only, no Ambil claims, no
  * tiers, no Bertugas, and every row closes itself as the state moves on.
  */
+import { randomUUID } from "node:crypto";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { pengingatHakPakaiTick } from "@/domain/perpanjangan";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { cellsOf } from "../../../tests/support/inventory";
@@ -27,6 +29,22 @@ async function siapkanOperator(setup: AntreanLokasiSetup, admin: Actor) {
 /** Work Queues with the Pemesanan module beside it, as the runtime composes them. */
 function setupAntrean(): AntreanLokasiSetup {
   return queuesOnTestDatabase(db);
+}
+
+/** The Hak Pakai end reminders' tick, as the worker runs it: with no email on the Hak Pakai it opens the Lokasi's call row. */
+function pengingatHakPakai(setup: AntreanLokasiSetup) {
+  return pengingatHakPakaiTick(
+    {
+      db,
+      inventory: setup.inventory,
+      lokasi: setup.lokasi,
+      identity: setup.identity,
+      billing: setup.billing,
+      notifikasi: setup.notifications,
+      perpanjanganUrl: (hakPakaiId) => `https://makam.test/perpanjangan/${hakPakaiId}`,
+    },
+    setup.clock.now(),
+  );
 }
 
 /** One placed Saat Duka order at the fixture's Lokasi Mitra, with Pengaturan Operator filled. */
@@ -120,14 +138,14 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
   });
 
   /** An occupied Petak whose 5-year Hak Pakai, from a burial on 2021-10-01, ends on 2026-10-01 (its Masa Tenggang, 3 months by default, ends on 2027-01-01). */
-  async function hakPakaiBerakhir20261001(setup: AntreanLokasiSetup) {
+  async function hakPakaiBerakhir20261001(setup: AntreanLokasiSetup, email?: string) {
     const fixture = await saatDukaFixture(setup);
     const [blok] = await setup.inventory.asStaff(fixture.adminLokasi).bloks(fixture.lokasiMitra.id);
     const [petak] = (await cellsOf(setup, fixture.adminLokasi, fixture.lokasiMitra.id, blok!.id)).filter((cell) => cell.kind === "petak");
     const diisi = await setup.inventory.clearPetak(fixture.adminLokasi, fixture.lokasiMitra.id, petak!.id, {
       mode: "terisi",
       dataMenyusul: false,
-      pemegangHak: { name: "Budi Santoso", phoneNumber: "081234567890" },
+      pemegangHak: { name: "Budi Santoso", phoneNumber: "081234567890", ...(email ? { email } : {}) },
     });
     if (!diisi.ok || !diisi.hakPakaiId) throw new Error("clearPetak refused");
     await setup.inventory.catatPemakaman(fixture.adminLokasi, fixture.lokasiMitra.id, { hakPakaiId: diisi.hakPakaiId, almarhumName: "Siti Aminah", tanggal: "2021-10-01" });
@@ -199,6 +217,8 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
     const lain = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya;
     expect(lain).toHaveLength(2);
     expect(lain.every((row) => row.type === "pesan_lokasi_gagal" && row.subjectKind === "telepon_pemesan" && row.deadline === null)).toBe(true);
+    // An order's own message leads to that order, as it always did.
+    expect(lain.map((row) => row.href)).toEqual(Array(2).fill(`/staf/admin-lokasi/${fixture.lokasiMitra.id}/pesanan/${fixture.nomor}`));
     // Admin Platform's Antrean keeps the money subjects only: these rows are the Lokasi's own work, and
     // the confirmation is one email (the Tagihan has none of its own), so no money call is opened.
     expect((await setup.queues.antrean(fixture.admin)).filter((row) => row.type === "telepon_pemesan")).toEqual([]);
@@ -212,6 +232,60 @@ describe("the Antrean Lokasi of one Lokasi Mitra", () => {
       expect(logged.ok).toBe(true);
     }
     expect((await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya).toEqual([]);
+  });
+
+  it("opens the Hak Pakai's own page from the Telepon Pemesan row of a Hak Pakai with no recorded email, which has no order, and closes once the call is logged", async () => {
+    const setup = setupAntrean();
+    // Cleared in the Denah, so no order and no email: the Pemegang Hak is known by name and phone number only.
+    const { fixture, hakPakaiId } = await hakPakaiBerakhir20261001(setup);
+    setup.clock.set(wib("2026-10-02 10:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+    await pengingatHakPakai(setup);
+
+    const telepon = async () =>
+      (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya.filter((row) => row.type === "pesan_lokasi_gagal");
+    const [baris] = await telepon();
+    expect(baris).toMatchObject({ label: "Telepon Pemesan", subjectKind: "telepon_pemesan", deadline: null });
+    expect(baris?.subjectLabel).toContain("tidak ada email tercatat");
+    // Not `/pesanan/` with no Nomor behind it (a page that does not exist): the Hak Pakai's own page, where the call is about.
+    expect(baris?.href).toBe(`/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${hakPakaiId}`);
+
+    const logged = await setup.notifications.catatPanggilan(fixture.adminLokasi, { teleponId: baris!.subjectId, hasil: "sudah_dihubungi", catatan: "Pemegang Hak akan memperpanjang." });
+    expect(logged.ok).toBe(true);
+    expect(await telepon()).toEqual([]);
+  });
+
+  it("opens the Hak Pakai's own page from the Telepon Pemesan row of a Hak Pakai nearing its end whose Pemegang Hak has an email, too", async () => {
+    const setup = setupAntrean();
+    const { fixture, hakPakaiId } = await hakPakaiBerakhir20261001(setup, "budi@contoh.id");
+    setup.clock.set(wib("2026-10-02 10:00"));
+    await setup.inventory.kedaluwarsaTick(setup.clock.now());
+    await pengingatHakPakai(setup);
+
+    const telepon = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya.filter((row) => row.type === "pesan_lokasi_gagal");
+    expect(telepon.map((row) => row.href)).toEqual([`/staf/admin-lokasi/${fixture.lokasiMitra.id}/hak-pakai/${hakPakaiId}`]);
+  });
+
+  it("keeps the Telepon Pemesan row of a subject with no page of its own in the Antrean Lokasi, never at a path with no Nomor", async () => {
+    const setup = setupAntrean();
+    const fixture = await saatDukaFixture(setup);
+    // A paid Perpanjangan whose Pemegang Hak has no email: the Bukti Perpanjangan is handed over by the Lokasi's staff.
+    const announced = await setup.notifications.buktiPerpanjanganTerbit({
+      perpanjanganId: randomUUID(),
+      email: null,
+      lokasi: { id: fixture.lokasiMitra.id, name: fixture.lokasiMitra.name },
+      bukti: { nomor: "BPJ-2026-000001", link: "bukti-perpanjangan" },
+      petakNomor: "A-1",
+      pemegangHakName: "Budi Santoso",
+      endDateLama: "2026-10-01",
+      endDateBaru: "2031-10-01",
+      terms: 1,
+    });
+    expect(announced).toEqual({ ok: true });
+
+    const [baris] = (await setup.queues.antreanLokasi(fixture.adminLokasi, fixture.lokasiMitra.id)).lainnya.filter((row) => row.type === "pesan_lokasi_gagal");
+    expect(baris?.subjectLabel).toContain("BPJ-2026-000001");
+    expect(baris?.href).toBe(`/staf/admin-lokasi/${fixture.lokasiMitra.id}/antrean`);
   });
 });
 

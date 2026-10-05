@@ -3,10 +3,19 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
-import { barisHargaTpu, catatanHargaContoh, jalanMasukTpuUntuk, LABEL_HARGA_CONTOH, type BarisHargaTpu } from "@/lib/content-pages";
+import {
+  barisHargaTpu,
+  catatanHargaContoh,
+  catatanHargaLayananContoh,
+  jalanMasukTpuUntuk,
+  kelompokHargaLayananTpu,
+  LABEL_HARGA_CONTOH,
+  type BarisHargaTpu,
+} from "@/lib/content-pages";
 import { pricesMayBeExamples } from "@/lib/env";
 import { formatTanggalPanjang } from "@/lib/format-tanggal";
 import { rilisAktif } from "@/lib/rilis";
+import { terbukaDi } from "@/lib/rilis-peta";
 import { formatRupiah } from "@/lib/rupiah";
 import { SEGERA_HADIR } from "@/lib/makam-keluarga-content";
 import { serverRuntime } from "@/server/runtime";
@@ -32,7 +41,7 @@ const langkahSendiri: { judul: string; isi: string }[] = [
   },
 ];
 
-function PriceRow({ baris }: { baris: BarisHargaTpu }) {
+function PriceRow({ baris }: { baris: Pick<BarisHargaTpu, "label" | "total" | "contoh"> }) {
   return (
     <li className="flex items-baseline justify-between gap-2 py-1">
       <span>{baris.label}</span>
@@ -46,19 +55,26 @@ function PriceRow({ baris }: { baris: BarisHargaTpu }) {
 
 /**
  * "Pengurusan di TPU DKI" (spec, content pages): the free DIY guide first, then
- * what our help costs, then the three ways in. Each way in links its flow once the
- * release opens it (`jalanMasukTpuUntuk`) and says "Segera hadir." until then; the
- * Biaya Pengurusan carry "harga contoh" while prices may still be examples
- * (`pricesMayBeExamples`, the beta).
+ * what our help costs, then the DKI Layanan price list, then the three ways in. Each way
+ * in links its flow once the release opens it (`jalanMasukTpuUntuk`) and says "Segera hadir."
+ * until then; the Biaya Pengurusan and the Layanan prices carry "harga contoh" while prices
+ * may still be examples (`pricesMayBeExamples`, the beta). The Layanan list is what the TPU
+ * order offers, at the DKI prices, read through the Layanan module.
  */
 export default async function PengurusanTpuPage() {
   await connection(); // the prices come from the database, so this page is never prerendered
-  const { tariffs, adapters, operatorSettings } = serverRuntime();
-  const [pricing, settings] = await Promise.all([tariffs.tpuPricing(adapters.clock.now()), operatorSettings.current()]);
+  const { tariffs, adapters, operatorSettings, layanan } = serverRuntime();
+  const [pricing, settings, penawaranLayanan] = await Promise.all([
+    tariffs.tpuPricing(adapters.clock.now()),
+    operatorSettings.current(),
+    layanan.penawaranTpuUntukPesanan(),
+  ]);
   const cs: CsContact | null = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
   const hargaContoh = pricesMayBeExamples();
   const barisHarga = barisHargaTpu(pricing, hargaContoh);
-  const jalanMasuk = jalanMasukTpuUntuk(rilisAktif());
+  const kelompokLayanan = kelompokHargaLayananTpu(penawaranLayanan, hargaContoh);
+  const rilis = rilisAktif();
+  const jalanMasuk = jalanMasukTpuUntuk(rilis);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-10">
@@ -118,11 +134,49 @@ export default async function PengurusanTpuPage() {
       <Card>
         <CardHeader>
           <CardTitle>Harga Layanan di TPU DKI</CardTitle>
+          {kelompokLayanan.length > 0 ? <CardDescription>Satu harga untuk semua TPU DKI, tanpa Biaya Layanan Platform.</CardDescription> : null}
         </CardHeader>
-        <CardContent>
-          <p className="text-body text-muted-foreground">
-            Daftar harga Layanan di TPU DKI (perawatan makam, batu nisan, bunga) belum tersedia. Segera hadir.
-          </p>
+        <CardContent className="flex flex-col gap-4 text-body">
+          {kelompokLayanan.length > 0 ? (
+            <>
+              {kelompokLayanan.map((kelompok) => (
+                <div key={kelompok.kunci} className="flex flex-col">
+                  <p className="font-medium">{kelompok.nama}</p>
+                  <ul aria-label={kelompok.nama} className="flex flex-col divide-y">
+                    {kelompok.baris.map((baris) => (
+                      <PriceRow key={baris.kunci} baris={baris} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+              {kelompokLayanan.some((kelompok) => kelompok.baris.some((baris) => baris.contoh)) ? (
+                <p className="text-small text-muted-foreground">{catatanHargaLayananContoh}</p>
+              ) : null}
+              {terbukaDi("tpu", rilis) ? (
+                <p className="text-small text-muted-foreground">
+                  Untuk memesan, buka{" "}
+                  <Link href="/layanan/tpu" className="text-brand underline underline-offset-4">
+                    Pesan Layanan di TPU DKI
+                  </Link>
+                  .
+                </p>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-muted-foreground">
+              Layanan di TPU DKI belum tersedia.
+              {cs ? (
+                <>
+                  {" "}
+                  Tanya CS di{" "}
+                  <a href={csWhatsAppLink(cs)} target="_blank" rel="noreferrer" className="text-brand underline underline-offset-4">
+                    WhatsApp
+                  </a>{" "}
+                  ({cs.replyHours}).
+                </>
+              ) : null}
+            </p>
+          )}
         </CardContent>
       </Card>
 

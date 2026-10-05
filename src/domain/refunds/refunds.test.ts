@@ -653,3 +653,55 @@ describe("Admin Platform's fee override on a refund after a Harga Khusus (ticket
     });
   });
 });
+
+describe("the refunds of one order, as its Pemesan follows them (ticket 120)", () => {
+  it("is empty for an order nothing was refunded on", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+
+    expect(await setup.refunds.riwayatPengembalianPesanan(fixture.nomor)).toEqual([]);
+    expect(await setup.refunds.riwayatPengembalianPesanan("MKM-2026-999999")).toEqual([]);
+  });
+
+  it("reads Diajukan once the order is cancelled, Disetujui when Admin Platform approves it, and Ditransfer with its Bukti Pengembalian Dana once the money is sent", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananDibatalkan(setup);
+    const permintaan = await permintaanTerbuka(setup);
+
+    expect(await setup.refunds.riwayatPengembalianPesanan(fixture.nomor)).toMatchObject([{ status: "diajukan", jumlah: permintaan.jumlah, bukti: null }]);
+
+    expect(await setup.refunds.isiRekeningPemesan(pemesanActor(fixture.pemesan), { nomorPemesanan: fixture.nomor, rekening })).toMatchObject({ ok: true });
+    const setuju = await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    if (!setuju.ok) throw new Error(`approval refused: ${setuju.reason}`);
+    expect(await setup.refunds.riwayatPengembalianPesanan(fixture.nomor)).toMatchObject([{ status: "disetujui", jumlah: permintaan.jumlah, bukti: null }]);
+
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(await setup.refunds.riwayatPengembalianPesanan(fixture.nomor)).toMatchObject([
+      { status: "ditransfer", jumlah: permintaan.jumlah, bukti: { nomor: "RFD/2026/000001", link: terbit.bukti.link, ditransferPada: hariTransfer } },
+    ]);
+  });
+
+  it("lists the refunds of that order only, oldest first: a transferred one and a newer one still Diajukan read side by side", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananTerbayar(setup);
+    const lain = await pesananTerbayar(setup);
+    const baris = [{ label: "Baris uji", amount: 1_000, lokasiId: null }];
+
+    const pertama = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "lokasi", lines: baris });
+    if (!pertama.ok || pertama.permintaanId === null) throw new Error(`refused: ${pertama.ok ? "no request" : pertama.reason}`);
+    expect(await setup.refunds.isiRekeningPemesan(pemesanActor(fixture.pemesan), { nomorPemesanan: fixture.nomor, rekening })).toMatchObject({ ok: true });
+    expect(await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: pertama.permintaanId })).toMatchObject({ ok: true });
+    expect(await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: pertama.permintaanId, ditransferPada: hariTransfer, bukti: buktiTransfer })).toMatchObject({ ok: true });
+    setup.clock.advance({ hours: 1 });
+    const kedua = await setup.refunds.ajukanBaris(fixture.tagihanId, { pihakBersalah: "lokasi", lines: baris });
+    if (!kedua.ok || kedua.permintaanId === null) throw new Error(`refused: ${kedua.ok ? "no request" : kedua.reason}`);
+
+    const riwayat = await setup.refunds.riwayatPengembalianPesanan(fixture.nomor);
+    expect(riwayat.map((satu) => [satu.id, satu.status])).toEqual([
+      [pertama.permintaanId, "ditransfer"],
+      [kedua.permintaanId, "diajukan"],
+    ]);
+    expect(await setup.refunds.riwayatPengembalianPesanan(lain.nomor)).toEqual([]);
+  });
+});

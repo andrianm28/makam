@@ -3,6 +3,7 @@
  * proof, and confirm once the consent is settled.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import type { FakeFileStore } from "@/adapters/memory";
 import { resetDatabase, testDatabase } from "../../../../../../../tests/support/database";
 import { browser } from "../../../../../../../tests/support/next-request";
 import { testServerRuntime } from "../../../../../../../tests/support/server-runtime";
@@ -25,7 +26,10 @@ beforeEach(async () => {
 });
 
 const idle = { status: "idle" } as const;
-function form(values: Record<string, string>): FormData {
+const PDF = new TextEncoder().encode("%PDF-1.7\nsurat keterangan ahli waris\n%%EOF\n");
+const suratWaris = () => new File([PDF], "surat-waris.pdf", { type: "application/pdf" });
+const fileStore = () => server.runtime().adapters.files as FakeFileStore;
+function form(values: Record<string, string | File>): FormData {
   const data = new FormData();
   for (const [name, value] of Object.entries(values)) data.set(name, value);
   return data;
@@ -71,11 +75,63 @@ describe("catatKonsenTumpangAction and konfirmasiTumpangAction (Server Actions)"
 
   it("an heirship proof is logged with its note and raises the Ganti Pemegang Hak reminder", async () => {
     const { f, lokasiId, nomor } = await permintaanTanpaEmail();
-    await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "ahli_waris", catatan: "Surat waris dibawa keluarga" }));
+    await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "ahli_waris", catatan: "Surat waris dibawa keluarga", bukti: suratWaris() }));
     expect((await server.runtime().pemesanan.orderUntukStaf(f.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({
       konsen: { state: "disetujui", via: "ahli_waris", catatan: "Surat waris dibawa keluarga" },
       gantiPemegangHakDiingatkan: true,
     });
+  });
+
+  it("an heirship proof is logged with its file: the file goes to the private FileStore only, and the order shows that a proof is on file (ticket 125)", async () => {
+    const { f, lokasiId, nomor } = await permintaanTanpaEmail();
+    const sebelum = new Set(fileStore().stored.keys());
+
+    expect(await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "ahli_waris", catatan: "Surat waris dibawa keluarga", bukti: suratWaris() }))).toEqual({
+      status: "berhasil",
+      message: "Persetujuan Pemegang Hak dicatat.",
+    });
+
+    const baru = [...fileStore().stored.entries()].filter(([kunci]) => !sebelum.has(kunci));
+    expect(baru).toHaveLength(1);
+    expect(baru[0]![1]).toMatchObject({ contentType: "application/pdf", body: PDF });
+    expect((await server.runtime().pemesanan.orderUntukStaf(f.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({
+      konsen: { state: "disetujui", via: "ahli_waris" },
+      buktiAhliWarisAda: true,
+    });
+    const konsen = (await server.runtime().audit.entriesForLokasi(lokasiId)).filter((entri) => entri.action === "pemesanan.konsen_tumpang");
+    expect(konsen).toMatchObject([{ after: { via: "ahli_waris", buktiAda: true } }]);
+    // The key is never in the Audit Log.
+    expect(JSON.stringify(konsen)).not.toContain(baru[0]![0]);
+  });
+
+  it("refuses an heirship proof without its file, says what to upload, and keeps the consent open (ticket 125)", async () => {
+    const { f, lokasiId, nomor } = await permintaanTanpaEmail();
+    const sebelum = fileStore().stored.size;
+
+    const hasil = await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "ahli_waris", catatan: "Surat waris dibawa keluarga" }));
+
+    expect(hasil).toEqual({ status: "gagal", message: "Unggah bukti ahli waris (foto JPG atau PNG, atau PDF) untuk mencatat persetujuan ahli waris." });
+    expect(fileStore().stored.size).toBe(sebelum);
+    expect((await server.runtime().pemesanan.orderUntukStaf(f.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({
+      konsen: { state: "menunggu_lokasi" },
+      buktiAhliWarisAda: false,
+    });
+  });
+
+  it("refuses a file that is not a PDF, JPG or PNG, and a file sent with a verbal consent, storing neither (ticket 125)", async () => {
+    const { lokasiId, nomor } = await permintaanTanpaEmail();
+    const sebelum = fileStore().stored.size;
+    const teks = new File([new TextEncoder().encode("bukan pdf, hanya teks")], "waris.pdf", { type: "application/pdf" });
+
+    expect(await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "ahli_waris", catatan: "Surat waris", bukti: teks }))).toEqual({
+      status: "gagal",
+      message: "Bukti ahli waris harus foto JPG atau PNG, atau PDF (isi berkas diperiksa), paling besar 10 MB.",
+    });
+    expect(await catatKonsenTumpangAction(idle, form({ lokasiId, nomor, via: "verbal", catatan: "Lewat telepon", bukti: suratWaris() }))).toEqual({
+      status: "gagal",
+      message: "Berkas hanya untuk bukti ahli waris. Pilih bukti ahli waris, atau kosongkan berkas untuk persetujuan lisan.",
+    });
+    expect(fileStore().stored.size).toBe(sebelum);
   });
 
   it("is refused for anyone who is not signed in as that Lokasi's Admin Lokasi", async () => {

@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { ajukanKeluhanLayanan, ajukanKeluhanPekerjaanTpu, beriPenilaianLayanan, type PemesanActionState } from "./actions";
+import { ajukanKeluhanLayanan, ajukanKeluhanPekerjaanTpu, beriPenilaianLayanan, beriPenilaianPekerjaanTpu, type PemesanActionState } from "./actions";
 
 const idle: PemesanActionState = { status: "idle" };
 
@@ -51,11 +51,26 @@ export function AjukanKeluhan({ pekerjaanId, nomor, berakhirPada }: { pekerjaanI
   );
 }
 
-/** The Pemesan's optional Penilaian of one finished job: 1 to 5 stars and a comment. */
-export function BeriPenilaian({ pekerjaanId, nomor }: { pekerjaanId: string; nomor: string }) {
-  const [state, formAction, pending] = useActionState(beriPenilaianLayanan, idle);
+type TindakanPenilaian = (previous: PemesanActionState, formData: FormData) => Promise<PemesanActionState>;
+
+/** The Penilaian form, the same for a job at a Lokasi Mitra and one at a DKI TPU: only the action it posts to differs. */
+function FormPenilaian({
+  tindakan,
+  pekerjaanId,
+  nomor,
+  testId,
+  catatan,
+}: {
+  tindakan: TindakanPenilaian;
+  pekerjaanId: string;
+  nomor: string;
+  testId?: string;
+  /** Who does not read it: the fulfiller of the kind of job it is about. */
+  catatan: string;
+}) {
+  const [state, formAction, pending] = useActionState(tindakan, idle);
   return (
-    <form action={formAction} className="flex flex-col gap-2">
+    <form action={formAction} className="flex flex-col gap-2" data-testid={testId}>
       <input type="hidden" name="pekerjaanId" value={pekerjaanId} />
       <input type="hidden" name="nomor" value={nomor} />
       <fieldset className="flex flex-col gap-1">
@@ -80,12 +95,30 @@ export function BeriPenilaian({ pekerjaanId, nomor }: { pekerjaanId: string; nom
         placeholder="Ceritakan singkat bila ada."
         className="rounded-lg border border-input bg-background px-3 py-2 text-body"
       />
-      <p className="text-small text-muted-foreground">Penilaian hanya dibaca tim Makam.co.id, tidak oleh Lokasi Mitra.</p>
+      <p className="text-small text-muted-foreground">{catatan}</p>
       <Button type="submit" variant="outline" size="sm" disabled={pending} className="self-start">
         {pending ? "Mengirim…" : "Kirim penilaian"}
       </Button>
       <Hasil state={state} />
     </form>
+  );
+}
+
+/** The Pemesan's optional Penilaian of one finished job at a Lokasi Mitra: 1 to 5 stars and a comment. */
+export function BeriPenilaian({ pekerjaanId, nomor }: { pekerjaanId: string; nomor: string }) {
+  return <FormPenilaian tindakan={beriPenilaianLayanan} pekerjaanId={pekerjaanId} nomor={nomor} catatan="Penilaian hanya dibaca tim Makam.co.id, tidak oleh Lokasi Mitra." />;
+}
+
+/** The same for one finished TPU job (ticket 123): shown while the domain would take it, which the page reads from the job. */
+export function BeriPenilaianTpu({ pekerjaanId, nomor }: { pekerjaanId: string; nomor: string }) {
+  return (
+    <FormPenilaian
+      tindakan={beriPenilaianPekerjaanTpu}
+      pekerjaanId={pekerjaanId}
+      nomor={nomor}
+      testId="penilaian-tpu-form"
+      catatan="Penilaian hanya dibaca tim Makam.co.id, tidak oleh Mitra Jasa."
+    />
   );
 }
 

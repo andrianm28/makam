@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { itemHariHTpuSchema } from "@/domain/layanan/tpu-skema";
-import { FOTO_IPTM_MAX_BYTES, jenisPenguburanSchema, kelayakanSchema, kuburanTpuSchema, pemegangHakSchema } from "@/domain/pengurusan/skema-pengurusan";
+import { FOTO_IPTM_MAX_BYTES, jenisPenguburanSchema, kelayakanSchema, kuburanTpuSchema, pemegangHakSchema, type JenisPenguburan } from "@/domain/pengurusan/skema-pengurusan";
 import { fileBase64 } from "@/lib/files/base64";
 
 /** The hari-H Layanan the family added (story 23, ticket 53): a variant and its text each; priced onto the Tagihan when the Lokasi confirms. */
@@ -55,10 +55,24 @@ const fotoIptmSchema = z.object({
 });
 
 /**
+ * What a Tumpang is refused with when its family has not ticked that it understands the conditions of a tumpang at a TPU:
+ * the IPTM must be in force and the burial before it three years or more ago, and a grave that is not the family's own needs
+ * the Pemegang Hak's letter of consent (owner rule C3, 2026-10-05). The one wording, said under the checkbox.
+ */
+export const PERSETUJUAN_TUMPANG_WAJIB = "Centang dulu persetujuan syarat Tumpang (aturan 3 tahun dan surat persetujuan Pemegang Hak) sebelum mengirim.";
+
+/** Which orders must carry the family's confirmation of the tumpang conditions: a Tumpang, and no other. The form and the schema below ask the same question of the same function. */
+export function perluPersetujuanTumpang(jenis: JenisPenguburan): boolean {
+  return jenis === "tumpang";
+}
+
+/**
  * The Saat Duka TPU form's draft: the family's own data as "Data & kirim" of a
  * TPU collects it, how the grave is made, the two eligibility answers and the
  * Pemegang Hak for the IPTM. What a Tumpang cannot do without — the grave
- * described and its IPTM photographed — is refused here as well as by the module,
+ * described, its IPTM photographed and the box ticked that the family understands
+ * the tumpang conditions — is refused here as well as by the module (the
+ * confirmation is the Server Action's alone: staff placements have no checkbox),
  * so the screen says which field has to be filled in rather than the button
  * turning red.
  */
@@ -76,11 +90,14 @@ export const draftTpuSchema = z
     fotoIptm: fotoIptmSchema.nullable(),
     pemegangHak: pemegangHakSchema,
     layananHariH: layananHariHSchema,
+    /** Only a literal `true` is a confirmation: a request that leaves it out, or sends anything else, has not confirmed. */
+    persetujuanTumpang: z.boolean().catch(false),
   })
   .superRefine((draft, ctx) => {
-    if (draft.jenis !== "tumpang") return;
+    if (!perluPersetujuanTumpang(draft.jenis)) return;
     if (!draft.kuburan) ctx.addIssue({ code: "custom", path: ["kuburan", "blokNomor"], message: "Tulis blok dan nomor makam yang akan ditumpang." });
     if (!draft.fotoIptm) ctx.addIssue({ code: "custom", path: ["fotoIptm"], message: "Unggah foto IPTM makam yang akan ditumpang." });
+    if (!draft.persetujuanTumpang) ctx.addIssue({ code: "custom", path: ["persetujuanTumpang"], message: PERSETUJUAN_TUMPANG_WAJIB });
   });
 
 export type DraftTpu = z.infer<typeof draftTpuSchema>;

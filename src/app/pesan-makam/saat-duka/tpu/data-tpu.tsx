@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { ArrowRight, ChevronUp, Mail, TriangleAlert } from "lucide-react";
+import { ChevronUp, Mail, TriangleAlert } from "lucide-react";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import {
   initialKodeMasukVerifyState,
@@ -11,9 +11,9 @@ import {
   type KodeMasukRequestState,
   type KodeMasukVerifyState,
 } from "@/components/kode-masuk/state";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "../progress";
+import { PersetujuanTumpang, TombolKirimTpu } from "./persetujuan-tumpang";
 import { Field, Fieldset, Pilihan } from "../form";
 import { kirimPengurusanTpu, verifikasiKodeMasukDanKirimTpu } from "../actions";
 import {
@@ -100,6 +100,8 @@ export function DataTpu({
   const [pemegangHak, setPemegangHak] = useState<DraftTpu["pemegangHak"]>({
     mode: "pemesan",
   });
+  /** The family's confirmation that it understands the tumpang conditions: Kirim waits for it when the grave is a Tumpang (owner rule C3). */
+  const [setuju, setSetuju] = useState(false);
   /** "KTP DKI?", held apart from where the death happened: only the two together decide eligibility. */
   const [ktpDkiTidak, setKtpDkiTidak] = useState(false);
   /** The hari-H variants the family ticked, by Layanan, with the text the Layanan asks for. */
@@ -175,6 +177,7 @@ export function DataTpu({
           }
         : null,
       pemegangHak,
+      persetujuanTumpang: jawaban.jenis === "tumpang" && setuju,
       layananHariH: hariH.flatMap((grup) => {
         const varianId = hariHDipilih[grup.id];
         return varianId ? [{ layananVariantId: varianId, teks: grup.teksLabel ? hariHTeks[grup.id]?.trim() || null : null }] : [];
@@ -409,6 +412,7 @@ export function DataTpu({
                   className="block w-full text-small file:mr-3 file:rounded-lg file:border-0 file:bg-accent file:px-3 file:py-2 file:text-body file:font-medium"
                 />
               </Field>
+              <PersetujuanTumpang setuju={setuju} onUbah={setSetuju} error={salah.persetujuanTumpang} />
             </div>
           ) : null}
         </Fieldset>
@@ -614,16 +618,13 @@ export function DataTpu({
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <Button
-              type="button"
-              size="lg"
-              disabled={mengirim || tidakLayak}
-              onClick={kirimSekarang}
-              className="h-12 px-6 text-body-lg"
-            >
-              {mengirim ? "Mengirim…" : "Kirim pengurusan"}{" "}
-              <ArrowRight aria-hidden />
-            </Button>
+            <TombolKirimTpu
+              mengirim={mengirim}
+              tidakLayak={tidakLayak}
+              jenis={jawaban.jenis}
+              setuju={setuju}
+              onKlik={kirimSekarang}
+            />
             <p className="text-center text-small text-muted-foreground">
               {sudahMasuk
                 ? "Kirim pengurusan. Tidak ada yang dibayar sekarang."

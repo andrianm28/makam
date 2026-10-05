@@ -6,6 +6,10 @@
  * extra text. So the form keeps **three maps, each keyed by the Layanan's id** (never a variant's), and this is the
  * one place that reads them. Display and shaping only: whether a text is required, which dates are allowed and what
  * anything costs are the Layanan module's own, which refuses the order again where it is placed.
+ *
+ * The chosen variants are changed in one place too (`pilihVarian`) and read in one (`varianDipilih`), so a Layanan
+ * put back to "Tidak dipesan" is out of the price asked, out of the items and out of the count that turns "Pesan
+ * layanan" on, all together (ticket 118).
  */
 
 /** The part of an offered Layanan the items need; `LayananTawarkan` and `LayananTpuTawarkan` both have it. */
@@ -34,6 +38,26 @@ export interface ItemPesananLayanan {
 }
 
 /**
+ * The variants chosen, in the order the family chose them: one per Layanan, and a Layanan whose variant is "" ("Tidak
+ * dipesan") is not chosen. The running price is asked for these (it refuses an empty id, as every boundary does), the
+ * form counts them to know whether there is anything to order, and the items are built from them, so the three agree.
+ */
+export function varianDipilih(dipilih: Readonly<Record<string, string>>): string[] {
+  return Object.values(dipilih).filter((varianId) => varianId !== "");
+}
+
+/**
+ * The choice after the family picks `varianId` for a Layanan. "" is "Tidak dipesan": the Layanan then leaves the
+ * choice altogether (its entry goes; it is not kept as an empty one), so what is left is exactly what is ordered. A
+ * Layanan whose variant is changed keeps its place; one chosen again after "Tidak dipesan" comes last, in the order
+ * the family chose them. The choice it is given is left as it was.
+ */
+export function pilihVarian(dipilih: Readonly<Record<string, string>>, layananId: string, varianId: string): Record<string, string> {
+  if (varianId !== "") return { ...dipilih, [layananId]: varianId };
+  return Object.fromEntries(Object.entries(dipilih).filter(([id]) => id !== layananId));
+}
+
+/**
  * One item per chosen variant, in the order the family chose them (the order the price is asked in, so the
  * breakdown on the screen and the Tagihan's lines agree). The variant says which Layanan it belongs to, and that
  * Layanan's id, not the variant's, is the key of the date and the text the family entered for it.
@@ -42,7 +66,7 @@ export interface ItemPesananLayanan {
  * (it then shows that date); the text is sent trimmed, and only for a Layanan that asks for one.
  */
 export function itemPesananLayanan(layanan: readonly LayananDiForm[], isian: IsianLayanan): ItemPesananLayanan[] {
-  return Object.values(isian.dipilih).flatMap((varianId) => {
+  return varianDipilih(isian.dipilih).flatMap((varianId) => {
     const grup = layanan.find((satu) => satu.varian.some((varian) => varian.id === varianId));
     if (!grup) return [];
     return [

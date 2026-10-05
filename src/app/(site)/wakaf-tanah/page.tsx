@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ContentPage } from "@/components/site/content-page";
-import { kabKotaJabodetabek, PETUNJUK_DIRUJUK } from "@/domain/wakaf/skema";
+import { kabKotaJabodetabek, labelStatusWakaf, PETUNJUK_DIRUJUK } from "@/domain/wakaf/skema";
 import { kirimKodeMasuk } from "../masuk/actions";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -23,6 +23,10 @@ const langkah = [
 /**
  * Wakaf Tanah: how the process goes, the line that Makam.co.id never holds land or money, and the
  * one-page Pengajuan Wakaf. A visitor with no session proves their email with a Kode Masuk at Kirim.
+ *
+ * With `?nomor=` the Wakif's own Pengajuan is confirmed. Outside Jabodetabek it is closed as Dirujuk at
+ * filing, so the confirmation says that status and the pointer to the local KUA and BWI (spec, Wakaf;
+ * story 111) instead of a first contact within 3 working days that will not come.
  */
 export default async function WakafTanahPage({ searchParams }: { searchParams: Promise<{ nomor?: string }> }) {
   const { nomor } = await searchParams;
@@ -36,7 +40,12 @@ export default async function WakafTanahPage({ searchParams }: { searchParams: P
       return (
         <ContentPage title="Pengajuan wakaf diterima" lead={`Nomor Pengajuan Anda ${pengajuan.nomor}.`}>
           {pengajuan.status === "dirujuk" ? (
-            <p className="text-body-lg">{pengajuan.alasan ?? PETUNJUK_DIRUJUK}</p>
+            <>
+              <p className="text-body-lg">
+                <span className="font-semibold">Status: {labelStatusWakaf.dirujuk}.</span> {pengajuan.alasan ?? PETUNJUK_DIRUJUK}
+              </p>
+              <p className="text-body-lg">Kabar ini juga kami kirim ke {actor.email}.</p>
+            </>
           ) : (
             <p className="text-body-lg">Kami mengirim kabar ke {actor.email} setiap kali statusnya berubah. Tim kami menghubungi Anda dalam 3 hari kerja.</p>
           )}

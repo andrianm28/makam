@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useReducer } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,13 +12,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { confirmDialogClosed, confirmDialogReducer } from "./confirm-dialog-state";
 
 /**
  * An action that can't be undone, or needs a reason for the Audit Log
  * (docs/design-system.md, "Usage rules"): never a toast with undo. The
  * confirm button submits `formId`'s form (its content is portalled, so the
  * reason textarea and the confirm button both carry a `form` attribute
- * pointing at it, rather than nesting inside it).
+ * pointing at it, rather than nesting inside it). Every opening starts with
+ * an empty reason (`confirm-dialog-state.ts`); a caller that shows one dialog
+ * or another at the same place gives each a `key`, so React never reuses one
+ * dialog's open state for the other's action.
  */
 export function ConfirmDialog({
   trigger,
@@ -45,13 +49,12 @@ export function ConfirmDialog({
   reason?: { name: string; label: string; placeholder?: string };
   children?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
-  const [reasonValue, setReasonValue] = useState("");
+  const [dialog, dispatch] = useReducer(confirmDialogReducer, confirmDialogClosed);
   const reasonId = useId();
-  const reasonMissing = reason !== undefined && reasonValue.trim() === "";
+  const reasonMissing = reason !== undefined && dialog.reason.trim() === "";
 
   return (
-    <AlertDialog open={open} onOpenChange={setOpen}>
+    <AlertDialog open={dialog.open} onOpenChange={(open) => dispatch({ type: "open_changed", open })}>
       <AlertDialogTrigger render={trigger} />
       <AlertDialogContent>
         <AlertDialogHeader>
@@ -69,8 +72,8 @@ export function ConfirmDialog({
               required
               rows={3}
               maxLength={500}
-              value={reasonValue}
-              onChange={(event) => setReasonValue(event.target.value)}
+              value={dialog.reason}
+              onChange={(event) => dispatch({ type: "reason_typed", reason: event.target.value })}
               placeholder={reason.placeholder}
               className="rounded-lg border border-input bg-background px-3 py-2 text-body outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             />
@@ -83,7 +86,7 @@ export function ConfirmDialog({
             form={formId}
             variant={variant}
             disabled={pending || reasonMissing}
-            onClick={() => setOpen(false)}
+            onClick={() => dispatch({ type: "open_changed", open: false })}
           >
             {confirmLabel}
           </AlertDialogAction>

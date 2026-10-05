@@ -14,6 +14,7 @@ import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { PekerjaanTpuDaftar } from "@/app/layanan/[nomor]/pekerjaan-tpu";
 import { JawabTpuLainForm } from "./jawab-tpu-lain";
+import { PengembalianLayananTpu } from "./pengembalian-layanan-tpu";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
 import { PengembalianPemesan } from "./pengembalian-pemesan";
 import { PengurusanIptmPemesan } from "./pengurusan-iptm-pemesan";
@@ -49,11 +50,14 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
   if (order.kind === "perpanjangan_tpu") return <PerpanjanganTpuPemesan order={order} scanUrl={await scanUrlOf(order)} pengembalian={pengembalian} />;
   // A filing-only order has no burial arranged by us (ticket 47): everything below is about one, so it has a page of its own (ticket 116).
   if (order.kind === "pengurusan_iptm") return <PengurusanIptmPemesan order={order} scanUrl={await scanUrlOf(order)} pengembalian={pengembalian} />;
-  const { operatorSettings, queues, layanan } = serverRuntime();
+  const { operatorSettings, queues, layanan, refunds } = serverRuntime();
   const pengaturan = await operatorSettings.current();
-  // The hari-H Layanan of a confirmed order are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56).
+  // The hari-H Layanan are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56). They exist from the confirmation on and stay
+  // on this page in every status the order reaches, a cancelled one included, with where its refund stands (ticket 120): Akun Saya's Pesanan
+  // tab links the order to this page, so it is where the family must find them. An order not yet confirmed has none and answers null.
   const actor = await currentActor();
-  const layananHariH = actor && order.status === "dikonfirmasi" ? await layanan.pesananTpuOf(order.nomor, { accountId: actor.accountId }) : null;
+  const layananHariH = actor ? await layanan.pesananTpuOf(order.nomor, { accountId: actor.accountId }) : null;
+  const pengembalianLayanan = layananHariH ? await refunds.riwayatPengembalianPesanan(order.nomor) : [];
   const lanjut = SUDAH_DIKONFIRMASI.includes(order.status);
   const scanUrl = actor && order.status === "iptm_terbit" ? await serverRuntime().pengurusan.iptmScanUrl({ accountId: actor.accountId }, order.nomor) : null;
   const cs = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
@@ -194,8 +198,16 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
       {layananHariH ? (
         <section className="flex flex-col gap-3" aria-label="Layanan hari-H">
           <h2 className="text-title-3 text-foreground">Layanan hari-H</h2>
-          <p className="text-small text-muted-foreground">Dikerjakan Mitra Jasa pada hari pemakaman, dan ditagihkan pada Tagihan di atas.</p>
+          <p className="text-small text-muted-foreground">
+            {/* The Tagihan block above is the confirmed order's: a cancelled one shows none to point at. */}
+            Dikerjakan Mitra Jasa pada hari pemakaman{lanjut ? ", dan ditagihkan pada Tagihan di atas" : ""}.{" "}
+            <a href={`/layanan/${order.nomor}`} className="font-medium text-brand underline underline-offset-4">
+              Buka halaman Layanan
+            </a>
+            .
+          </p>
           <PekerjaanTpuDaftar order={layananHariH} />
+          <PengembalianLayananTpu order={layananHariH} pengembalian={pengembalianLayanan} />
         </section>
       ) : null}
 

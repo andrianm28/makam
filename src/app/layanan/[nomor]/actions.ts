@@ -137,6 +137,28 @@ export async function ajukanKeluhanPekerjaanTpu(_previous: PemesanActionState, f
 }
 
 /**
+ * The Pemesan rates one finished TPU job, 1 to 5 stars with an optional comment (ticket 123). Thin, in order: authenticate,
+ * check the role, validate with Zod, call the Layanan module, which decides that the job is finished, theirs and not yet rated.
+ */
+export async function beriPenilaianPekerjaanTpu(_previous: PemesanActionState, formData: FormData): Promise<PemesanActionState> {
+  const nomor = String(formData.get("nomor") ?? "");
+  const result = await guarded({
+    fitur: "inti",
+    action: "layanan.lihat",
+    resource: (actor) => pesananLayananResource(actor.accountId),
+    schema: beriPenilaianSchema,
+    input: { pekerjaanId: formData.get("pekerjaanId"), bintang: formData.get("bintang"), komentar: formData.get("komentar") },
+    run: (actor, data) => serverRuntime().layanan.beriPenilaianTpu({ accountId: actor.accountId, email: actor.email }, data),
+  });
+  const gagal = !result.ok ? result.error : !result.value.ok ? result.value.reason : null;
+  revalidatePath(`/layanan/${nomor}`);
+  // A hari-H item of a Saat Duka order is read on the Pengurusan page too.
+  revalidatePath(`/pengurusan/${nomor}`);
+  if (gagal) return { status: "gagal", message: refusalMessage(gagal, penilaianMessages) };
+  return { status: "berhasil", message: "Terima kasih. Penilaian Anda sudah kami terima." };
+}
+
+/**
  * The Pemesan cancels a Terlambat TPU job of their own order (ticket 57). Thin, in order: authenticate, check the
  * role, validate with Zod, call the Layanan module, which decides that the job really is Terlambat and what comes back.
  */

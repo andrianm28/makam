@@ -161,7 +161,14 @@ async function sampaiDibatalkan(setup: PengajuanSetup, dasar: Dasar) {
 }
 
 /** What only a burial arranged by us makes true: none of it may be said to a family that buried on its own. */
-const HANYA_UNTUK_PEMAKAMAN = ["Waktu pemakaman", "Pemakaman sudah dikonfirmasi", "Waktu konfirmasi", "Dibawa saat pemakaman", "Tagihan terbit setelah pemakaman dikonfirmasi"];
+const HANYA_UNTUK_PEMAKAMAN = [
+  "Waktu pemakaman",
+  "Pemakaman sudah dikonfirmasi",
+  "Waktu konfirmasi",
+  "Dibawa saat pemakaman",
+  "Tagihan terbit setelah pemakaman dikonfirmasi",
+  "pemakaman diatur dengan TPU",
+];
 
 describe("the order page of a Pengurusan IPTM, for a family that buried on its own", () => {
   it("opens at Dimakamkan, straight after the family places it, with no burial time and the documents still to upload", async () => {
@@ -196,6 +203,23 @@ describe("the order page of a Pengurusan IPTM, for a family that buried on its o
     // One link, not two: the page tells the family to pay, and gives them the one place to do it.
     expect(html.split('href="/dokumen/').length - 1).toBe(1);
     expect(teks).toContain("Bayar Tagihan agar kami bisa mengajukan IPTM");
+  });
+
+  it.each([
+    ["Dimakamkan", async () => {}],
+    ["Menunggu Pembayaran", sampaiMenungguPembayaran],
+  ] as const)("tells a family that buried on its own, at %s, what cancelling does in the words of the filing, never of a burial we arranged", async (_label, sampai) => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    await sampai(setup, dasar);
+
+    const { teks } = await halaman(dasar.nomor);
+
+    expect(teks).toContain("Batalkan pengurusan");
+    expect(teks).toContain(
+      "Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak berkas IPTM mulai kami urus.",
+    );
+    expect(teks).not.toContain("pemakaman diatur dengan TPU");
   });
 
   it("tells a family whose order came in at night nothing about the TPU window closing", async () => {
@@ -344,6 +368,18 @@ describe("the order page of a Saat Duka TPU order, which has a burial", () => {
     expect(teks).toContain(`Tagihan ${tagihan!.nomor} sebesar`);
     expect(html).toContain(`href="/dokumen/${tagihan!.link}"`);
     expect(teks).toContain("Dibawa saat pemakaman");
+  });
+
+  it("still tells the family that the Biaya Pengurusan is kept since the burial was arranged with the TPU, when cancelling", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+
+    const { teks } = await halaman(dasar.nomor);
+
+    expect(teks).toContain("Batalkan pengurusan");
+    expect(teks).toContain(
+      "Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak pemakaman diatur dengan TPU.",
+    );
   });
 
   it("still shows the burial time once the burial is recorded as Dimakamkan", async () => {

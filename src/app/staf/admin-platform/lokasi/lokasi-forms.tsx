@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { Fragment, useActionState } from "react";
 import { PinPicker } from "@/components/map/pin-picker";
 import { ConfirmDialog } from "@/components/makam/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -374,8 +374,9 @@ export function StatusLokasiForms({ lokasiId, status, berlakuOn }: { lokasiId: s
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-start gap-2">
+        {/* A key per status: Tangguhkan's dialog and Pulihkan's are two dialogs, never one reused across the status change. */}
         {status === "terverifikasi" ? (
-          <>
+          <Fragment key="tangguhkan">
             <form id="tangguhkan-lokasi" action={tangguhkanAction}>
               <input type="hidden" name="lokasiId" value={lokasiId} />
             </form>
@@ -388,9 +389,9 @@ export function StatusLokasiForms({ lokasiId, status, berlakuOn }: { lokasiId: s
               reason={{ name: "alasan", label: "Alasan", placeholder: "Alasan penangguhan, untuk Audit Log" }}
               trigger={<Button type="button" variant="outline" size="sm">Tangguhkan</Button>}
             />
-          </>
+          </Fragment>
         ) : (
-          <>
+          <Fragment key="pulihkan">
             <form id="pulihkan-lokasi" action={pulihkanAction}>
               <input type="hidden" name="lokasiId" value={lokasiId} />
             </form>
@@ -403,7 +404,7 @@ export function StatusLokasiForms({ lokasiId, status, berlakuOn }: { lokasiId: s
               reason={{ name: "alasan", label: "Alasan", placeholder: "Alasan pemulihan, untuk Audit Log" }}
               trigger={<Button type="button" variant="outline" size="sm">Pulihkan</Button>}
             />
-          </>
+          </Fragment>
         )}
       </div>
       <Feedback state={status === "terverifikasi" ? tangguhkanState : pulihkanState} />

@@ -1,4 +1,5 @@
 import type { AlasanTolakPesananTpu, JawabPenugasanResult, LepasPenugasanResult, PekerjaanTpuStatus, PenugasanHasil, TugaskanMitraJasaResult } from "@/domain/layanan";
+import type { PengembalianPesanan } from "@/domain/refunds";
 
 /**
  * How Layanan at a DKI TPU reaches a screen (ticket 56): every refusal of the TPU
@@ -116,4 +117,11 @@ export const batalkanPekerjaanTerlambatTpuMessages: Record<string, string> = {
   bukan_terlambat: "Hanya pekerjaan yang sudah Terlambat yang bisa dibatalkan di sini.",
   pengembalian_tidak_bisa_diajukan: "Pengembalian dana belum bisa diajukan untuk pesanan ini. Pekerjaan belum dibatalkan.",
   pengembalian_tertunda: "Masih ada permintaan pengembalian yang menunggu di tagihan ini. Selesaikan dulu, lalu batalkan pekerjaan ini.",
+};
+
+/** Where a refund on a TPU order stands, in the family's words (ticket 120): asked, approved by Admin Platform, or sent. */
+export const pengembalianPesananLabels: Record<PengembalianPesanan["status"], string> = {
+  diajukan: "menunggu persetujuan Admin Platform",
+  disetujui: "sudah disetujui, menunggu transfer",
+  ditransfer: "sudah ditransfer",
 };

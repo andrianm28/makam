@@ -4,8 +4,10 @@ import {
   caraKamiBekerjaSections,
   caraKamiBekerjaSectionsUntuk,
   catatanHargaContoh,
+  catatanHargaLayananContoh,
   faqQuestions,
   jalanMasukTpuUntuk,
+  kelompokHargaLayananTpu,
   LABEL_HARGA_CONTOH,
   tentangKamiParagrafs,
 } from "./content-pages";
@@ -235,5 +237,47 @@ describe("Pengurusan di TPU DKI, the prices", () => {
       ["Hanya mengurus IPTM (keluarga sudah memakamkan sendiri)", 2_500_000, true],
       ["Retribusi Pemda (IPTM)", null, false],
     ]);
+  });
+});
+
+describe("Pengurusan di TPU DKI, the Layanan price list", () => {
+  /** The offer as the Layanan module hands it over: each Layanan in catalog order with its priced variants. */
+  const penawaran = [
+    {
+      layanan: { id: "layanan-nisan", name: "Batu Nisan" },
+      varian: [
+        { id: "varian-granit", name: "Granit Hitam 60 x 80 cm", harga: 1_500_000 },
+        { id: "varian-marmer", name: "Marmer Putih 60 x 80 cm", harga: 1_750_000 },
+      ],
+    },
+    { layanan: { id: "layanan-bunga", name: "Karangan Bunga Papan" }, varian: [{ id: "varian-standar", name: "Standar", harga: 150_000 }] },
+  ];
+
+  it("keeps the Layanan and their variants in the order the offer has them, each variant with its own amount", () => {
+    const kelompok = kelompokHargaLayananTpu(penawaran, false);
+
+    expect(kelompok.map((satu) => satu.nama)).toEqual(["Batu Nisan", "Karangan Bunga Papan"]);
+    expect(kelompok.map((satu) => satu.baris.map((baris) => [baris.label, baris.total]))).toEqual([
+      [
+        ["Granit Hitam 60 x 80 cm", 1_500_000],
+        ["Marmer Putih 60 x 80 cm", 1_750_000],
+      ],
+      [["Standar", 150_000]],
+    ]);
+  });
+
+  it("labels every amount 'harga contoh' while prices may still be examples, and none once they are the Operator's own", () => {
+    expect(kelompokHargaLayananTpu(penawaran, true).flatMap((satu) => satu.baris).every((baris) => baris.contoh)).toBe(true);
+    expect(kelompokHargaLayananTpu(penawaran, false).flatMap((satu) => satu.baris).some((baris) => baris.contoh)).toBe(false);
+  });
+
+  it("explains 'harga contoh' for the Layanan prices in a note of its own, not the Biaya Pengurusan's", () => {
+    expect(catatanHargaLayananContoh).toBe("Selama masa uji coba, harga Layanan di atas adalah harga contoh, bukan harga yang berlaku.");
+    expect(catatanHargaLayananContoh).not.toBe(catatanHargaContoh);
+  });
+
+  it("is an empty list when no Layanan is offered, and drops a Layanan that has no priced variant", () => {
+    expect(kelompokHargaLayananTpu([], true)).toEqual([]);
+    expect(kelompokHargaLayananTpu([{ layanan: { id: "kosong", name: "Pembersihan Makam" }, varian: [] }], true)).toEqual([]);
   });
 });
