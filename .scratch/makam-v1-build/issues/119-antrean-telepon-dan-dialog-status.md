@@ -1,6 +1,6 @@
 # Staff screens: the Telepon Pemesan row for a Hak Pakai without email leads to a 404, and the Pulihkan dialog keeps the Tangguhkan reason
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the UAT runner audit and a review on 2026-10-05; group A; owner approved "ya keduanya", 2026-10-05)
 Spec: tickets 42 (reminders and the Antrean) and 59 (Ditangguhkan and Berhenti); checklist R2-42.2 and R2-59.1
 
@@ -45,3 +45,10 @@ Builder (branch `ticket-119-antrean-telepon-dialog-status`, from origin/main 9da
 5. The "Telepon Pemegang Hak" line on the Hak Pakai page (above) is an addition the AC does not list.
 
 **Verified** (whole logs read): `npx vitest run` over `src/domain/queues/antrean-lokasi.test.ts` (12 tests, 3 new), `src/components/makam/confirm-dialog-state.test.ts` (5), `src/domain/perpanjangan/pengingat.test.ts` and `src/domain/queues/konfirmasi-terencana-row.test.ts`: 4 files, 33 tests, exit 0. The source-scanning guards (`dependency-direction`, `no-ticket-numbers`, `no-retired-company-name`, `copy-scan`, `duplicate-routes`, `use-server-exports`): 6 files, 17 tests, exit 0. `npm run lint` exit 0 (6 warnings, none in these files). `npm run typecheck` exit 0. No `npm run build`, no full suite.
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head 6fdb72da)
+
+- **Two-axis review:** Standards and Spec reviewers (sonnet) in parallel; round 0: Standards Hard: 0, soft: 5, Spec Hard: 0, soft: 6.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB14, after the full verification (typecheck, lint, build, `npm run test:shared`).
+

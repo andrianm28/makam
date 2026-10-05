@@ -1,6 +1,6 @@
 # Content: the TPU Layanan price list, Wakaf's Dirujuk status, and a kind-aware notice on filing-only IPTM orders
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the UAT runner audit and the reviews of ticket 116; group B; owner approved "ya keduanya", 2026-10-05)
 Spec: tickets 43 (the TPU page and prices), 58 (Wakaf Tanah), 47 (Pengurusan IPTM); checklist R3-43.3 and the Wakaf items
 
@@ -56,3 +56,10 @@ Builder (Sonnet, branch `ticket-124-konten-harga-tpu-wakaf`, base `9da0fb3b`; no
 - Copy guards and neighbours (`dependency-direction`, `no-ticket-numbers`, `no-retired-company-name`, `brand-tokens`, `no-ops-email-verification`, `rilis-guard`, `rilis`, `proxy`, `public-navigation`, `homepage-content`, `makam-keluarga-content`, `copy-scan`, `tests/uat`): 23 files, 512 tests [0].
 - `npm run lint` [0], 0 errors (6 warnings, none in touched files); `npm run typecheck` [0].
 - Not run: `npm run build` (not needed), the full suite, e2e and the UAT. Unverified: the pages in a browser, and the real Data Contoh rilis3 set (the tests use the two Layanan of `siapTpu`).
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head 7be441ed)
+
+- **Two-axis review:** Standards and Spec reviewers (sonnet) in parallel; round 0: Standards Hard: 0, soft: 4, Spec Hard: 0, soft: 2.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB14, after the full verification (typecheck, lint, build, `npm run test:shared`).
+

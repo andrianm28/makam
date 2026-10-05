@@ -1,6 +1,6 @@
 # Layanan pickers: an undated Terencana Layanan is dropped while still priced, and an emptied choice still submits
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the reviews of ticket 115; group A, Rilis 1 live on production; owner approved "ya keduanya", 2026-10-05)
 Spec: tickets 50 and 53 (Layanan at checkout and at a Lokasi Mitra); `.scratch/makam-v1-build/uat-rilis-1-checklist.md` §11
 
@@ -52,3 +52,10 @@ Built on branch `ticket-118-layanan-picker-tanpa-tanggal`, based on origin/main 
 - **Perpanjangan "Tambah Layanan" not changed** (outside the ticket): its sticky total still counts an undated pick, and its refusal is the generic "Isian belum lengkap. Periksa lagi lalu coba kembali." No Tagihan can differ (the order is refused), but its message and total now differ from Terencana's. A follow-up if you want them alike.
 - **Kode Masuk step of the two order forms:** its own submit button ("Pesan layanan") is not disabled with nothing chosen. The family reaches it only after pressing the main button once; if they then empty the choice, the server answers "Pilih minimal satu layanan." and the code is not used.
 - **Not tested by clicking:** the repo has no jsdom and `renderToStaticMarkup` only renders the empty first state, so the click paths (pick, "Tidak dipesan", Kirim refused) are covered through the pure functions the three forms call and the real Server Actions, not through a rendered form. The UAT journey `uat/perjalanan/10-layanan.uat.ts` (section 11b) fills the date before it reads `total-layanan`, so it fits the new behaviour (read, not run).
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head b9691667)
+
+- **Two-axis review:** Standards and Spec reviewers (sonnet) in parallel; round 0: Standards Hard: 0, soft: 6, Spec Hard: 0, soft: 3.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB14, after the full verification (typecheck, lint, build, `npm run test:shared`).
+
