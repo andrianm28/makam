@@ -115,8 +115,11 @@ test.describe("Rilis 2 [BAYAR]", { tag: ["@rilis2", "@bayar"] }, () => {
       const dialog = admin.getByRole("alertdialog");
       await dialog.getByLabel("Alasan").fill("Uji UAT: Lokasi ditangguhkan");
       await dialog.getByRole("button", { name: "Tangguhkan", exact: true }).click();
+      // The confirm dialog closes once the action has answered. While it closes it can briefly hold the Pulihkan dialog's
+      // button too (two "Pulihkan" on the page); a dialog that stays open would be a defect, so wait for it to go first.
+      await expect(dialog, "dialog konfirmasi tertutup setelah Tangguhkan").toHaveCount(0, { timeout: 30_000 });
       // Once suspended, the page offers Pulihkan where it offered Tangguhkan.
-      await expect(admin.getByRole("button", { name: "Pulihkan", exact: true })).toBeVisible({ timeout: 30_000 });
+      await expect(admin.getByRole("button", { name: "Pulihkan", exact: true })).toHaveCount(1);
     });
     await langkah(publik, "Halaman Lokasi tetap tayang dengan 'sementara tidak menerima pesanan'; hilang dari daftar Terencana", async () => {
       await publik.goto(`/lokasi/${lokasiId}`);
