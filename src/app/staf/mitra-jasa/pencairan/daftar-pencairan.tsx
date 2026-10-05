@@ -79,7 +79,7 @@ function keterangan(satu: PencairanMitraJasaEntri): string {
     case "jatuh_tempo":
       return "Pencairan ini sudah jatuh tempo. Admin Platform akan mentransfernya ke rekening Anda.";
     case "ditahan":
-      return "Admin Platform menahan Pencairan ini untuk sementara. Hubungi Admin Platform bila Anda perlu keterangan.";
+      return "Admin Platform menahan Pencairan ini untuk sementara.";
     case "dicairkan":
       return satu.pekerjaan.length > 1 ? `Satu transfer untuk ${satu.pekerjaan.length} pekerjaan.` : "Sudah ditransfer ke rekening Anda.";
     case "dibatalkan":

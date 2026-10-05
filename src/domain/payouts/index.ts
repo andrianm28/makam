@@ -287,7 +287,7 @@ export interface Payouts {
   pencairanJatuhTempo(): Promise<BarisJatuhTempo[]>;
   /** One Lokasi Mitra's Pencairan: per order Belum jatuh tempo / Jatuh tempo / Dicairkan, its Bukti Pencairan list and its Potongan. */
   pencairanLokasi(by: Actor, lokasiId: string): Promise<PencairanLokasi>;
-  /** A Mitra Jasa's own Pencairan: each job with its Layanan, date, rate and Bukti Pencairan, and nothing else. */
+  /** A Mitra Jasa's own Pencairan, flat, one row per job with its Layanan, date, rate and Bukti Pencairan, and nothing else (their page reads `daftarPencairanMitraJasa`). */
   pencairanMitraJasa(by: Actor): Promise<PencairanMitraJasa>;
   /**
    * A Mitra Jasa's own Pencairan as their page lists it, newest first (ticket 55 AC 3): a transfer already made as one entry
