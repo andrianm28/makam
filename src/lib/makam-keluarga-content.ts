@@ -202,9 +202,11 @@ export function barisMakamSaya(
   };
 }
 
-/** One document on the Akun Saya Makam tab's own card: what it is, and where it opens (an unguessable link). */
+/** One document on the Akun Saya Makam tab's own card: its number, what kind of proof it is, and where it opens (an unguessable link). */
 export interface DokumenMakamSaya {
   nomor: string;
+  /** The Bukti Pemesanan that granted the Hak Pakai, or the Bukti Perpanjangan of its latest Perpanjangan (ticket 120). */
+  jenis: "Bukti Pemesanan" | "Bukti Perpanjangan";
   href: string;
 }
 

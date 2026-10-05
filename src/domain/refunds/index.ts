@@ -51,7 +51,9 @@ import {
   permintaanDisetujui,
   permintaanTerbuka,
   permintaanUntukPesanan,
+  riwayatPengembalianPesanan,
   type BuktiPengembalianDana,
+  type PengembalianPesanan,
   type PermintaanPengembalian,
 } from "./baca";
 
@@ -61,7 +63,7 @@ export { rekeningSchema, rekeningTersamar, type RekeningInput } from "./rekening
 export { pihakBersalahKinds, permintaanPengembalianStatuses, permintaanSumberKinds, type PihakBersalah } from "./schema";
 export type { AjukanBarisInput, AjukanBarisResult, RefundLine } from "./request";
 export type { SetujuiInput, SetujuiResult } from "./approve";
-export type { PermintaanPengembalian } from "./baca";
+export type { PengembalianPesanan, PermintaanPengembalian } from "./baca";
 export type { PengembalianDibayar, RentangTanggal, TransferKeluarPengembalian } from "./laporan";
 
 export interface RefundsDeps {
@@ -121,6 +123,8 @@ export interface Refunds {
   permintaan(id: string): Promise<PermintaanPengembalian | null>;
   /** The open request on one order, or null: what the Pemesan's own order page offers the bank-account form for. */
   permintaanUntukPesanan(nomorPemesanan: string): Promise<PermintaanPengembalian | null>;
+  /** Every refund on one order, oldest first, with where each stands and its Bukti Pengembalian Dana once transferred: what the Pemesan follows (ticket 120). */
+  riwayatPengembalianPesanan(nomorPemesanan: string): Promise<PengembalianPesanan[]>;
   /** The Antrean's Tier 3 "refund transfer" row's own query: every approved request, with its deadline. */
   pengembalianJatuhTempo(): Promise<PermintaanPengembalian[]>;
   /** What the Bukti Pengembalian Dana transferred in a span of WIB dates come to (the Laporan; Admin Platform only, zeros for anyone else; ticket 33). */
@@ -184,6 +188,7 @@ export function createRefunds(deps: RefundsDeps): Refunds {
     permintaanTerbuka: () => permintaanTerbuka(deps.db),
     permintaan: (id) => permintaanById(deps.db, id),
     permintaanUntukPesanan: (nomor) => permintaanUntukPesanan(deps.db, nomor),
+    riwayatPengembalianPesanan: (nomor) => riwayatPengembalianPesanan(deps.db, nomor),
     pengembalianJatuhTempo: () => permintaanDisetujui(deps.db),
     buktiPengembalianDana: async (link) => {
       const bukti = await buktiByLink(deps.db, link);
