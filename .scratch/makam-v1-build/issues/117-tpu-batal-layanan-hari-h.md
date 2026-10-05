@@ -103,4 +103,4 @@ The fix-list re-review (sonnet, both axes) found Hard: 0, soft: 2.
 3. The family's older late-cancel (`batalkanPekerjaanTerlambatTpu`, the Batalkan button on a Terlambat job) checks the status only. It can still cancel and refund a started Terlambat job, platform fee included. The owner rules.
 4. The race test waits a real 400 ms, and the zero-row guard cannot be reached under the lock, so it is untested.
 5. Staging order MKM-2026-000018, cancelled before this fix, keeps its hari-H job Dijadwalkan. That is staging data, left as is.
-
+- 2026-10-05: Owner rule C2 (option tool): the family's late cancel of a started Terlambat TPU job stays allowed, with a full refund; the Mitra Jasa is not paid for that job. This settles follow-up 3 above, with no code change. Owner rule C1 (cancel the redo's original Pencairan item) is built in ticket 121.
