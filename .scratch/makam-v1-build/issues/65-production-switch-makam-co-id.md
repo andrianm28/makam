@@ -184,3 +184,10 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   - Production env values, settled from the runbook and `src/lib/env.ts` and already set by the local agent: `MAKAM_IMAGE=ghcr.io/andrianm28/makam` (the digest comes from the deploy command), `SENTRY_ENVIRONMENT=production`, `SMTP_PORT=465`, `EMAIL_FROM_NAME=Makam.co.id`.
 
 - 2026-10-04 — **Plan decisions that change this ticket's switch day (owner-approved plan; ticket 113 records them).** Production switches at `RILIS_TERBUKA=1` (ADR 0006, "Amendment (2026-10-04)"), which reverses the 2026-10-03 entry above that opens `3` at the go-live; it opens 3 after a signed UAT at 3. The beta stays on SumoPod's sandbox with no real orders and with marked example data (ADR 0007). The runbook's "Hari switch" is rewritten in the order of gate G3 of `go-live-rilis-1.md`: promote and pre-pull, deploy, Data Contoh, preflight `--rilis 1`, archive, `makam-switch --cek` then `--ke v1`, the webhook move and Save & Test, checks, monitoring, fallback, deleting the old app. The order of the criteria listed above is superseded by it (the criteria's text is unchanged). The old app's Postgres container on this host is `makam-nonprod-postgres-1` (for `makam-arsip-app-lama --container`). Decision 4 of the 2026-10-03 entry (the old catalog imported into production as data contoh) is replaced by Data Contoh, which the owner accepted in the plan.
+- 2026-10-05 — **G2 gate, signed by the owner** (answers through the option tool, about 10:40 WIB).
+  - Checklist §7: "Email dan push diterima".
+  - G2: "Ya, tanda tangani G2". v1 is ready to replace the old app, at `RILIS_TERBUKA=1` on the SumoPod sandbox. The old-app data question was answered on 2026-10-03.
+  - G3: "sekarang". The switch starts now, before the 21:00 WIB window; this is the owner's call, and no staff are on duty yet in the beta.
+  - Digest B: `sha256:6477fb754092bdd69f664b5cfa684a34a3ee81664a68fada69db2f7c7713f56a`, built from f56e1ccc (MB11, ticket 117). It is promoted as `v2026.10.05-1`, signed with the production key, and verified on the host.
+  - The evidence is in `go-live-rilis-1.md`, G2.
+

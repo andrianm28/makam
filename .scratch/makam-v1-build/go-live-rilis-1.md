@@ -87,16 +87,20 @@ Procedure: runbook, "Rehearsal of the first production deploy". No nginx change:
 
 ## G2: the UAT of Rilis 1 and of every payment case, on staging (D2 to D4)
 
-- [ ] **Tickets 98 and 109 are merged by the evening of D3, and the freeze F1 holds digest B on the morning of D4.**
+- [x] **Tickets 98 and 109 are merged by the evening of D3, and the freeze F1 holds digest B on the morning of D4.**
   Check: `origin/main` equals B's ref.
-  Evidence:
-- [ ] **The UAT of Rilis 1 passes in the runner**: the checklist from section 0 to 11, 0 failed, a screenshot per step.
-  Evidence: (2026-10-05, partial)
+  Evidence: 2026-10-05:
+  - Tickets 98 and 109 were merged earlier.
+  - B is f56e1ccc (MB11, ticket 117), digest `sha256:6477fb75…3f56a`.
+  - `origin/main` has been f56e1ccc since about 07:20 WIB, and the merge freeze holds until the old app is deleted. This evidence lands after the freeze.
+- [x] **The UAT of Rilis 1 passes in the runner**: the checklist from section 0 to 11, 0 failed, a screenshot per step.
+  Evidence: 2026-10-05:
   - The runner on staging, at 4b437d84 and then 4713592b (ticket 115): §0–§11 pass. Reports and screenshots are under `/home/ubuntu/uat-runs/2026-10-04-rilis1`.
-  - Still open: §5's OTP signed out (the signed-in holder skips the code), and the owner's checks of §7 email and push.
+  - §5's OTP, signed out, passed at 09:48 WIB: the code was sent to the recorded email, the Tagihan reached Lunas, and Hak Pakai 9d8a9956 runs to 2036-11-28.
+  - §7: the owner confirmed email and push.
   - Skipped: §9's Rp 10 juta cap item (no data).
-- [ ] **Every [BAYAR] item of Rilis 2 and 3 is paid and confirmed on staging.** One SumoPod project means none of them can be done after the switch.
-  Evidence: (2026-10-05, partial) paid and confirmed in the SumoPod sandbox:
+- [x] **Every [BAYAR] item of Rilis 2 and 3 is paid and confirmed on staging.** One SumoPod project means none of them can be done after the switch.
+  Evidence: 2026-10-05, paid and confirmed in the SumoPod sandbox:
   - R2-35.1: MKM-2026-000016, pay-after Tagihan Lunas Rp 1.150.000;
   - R2-41.1;
   - R2-42.1: the Hak Pakai is back to Aktif until 2036-09-14;
@@ -104,19 +108,23 @@ Procedure: runbook, "Rehearsal of the first production deploy". No nginx change:
   - R3-47.1, R3-47.2 and R3-48.1, after ticket 116 (ca5eb800);
   - the Rilis 1 payments of §3, §4, §5 and §11.
 
-  Still open:
-  - R3-46.1 and R3-53.1 (ticket 117);
-  - R2-59.1 and 59.2 (P9, which needs one Kode Masuk).
-- [ ] **Every SumoPod webhook delivery shows 2xx**, and the UAT orders are cancelled.
+  - R3-46.1 and R3-53.1, after ticket 117 (f56e1ccc): MKM-2026-000025's hari-H job is Dibatalkan, and the refund is penuh, Rp 650.000;
+  - R2-59.1, on the one-use Lokasi Taman Peristirahatan Hijau Asri (Contoh): Ditangguhkan; Pulihkan was proven, then rerun; the Perpanjangan was paid, so the Hak Pakai runs to 2051-11-05;
+  - R2-59.2: Berhenti; Layanan MKM-2026-000029 is Dibatalkan, and Rp 1.250.000 is asked of Refunds, Biaya Layanan Platform included.
+- [x] **Every SumoPod webhook delivery shows 2xx**, and the UAT orders are cancelled.
   Check: the dashboard's Webhooks tab.
-  Evidence: (2026-10-05, partial)
-  - The staging nginx log shows POST /api/webhooks/pembayaran on 2026-10-04 UTC: 11× 200 and nothing else.
+  Evidence: 2026-10-05:
+  - The staging nginx log shows POST /api/webhooks/pembayaran during the UAT: 20× 200 on 2026-10-04 UTC and 5× 200 on 2026-10-05, nothing else.
   - Earlier non-2xx answers: 401 and 500 on 28 Sep, during setup; 2× 401 on 3 Oct, around the secret rotation.
-  - The UAT orders are not cancelled yet.
-- [ ] **The regression on digest B passes**: the Rilis 1 critical path; the stale form (open a form, deploy, submit: the Indonesian page with "Muat ulang"); an `.invalid` address answers "gagal kirim"; Data Contoh is visible.
-  Evidence:
-- [ ] **The owner's gate comment is in ticket 65's `## Comments`**: v1 is ready to replace the old app, and the old-app data question is answered.
-  Evidence:
+  - The UAT orders with an open Tagihan are dealt with: MKM-2026-000012 and its Tagihan were cancelled by its Admin Lokasi. TGH/2026/000011 (Terencana, pay first) lapses by itself at 23:59 WIB.
+- [x] **The regression on digest B passes**: the Rilis 1 critical path; the stale form (open a form, deploy, submit: the Indonesian page with "Muat ulang"); an `.invalid` address answers "gagal kirim"; Data Contoh is visible.
+  Evidence: 2026-10-05, on f56e1ccc:
+  - The stale form: `/masuk` was opened on ca5eb800 and sent after the deploy. The page "Halaman ini sudah diperbarui" showed, with "Muat ulang".
+  - After the reload, the `.invalid` address answered "Kode belum bisa dikirim lewat email. Silakan coba lagi."
+  - `/lokasi` lists five "(Contoh)" Lokasi. The banner's Data Contoh line belongs to the production trial banner, so it is checked at G3.
+  - The runner passed §2 (a guest, with a Kode Masuk), §3, §4 and §10: 6/6 plus 3/3.
+- [x] **The owner's gate comment is in ticket 65's `## Comments`**: v1 is ready to replace the old app, and the old-app data question is answered.
+  Evidence: 2026-10-05, ticket 65 Comments: "Ya, tanda tangani G2". The data question was answered on 2026-10-03.
 
 ## G3: the switch at level 1 (D4 afternoon, spare D5)
 
