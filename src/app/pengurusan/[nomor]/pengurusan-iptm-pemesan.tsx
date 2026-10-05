@@ -1,11 +1,10 @@
-import { RekeningPengembalianForm } from "@/app/(site)/pesanan/[nomor]/rekening-pengembalian-form";
 import { StatusBadge } from "@/components/makam/status-badge";
 import type { PengurusanOrder } from "@/domain/pengurusan";
 import type { PermintaanPengembalian } from "@/domain/refunds";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
-import { isiRekeningPengembalianPengurusanAction } from "./pengajuan-actions";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
+import { PengembalianPemesan } from "./pengembalian-pemesan";
 
 /**
  * A Pengurusan IPTM, the filing-only order of a family that buried at a DKI TPU on its own, as its Pemesan follows it
@@ -24,7 +23,7 @@ export function PengurusanIptmPemesan({
 }: {
   order: PengurusanOrder;
   scanUrl: string | null;
-  /** The refund waiting for the Pemesan's rekening on a cancelled order that had been paid; null when none. */
+  /** The refund waiting for the Pemesan's rekening on an order that had been paid and ended (cancelled, or refused for good by the PTSP); null when none. */
   pengembalian: PermintaanPengembalian | null;
 }) {
   return (
@@ -54,20 +53,7 @@ export function PengurusanIptmPemesan({
 
       <PengajuanPemesan order={order} scanUrl={scanUrl} />
 
-      {pengembalian ? (
-        pengembalian.status === "diajukan" ? (
-          <RekeningPengembalianForm
-            nomor={order.nomor}
-            jumlahLabel={formatRupiah(pengembalian.jumlah)}
-            rekeningTercatat={pengembalian.rekening ? `${pengembalian.rekening.bank} ****${pengembalian.rekening.nomor.slice(-4)}` : null}
-            simpan={isiRekeningPengembalianPengurusanAction}
-          />
-        ) : (
-          <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="rekening-pengembalian-terkunci">
-            Pengembalian dana {formatRupiah(pengembalian.jumlah)} sudah disetujui dan menunggu transfer. Untuk mengubah rekening, hubungi CS.
-          </p>
-        )
-      ) : null}
+      <PengembalianPemesan nomor={order.nomor} pengembalian={pengembalian} />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-title-3 text-foreground">Dokumen</h2>

@@ -76,6 +76,7 @@ import type { DokumenPemakamanDanPengajuan, JenisPenguburan, Kelayakan } from ".
 export type { Pemesan, PengurusanDeps } from "./deps";
 export type { KartuTpu, PilihanSaatDukaTpuQuery } from "./pilihan";
 export { JAM_KONFIRMASI_TPU } from "./pilihan";
+export { STATUS_BERAKHIR_DENGAN_PENGEMBALIAN } from "./aturan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 export { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
 import { cekTpuTerbuka, koreksiIptmBerakhir, mintaPerbaikan, placePerpanjanganTpu, putuskanCekTpu } from "./perpanjangan-tpu";

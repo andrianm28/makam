@@ -35,6 +35,7 @@ vi.mock("next/navigation", () => ({
 
 const { default: PengurusanPage } = await import("./page");
 const { PengurusanIptmPemesan } = await import("./pengurusan-iptm-pemesan");
+const { isiRekeningPengembalianPengurusanAction } = await import("./pengajuan-actions");
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -260,6 +261,43 @@ describe("the order page of a Pengurusan IPTM, for a family that buried on its o
     expect(permintaan).toMatchObject({ nomorPemesanan: dasar.nomor, status: "diajukan" });
     expect(html).toContain('data-testid="rekening-pengembalian"');
     expect(teks).toContain(`Dana sebesar ${formatRupiah(permintaan!.jumlah)} akan dikembalikan`);
+  });
+
+  it("asks for the rekening of the full refund a final PTSP rejection raises, as it does at Dibatalkan, and Refunds receives what the family enters", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    await sampaiDitolak(setup, dasar);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+
+    const { html, teks } = await halaman(dasar.nomor);
+
+    expect(permintaan).toMatchObject({ nomorPemesanan: dasar.nomor, status: "diajukan", penuh: true });
+    expect(teks).toContain("Pengajuan ditolak PTSP");
+    expect(html).toContain('data-testid="rekening-pengembalian"');
+    expect(teks).toContain(`Dana sebesar ${formatRupiah(permintaan!.jumlah)} akan dikembalikan`);
+
+    // The form is the one Dibatalkan has: its action stores the account on the request, which Admin Platform then reads to transfer.
+    const form = new FormData();
+    form.set("nomor", dasar.nomor);
+    form.set("bank", "Bank Syariah Indonesia");
+    form.set("nomorRekening", "7123456789");
+    form.set("nama", "Budi Santoso");
+    expect(await isiRekeningPengembalianPengurusanAction({ status: "idle" }, form)).toMatchObject({ status: "berhasil" });
+    expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ rekening: { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" } });
+  });
+
+  it("says a refund already approved at Ditolak is waiting for its transfer, with no form to change the account", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    await sampaiDitolak(setup, dasar);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect((await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: permintaan!.id })).ok).toBe(true);
+
+    const { html, teks } = await halaman(dasar.nomor);
+
+    expect(html).not.toContain('data-testid="rekening-pengembalian"');
+    expect(html).toContain('data-testid="rekening-pengembalian-terkunci"');
+    expect(teks).toContain(`Pengembalian dana ${formatRupiah(permintaan!.jumlah)} sudah disetujui dan menunggu transfer`);
   });
 
   it("gives the Tagihan link only while the Tagihan is open: once it is paid, at Diproses, there is nothing left to pay", async () => {

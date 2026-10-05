@@ -179,6 +179,8 @@ export function testServerRuntime() {
       notifications,
       operatorSettings,
       pemesanan,
+      // As `src/server/runtime.ts` does: a TPU order's Pemesan enters the refund account like any other.
+      pengurusan: { current: pengursModule },
     });
     refundsMenunggu.sambungkan(refunds);
     const layanan = composeLayanan({
