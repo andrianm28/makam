@@ -20,7 +20,7 @@ export default async function PencairanPage() {
     <>
       <PageHeader
         title="Pencairan"
-        description="Pembayaran Operator untuk Pekerjaan Layanan yang sudah selesai dan tidak lagi bisa dibatalkan, dari yang terbaru. Tarif Anda dibayar penuh."
+        description="Pembayaran Operator untuk setiap Pekerjaan Layanan Anda yang sudah disetujui, dari yang terbaru. Tarif Anda dibayar penuh."
       />
       {pencairan.length === 0 ? (
         <EmptyState

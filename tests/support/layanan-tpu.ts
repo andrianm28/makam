@@ -145,18 +145,34 @@ export async function kirimBukti(s: SiapTpuBertarif, mitra: MitraJasaTpu, pekerj
   if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
 }
 
+/** Where the fake Clock of the TPU fixtures starts: a Thursday at 09:00 WIB, well before the usual target dates. */
+const MULAI = "2026-10-01 09:00";
+
+/** Moves the fake Clock forward to `pada`, and refuses to turn it back: the jobs and the ticks that follow start from where it is. */
+function majukanClock(s: SiapTpuBertarif, pada: string, untuk: string) {
+  const tujuan = wib(pada);
+  if (tujuan.getTime() < s.setup.clock.now().getTime()) {
+    throw new Error(`${untuk}: the fake Clock does not run backwards (it is at ${s.setup.clock.now().toISOString()}, ${pada} WIB is earlier)`);
+  }
+  s.setup.clock.set(tujuan);
+}
+
 /**
  * A paid TPU order for one Layanan, handed to `mitra`, who accepts and sends the proof, which Admin Platform approves:
  * the Mitra Jasa's Pencairan exists from here on, Belum jatuh tempo until the Keluhan window has closed. The order is
- * placed at `dipesanPada` (default: the fake Clock's usual start, a Thursday at 09:00 WIB, well before its target date) and
- * the proof is sent and approved at `disetujuiPada` (default: straight away), as a Mitra Jasa does the work on the day.
+ * placed at `dipesanPada`, or by default where the fake Clock is (for the first job that is the usual start, a Thursday at
+ * 09:00 WIB well before the target date: a Clock set earlier is moved up to it), and the proof is sent and approved at
+ * `disetujuiPada` (default: straight away), as a Mitra Jasa does the work on the day. The Clock only ever runs forward: a
+ * second job is ordered when the first was approved or later, so a `dipesanPada` or `disetujuiPada` before the Clock's
+ * time is refused.
  */
 export async function pekerjaanDisetujui(
   s: SiapTpuBertarif,
   mitra: MitraJasaTpu,
   opsi: { varianId?: string; targetDate?: string; dipesanPada?: string; disetujuiPada?: string } = {},
 ) {
-  s.setup.clock.set(wib(opsi.dipesanPada ?? "2026-10-01 09:00"));
+  if (opsi.dipesanPada) majukanClock(s, opsi.dipesanPada, "dipesanPada");
+  else if (s.setup.clock.now().getTime() < wib(MULAI).getTime()) s.setup.clock.set(wib(MULAI));
   const dipesan = await s.setup.layanan.placePesananLayananTpu(
     s.pemesan,
     orderTpu(s, [{ layananVariantId: opsi.varianId ?? s.bunga.id, targetDate: opsi.targetDate ?? "2026-10-05" }]),
@@ -167,7 +183,7 @@ export async function pekerjaanDisetujui(
   const job = (await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin)).find((satu) => satu.nomor === dipesan.pesanan.nomor);
   if (!job) throw new Error("the order has no job");
   await diterima(s, mitra, job.id);
-  if (opsi.disetujuiPada) s.setup.clock.set(wib(opsi.disetujuiPada));
+  if (opsi.disetujuiPada) majukanClock(s, opsi.disetujuiPada, "disetujuiPada");
   await kirimBukti(s, mitra, job.id);
   await setujui(s, job.id);
   return { pekerjaanId: job.id, nomor: dipesan.pesanan.nomor, tagihanId: dipesan.tagihan.id };

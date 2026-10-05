@@ -377,6 +377,11 @@ export async function catatItemLayananMitraJasa(
     nomorPemesanan?: string | null;
     /** The Label the Bukti Pencairan repeats. */
     label?: string;
+    /**
+     * The earliest the job's Pencairan can fall due: when its Keluhan window ends, which only the Layanan module knows.
+     * The Mitra Jasa is shown it as the date to expect; the item falls due only when the module says so (`itemJatuhTempo`).
+     */
+    jatuhTempoPalingCepat?: Date | null;
   },
   now: Date,
 ): Promise<CatatLayananMitraJasaResult> {
@@ -392,6 +397,7 @@ export async function catatItemLayananMitraJasa(
       tarif: rupiahSchema,
       nomorPemesanan: nomorPemesananSchema.nullish(),
       label: z.string().trim().min(1).max(300).optional(),
+      jatuhTempoPalingCepat: z.date().nullish(),
     })
     .safeParse(input);
   if (!parsed.success || parsed.data.tarif === 0) return { ok: false, reason: "input_tidak_valid" };
@@ -414,6 +420,7 @@ export async function catatItemLayananMitraJasa(
       // it due, and when that happens is not this module's to guess.
       dueAt: null,
       jatuhTempoAt: null,
+      jatuhTempoPalingCepatAt: parsed.data.jatuhTempoPalingCepat ?? null,
       status: "belum_jatuh_tempo",
       dibuatPada: now,
     })

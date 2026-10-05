@@ -13,9 +13,8 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { testServerRuntime } from "../../../../tests/support/server-runtime";
-import { signInAsAdminPlatform } from "../../../../tests/support/server-sign-in";
+import { signInAsAdminPlatform, signInAsMitraJasa } from "../../../../tests/support/server-sign-in";
 import { orderSaatDuka, saatDukaFixture, type PemesananModul } from "../../../../tests/support/pemesanan";
-import type { Actor } from "@/domain/identity";
 import { buatMitraJasa, simpanCoverage, simpanProfil, simpanRekening, simpanStatus, tambahTidakTersedia } from "../admin-platform/mitra-jasa/actions";
 
 vi.mock("server-only", () => ({}));
@@ -41,18 +40,6 @@ function form(values: Record<string, string>): FormData {
 
 const idle = { status: "idle" } as const;
 
-/** A Mitra Jasa signed in in this browser, having accepted the Undangan Staf. */
-async function signInAsMitraJasa(admin: Actor, email = "mitra.jasa@contoh.id"): Promise<Actor> {
-  const { identity } = server.runtime();
-  const invited = await identity.inviteStaff(admin, { email, phoneNumber: "085555555555", role: "mitra_jasa" });
-  if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
-  browser.reset();
-  browser.store((await server.logIn(email)).session.cookies);
-  const actor = await identity.actorFromCookies(browser.cookieHeader());
-  if (!actor) throw new Error("not signed in");
-  return actor;
-}
-
 /** The server's own modules, as the Pemesanan fixtures read them. */
 function pemesananSetup(): PemesananModul {
   const runtime = server.runtime();
@@ -75,7 +62,7 @@ describe("a Mitra Jasa never reaches a family's document, an order, or the Audit
     expect(await setup.pemesanan.urlDokumenUntukStaf(admin, placed.pemesanan.nomor, nama)).toContain("http");
     expect((await setup.lokasi.auditLog(admin, fixture.lokasiMitra.id)).ok).toBe(true);
 
-    const mitra = await signInAsMitraJasa(admin);
+    const mitra = await signInAsMitraJasa(server, admin);
     const { pemesanan, lokasi, queues, layanan } = server.runtime();
 
     // A family document: no signed URL, ever.
@@ -105,7 +92,7 @@ describe("a Mitra Jasa never reaches a family's document, an order, or the Audit
     if (!dibuat.ok) throw new Error(dibuat.reason);
     const mitraJasaId = dibuat.mitraJasaId;
 
-    await signInAsMitraJasa(admin);
+    await signInAsMitraJasa(server, admin);
 
     expect(await simpanProfil(idle, form({ mitraJasaId, namaLengkap: "Orang Lain", nik: "3201014503900001", area: "Bekasi" }))).toEqual({
       status: "gagal",

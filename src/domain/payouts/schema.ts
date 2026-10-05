@@ -133,6 +133,13 @@ export const pencairanItem = pgTable(
     dueAt: at("due_at"),
     /** `dueAt` plus 2 Hari Kerja on the Admin Platform calendar: the Antrean row's deadline (AC 6). */
     jatuhTempoAt: at("jatuh_tempo_at"),
+    /**
+     * The earliest the item can fall due, as the Layanan module said when it recorded a job's Pencairan: the end of the
+     * job's Keluhan window. The Mitra Jasa reads it as the date to expect, and nothing is driven from it (the item falls
+     * due only when `itemJatuhTempo` is called), so a Keluhan that holds the job back leaves it as it was. Null for an
+     * item with no such wait, and for one recorded before this was kept.
+     */
+    jatuhTempoPalingCepatAt: at("jatuh_tempo_paling_cepat_at"),
     status: text("status", { enum: pencairanItemStatuses }).notNull(),
     /** Why it was cancelled, when `status` is `dibatalkan`. */
     batalAlasan: text("batal_alasan", { enum: pencairanItemBatalReasons }),

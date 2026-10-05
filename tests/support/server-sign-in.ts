@@ -42,3 +42,15 @@ export async function signInAsAdminLokasi(
   browser.store((await server.logIn(email)).session.cookies);
   return browserActor(server);
 }
+
+/**
+ * Invites a Mitra Jasa as `admin` (a Mitra Jasa is staff, so it accepts an Undangan Staf), then signs it in in the test
+ * browser instead (the browser's earlier session is dropped).
+ */
+export async function signInAsMitraJasa(server: Server, admin: Actor, email = "mitra.jasa@contoh.id"): Promise<Actor> {
+  const invited = await server.runtime().identity.inviteStaff(admin, { email, phoneNumber: "085555555555", role: "mitra_jasa" });
+  if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
+  browser.reset();
+  browser.store((await server.logIn(email)).session.cookies);
+  return browserActor(server);
+}

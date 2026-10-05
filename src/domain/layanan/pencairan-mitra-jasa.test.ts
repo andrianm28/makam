@@ -50,17 +50,21 @@ describe("a Mitra Jasa's Pencairan for a TPU job", () => {
   it("shows its Layanan, TPU, date and rate from Belum jatuh tempo, through Jatuh tempo, to Dicairkan with the Bukti Pencairan", async () => {
     const s = await siap();
     const mitra = await mitraJasaUntuk(s.setup, s, s.bunga.id);
-    await pekerjaanDisetujui(s, mitra, { disetujuiPada: "2026-10-05 10:00" });
+    const disetujui = await pekerjaanDisetujui(s, mitra, { disetujuiPada: "2026-10-05 10:00" });
 
+    // Belum jatuh tempo, and the date to expect is the one the job's own Keluhan window ends: 3×24 h after the approval.
     expect(await daftarPencairanSaya(s, mitra)).toMatchObject([
       {
         status: "belum_jatuh_tempo",
-        tanggal: null,
+        tanggal: "2026-10-08",
         total: TARIF,
         bukti: null,
         pekerjaan: [{ layanan: BUNGA, tpu: s.tpu.name, tanggal: "2026-10-05", tarif: TARIF }],
       },
     ]);
+    const jendela = await s.setup.layanan.jendelaKeluhanTpu(disetujui.pekerjaanId);
+    if (!jendela?.berakhirAt) throw new Error("the job has no Keluhan window");
+    expect((await daftarPencairanSaya(s, mitra))[0].tanggal).toBe(wibDateOf(jendela.berakhirAt));
 
     // The Keluhan window is 3×24 h from the approval: due once it has closed.
     await jendelaTutup(s, "2026-10-08 10:01");

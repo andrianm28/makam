@@ -34,7 +34,7 @@ export type StatusPencairanMitraJasa = "belum_jatuh_tempo" | "jatuh_tempo" | "di
 export interface PekerjaanPencairanMitraJasa {
   itemId: string;
   layanan: string;
-  /** The TPU it was done at; null for an item recorded before the TPU was kept. */
+  /** The TPU it was done at; null when the Pencairan does not name one. */
   tpu: string | null;
   /** The target date (WIB "YYYY-MM-DD"). */
   tanggal: string | null;
@@ -47,10 +47,13 @@ export interface PencairanMitraJasaEntri {
   kunci: string;
   status: StatusPencairanMitraJasa;
   /**
-   * Dicairkan: the date of the transfer. Jatuh tempo: the date Admin Platform is to have transferred it by (2 Hari
-   * Kerja after it fell due). Dibatalkan: the date it was cancelled. Otherwise null (a Pencairan still waiting for its
-   * window has no date yet, and a held one has none to promise).
-   * WIB "YYYY-MM-DD".
+   * The one date each status has to say (spec, ticket 55 AC 3: "its status and due or paid date"), WIB "YYYY-MM-DD":
+   * - Belum jatuh tempo: the date its Keluhan window ends, the earliest it can fall due. The window is the Layanan
+   *   module's, which says when it ends as it records the Pencairan; null for one recorded before that was kept.
+   * - Jatuh tempo: the date Admin Platform is to have transferred it by (2 Hari Kerja after it fell due).
+   * - Ditahan: the date it fell due. A held Pencairan has no date to be paid by, so it promises none.
+   * - Dicairkan: the date of the transfer.
+   * - Dibatalkan: the date it was cancelled.
    */
   tanggal: string | null;
   /** Newest first; one job unless it is a transfer that covered several. */
@@ -158,10 +161,23 @@ function pekerjaanOf(item: ItemRow, tarif: Rupiah): PekerjaanPencairanMitraJasa 
   return {
     itemId: item.id,
     layanan: item.layananNama ?? item.pekerjaanLabel ?? item.label,
-    tpu: item.tpuNama,
+    tpu: tpuOf(item),
     tanggal: item.tanggalLayanan,
     tarif,
   };
+}
+
+/**
+ * The TPU of a job. A Pencairan keeps it as a field of its own; one recorded before that (migration 0065) names it only
+ * inside the job's reference, which the Layanan module wrote as "<Layanan> – <TPU>". Read from there when the reference
+ * has exactly that shape, never guessed otherwise.
+ */
+function tpuOf(item: ItemRow): string | null {
+  if (item.tpuNama !== null) return item.tpuNama;
+  if (item.layananNama === null || item.pekerjaanLabel === null) return null;
+  const awalan = `${item.layananNama} – `;
+  if (!item.pekerjaanLabel.startsWith(awalan)) return null;
+  return item.pekerjaanLabel.slice(awalan.length).trim() || null;
 }
 
 /** A hold only matters once the item is due: before that there is nothing to hold back from a transfer. */
@@ -179,6 +195,22 @@ function statusOf(item: ItemRow): StatusPencairanMitraJasa {
 }
 
 function tanggalOf(item: ItemRow, status: StatusPencairanMitraJasa): string | null {
-  const instant = status === "jatuh_tempo" ? item.jatuhTempoAt : status === "dibatalkan" ? item.batalPada : status === "dicairkan" ? item.dicairkanPada : null;
+  const instant = instantOf(item, status);
   return instant ? wibDateOf(instant) : null;
+}
+
+/** The instant of the one date each status says (see `PencairanMitraJasaEntri.tanggal`). */
+function instantOf(item: ItemRow, status: StatusPencairanMitraJasa): Date | null {
+  switch (status) {
+    case "belum_jatuh_tempo":
+      return item.jatuhTempoPalingCepatAt;
+    case "jatuh_tempo":
+      return item.jatuhTempoAt;
+    case "ditahan":
+      return item.dueAt;
+    case "dicairkan":
+      return item.dicairkanPada;
+    case "dibatalkan":
+      return item.batalPada;
+  }
 }

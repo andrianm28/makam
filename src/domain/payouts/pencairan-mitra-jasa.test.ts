@@ -33,8 +33,20 @@ async function siap() {
 }
 type Siap = Awaited<ReturnType<typeof siap>>;
 
-/** A job approved by Admin Platform, recorded the way the Layanan module records it (with an order number the Mitra Jasa must never see). */
-async function catat(s: Siap, akun: Actor, pekerjaan: { layanan: string; tpu: string; tanggal: string; tarif: number }) {
+const JAM = 60 * 60 * 1000;
+
+/**
+ * A job approved by Admin Platform, recorded the way the Layanan module records it: with an order number the Mitra Jasa
+ * must never see, the TPU, and the instant its Keluhan window closes (3×24 h after the approval, which is now). `opsi` can
+ * leave out what an older Pencairan lacked: the window's end (`jendelaBerakhir: null`) and the TPU as a field of its own.
+ */
+async function catat(
+  s: Siap,
+  akun: Actor,
+  pekerjaan: { layanan: string; tpu: string; tanggal: string; tarif: number },
+  opsi: { jendelaBerakhir?: Date | null; tanpaTpu?: boolean } = {},
+) {
+  const jendelaBerakhir = opsi.jendelaBerakhir === undefined ? new Date(s.setup.clock.now().getTime() + 72 * JAM) : opsi.jendelaBerakhir;
   return s.setup.db.transaction(async (tx) => {
     const dibuat = await s.setup.payouts.catatItemLayananMitraJasa(tx, {
       akunId: akun.accountId,
@@ -42,10 +54,11 @@ async function catat(s: Siap, akun: Actor, pekerjaan: { layanan: string; tpu: st
       lokasiId: null,
       pekerjaan: `${pekerjaan.layanan} – ${pekerjaan.tpu}`,
       layanan: pekerjaan.layanan,
-      tpu: pekerjaan.tpu,
+      ...(opsi.tanpaTpu ? {} : { tpu: pekerjaan.tpu }),
       tanggal: pekerjaan.tanggal,
       tarif: pekerjaan.tarif,
       nomorPemesanan: "MKM-2026-000123",
+      jatuhTempoPalingCepat: jendelaBerakhir,
     });
     if (!dibuat.ok) throw new Error(`item refused: ${dibuat.reason}`);
     return dibuat.id;
@@ -88,14 +101,14 @@ describe("a Mitra Jasa's Pencairan, as they read it", () => {
     expect(await daftar(s, s.rina)).toMatchObject([
       {
         status: "belum_jatuh_tempo",
-        tanggal: null,
+        tanggal: "2026-10-05",
         total: 400_003,
         bukti: null,
         pekerjaan: [{ itemId: baru, layanan: PEMBERSIHAN.layanan, tpu: "TPU Cilincing", tanggal: "2026-10-04", tarif: 400_003 }],
       },
       {
         status: "belum_jatuh_tempo",
-        tanggal: null,
+        tanggal: "2026-10-04",
         total: 150_000,
         bukti: null,
         pekerjaan: [{ itemId: lama, layanan: BUNGA.layanan, tpu: "TPU Kober", tanggal: "2026-10-03", tarif: 150_000 }],
@@ -113,10 +126,10 @@ describe("a Mitra Jasa's Pencairan, as they read it", () => {
     expect(JSON.stringify(satu)).not.toMatch(/MKM-|potongan/i);
   });
 
-  it("is Belum jatuh tempo until the Keluhan window has closed, then Jatuh tempo with the date it is to be paid by", async () => {
+  it("is Belum jatuh tempo until the Keluhan window has closed, with the date the window ends, then Jatuh tempo with the date it is to be paid by", async () => {
     const s = await siap();
     const item = await catat(s, s.rina, BUNGA);
-    expect(await daftar(s, s.rina)).toMatchObject([{ status: "belum_jatuh_tempo", tanggal: null }]);
+    expect(await daftar(s, s.rina)).toMatchObject([{ status: "belum_jatuh_tempo", tanggal: "2026-10-04" }]);
 
     s.setup.clock.set(wib("2026-10-05 10:00"));
     await jatuhTempo(s, item);
@@ -124,6 +137,45 @@ describe("a Mitra Jasa's Pencairan, as they read it", () => {
     const transferSaya = await transferUntuk(s, s.rina);
     if (!transferSaya) throw new Error("the run has no row for the Mitra Jasa");
     expect(await daftar(s, s.rina)).toMatchObject([{ status: "jatuh_tempo", tanggal: wibDateOf(transferSaya.jatuhTempoAt), total: 150_000, bukti: null }]);
+  });
+
+  it("says the WIB date its Keluhan window ends on, whatever the hour the window ends at", async () => {
+    const s = await siap();
+    // Approved at 02:00 WIB, which is still the day before in UTC: the window ends 3×24 h later, at 02:00 WIB on the 5th.
+    s.setup.clock.set(wib("2026-10-02 02:00"));
+    await catat(s, s.rina, BUNGA);
+
+    expect(await daftar(s, s.rina)).toMatchObject([{ status: "belum_jatuh_tempo", tanggal: "2026-10-05" }]);
+  });
+
+  it("shows no date for a Belum jatuh tempo Pencairan recorded before its window's end was kept, and still says its status", async () => {
+    const s = await siap();
+    await catat(s, s.rina, BUNGA, { jendelaBerakhir: null });
+
+    expect(await daftar(s, s.rina)).toMatchObject([{ status: "belum_jatuh_tempo", tanggal: null, total: 150_000 }]);
+  });
+
+  it("names the TPU of a Pencairan recorded before the TPU was kept as a field of its own, from the job's reference", async () => {
+    const s = await siap();
+    const lama = await catat(s, s.rina, BUNGA, { tanpaTpu: true });
+    // A job whose reference is not "<Layanan> – <TPU>" has no TPU to name, and is never given a made-up one.
+    const baru = await s.setup.db.transaction(async (tx) => {
+      const dibuat = await s.setup.payouts.catatItemLayananMitraJasa(tx, {
+        akunId: s.rina.accountId,
+        nama: "Rina Partial",
+        lokasiId: null,
+        pekerjaan: "Pekerjaan #PKJ-0007",
+        layanan: PEMBERSIHAN.layanan,
+        tanggal: PEMBERSIHAN.tanggal,
+        tarif: PEMBERSIHAN.tarif,
+      });
+      if (!dibuat.ok) throw new Error(`item refused: ${dibuat.reason}`);
+      return dibuat.id;
+    });
+
+    const urut = new Map((await daftar(s, s.rina)).flatMap((satu) => satu.pekerjaan).map((baris) => [baris.itemId, baris]));
+    expect(urut.get(lama)).toMatchObject({ layanan: BUNGA.layanan, tpu: "TPU Kober" });
+    expect(urut.get(baru)).toMatchObject({ layanan: PEMBERSIHAN.layanan, tpu: null });
   });
 
   it("adds up to what Payouts will transfer, and a Bukti Pencairan settles those jobs as one transfer for that amount", async () => {
@@ -190,7 +242,7 @@ describe("a Mitra Jasa's Pencairan, as they read it", () => {
     expect(await s.setup.payouts.daftarPencairanMitraJasa(petugas)).toEqual({ ok: false, reason: "tidak_berwenang" });
   });
 
-  it("shows a Pencairan Admin Platform holds as Ditahan, without the reason, and keeps it out of the transfer", async () => {
+  it("shows a Pencairan Admin Platform holds as Ditahan, with the date it fell due and without the reason, and keeps it out of the transfer", async () => {
     const s = await siap();
     const item = await catat(s, s.rina, BUNGA);
     s.setup.clock.set(wib("2026-10-05 10:00"));
@@ -199,7 +251,7 @@ describe("a Mitra Jasa's Pencairan, as they read it", () => {
     const ditahan = await s.setup.payouts.tahanPencairan(s.admin, { itemId: item, alasan: "Foto buktinya diperiksa ulang" });
     expect(ditahan).toMatchObject({ ok: true });
     const sambil = await daftar(s, s.rina);
-    expect(sambil).toMatchObject([{ status: "ditahan", tanggal: null, total: 150_000 }]);
+    expect(sambil).toMatchObject([{ status: "ditahan", tanggal: "2026-10-05", total: 150_000 }]);
     expect(JSON.stringify(sambil)).not.toContain("diperiksa");
     expect(await transferUntuk(s, s.rina)).toBeNull();
 

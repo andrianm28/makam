@@ -33,7 +33,7 @@ import { akunResource, pekerjaanTpuSemuaResource, writeRefusal } from "@/domain/
 import { documentExtension, type DocumentContentType } from "@/lib/files/document-type";
 import { BUKTI_MAX_BYTES, buktiKurang, jenisBuktiDibutuhkan } from "./bukti";
 import type { LayananDeps } from "./deps";
-import { JENDELA_KELUHAN_JAM } from "./keluhan";
+import { JENDELA_KELUHAN_JAM, jendelaKeluhanBerakhir } from "./keluhan";
 import { proofOf } from "./katalog";
 import { profileOfActor } from "./mitra-jasa";
 import { buktiPekerjaanSchema, type BuktiPekerjaan } from "./pesanan-schema";
@@ -273,6 +273,8 @@ export async function setujuiBuktiTpu(deps: LayananDeps, by: Actor, rawInput: un
         tarif: tarif.amount,
         nomorPemesanan: null,
         label: job.label,
+        // The Keluhan window opens with this approval: its end is the earliest the Pencairan can fall due, and the Mitra Jasa's page says so.
+        jatuhTempoPalingCepat: jendelaKeluhanBerakhir(sekarang),
       });
       if (!dicatat.ok) return { ok: false as const, reason: "tarif_belum_ada" as const };
       pencairanItemId = dicatat.id;

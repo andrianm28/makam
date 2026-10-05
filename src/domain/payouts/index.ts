@@ -246,6 +246,8 @@ export interface Payouts {
       tarif: number;
       nomorPemesanan?: string | null;
       label?: string;
+      /** The earliest the job's Pencairan can fall due (the end of its Keluhan window), which the Mitra Jasa is shown as the date to expect. */
+      jatuhTempoPalingCepat?: Date | null;
     },
   ): Promise<CatatLayananMitraJasaResult>;
   /**
@@ -287,7 +289,11 @@ export interface Payouts {
   pencairanJatuhTempo(): Promise<BarisJatuhTempo[]>;
   /** One Lokasi Mitra's Pencairan: per order Belum jatuh tempo / Jatuh tempo / Dicairkan, its Bukti Pencairan list and its Potongan. */
   pencairanLokasi(by: Actor, lokasiId: string): Promise<PencairanLokasi>;
-  /** A Mitra Jasa's own Pencairan, flat, one row per job with its Layanan, date, rate and Bukti Pencairan, and nothing else (their page reads `daftarPencairanMitraJasa`). */
+  /**
+   * A Mitra Jasa's own Pencairan, flat, one row per job with its Layanan, date, rate and Bukti Pencairan, and nothing else.
+   * Only tests read it today, and it has no Ditahan status: their page reads `daftarPencairanMitraJasa`, and the one to
+   * retire is this (a follow-up: the Layanan, Payouts and batal-hari-H tests still assert on it).
+   */
   pencairanMitraJasa(by: Actor): Promise<PencairanMitraJasa>;
   /**
    * A Mitra Jasa's own Pencairan as their page lists it, newest first (ticket 55 AC 3): a transfer already made as one entry
