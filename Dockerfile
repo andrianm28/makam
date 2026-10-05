@@ -44,6 +44,15 @@ FROM base AS runner
 # the base tag still carried the old one. Refreshing the lists, upgrading and
 # installing share one layer, so the lists are fresh for all three and leave
 # with it.
+#
+# The layer sits behind an ARG that no command reads. BuildKit reuses a layer
+# whose instruction and parent are unchanged, and CI keeps layers between builds
+# (cache-from type=gha), so without the ARG the upgrade would run again only
+# when the base digest moves, and a fix published in between would never land.
+# ci.yml passes the UTC day and the attempt of the run: the layer is rebuilt by
+# the first build of each day, or at once by "Re-run all jobs". A build outside
+# CI leaves it empty.
+ARG DEBIAN_PACKAGES_AS_OF=""
 RUN apt-get update \
  && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends chromium-headless-shell fonts-dejavu-core \

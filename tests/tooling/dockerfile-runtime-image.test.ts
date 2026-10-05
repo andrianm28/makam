@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { readWorkflow } from "../support/workflow";
 
 // Ticket 126: the main CI's image scan (Trivy) fails on any CRITICAL that has a
 // fix, and the one that stopped every deploy since 2026-10-05 was perl-base in
@@ -11,6 +12,14 @@ import { describe, expect, it } from "vitest";
 // image's maintainers rebuild it, so the runtime image upgrades its own Debian
 // packages when it is built. These tests read the Dockerfile the way
 // types-node-pin.test.ts does; the scan itself runs only in CI.
+//
+// An upgrade in the Dockerfile is not enough on its own: CI builds with
+// `cache-from: type=gha`, and BuildKit reuses a layer whose instruction and
+// parent have not changed. The log of the failing build shows this very layer
+// restored from that cache (a 210 MB blob, no package downloaded), so the
+// upgrade would run only when the base digest moves, and the next fixable
+// CRITICAL would stop the deploys again until it did. CI therefore passes the
+// day of the build as a build argument that the layer sits behind.
 const repo = fileURLToPath(new URL("../..", import.meta.url));
 const read = (p: string) => readFileSync(path.join(repo, p), "utf8");
 
@@ -39,7 +48,7 @@ function instructions(dockerfile: string): Instruction[] {
     }
     const text = `${continued} ${line}`.trim();
     continued = "";
-    const [, keyword, args] = /^(\S+)\s*(.*)$/s.exec(text)!;
+    const [, keyword, args] = /^(\S+)\s*(.*)$/.exec(text)!;
     if (keyword.toUpperCase() === "FROM") {
       const from = /^(\S+)(?:\s+AS\s+(\S+))?$/i.exec(args)!;
       stage = from[2] ?? from[1];
@@ -129,5 +138,29 @@ describe("the runtime image's Dockerfile", () => {
       { stage: "runner", keyword: "USER", args: "node" },
     ]);
     expect(externalImages(sample)).toEqual(["node:22@sha256:abc"]);
+  });
+});
+
+describe("the runtime image's Debian layer in CI", () => {
+  it("sits behind a build argument that carries the UTC day and the attempt of the CI build, so the upgrade runs again every day and not only when the base image moves", () => {
+    const runner = instructions(read("Dockerfile")).filter((i) => i.stage === "runner");
+    const apt = runner.findIndex((i) => i.keyword === "RUN" && /\bapt-get\b/.test(i.args));
+    const keys = runner.slice(0, apt).filter((i) => i.keyword === "ARG");
+    expect(keys, "one ARG of the runner stage, ahead of its apt layer").toHaveLength(1);
+    const key = /^(\w+)=/.exec(keys[0].args)?.[1];
+    expect(key, "an ARG with a default, so a build outside CI needs no argument").toBeDefined();
+
+    const job = readWorkflow("ci.yml").job("image");
+    const build = job.steps.find((step) => step.uses?.startsWith("docker/build-push-action@"));
+    expect(build, "the image job builds with docker/build-push-action").toBeDefined();
+    const value = new RegExp(`^\\s*${key}=(.+)$`, "m").exec(build!.text)?.[1];
+    expect(value, `the build step passes ${key} in build-args`).toBeDefined();
+    expect(value, "a re-run of all jobs is a new attempt: it rebuilds the layer at once").toContain("${{ github.run_attempt }}");
+
+    const day = /\$\{\{\s*steps\.(\w+)\.outputs\.(\w+)\s*\}\}/.exec(value!);
+    expect(day, "the day comes from a step output").not.toBeNull();
+    const producer = job.steps.slice(0, job.steps.indexOf(build!)).find((step) => step.id === day![1]);
+    expect(producer?.run, "a step before the build computes the day in UTC").toContain("date -u +%F");
+    expect(producer?.run, "and publishes it under the name the build argument reads").toContain(`${day![2]}=$(date -u +%F)" >> "$GITHUB_OUTPUT"`);
   });
 });
