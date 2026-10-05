@@ -1,5 +1,5 @@
 {
-  "id": "2bc7b5dd-62e0-4ac0-8566-bf25ccafd30f",
+  "id": "930a6c39-515c-4953-8ad5-888c2934d796",
   "prevId": "bfe81251-0fbf-4ac5-afa6-75860f4bf191",
   "version": "7",
   "dialect": "postgresql",
@@ -6270,6 +6270,91 @@
       },
       "isRLSEnabled": false
     },
+    "public.penilaian_layanan_tpu": {
+      "name": "penilaian_layanan_tpu",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "pekerjaan_id": {
+          "name": "pekerjaan_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pemesan_account_id": {
+          "name": "pemesan_account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bintang": {
+          "name": "bintang",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "komentar": {
+          "name": "komentar",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "dibuat_at": {
+          "name": "dibuat_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "penilaian_layanan_tpu_pekerjaan_idx": {
+          "name": "penilaian_layanan_tpu_pekerjaan_idx",
+          "columns": [
+            {
+              "expression": "pekerjaan_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "penilaian_layanan_tpu_pekerjaan_id_pekerjaan_layanan_tpu_id_fk": {
+          "name": "penilaian_layanan_tpu_pekerjaan_id_pekerjaan_layanan_tpu_id_fk",
+          "tableFrom": "penilaian_layanan_tpu",
+          "tableTo": "pekerjaan_layanan_tpu",
+          "columnsFrom": [
+            "pekerjaan_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "penilaian_layanan_tpu_bintang_check": {
+          "name": "penilaian_layanan_tpu_bintang_check",
+          "value": "\"penilaian_layanan_tpu\".\"bintang\" between 1 and 5"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.pesanan_layanan": {
       "name": "pesanan_layanan",
       "schema": "",
@@ -8681,12 +8766,6 @@
         },
         "layanan_nama": {
           "name": "layanan_nama",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tpu_nama": {
-          "name": "tpu_nama",
           "type": "text",
           "primaryKey": false,
           "notNull": false

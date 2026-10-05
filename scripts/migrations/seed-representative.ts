@@ -228,6 +228,10 @@ const OVERRIDES: Record<string, Record<string, Override>> = {
   penilaian_layanan: {
     bintang: ({ n }) => (n % 5) + 1,
   },
+  /** `penilaian_layanan_tpu_bintang_check` (ticket 123): a TPU job's Penilaian is the same 1 to 5 stars, stated here for the same reason. */
+  penilaian_layanan_tpu: {
+    bintang: ({ n }) => (n % 5) + 1,
+  },
 };
 
 /**

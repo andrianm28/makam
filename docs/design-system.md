@@ -217,7 +217,7 @@ makam compositions (`src/components/makam/`):
 | `EmptyState` | Empty list, tab or panel; `tone="error"` for a failed load. Icon, a title saying what would be here, one action. |
 | `DataTable` | The List pattern over TanStack Table: search, one status filter, a row action menu, the Nyaman / Rapat density switch (dense tables only), and the empty / "no matches" states. Search, filter and pagination can be driven by the caller (`manual`) for a server-side query, e.g. Lokasi Mitra's `searchLokasiMitra`; `DataTableSkeleton` is its `loading.tsx` shape. |
 | `PageTabs` | The Detail pattern's tabs: each one its own URL (`aria-current="page"` on the active one), so the browser's back button and a shared link both land on the right tab. |
-| `ConfirmDialog` | An action that can't be undone, or needs a reason for the Audit Log: a title, a description, an optional required reason field, and a destructive or default confirm button. Wraps shadcn's `alert-dialog`. |
+| `ConfirmDialog` | An action that can't be undone, or needs a reason for the Audit Log: a title, a description, an optional required reason field (every opening starts with it empty), and a destructive or default confirm button. Wraps shadcn's `alert-dialog`. |
 | `RoleSwitcher` | Switch between the staff roles one Akun holds. Hidden when it holds one. |
 | `LokasiSwitcher` | Header control for an Admin Lokasi of several Lokasi Mitra: switches which one the current page is scoped to, keeping the same kind of page where that still makes sense. Hidden when it works on one. |
 | `BottomNav` | Mitra Jasa and Petugas Lapangan's phone navigation: their whole menu as up to 4 tappable items, in place of the sheet sidebar. |

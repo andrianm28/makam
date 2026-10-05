@@ -976,3 +976,27 @@ export const keluhanLayananTpu = pgTable(
   },
   (table) => [uniqueIndex("keluhan_layanan_tpu_pekerjaan_idx").on(table.pekerjaanId), index("keluhan_layanan_tpu_status_idx").on(table.status)],
 );
+
+/**
+ * Owned by the Layanan module: the Pemesan's optional Penilaian of one finished TPU job (ticket 123), 1–5 stars with a
+ * comment, one per job. It is `penilaian_layanan`'s twin for the other kind of job: a TPU job is not a `pekerjaan_layanan`
+ * row, so its Penilaian cannot point at one. **Only Admin Platform reads it** (CONTEXT.md): no read that reaches a Mitra Jasa
+ * carries it, and the Mitra Jasa's scorecard carries nothing but the mean of what their jobs were given.
+ */
+export const penilaianLayananTpu = pgTable(
+  "penilaian_layanan_tpu",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    pekerjaanId: uuid("pekerjaan_id")
+      .notNull()
+      .references(() => pekerjaanLayananTpu.id),
+    pemesanAccountId: uuid("pemesan_account_id").notNull(),
+    bintang: integer("bintang").notNull(),
+    komentar: text("komentar"),
+    dibuatAt: at("dibuat_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("penilaian_layanan_tpu_pekerjaan_idx").on(table.pekerjaanId),
+    check("penilaian_layanan_tpu_bintang_check", sql`${table.bintang} between 1 and 5`),
+  ],
+);

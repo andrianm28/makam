@@ -1,16 +1,27 @@
 import { tanggalBerakhir } from "@/lib/perpanjangan-tanggal";
 import type { PengurusanOrder } from "@/domain/pengurusan";
+import type { PermintaanPengembalian } from "@/domain/refunds";
 import { StatusBadge, type StatusKey } from "@/components/makam/status-badge";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
+import { PengembalianPemesan } from "./pengembalian-pemesan";
 
 /**
  * A Perpanjangan TPU, as its Pemegang Hak follows it (spec, Pengurusan > Perpanjangan TPU; stories 80-83; ticket 48):
  * the order, what is being waited for, the pay-first Tagihan once the documents pass, and the shared filing steps
  * (documents to upload, Perlu Perbaikan, the scan at IPTM Terbit, cancelling) of `PengajuanPemesan`.
  */
-export function PerpanjanganTpuPemesan({ order, scanUrl }: { order: PengurusanOrder; scanUrl: string | null }) {
+export function PerpanjanganTpuPemesan({
+  order,
+  scanUrl,
+  pengembalian,
+}: {
+  order: PengurusanOrder;
+  scanUrl: string | null;
+  /** The refund waiting for the Pemesan's rekening once the PTSP has refused a paid renewal for good; null when none. */
+  pengembalian: PermintaanPengembalian | null;
+}) {
   const menungguTpu = order.status === "diajukan" && order.perpanjangan?.lewatMasaTenggang && !order.perpanjangan.cekTpuSelesaiPada;
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-6 px-4 py-8">
@@ -49,6 +60,8 @@ export function PerpanjanganTpuPemesan({ order, scanUrl }: { order: PengurusanOr
       </p>
 
       <PengajuanPemesan order={order} scanUrl={scanUrl} />
+
+      <PengembalianPemesan nomor={order.nomor} pengembalian={pengembalian} />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-title-3 text-foreground">Yang dipesan</h2>

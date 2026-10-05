@@ -101,6 +101,38 @@ export async function permintaanUntukPesanan(db: Database, nomorPemesanan: strin
   return row ? toPermintaan(row) : null;
 }
 
+/** One refund on an order as its Pemesan follows it: where it stands, how much, and the Bukti Pengembalian Dana once the money is sent (ticket 120). */
+export interface PengembalianPesanan {
+  id: string;
+  status: PermintaanPengembalianStatus;
+  jumlah: Rupiah;
+  diajukanPada: Date;
+  /** The Bukti Pengembalian Dana the transfer issued, for the family to open; null until the money is sent. */
+  bukti: { nomor: string; link: string; ditransferPada: string } | null;
+}
+
+/**
+ * Every refund on one order, oldest first, whatever its state: Diajukan (waiting for Admin Platform), Disetujui (waiting for the
+ * transfer) and Ditransfer (with its Bukti Pengembalian Dana). `permintaanUntukPesanan` answers only the open one the bank-account
+ * form needs; this is what the Pemesan follows, so a refund that was paid is still there to read. No actor: the page that asks has
+ * already shown the order to its own Pemesan, as it has for `permintaanUntukPesanan`.
+ */
+export async function riwayatPengembalianPesanan(db: Database, nomorPemesanan: string): Promise<PengembalianPesanan[]> {
+  const rows = await db
+    .select({ permintaan: permintaanPengembalian, bukti: buktiPengembalianDana })
+    .from(permintaanPengembalian)
+    .leftJoin(buktiPengembalianDana, eq(buktiPengembalianDana.id, permintaanPengembalian.buktiId))
+    .where(eq(permintaanPengembalian.nomorPemesanan, nomorPemesanan))
+    .orderBy(asc(permintaanPengembalian.diajukanPada), asc(permintaanPengembalian.id));
+  return rows.map(({ permintaan, bukti }) => ({
+    id: permintaan.id,
+    status: permintaan.status as PermintaanPengembalianStatus,
+    jumlah: permintaan.jumlah,
+    diajukanPada: permintaan.diajukanPada,
+    bukti: bukti ? { nomor: bukti.nomor, link: bukti.link, ditransferPada: bukti.ditransferPada } : null,
+  }));
+}
+
 export async function permintaanById(db: Database, id: string): Promise<PermintaanPengembalian | null> {
   const [row] = await db.select().from(permintaanPengembalian).where(eq(permintaanPengembalian.id, id));
   return row ? toPermintaan(row) : null;

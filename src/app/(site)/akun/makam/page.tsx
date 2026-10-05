@@ -20,14 +20,14 @@ export const metadata: Metadata = {
  * Akun Saya's Makam tab (spec, story 101): every Hak Pakai whose recorded
  * Pemegang Hak email is this Akun's Email Terverifikasi — even one someone else
  * ordered — with its Lokasi, Petak / Kavling, status, end date, every Pemakaman
- * and its documents. "Ajukan Pembatalan" is here for a paid Terencana Hak Pakai that can still be given
+ * and its documents (the Bukti Pemesanan, and the Bukti Perpanjangan of its latest Perpanjangan, ticket 120). "Ajukan Pembatalan" is here for a paid Terencana Hak Pakai that can still be given
  * back (ticket 38); Makam TPU cards (ticket 46: each links to Pesan Layanan prefilled with `?makam=<id>`), active Paket and the other Pemegang Hak actions are this tab's
  * later extension points (tickets 46, 54, 39).
  */
 export default async function AkunMakamPage() {
   const actor = await currentActor();
   if (!actor) redirect("/masuk");
-  const { inventory, lokasi, pemesanan, pengurusan } = serverRuntime();
+  const { inventory, lokasi, pemesanan, pengurusan, perpanjangan } = serverRuntime();
   // Pengembalian, Ganti Pemegang Hak and the Calon Penghuni label open with Rilis 2 (ADR 0006).
   const permintaanTerbuka = rilisTerbuka("perpanjangan_lanjutan");
   const makamTpu = await pengurusan.makamTpuSaya({ accountId: actor.accountId });
@@ -57,11 +57,16 @@ export default async function AkunMakamPage() {
   );
   const kartu = await Promise.all(
     unit.map(async (satu) => {
-      const bukti = await pemesanan.buktiUntukHakPakai(satu.hakPakaiId);
+      // Both reads take a Hak Pakai read back from this Akun's own email above, never one from a request.
+      const [bukti, buktiPerpanjangan] = await Promise.all([pemesanan.buktiUntukHakPakai(satu.hakPakaiId), perpanjangan.buktiPerpanjanganTerbaru(satu.hakPakaiId)]);
       return kartuMakamSaya(
         satu,
         namaLokasi,
-        bukti.map((satuBukti) => ({ nomor: satuBukti.nomor, href: documentPagePath(satuBukti.link) })),
+        [
+          ...bukti.map((satuBukti) => ({ nomor: satuBukti.nomor, jenis: "Bukti Pemesanan" as const, href: documentPagePath(satuBukti.link) })),
+          // The latest Perpanjangan's proof only (owner rule C4): served on its own page, as every other Bukti is.
+          ...(buktiPerpanjangan ? [{ nomor: buktiPerpanjangan.nomor, jenis: "Bukti Perpanjangan" as const, href: documentPagePath(buktiPerpanjangan.link) }] : []),
+        ],
         lokasiBerhenti,
       );
     }),
@@ -169,6 +174,7 @@ export default async function AkunMakamPage() {
                     <Link href={dokumen.href} className="text-small font-medium text-brand underline underline-offset-4">
                       {dokumen.nomor}
                     </Link>
+                    <span className="ml-2 text-small text-muted-foreground">{dokumen.jenis}</span>
                   </li>
                 ))}
               </ul>

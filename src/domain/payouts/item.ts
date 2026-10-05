@@ -326,12 +326,13 @@ export type BatalkanItemResult = { ok: true } | { ok: false; reason: "tidak_dite
 
 /**
  * Cancels one Pencairan item that has not been transferred, by id (a Mitra Jasa job redone by
- * another Mitra Jasa: the original Pencairan is cancelled, spec Layanan > Mitra Jasa pay; ticket 57).
+ * another Mitra Jasa: the original Pencairan is cancelled, spec Layanan > Mitra Jasa pay; ticket 57; or a Saat Duka
+ * TPU order cancelled while the job was being redone, ticket 121).
  * An item already due is cancelled too; one already transferred or cancelled is left as it is.
  */
 export async function batalkanItem(
   tx: Database,
-  input: { itemId: string; alasan: Extract<PencairanItemBatalReason, "diganti_pelaksana"> },
+  input: { itemId: string; alasan: Extract<PencairanItemBatalReason, "diganti_pelaksana" | "pesanan_dibatalkan"> },
   now: Date,
 ): Promise<BatalkanItemResult> {
   if (!z.uuid().safeParse(input.itemId).success) return { ok: false, reason: "tidak_ditemukan" };

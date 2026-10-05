@@ -11,7 +11,7 @@ import { pengajuanOnTestDatabase, type PengajuanSetup } from "../../../tests/sup
 import { makamTpu } from "./schema";
 import { eq } from "drizzle-orm";
 import { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
-import { makamTpuDenganIptm } from "../../../tests/support/makam-tpu";
+import { makamTpuDenganIptm, perpanjanganTpuDiajukan, perpanjanganTpuMenungguPembayaran } from "../../../tests/support/makam-tpu";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -143,15 +143,7 @@ describe("Perlu Perbaikan before payment", () => {
 });
 
 /** Every document in, checked: the Tagihan is out, issued 20 December 2026 at 14:00. */
-async function sampaiMenungguPembayaran(setup: PengajuanSetup, dasar: Dasar) {
-  setup.clock.set(wib("2026-12-20 10:00"));
-  const nomor = await pesanan(setup, dasar);
-  setup.clock.set(wib("2026-12-20 14:00"));
-  await unggah(setup, dasar, nomor);
-  const hasil = await setup.pengurusan.periksaDokumen(dasar.admin, { nomor });
-  if (!hasil.ok || hasil.status !== "menunggu_pembayaran") throw new Error(`check refused: ${JSON.stringify(hasil)}`);
-  return { nomor, tagihan: hasil.tagihan };
-}
+const sampaiMenungguPembayaran = perpanjanganTpuMenungguPembayaran;
 
 describe("paying the Tagihan", () => {
   it("lapses the order to Dibatalkan when the Tagihan is still unpaid 3×24 h after issue", async () => {
@@ -253,15 +245,7 @@ describe("a request past the masa tenggang", () => {
 });
 
 /** Paid, filed: IPTM Diajukan, the Tagihan Lunas on 21 December 2026. */
-async function sampaiDiajukan(setup: PengajuanSetup, dasar: Dasar) {
-  const { nomor, tagihan } = await sampaiMenungguPembayaran(setup, dasar);
-  setup.clock.set(wib("2026-12-21 09:00"));
-  await setup.billing.recordPayment(tagihan.id, QRIS);
-  await setup.pengurusan.pembayaranBerkasTick();
-  const diajukan = await setup.pengurusan.ajukanIptm(dasar.admin, { nomor });
-  if (!diajukan.ok) throw new Error(`IPTM Diajukan refused: ${diajukan.reason}`);
-  return { nomor, tagihan };
-}
+const sampaiDiajukan = perpanjanganTpuDiajukan;
 
 describe("a PTSP rejection of a Perpanjangan TPU", () => {
   it("sends a fixable rejection back to Perlu Perbaikan, refiled at no charge and with no new Tagihan", async () => {

@@ -265,8 +265,11 @@ export interface Payouts {
    * answer is `belum_ada` (the Lunas half has not written the item yet). Idempotent.
    */
   jadikanLayananJatuhTempo(tx: Database, input: { tagihanId: string; tagihanPosisi: number }): Promise<LayananJatuhTempoResult>;
-  /** Cancels one untransferred item by id: a Mitra Jasa's job redone by another Mitra Jasa (ticket 57). */
-  batalkanItem(tx: Database, input: { itemId: string; alasan: "diganti_pelaksana" }): Promise<BatalkanItemResult>;
+  /**
+   * Cancels one untransferred item by id: a Mitra Jasa's job redone by another Mitra Jasa (ticket 57), or the original job's item
+   * of a redo that ends with its cancelled Saat Duka TPU order (ticket 121). One already transferred or cancelled is left as it is.
+   */
+  batalkanItem(tx: Database, input: { itemId: string; alasan: "diganti_pelaksana" | "pesanan_dibatalkan" }): Promise<BatalkanItemResult>;
   /** The 2 Hari Kerja deadline for an item that another ticket's trigger has just made due. */
   jadikanJatuhTempo(tx: Database, itemId: string): Promise<{ ok: true } | { ok: false; reason: "tidak_ditemukan" }>;
 

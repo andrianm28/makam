@@ -14,6 +14,7 @@ import type { FakeFileStore } from "@/adapters/memory";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggalJam, wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
+import { EMAIL_PEMEGANG_HAK, makamTpuDenganIptm, perpanjanganTpuDiajukan } from "../../../../tests/support/makam-tpu";
 import { browser } from "../../../../tests/support/next-request";
 import { siapkanOperatorPemesanan } from "../../../../tests/support/pemesanan";
 import { orderSaatDukaTpu, pemesanDenganEmail, pengajuanOnTestDatabase, tpu, type PengajuanSetup } from "../../../../tests/support/pengurusan";
@@ -35,6 +36,7 @@ vi.mock("next/navigation", () => ({
 
 const { default: PengurusanPage } = await import("./page");
 const { PengurusanIptmPemesan } = await import("./pengurusan-iptm-pemesan");
+const { isiRekeningPengembalianPengurusanAction } = await import("./pengajuan-actions");
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -52,10 +54,10 @@ const QRIS = { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, referen
 /** What the Pemesan reads: the markup as plain text, whitespace collapsed. */
 const bacaan = (html: string) => html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 
-/** The Pemesan opens the order's page, signed in as the Kode Masuk that placed it signs them in. */
-async function halaman(nomor: string) {
+/** The Pemesan opens the order's page, signed in as the Kode Masuk that placed it signs them in (`email`, the Pemesan's by default). */
+async function halaman(nomor: string, email = EMAIL) {
   browser.reset();
-  browser.store((await server.logIn(EMAIL)).session.cookies);
+  browser.store((await server.logIn(email)).session.cookies);
   const html = renderToStaticMarkup(await PengurusanPage({ params: Promise.resolve({ nomor }) } as never));
   return { html, teks: bacaan(html) };
 }
@@ -159,7 +161,14 @@ async function sampaiDibatalkan(setup: PengajuanSetup, dasar: Dasar) {
 }
 
 /** What only a burial arranged by us makes true: none of it may be said to a family that buried on its own. */
-const HANYA_UNTUK_PEMAKAMAN = ["Waktu pemakaman", "Pemakaman sudah dikonfirmasi", "Waktu konfirmasi", "Dibawa saat pemakaman", "Tagihan terbit setelah pemakaman dikonfirmasi"];
+const HANYA_UNTUK_PEMAKAMAN = [
+  "Waktu pemakaman",
+  "Pemakaman sudah dikonfirmasi",
+  "Waktu konfirmasi",
+  "Dibawa saat pemakaman",
+  "Tagihan terbit setelah pemakaman dikonfirmasi",
+  "pemakaman diatur dengan TPU",
+];
 
 describe("the order page of a Pengurusan IPTM, for a family that buried on its own", () => {
   it("opens at Dimakamkan, straight after the family places it, with no burial time and the documents still to upload", async () => {
@@ -194,6 +203,23 @@ describe("the order page of a Pengurusan IPTM, for a family that buried on its o
     // One link, not two: the page tells the family to pay, and gives them the one place to do it.
     expect(html.split('href="/dokumen/').length - 1).toBe(1);
     expect(teks).toContain("Bayar Tagihan agar kami bisa mengajukan IPTM");
+  });
+
+  it.each([
+    ["Dimakamkan", async () => {}],
+    ["Menunggu Pembayaran", sampaiMenungguPembayaran],
+  ] as const)("tells a family that buried on its own, at %s, what cancelling does in the words of the filing, never of a burial we arranged", async (_label, sampai) => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    await sampai(setup, dasar);
+
+    const { teks } = await halaman(dasar.nomor);
+
+    expect(teks).toContain("Batalkan pengurusan");
+    expect(teks).toContain(
+      "Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak berkas IPTM mulai kami urus.",
+    );
+    expect(teks).not.toContain("pemakaman diatur dengan TPU");
   });
 
   it("tells a family whose order came in at night nothing about the TPU window closing", async () => {
@@ -262,6 +288,43 @@ describe("the order page of a Pengurusan IPTM, for a family that buried on its o
     expect(teks).toContain(`Dana sebesar ${formatRupiah(permintaan!.jumlah)} akan dikembalikan`);
   });
 
+  it("asks for the rekening of the full refund a final PTSP rejection raises, as it does at Dibatalkan, and Refunds receives what the family enters", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    await sampaiDitolak(setup, dasar);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+
+    const { html, teks } = await halaman(dasar.nomor);
+
+    expect(permintaan).toMatchObject({ nomorPemesanan: dasar.nomor, status: "diajukan", penuh: true });
+    expect(teks).toContain("Pengajuan ditolak PTSP");
+    expect(html).toContain('data-testid="rekening-pengembalian"');
+    expect(teks).toContain(`Dana sebesar ${formatRupiah(permintaan!.jumlah)} akan dikembalikan`);
+
+    // The form is the one Dibatalkan has: its action stores the account on the request, which Admin Platform then reads to transfer.
+    const form = new FormData();
+    form.set("nomor", dasar.nomor);
+    form.set("bank", "Bank Syariah Indonesia");
+    form.set("nomorRekening", "7123456789");
+    form.set("nama", "Budi Santoso");
+    expect(await isiRekeningPengembalianPengurusanAction({ status: "idle" }, form)).toMatchObject({ status: "berhasil" });
+    expect(await setup.refunds.permintaanUntukPesanan(dasar.nomor)).toMatchObject({ rekening: { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" } });
+  });
+
+  it("says a refund already approved at Ditolak is waiting for its transfer, with no form to change the account", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananBerkas(setup);
+    await sampaiDitolak(setup, dasar);
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect((await setup.refunds.setujuiPengembalian(dasar.admin, { permintaanId: permintaan!.id })).ok).toBe(true);
+
+    const { html, teks } = await halaman(dasar.nomor);
+
+    expect(html).not.toContain('data-testid="rekening-pengembalian"');
+    expect(html).toContain('data-testid="rekening-pengembalian-terkunci"');
+    expect(teks).toContain(`Pengembalian dana ${formatRupiah(permintaan!.jumlah)} sudah disetujui dan menunggu transfer`);
+  });
+
   it("gives the Tagihan link only while the Tagihan is open: once it is paid, at Diproses, there is nothing left to pay", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananBerkas(setup);
@@ -307,6 +370,18 @@ describe("the order page of a Saat Duka TPU order, which has a burial", () => {
     expect(teks).toContain("Dibawa saat pemakaman");
   });
 
+  it("still tells the family that the Biaya Pengurusan is kept since the burial was arranged with the TPU, when cancelling", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+
+    const { teks } = await halaman(dasar.nomor);
+
+    expect(teks).toContain("Batalkan pengurusan");
+    expect(teks).toContain(
+      "Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak pemakaman diatur dengan TPU.",
+    );
+  });
+
   it("still shows the burial time once the burial is recorded as Dimakamkan", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananDikonfirmasi(setup);
@@ -318,5 +393,36 @@ describe("the order page of a Saat Duka TPU order, which has a burial", () => {
 
     expect(teks).toContain("Dimakamkan");
     expect(teks).toContain(`Waktu pemakaman ${formatTanggalJam(wib("2026-10-02 09:00"))}`);
+  });
+});
+
+/**
+ * The order page of a Perpanjangan TPU, read the way its Pemegang Hak reads it (ticket 121). A final PTSP rejection of a paid renewal
+ * refunds the whole Tagihan, and the refund waits for the bank account the family gives on this page, as it does on an order the family
+ * cancelled. The order is made through the module's public functions, as `perpanjangan-tpu.test.ts` makes it.
+ */
+describe("the order page of a Perpanjangan TPU", () => {
+  it("asks for the rekening of the full refund once the PTSP refuses it for good, as for an order the family cancelled, and Refunds receives it", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await makamTpuDenganIptm(setup, "2027-02-15");
+    const { nomor } = await perpanjanganTpuDiajukan(setup, dasar);
+
+    // While the PTSP has not answered nothing is owed back, so nothing about a refund is on the page.
+    expect((await halaman(nomor, EMAIL_PEMEGANG_HAK)).html).not.toContain('data-testid="rekening-pengembalian"');
+
+    const ditolak = await setup.pengurusan.tolakPtsp(dasar.admin, { nomor, putusan: "final", alasan: "IPTM sudah dicabut oleh TPU" });
+    expect(ditolak).toMatchObject({ ok: true, status: "ditolak", pengembalian: 1_000_000 });
+    const { html, teks } = await halaman(nomor, EMAIL_PEMEGANG_HAK);
+
+    expect(html).toContain('data-testid="rekening-pengembalian"');
+    expect(teks).toContain(`Dana sebesar ${formatRupiah(1_000_000)} akan dikembalikan`);
+
+    const form = new FormData();
+    form.set("nomor", nomor);
+    form.set("bank", "Bank Syariah Indonesia");
+    form.set("nomorRekening", "7123456789");
+    form.set("nama", "Hj. Rahmawati");
+    expect(await isiRekeningPengembalianPengurusanAction({ status: "idle" }, form)).toMatchObject({ status: "berhasil" });
+    expect(await setup.refunds.permintaanUntukPesanan(nomor)).toMatchObject({ rekening: { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Hj. Rahmawati" } });
   });
 });

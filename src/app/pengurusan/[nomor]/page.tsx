@@ -7,16 +7,16 @@ import { csWhatsAppLink } from "@/components/kode-masuk/state";
 import { authorize, pemesananResource } from "@/domain/identity";
 import { isOpenAt, TPU_SCHEDULE } from "@/domain/lokasi";
 import { KONFIRMASI_TPU_SAAT_DUKA_TYPE } from "@/domain/queues";
-import type { PengurusanOrder, PengurusanTpuStatus } from "@/domain/pengurusan";
+import { STATUS_BERAKHIR_DENGAN_PENGEMBALIAN, type PengurusanOrder, type PengurusanTpuStatus } from "@/domain/pengurusan";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { PekerjaanTpuDaftar } from "@/app/layanan/[nomor]/pekerjaan-tpu";
-import { RekeningPengembalianForm } from "@/app/(site)/pesanan/[nomor]/rekening-pengembalian-form";
-import { isiRekeningPengembalianPengurusanAction } from "./pengajuan-actions";
 import { JawabTpuLainForm } from "./jawab-tpu-lain";
+import { PengembalianLayananTpu } from "./pengembalian-layanan-tpu";
 import { PengajuanPemesan } from "./pengajuan-pemesan";
+import { PengembalianPemesan } from "./pengembalian-pemesan";
 import { PengurusanIptmPemesan } from "./pengurusan-iptm-pemesan";
 import { PerpanjanganTpuPemesan } from "./perpanjangan-tpu-pemesan";
 
@@ -45,18 +45,21 @@ export async function generateMetadata({ params }: PageProps<"/pengurusan/[nomor
 export default async function PengurusanPage({ params }: PageProps<"/pengurusan/[nomor]">) {
   const order = await orderFor(params);
   if (!order) notFound();
-  if (order.kind === "perpanjangan_tpu") return <PerpanjanganTpuPemesan order={order} scanUrl={await scanUrlOf(order)} />;
+  // A paid order that ended (cancelled by the family, or refused by the PTSP for good) has a refund waiting for the Pemesan's rekening, whatever its kind.
+  const pengembalian = await pengembalianOf(order);
+  if (order.kind === "perpanjangan_tpu") return <PerpanjanganTpuPemesan order={order} scanUrl={await scanUrlOf(order)} pengembalian={pengembalian} />;
   // A filing-only order has no burial arranged by us (ticket 47): everything below is about one, so it has a page of its own (ticket 116).
-  if (order.kind === "pengurusan_iptm") return <PengurusanIptmPemesan order={order} scanUrl={await scanUrlOf(order)} pengembalian={await pengembalianOf(order)} />;
-  const { operatorSettings, queues, layanan } = serverRuntime();
+  if (order.kind === "pengurusan_iptm") return <PengurusanIptmPemesan order={order} scanUrl={await scanUrlOf(order)} pengembalian={pengembalian} />;
+  const { operatorSettings, queues, layanan, refunds } = serverRuntime();
   const pengaturan = await operatorSettings.current();
-  // The hari-H Layanan of a confirmed order are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56).
+  // The hari-H Layanan are Pekerjaan Layanan a Mitra Jasa does on the burial day (ticket 56). They exist from the confirmation on and stay
+  // on this page in every status the order reaches, a cancelled one included, with where its refund stands (ticket 120): Akun Saya's Pesanan
+  // tab links the order to this page, so it is where the family must find them. An order not yet confirmed has none and answers null.
   const actor = await currentActor();
-  const layananHariH = actor && order.status === "dikonfirmasi" ? await layanan.pesananTpuOf(order.nomor, { accountId: actor.accountId }) : null;
+  const layananHariH = actor ? await layanan.pesananTpuOf(order.nomor, { accountId: actor.accountId }) : null;
+  const pengembalianLayanan = layananHariH ? await refunds.riwayatPengembalianPesanan(order.nomor) : [];
   const lanjut = SUDAH_DIKONFIRMASI.includes(order.status);
   const scanUrl = actor && order.status === "iptm_terbit" ? await serverRuntime().pengurusan.iptmScanUrl({ accountId: actor.accountId }, order.nomor) : null;
-  // A paid order cancelled before the IPTM was filed has a refund waiting for the Pemesan's rekening.
-  const pengembalian = actor && order.status === "dibatalkan" ? await serverRuntime().refunds.permintaanUntukPesanan(order.nomor) : null;
   const cs = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
   // The TPU window as it stood when this order was submitted: outside it the
   // family is waiting for the morning, and that is the case story 72 is about.
@@ -190,26 +193,21 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
 
       <PengajuanPemesan order={order} scanUrl={scanUrl} />
 
-      {pengembalian ? (
-        pengembalian.status === "diajukan" ? (
-          <RekeningPengembalianForm
-            nomor={order.nomor}
-            jumlahLabel={formatRupiah(pengembalian.jumlah)}
-            rekeningTercatat={pengembalian.rekening ? `${pengembalian.rekening.bank} ****${pengembalian.rekening.nomor.slice(-4)}` : null}
-            simpan={isiRekeningPengembalianPengurusanAction}
-          />
-        ) : (
-          <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="rekening-pengembalian-terkunci">
-            Pengembalian dana {formatRupiah(pengembalian.jumlah)} sudah disetujui dan menunggu transfer. Untuk mengubah rekening, hubungi CS.
-          </p>
-        )
-      ) : null}
+      <PengembalianPemesan nomor={order.nomor} pengembalian={pengembalian} />
 
       {layananHariH ? (
         <section className="flex flex-col gap-3" aria-label="Layanan hari-H">
           <h2 className="text-title-3 text-foreground">Layanan hari-H</h2>
-          <p className="text-small text-muted-foreground">Dikerjakan Mitra Jasa pada hari pemakaman, dan ditagihkan pada Tagihan di atas.</p>
+          <p className="text-small text-muted-foreground">
+            {/* The Tagihan block above is the confirmed order's: a cancelled one shows none to point at. */}
+            Dikerjakan Mitra Jasa pada hari pemakaman{lanjut ? ", dan ditagihkan pada Tagihan di atas" : ""}.{" "}
+            <a href={`/layanan/${order.nomor}`} className="font-medium text-brand underline underline-offset-4">
+              Buka halaman Layanan
+            </a>
+            .
+          </p>
           <PekerjaanTpuDaftar order={layananHariH} />
+          <PengembalianLayananTpu order={layananHariH} pengembalian={pengembalianLayanan} />
         </section>
       ) : null}
 
@@ -266,10 +264,10 @@ async function scanUrlOf(order: PengurusanOrder): Promise<string | null> {
   return actor && order.status === "iptm_terbit" ? serverRuntime().pengurusan.iptmScanUrl({ accountId: actor.accountId }, order.nomor) : null;
 }
 
-/** The refund a cancelled order that had been paid is waiting to send, for the Pemesan's rekening; null for any other order. */
+/** The refund an order that ended and had been paid is waiting to send, for the Pemesan's rekening; null for any other order. */
 async function pengembalianOf(order: PengurusanOrder) {
   const actor = await currentActor();
-  return actor && order.status === "dibatalkan" ? serverRuntime().refunds.permintaanUntukPesanan(order.nomor) : null;
+  return actor && STATUS_BERAKHIR_DENGAN_PENGEMBALIAN.includes(order.status) ? serverRuntime().refunds.permintaanUntukPesanan(order.nomor) : null;
 }
 
 /**

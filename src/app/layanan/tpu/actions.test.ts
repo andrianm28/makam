@@ -8,6 +8,9 @@
  *
  * The fake Clock sits at Thursday 1 Oktober 2026 09:00 WIB: a Batu Nisan with a 7-day lead time may be asked for
  * from 8 Oktober, a Bunga Tabur with a 1-day lead time from 2 Oktober.
+ *
+ * The last block is the choice after a Layanan is put back to "Tidak dipesan" (ticket 118), through the same
+ * functions the form calls.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../tests/support/next-request";
@@ -15,7 +18,7 @@ import { resetDatabase, testDatabase } from "../../../../tests/support/database"
 import { testServerRuntime } from "../../../../tests/support/server-runtime";
 import { layananOnTestDatabase, newLayananFor } from "../../../../tests/support/layanan";
 import { orderTpu, siapTpu } from "../../../../tests/support/layanan-tpu";
-import { itemPesananLayanan, type IsianLayanan } from "../item-pesanan";
+import { itemPesananLayanan, pilihVarian, varianDipilih, type IsianLayanan } from "../item-pesanan";
 import { kirimPesananLayananTpu } from "./actions";
 import { tampilanPesananTpu } from "./tampilan";
 
@@ -161,5 +164,35 @@ describe("Kirim of a Layanan order at a DKI TPU, for the payload the form builds
     expect(dari("Batu Nisan")).toMatchObject({ targetDate: "2026-10-25", teks: "Hasan Basri" });
     // The Bunga Tabur asks for no text, so none is sent for it.
     expect(dari("Bunga Tabur")).toMatchObject({ targetDate: "2026-10-12", teks: null });
+  });
+});
+
+describe("the Layanan chosen at a DKI TPU after one is put back to 'Tidak dipesan'", () => {
+  /** What the form holds once the Pemesan chose a Batu Nisan and a Bunga Tabur, and put the Batu Nisan back. */
+  const nisanDikembalikan = (s: Siap) =>
+    pilihVarian(pilihVarian(pilihVarian({}, s.nisan.layananId, s.nisan.varianId), s.bunga.layananId, s.bunga.varianId), s.nisan.layananId, "");
+
+  it("'Pesan layanan' sends the Layanan that remains and none of the one put back, whatever was typed for it", async () => {
+    const s = await siap();
+
+    const hasil = await kirimPesananLayananTpu(
+      draftForm(s, { dipilih: nisanDikembalikan(s), tanggal: { [s.nisan.layananId]: "2026-10-25" }, teks: { [s.nisan.layananId]: "Hasan Basri" } }),
+    );
+
+    const pesanan = await pesananDibaca(s, hasil);
+    expect(pesanan.item).toHaveLength(1);
+    expect(pesanan.item[0].label).toContain("Bunga Tabur");
+  });
+
+  it("with every Layanan put back nothing is chosen: no item is sent and Kirim places no order", async () => {
+    const s = await siap();
+    const dipilih = pilihVarian(pilihVarian({}, s.bunga.layananId, s.bunga.varianId), s.bunga.layananId, "");
+
+    // What the form counts to turn "Pesan layanan" on or off.
+    expect(varianDipilih(dipilih)).toEqual([]);
+    const draft = draftForm(s, { dipilih, tanggal: {}, teks: {} });
+    expect(draft.item).toEqual([]);
+    // The button is off for this; were it pressed anyway, the order is refused rather than placed with no Layanan.
+    expect((await kirimPesananLayananTpu(draft)).status).toBe("gagal");
   });
 });

@@ -10,7 +10,7 @@ import { toBase64 } from "@/lib/files/base64";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { FOTO_MAKAM_TPU_MAX_BYTES } from "@/domain/layanan/tpu-skema";
-import { itemPesananLayanan } from "../item-pesanan";
+import { itemPesananLayanan, pilihVarian, varianDipilih } from "../item-pesanan";
 import type { DraftTpu } from "./draft";
 import { kirimPesananLayananTpu, verifikasiKodeMasukDanKirimLayananTpu } from "./actions";
 import type { LayananTpuTawarkan, TampilanPesananTpu } from "./tampilan";
@@ -59,7 +59,8 @@ export function FormPesananTpu({
   const [perluKode, setPerluKode] = useState(false);
   const [mengirim, mulaiKirim] = useTransition();
 
-  const variantIds = Object.values(dipilih);
+  // The variants still chosen: a Layanan put back to "Tidak dipesan" is not one (see `varianDipilih`).
+  const variantIds = varianDipilih(dipilih);
   // The price is the sum of the chosen variants' DKI prices, which the server-rendered page handed down
   // (a TPU Tagihan carries no platform fee); Kirim prices the order again on the server.
   const parts = variantIds.flatMap((id) => {
@@ -170,7 +171,7 @@ export function FormPesananTpu({
             dipilih={dipilih[layanan.id] ?? ""}
             tanggal={tanggal[layanan.id] ?? ""}
             teks={teks[layanan.id] ?? ""}
-            onPilih={(id) => setDipilih((sebelumnya) => ({ ...sebelumnya, [layanan.id]: id }))}
+            onPilih={(id) => setDipilih((sebelumnya) => pilihVarian(sebelumnya, layanan.id, id))}
             onTanggal={(nilai) => setTanggal((sebelumnya) => ({ ...sebelumnya, [layanan.id]: nilai }))}
             onTeks={(nilai) => setTeks((sebelumnya) => ({ ...sebelumnya, [layanan.id]: nilai }))}
           />

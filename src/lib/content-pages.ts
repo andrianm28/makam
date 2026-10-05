@@ -226,3 +226,43 @@ export function barisHargaTpu(
     { kunci: "retribusi_iptm", label: "Retribusi Pemda (IPTM)", total: harga.retribusiIptm?.total ?? null, contoh: false },
   ];
 }
+
+/** Under the Layanan prices while some are examples: what "harga contoh" means for the family, said of the Layanan. */
+export const catatanHargaLayananContoh = "Selama masa uji coba, harga Layanan di atas adalah harga contoh, bukan harga yang berlaku.";
+
+/** One variant of a Layanan in the DKI price list: its name and its DKI price in whole rupiah. */
+export interface BarisHargaLayananTpu {
+  kunci: string;
+  label: string;
+  total: number;
+  /** The amount is an example price: the row carries `LABEL_HARGA_CONTOH`. */
+  contoh: boolean;
+}
+
+/** One Layanan of the DKI price list with its priced variants, as the page lists it. */
+export interface KelompokHargaLayananTpu {
+  kunci: string;
+  nama: string;
+  baris: BarisHargaLayananTpu[];
+}
+
+/**
+ * The DKI Layanan price list of "Pengurusan di TPU DKI" (ticket 43's last row; the Layanan module's `penawaranTpuUntukPesanan`
+ * is the offer, the same one the TPU order is priced from, so this page can never list what the order does not offer). Each
+ * Layanan keeps the place the catalog gives it, and each variant its own DKI price, which is also its total: a TPU Tagihan
+ * carries no Biaya Layanan Platform. While prices may be examples (`hargaContoh`, from the environment) every amount is
+ * labelled: a DKI Layanan price is the Operator's own, set by Admin Platform, and in the beta a Data Contoh set enters it. A
+ * Layanan with no priced variant is not offered at a TPU, so it has no row.
+ */
+export function kelompokHargaLayananTpu(
+  penawaran: readonly { layanan: { id: string; name: string }; varian: readonly { id: string; name: string; harga: number }[] }[],
+  hargaContoh: boolean,
+): KelompokHargaLayananTpu[] {
+  return penawaran
+    .filter((grup) => grup.varian.length > 0)
+    .map((grup) => ({
+      kunci: grup.layanan.id,
+      nama: grup.layanan.name,
+      baris: grup.varian.map((varian) => ({ kunci: varian.id, label: varian.name, total: varian.harga, contoh: hargaContoh })),
+    }));
+}

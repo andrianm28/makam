@@ -279,6 +279,39 @@ describe("the refund a cancellation asks of the Refunds module", () => {
     expect(permintaan).toMatchObject({ pihakBersalah: "lokasi", biayaLayananPlatformDikembalikan: true, jumlah: 900_000 });
   });
 
+  it("records a lateness refund of the whole Tagihan as penuh: its transfer makes the Tagihan Dikembalikan Penuh", async () => {
+    const { setup, lokasi, pemesan, pekerjaanId, order } = await siap();
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId, alasan: "Terlambat, tidak jadi." })).ok).toBe(true);
+
+    const [permintaan] = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toMatchObject({ jumlah: 900_000, penuh: true });
+    expect((await setup.refunds.setujuiPengembalian(lokasi.admin, { permintaanId: permintaan.id })).ok).toBe(true);
+    await setup.refunds.isiRekeningAdmin(lokasi.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(lokasi.admin, {
+      permintaanId: permintaan.id,
+      ditransferPada: "2026-10-22",
+      bukti: { body: foto(), contentType: "image/jpeg" },
+    });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(await setup.billing.tagihan(order.tagihan.id)).toMatchObject({ status: "dikembalikan_penuh" });
+  });
+
+  it("makes a lateness refund penuh only with the job that completes the Tagihan: the first of two is an ordinary partial request the second joins", async () => {
+    const { setup, pemesan, satu, dua } = await pesananDuaItem();
+    setup.clock.set(wib("2026-10-22 09:00"));
+    await tandaiTerlambat(setup.db, setup.clock.now());
+
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: satu, alasan: "Terlambat." })).ok).toBe(true);
+    expect((await setup.refunds.permintaanTerbuka())[0]).toMatchObject({ jumlah: 750_000 + 150_000, penuh: false });
+
+    expect((await setup.layanan.batalkanPekerjaan(pemesan, { pekerjaanId: dua, alasan: "Terlambat juga." })).ok).toBe(true);
+    const permintaan = await setup.refunds.permintaanTerbuka();
+    expect(permintaan).toHaveLength(1);
+    expect(permintaan[0]).toMatchObject({ jumlah: 750_000 * 2 + 150_000, penuh: true });
+  });
+
   it("joins the open request when a second job of the same order is cancelled: one transfer for the order", async () => {
     const { setup, pemesan, satu, dua } = await pesananDuaItem();
 

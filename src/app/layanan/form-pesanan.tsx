@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { hargaPilihanLayanan, kirimPesananLayanan, verifikasiKodeMasukDanKirimLayanan } from "./actions";
-import { itemPesananLayanan } from "./item-pesanan";
+import { itemPesananLayanan, pilihVarian, varianDipilih } from "./item-pesanan";
 import type { HargaPesananTerbaca, LayananTawarkan, TampilanPesananLayanan } from "./tampilan";
 
 /**
@@ -46,7 +46,8 @@ export function FormPesananLayanan({
   const [perluKode, setPerluKode] = useState(false);
   const [mengirim, mulaiKirim] = useTransition();
 
-  const variantIds = Object.values(dipilih);
+  // The variants still chosen: a Layanan put back to "Tidak dipesan" is not one (see `varianDipilih`).
+  const variantIds = varianDipilih(dipilih);
   const kunciHarga = variantIds.slice().sort().join(",");
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export function FormPesananLayanan({
             dipilih={dipilih[layanan.id] ?? ""}
             tanggal={tanggal[layanan.id] ?? ""}
             teks={teks[layanan.id] ?? ""}
-            onPilih={(id) => setDipilih((sebelumnya) => ({ ...sebelumnya, [layanan.id]: id }))}
+            onPilih={(id) => setDipilih((sebelumnya) => pilihVarian(sebelumnya, layanan.id, id))}
             onTanggal={(nilai) => setTanggal((sebelumnya) => ({ ...sebelumnya, [layanan.id]: nilai }))}
             onTeks={(nilai) => setTeks((sebelumnya) => ({ ...sebelumnya, [layanan.id]: nilai }))}
           />

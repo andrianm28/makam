@@ -168,7 +168,7 @@ function pekerjaanOf(item: ItemRow, tarif: Rupiah): PekerjaanPencairanMitraJasa 
 }
 
 /**
- * The TPU of a job. A Pencairan keeps it as a field of its own; one recorded before that (migration 0065) names it only
+ * The TPU of a job. A Pencairan keeps it as a field of its own; one recorded before that (migration 0066) names it only
  * inside the job's reference, which the Layanan module wrote as "<Layanan> – <TPU>". Read from there when the reference
  * has exactly that shape, never guessed otherwise.
  */
