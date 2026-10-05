@@ -5,18 +5,18 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ArrowRight, MessageCircle, Phone, ScrollText } from "lucide-react";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
-import { csWhatsAppLink, type KodeMasukRequestState } from "@/components/kode-masuk/state";
+import { csWhatsAppLink, type KodeMasukRequestState, type KodeMasukVerifyState } from "@/components/kode-masuk/state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PilihLayanan } from "@/components/layanan/pilih-layanan";
-import type { OpsiTambahLayanan } from "@/lib/layanan-pilihan";
 import { formatTelepon } from "@/lib/format-telepon";
-import { itemDariPilihan, subtotalPilihan, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
+import type { OpsiTambahLayanan, PilihanPerLayanan } from "@/lib/layanan-pilihan";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { kirimPesananTerencana, verifikasiKodeMasukDanKirimTerencana } from "./actions";
 import type { PilihanPicker } from "./denah-picker";
 import { initialKirimState, type DraftTerencana, type KirimState } from "./draft";
+import { layananPetakKosong } from "./layanan-petak";
 import { syaratLines } from "./syarat";
 import type { DenahView, SyaratView } from "./tampilan";
 import { terencanaPath } from "./tautan";
@@ -62,6 +62,9 @@ export function DataKirim({
 }) {
   const [pilihanLayanan, setPilihanLayanan] = useState<PilihanPerLayanan>({});
   const satuPetak = draft.units.length === 1 && "petakId" in draft.units[0];
+  // What the family picked for the empty plot, as the order takes it and as the total counts it: one function, so a
+  // Layanan the order does not carry is never one the total shown adds, and none is left out without a word.
+  const layananPetak = layananPetakKosong(satuPetak ? layananOpsi : [], pilihanLayanan);
   const [isi, setIsi] = useState({ pemesanName: "", email: draft.email, phoneNumber: draft.phoneNumber });
   const [calon, setCalon] = useState<"saya" | "lain">("saya");
   const [calonNama, setCalonNama] = useState("");
@@ -84,13 +87,19 @@ export function DataKirim({
         ? { mode: "pemesan" }
         : { mode: "lain", name: namaHolder, phoneNumber: teleponHolder, email: emailHolder },
     calonPenghuni: calon === "saya" ? { mode: "saya" } : { mode: "lain", name: calonNama },
-    layanan: satuPetak
-      ? itemDariPilihan(layananOpsi, pilihanLayanan, "petak_kosong").flatMap((satu) => (satu.targetDate ? [{ layananVariantId: satu.layananVariantId, targetDate: satu.targetDate, teks: satu.teks }] : []))
-      : [],
+    layanan: layananPetak.item,
   });
+
+  /** The choice changed: a refusal this screen gave for the earlier one (a Layanan with no date) is not true of the new one. */
+  function ubahLayanan(berikutnya: PilihanPerLayanan) {
+    if (hasil.status === "gagal" && hasil.message === layananPetak.ditolak) setHasil(initialKirimState);
+    setPilihanLayanan(berikutnya);
+  }
 
   /** Kirim for a Pemesan already signed in; the Kode Masuk path places the order inside its own action. */
   function kirimSekarang() {
+    // A Layanan picked with no date is refused here, in words, never sent without it.
+    if (layananPetak.ditolak) return setHasil({ status: "gagal", message: layananPetak.ditolak });
     kirim(async () => {
       const jadi = await kirimPesananTerencana(lengkap());
       setHasil(jadi);
@@ -227,12 +236,17 @@ export function DataKirim({
             idAwalan="petak-kosong"
             opsi={layananOpsi}
             nilai={pilihanLayanan}
-            onChange={setPilihanLayanan}
+            onChange={ubahLayanan}
             tanggalPalingDini={(grup) => layananOpsi.find((satu) => satu.id === grup.id)?.tanggalPalingDini ?? ""}
           />
-          {subtotalPilihan(layananOpsi, pilihanLayanan) > 0 ? (
+          {layananPetak.subtotal > 0 ? (
             <p className="text-body font-semibold text-foreground" data-testid="total-layanan">
-              Layanan ditambahkan ke Tagihan: {formatRupiah(subtotalPilihan(layananOpsi, pilihanLayanan))}
+              Layanan ditambahkan ke Tagihan: {formatRupiah(layananPetak.subtotal)}
+            </p>
+          ) : null}
+          {layananPetak.ditolak ? (
+            <p className="text-small text-muted-foreground" data-testid="layanan-tanpa-tanggal">
+              {layananPetak.ditolak}
             </p>
           ) : null}
         </fieldset>
@@ -283,7 +297,12 @@ export function DataKirim({
           <h2 className="text-title-3 text-foreground">Masukkan Kode Masuk</h2>
           <KodeMasukForm
             requestAction={mintaKodeMasuk}
-            verifyAction={(state, formData) => verifikasiKodeMasukDanKirimTerencana(lengkap(), state, formData)}
+            verifyAction={(state, formData) =>
+              // The Kode Masuk is kept for the next try: a Layanan with no date is refused before the action sees it.
+              layananPetak.ditolak
+                ? Promise.resolve<KodeMasukVerifyState>({ status: "gagal", message: layananPetak.ditolak })
+                : verifikasiKodeMasukDanKirimTerencana(lengkap(), state, formData)
+            }
             submitLabel="Kirim pesanan"
             defaultEmail={isi.email}
             csContact={csContact}
@@ -317,7 +336,7 @@ export function DataKirim({
         </div>
       ) : null}
 
-      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada layananTambahan={satuPetak ? subtotalPilihan(layananOpsi, pilihanLayanan) : 0} />
+      <TotalBarTerencana denah={denah} ringkasanText={ringkasan} ada layananTambahan={layananPetak.subtotal} />
     </div>
   );
 }

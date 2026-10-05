@@ -8,6 +8,9 @@
  *
  * The fake Clock sits at Thursday 1 Oktober 2026 09:00 WIB: a Batu Nisan with a 3-day lead time may be asked for
  * from 4 Oktober, a Tabur Bunga with a 1-day lead time from 2 Oktober.
+ *
+ * The last block is the other end of the same form (ticket 118): the choice after a Layanan is put back to "Tidak
+ * dipesan", read by the running price (`hargaPilihanLayanan`) and by Kirim, through the same functions the form calls.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../tests/support/next-request";
@@ -15,8 +18,8 @@ import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { testServerRuntime } from "../../../tests/support/server-runtime";
 import { layananOnTestDatabase, lokasiDenganLayanan, petakDenganHakPakai, siapkanOperatorLayanan } from "../../../tests/support/layanan";
 import { tawarkanLayananDi } from "../../../tests/support/pemesanan";
-import { kirimPesananLayanan } from "./actions";
-import { itemPesananLayanan, type IsianLayanan } from "./item-pesanan";
+import { hargaPilihanLayanan, kirimPesananLayanan } from "./actions";
+import { itemPesananLayanan, pilihVarian, varianDipilih, type IsianLayanan } from "./item-pesanan";
 import { tampilanPesananLayanan } from "./tampilan";
 
 vi.mock("server-only", () => ({}));
@@ -168,5 +171,58 @@ describe("Kirim of a Layanan order at a Lokasi Mitra, for the payload the form b
     const pesanan = await pesananDibaca(s, hasil);
     expect(pesanan.item).toHaveLength(1);
     expect(pesanan.item[0].label).toContain("Tabur Bunga");
+  });
+});
+
+describe("the Layanan chosen at a Lokasi Mitra after one is put back to 'Tidak dipesan'", () => {
+  /** What the form holds once the Pemesan chose a Batu Nisan and a Tabur Bunga, and put the Batu Nisan back. */
+  const nisanDikembalikan = (s: Siap) =>
+    pilihVarian(pilihVarian(pilihVarian({}, s.nisan.layananId, s.nisan.varianId), s.bunga.layananId, s.bunga.varianId), s.nisan.layananId, "");
+
+  it("the price breakdown is still shown, for the Layanan that remains chosen, and is the total of the order", async () => {
+    const s = await siap();
+    const dipilih = nisanDikembalikan(s);
+
+    // What the form asks the running price about: the variants still chosen.
+    const harga = await hargaPilihanLayanan({ lokasiId: s.lokasi.lokasiMitra.id, layananVariantIds: varianDipilih(dipilih) });
+
+    expect(harga).not.toBeNull();
+    const baris = harga!.parts.map((satu) => satu.label).join(" | ");
+    expect(baris).toContain("Tabur Bunga");
+    expect(baris).not.toContain("Batu Nisan");
+    expect(harga!.total).toBe(150_000 + harga!.platformFee);
+    // ... and that total is what the order the form sends then holds.
+    const pesanan = await pesananDibaca(s, await kirimPesananLayanan(draftForm(s, { dipilih, tanggal: {}, teks: {} })));
+    expect(pesanan.total).toBe(harga!.total);
+  });
+
+  it("'Pesan layanan' sends the Layanan that remains and none of the one put back, whatever was typed for it", async () => {
+    const s = await siap();
+
+    const hasil = await kirimPesananLayanan(draftForm(s, { dipilih: nisanDikembalikan(s), tanggal: { [s.nisan.layananId]: "2026-10-25" }, teks: { [s.nisan.layananId]: "Siti Aminah" } }));
+
+    const pesanan = await pesananDibaca(s, hasil);
+    expect(pesanan.item).toHaveLength(1);
+    expect(pesanan.item[0].label).toContain("Tabur Bunga");
+  });
+
+  it("with every Layanan put back nothing is chosen: no price is asked, no item is sent and Kirim places no order", async () => {
+    const s = await siap();
+    const dipilih = pilihVarian(pilihVarian({}, s.nisan.layananId, s.nisan.varianId), s.nisan.layananId, "");
+
+    expect(varianDipilih(dipilih)).toEqual([]);
+    expect(await hargaPilihanLayanan({ lokasiId: s.lokasi.lokasiMitra.id, layananVariantIds: varianDipilih(dipilih) })).toBeNull();
+    const draft = draftForm(s, { dipilih, tanggal: {}, teks: {} });
+    expect(draft.item).toEqual([]);
+    // The button is off for this; were it pressed anyway, the order is refused rather than placed with no Layanan.
+    expect((await kirimPesananLayanan(draft)).status).toBe("gagal");
+  });
+
+  it("the running price takes no empty variant: that is why the form never sends one", async () => {
+    const s = await siap();
+
+    // The price read is strict about what it is asked, as every boundary is; the form must not ask it about "".
+    expect(await hargaPilihanLayanan({ lokasiId: s.lokasi.lokasiMitra.id, layananVariantIds: ["", s.bunga.varianId] })).toBeNull();
+    expect(await hargaPilihanLayanan({ lokasiId: s.lokasi.lokasiMitra.id, layananVariantIds: [s.bunga.varianId] })).not.toBeNull();
   });
 });
