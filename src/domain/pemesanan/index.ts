@@ -51,8 +51,10 @@ import {
   konfirmasiTumpang,
   jawabKonsenTumpang,
   konsenMenungguSaya,
+  urlBuktiAhliWaris,
   type AjukanTumpangInput,
   type AjukanTumpangResult,
+  type BuktiAhliWarisUrlResult,
   type CatatKonsenInput,
   type CatatKonsenResult,
   type JawabKonsenInput,
@@ -240,7 +242,7 @@ export { PESANAN_SUBJECT_KINDS, timelineOrder } from "./reads";
 export { JAM_REALERT_SAAT_DUKA, realertKonfirmasiSaatDukaTick, type RealertHasil } from "./realert";
 export type { AkhiriHakPakaiTidakTertagihResult } from "./chasing";
 export { ajukanTumpangSchema, catatKonsenSchema, jawabKonsenSchema, konfirmasiTumpangSchema } from "./tumpang";
-export type { KonsenMenunggu, TumpangUntukStaf } from "./tumpang";
+export type { BuktiAhliWarisUrlResult, KonsenMenunggu, TumpangUntukStaf } from "./tumpang";
 export { tumpangJenisKeys } from "./schema";
 export { nyatakanTidakTertagihSchema, type NyatakanTidakTertagihInput, type NyatakanTidakTertagihResult };
 export { catatPemakamanTick, jatuhCatatPemakaman, type CatatPemakamanHasil } from "./prompt-catat-pemakaman";
@@ -419,8 +421,16 @@ export interface Pemesanan {
   jawabKonsenTumpang(by: Pick<Actor, "accountId">, input: JawabKonsenInput): Promise<JawabKonsenResult>;
   /** The consent requests waiting for this Akun's Pemegang Hak, for the Perlu tindakan strip. */
   konsenMenungguSaya(who: { accountId: string }): Promise<KonsenMenunggu[]>;
-  /** The Admin Lokasi logs a verbal consent or heirship proof for a holder with no email (or one who answered verbally). */
+  /**
+   * The Admin Lokasi logs a verbal consent or heirship proof for a holder with no email (or one who answered verbally).
+   * An heirship proof is a PDF, JPG or PNG file kept only in the private FileStore, and it is required (ticket 125).
+   */
   catatKonsenTumpang(by: Actor, input: CatatKonsenInput): Promise<CatatKonsenResult>;
+  /**
+   * A short-lived signed link to the heirship proof on a further burial's consent, for the staff who may read the order
+   * (its Lokasi's Admin Lokasi, Admin Platform); the order and the Audit Log only say that a proof is on file (ticket 125).
+   */
+  urlBuktiAhliWaris(by: Actor, nomor: string): Promise<BuktiAhliWarisUrlResult>;
   /** The Admin Lokasi confirms the burial: tumpang checks, then the pay-after Tagihan. No Hak Pakai is created. */
   konfirmasiTumpang(by: Actor, input: KonfirmasiTumpangInput): Promise<KonfirmasiTumpangResult>;
   /**
@@ -607,6 +617,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     jawabKonsenTumpang: (by, input) => jawabKonsenTumpang(deps, by, input),
     konsenMenungguSaya: (who) => konsenMenungguSaya(deps, who),
     catatKonsenTumpang: (by, input) => catatKonsenTumpang(deps, by, input),
+    urlBuktiAhliWaris: (by, nomor) => urlBuktiAhliWaris(deps, by, nomor),
     konfirmasiTumpang: (by, input) => konfirmasiTumpang(deps, by, input),
     orderUntukStaf: (by, nomor) => orderUntukStaf(deps, by, nomor),
     orderUntukStafTerbaru: (by, lokasiId) => orderUntukStafTerbaru(deps, by, lokasiId),

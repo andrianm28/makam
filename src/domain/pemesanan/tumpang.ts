@@ -11,18 +11,22 @@
  * else an emailed request to the Pemegang Hak, who signs in with the usual Kode
  * Masuk and answers Setujui / Tolak under Perlu tindakan in Akun Saya (owner,
  * 2026-10-02: no code of its own, no new secret); else verbal consent logged by
- * the Admin Lokasi; else heirship proof, which raises a Ganti Pemegang Hak
+ * the Admin Lokasi; else heirship proof (the heirs' letter, uploaded as a file
+ * and kept only in the private FileStore), which raises a Ganti Pemegang Hak
  * reminder. Only an implicit or settled consent lets the Admin Lokasi confirm.
  */
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { normaliseEmail, writeRefusal, lokasiMitraResource, type Actor, type WriteRefusal } from "@/domain/identity";
 import { periksaBolehTumpang } from "@/domain/inventory";
+import { ekstensiUnggahan } from "@/lib/files/upload-check";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
 import { foldKey } from "@/lib/fold-key";
 import { linesOf } from "./konfirmasi-saat-duka";
 import { penerimaOf } from "./saat-duka";
 import { ALASAN_TOLAK } from "./alasan-tolak";
+import { DOKUMEN_URL_SECONDS } from "./berkas";
 import { umumkanTumpangDitolak } from "./tolak";
 import { tagihanPerluDibayar, type NewTagihanLine, type Tagihan } from "@/domain/billing";
 import type { PemesananDeps } from "./deps";
@@ -226,46 +230,75 @@ export async function konsenMenungguSaya(deps: PemesananDeps, who: { accountId: 
   return milik;
 }
 
-/** What the Admin Lokasi's consent form sends for a holder with no email, or one who answered verbally. */
+/** What the Admin Lokasi's consent form sends for a holder with no email, or one who answered verbally, or whose heir brings the proof. */
 export const catatKonsenSchema = z.object({
   nomor: z.string().trim().regex(/^MKM-\d{4}-\d{6}$/),
   via: z.enum(["verbal", "ahli_waris"]),
   /** What was said, or what the heirship proof was. */
   catatan: z.string().trim().min(1).max(1000),
-  /** The private FileStore key of the heirship proof, when one was filed. */
-  buktiFileKey: z.string().trim().max(300).optional(),
+  /**
+   * The heirship proof the Admin Lokasi uploaded: a photo or scan of the heirs' letter (ticket 125). It is the file itself,
+   * never a FileStore key, because the module alone decides where a proof is kept; a key could name any file.
+   */
+  bukti: z.object({ body: z.instanceof(Uint8Array), contentType: z.string().trim().max(100) }).optional(),
 });
 export type CatatKonsenInput = z.infer<typeof catatKonsenSchema>;
 
 export type CatatKonsenResult =
   | { ok: true; pesanan: { nomor: string } }
   | WriteRefusal
-  | { ok: false; reason: "input_tidak_valid" | "pesanan_tidak_ditemukan" | "konsen_sudah_diputuskan" };
+  | { ok: false; reason: "input_tidak_valid" | "pesanan_tidak_ditemukan" | "konsen_sudah_diputuskan" }
+  /** An heirship consent comes without its proof, or a verbal one with a file nothing would keep. */
+  | { ok: false; reason: "bukti_ahli_waris_wajib" | "bukti_hanya_untuk_ahli_waris" }
+  /** The proof is not a PDF, JPG or PNG by its bytes, is empty, or is over the usual limit. */
+  | { ok: false; reason: "berkas_tidak_didukung" }
+  /** The private FileStore did not take the proof, so no consent was recorded. */
+  | { ok: false; reason: "penyimpanan_belum_tersedia" };
 
 /**
  * The Admin Lokasi logs a verbal consent or an heirship proof (AC 1). Both settle
  * the consent exactly as an emailed Setujui does; they differ only in what the
- * record carries. An heirship proof also raises the Ganti Pemegang Hak reminder
- * the Admin Lokasi reads on the order (`tumpang.gantiPemegangHakDiingatkan`).
+ * record carries. An heirship proof is a file (PDF, JPG or PNG, checked by its
+ * bytes, at most the usual 10 MB) kept only in the private FileStore, and it is
+ * required: the consent of an ahli waris rests on it, so one without it is
+ * refused. A verbal consent has no proof to give, so it takes no file. The proof
+ * also raises the Ganti Pemegang Hak reminder the Admin Lokasi reads on the
+ * order (`tumpang.gantiPemegangHakDiingatkan`); the order and the Entri Audit say
+ * that a proof is on file, never where (`tumpang.buktiAhliWarisAda`).
  */
 export async function catatKonsenTumpang(deps: PemesananDeps, by: Actor, rawInput: unknown): Promise<CatatKonsenResult> {
   const parsed = catatKonsenSchema.safeParse(rawInput);
   if (!parsed.success) return { ok: false, reason: "input_tidak_valid" };
+  const { bukti, via } = parsed.data;
   const order = await orderTumpang(deps, parsed.data.nomor);
   if (!order) return { ok: false, reason: "pesanan_tidak_ditemukan" };
   const refusal = writeRefusal(by, "pemesanan.konfirmasi", lokasiMitraResource(order.lokasiId));
   if (refusal) return refusal;
   if (order.status !== "diajukan" || order.konsenState === "disetujui" || order.konsenState === "ditolak") return { ok: false, reason: "konsen_sudah_diputuskan" };
-  const penerima = parsed.data.via === "ahli_waris" ? await penerimaOf(deps, order.lokasiId) : [];
+  if (via === "ahli_waris" && !bukti) return { ok: false, reason: "bukti_ahli_waris_wajib" };
+  if (via === "verbal" && bukti) return { ok: false, reason: "bukti_hanya_untuk_ahli_waris" };
+  const extension = bukti ? ekstensiUnggahan(bukti) : null;
+  if (bukti && !extension) return { ok: false, reason: "berkas_tidak_didukung" };
+
+  const penerima = via === "ahli_waris" ? await penerimaOf(deps, order.lokasiId) : [];
+  // The file is stored first, and a refused write deletes it again, so a refusal leaves no private file behind.
+  const kunciBukti = bukti && extension ? `bukti-ahli-waris/${order.id}/${randomUUID()}.${extension}` : null;
+  if (bukti && kunciBukti) {
+    try {
+      await deps.files.put({ key: kunciBukti, body: bukti.body, contentType: bukti.contentType });
+    } catch {
+      return { ok: false, reason: "penyimpanan_belum_tersedia" };
+    }
+  }
   const now = deps.clock.now();
   const dicatat = await deps.audit.staffWrite(deps.db, async (tx, record) => {
     const moved = await tx
       .update(pemesananMakam)
       .set({
         konsenState: "disetujui",
-        konsenVia: parsed.data.via,
+        konsenVia: via,
         konsenCatatan: parsed.data.catatan,
-        konsenBuktiFileKey: parsed.data.buktiFileKey ?? null,
+        konsenBuktiFileKey: kunciBukti,
         konsenOleh: by.accountId,
         konsenDiputuskanPada: now,
       })
@@ -278,11 +311,12 @@ export async function catatKonsenTumpang(deps: PemesananDeps, by: Actor, rawInpu
       entity: { kind: "pemesanan_makam", id: order.id },
       lokasiId: order.lokasiId,
       before: { konsen: order.konsenState },
-      after: { konsen: "disetujui", via: parsed.data.via },
+      // A proof is on file or not: the key to it never goes into the Audit Log.
+      after: { konsen: "disetujui", via, buktiAda: kunciBukti !== null },
       reason: parsed.data.catatan,
     });
     // An heirship proof asks the Admin Lokasi to record a Ganti Pemegang Hak: a Peringatan Staf (bell + email), queued with the consent.
-    if (parsed.data.via === "ahli_waris") {
+    if (via === "ahli_waris") {
       await deps.notifikasi.peringatanStafAhliWaris(tx, {
         id: order.id,
         nomor: order.nomor,
@@ -293,8 +327,36 @@ export async function catatKonsenTumpang(deps: PemesananDeps, by: Actor, rawInpu
     }
     return { ok: true as const };
   });
-  if (!dicatat.ok) return dicatat;
+  if (!dicatat.ok) {
+    if (kunciBukti) await deps.files.delete(kunciBukti).catch(() => undefined);
+    return dicatat;
+  }
   return { ok: true, pesanan: { nomor: order.nomor } };
+}
+
+export type BuktiAhliWarisUrlResult =
+  | { ok: true; url: string; expiresAt: Date }
+  | WriteRefusal
+  | { ok: false; reason: "pesanan_tidak_ditemukan" | "belum_ada_berkas" };
+
+/**
+ * A short-lived signed link (5 minutes, as for every document on an order) to the heirship proof of a further burial's
+ * consent, for the staff who may read that order: its Lokasi's own Admin Lokasi, and Admin Platform. The file never passes
+ * through a page, and the link is made when it is asked for, so one that is read late is simply asked for again.
+ */
+export async function urlBuktiAhliWaris(deps: Pick<PemesananDeps, "db" | "clock" | "files">, by: Actor, nomor: string): Promise<BuktiAhliWarisUrlResult> {
+  const order = await orderTumpang(deps, nomor);
+  if (!order) return { ok: false, reason: "pesanan_tidak_ditemukan" };
+  const refusal = writeRefusal(by, "pemesanan.lihat_staf", lokasiMitraResource(order.lokasiId));
+  if (refusal) return refusal;
+  if (!order.konsenBuktiFileKey) return { ok: false, reason: "belum_ada_berkas" };
+  try {
+    const url = await deps.files.signedUrl(order.konsenBuktiFileKey, { expiresInSeconds: DOKUMEN_URL_SECONDS });
+    return { ok: true, url, expiresAt: new Date(deps.clock.now().getTime() + DOKUMEN_URL_SECONDS * 1000) };
+  } catch {
+    // A recorded proof the store cannot find is no proof to show: nothing to open.
+    return { ok: false, reason: "belum_ada_berkas" };
+  }
 }
 
 /** What the Admin Lokasi's confirm form sends. */
@@ -428,7 +490,7 @@ export async function konfirmasiTumpang(deps: PemesananDeps, by: Actor, rawInput
 }
 
 /** The order of a Nomor Pemesanan when it is a further burial, else null. */
-async function orderTumpang(deps: PemesananDeps, nomor: string) {
+async function orderTumpang(deps: Pick<PemesananDeps, "db">, nomor: string) {
   const [order] = await deps.db.select().from(pemesananMakam).where(eq(pemesananMakam.nomor, nomor));
   return order && order.kind === "tumpang" ? order : null;
 }
@@ -472,6 +534,8 @@ export interface TumpangUntukStaf {
   konsen: { state: NonNullable<typeof pemesananMakam.$inferSelect["konsenState"]>; via: typeof pemesananMakam.$inferSelect["konsenVia"]; catatan: string | null };
   /** An heirship proof was logged: the Admin Lokasi is reminded to record a Ganti Pemegang Hak. */
   gantiPemegangHakDiingatkan: boolean;
+  /** The heirship proof's file is on file (private FileStore): opened through `urlBuktiAhliWaris`, never named here (ticket 125). */
+  buktiAhliWarisAda: boolean;
   /** The tumpang policy checks as they stand today; a failing one blocks confirmation and says why. */
   pemeriksaan: { ok: true } | { ok: false; reason: "tumpang_tidak_diizinkan" | "tumpang_petak_dilepas_tidak_diizinkan" | "lapisan_penuh" | "masa_tunggu_belum_lewat" };
   /** Earlier orders under the same Hak Pakai whose Tagihan is still unpaid: the warning banner. */
@@ -509,6 +573,7 @@ export async function tumpangUntukStaf(deps: PemesananDeps, row: typeof pemesana
     jenis: row.tumpangJenis,
     konsen: { state: row.konsenState, via: row.konsenVia, catatan: row.konsenCatatan },
     gantiPemegangHakDiingatkan: row.konsenVia === "ahli_waris",
+    buktiAhliWarisAda: row.konsenBuktiFileKey !== null,
     pemeriksaan,
     tagihanSebelumnyaBelumLunas: belumLunas,
   };

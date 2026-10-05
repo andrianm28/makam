@@ -5,6 +5,7 @@ const dasar = {
   jenis: "tumpang" as const,
   konsen: { state: "implisit" as const, via: "implicit" as const, catatan: null },
   gantiPemegangHakDiingatkan: false,
+  buktiAhliWarisAda: false,
   pemeriksaan: { ok: true as const },
   tagihanSebelumnyaBelumLunas: [],
 };
@@ -49,6 +50,13 @@ describe("the Admin Lokasi's panel for a further burial (Makamkan di sini)", () 
       pengingatGanti: "Catat Ganti Pemegang Hak ke ahli waris yang membawa bukti ini.",
     });
     expect(tumpangPanel({ ...dasar, konsen: { state: "disetujui", via: "email", catatan: null } }, "diajukan").konsenLabel).toBe("Disetujui Pemegang Hak lewat email.");
+  });
+
+  it("says that an heirship proof is on file once one was uploaded, and not for a verbal consent (ticket 125)", () => {
+    const ahliWaris = { ...dasar, konsen: { state: "disetujui" as const, via: "ahli_waris" as const, catatan: "Surat waris" }, gantiPemegangHakDiingatkan: true };
+    expect(tumpangPanel({ ...ahliWaris, buktiAhliWarisAda: true }, "diajukan").buktiAhliWarisAda).toBe(true);
+    expect(tumpangPanel({ ...ahliWaris, buktiAhliWarisAda: true }, "dikonfirmasi").buktiAhliWarisAda).toBe(true);
+    expect(tumpangPanel({ ...dasar, konsen: { state: "disetujui", via: "verbal", catatan: "Lewat telepon" } }, "diajukan").buktiAhliWarisAda).toBe(false);
   });
 
   it("blocks confirmation with the failing tumpang check's reason", () => {

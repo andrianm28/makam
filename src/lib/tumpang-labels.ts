@@ -1,3 +1,5 @@
+import { UNGGAHAN_MAX_BYTES } from "@/lib/files/upload-check";
+
 /** What a further burial's refusals say to the person who met them (content, not a rule). */
 const TEKS: Record<string, string> = {
   input_tidak_valid: "Periksa lagi isian Anda.",
@@ -16,6 +18,10 @@ const TEKS: Record<string, string> = {
   harga_tidak_tersedia: "Harga belum tersedia.",
   pesanan_sudah_dikonfirmasi: "Pesanan sudah dikonfirmasi.",
   pesanan_sudah_ditutup: "Pesanan sudah ditutup.",
+  bukti_ahli_waris_wajib: "Unggah bukti ahli waris (foto JPG atau PNG, atau PDF) untuk mencatat persetujuan ahli waris.",
+  bukti_hanya_untuk_ahli_waris: "Berkas hanya untuk bukti ahli waris. Pilih bukti ahli waris, atau kosongkan berkas untuk persetujuan lisan.",
+  berkas_tidak_didukung: `Bukti ahli waris harus foto JPG atau PNG, atau PDF (isi berkas diperiksa), paling besar ${UNGGAHAN_MAX_BYTES / (1024 * 1024)} MB.`,
+  penyimpanan_belum_tersedia: "Penyimpanan berkas sedang bermasalah, coba lagi. Persetujuan belum dicatat.",
 };
 
 export function tumpangMessage(reason: string): string {

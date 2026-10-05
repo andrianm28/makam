@@ -10,15 +10,27 @@ import { guardMessage } from "../../../../messages";
 
 export type TumpangActionState = { status: "idle" } | { status: "gagal" | "berhasil"; message: string };
 
-/** The Admin Lokasi logs the Pemegang Hak's verbal consent, or the heirship proof brought on the day (which raises the Ganti Pemegang Hak reminder). */
+/** The heirship proof, as the form's file input hands it over; none when the field was left empty. */
+async function buktiFromForm(formData: FormData) {
+  const file = formData.get("bukti");
+  if (!(file instanceof File) || file.size === 0) return undefined;
+  return { body: new Uint8Array(await file.arrayBuffer()), contentType: file.type };
+}
+
+/**
+ * The Admin Lokasi logs the Pemegang Hak's verbal consent, or the heirship proof brought on the day (which raises the Ganti
+ * Pemegang Hak reminder). The proof is the uploaded file: it goes to the private FileStore through the Pemesanan module, and a
+ * heirship consent without it is refused.
+ */
 export async function catatKonsenTumpangAction(_previous: TumpangActionState, formData: FormData): Promise<TumpangActionState> {
   const lokasiId = String(formData.get("lokasiId") ?? "");
+  const bukti = await buktiFromForm(formData);
   const result = await guarded({
     fitur: "perpanjangan_lanjutan",
     action: "pemesanan.konfirmasi",
     resource: () => lokasiMitraResource(lokasiId),
     schema: catatKonsenSchema,
-    input: { nomor: formData.get("nomor"), via: formData.get("via"), catatan: formData.get("catatan"), buktiFileKey: formData.get("buktiFileKey") || undefined },
+    input: { nomor: formData.get("nomor"), via: formData.get("via"), catatan: formData.get("catatan"), bukti },
     run: (actor, data) => serverRuntime().pemesanan.catatKonsenTumpang(actor, data),
   });
   if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
