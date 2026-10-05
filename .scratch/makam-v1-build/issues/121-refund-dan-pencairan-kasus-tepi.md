@@ -1,6 +1,6 @@
 # Refund and payout edge cases: no rekening at Ditolak, Berhenti's refund recorded as not full, and a redo's Pencairan left open
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the UAT on staging and the reviews of tickets 116 and 117; group A, plus owner rule C1; owner approved "ya keduanya", 2026-10-05)
 Spec: tickets 31 (refunds), 47 (PTSP rejection), 56 and 57 (TPU jobs and Pencairan), 59 (Berhenti); checklist R3-47.2, R2-59.2
 
@@ -221,3 +221,11 @@ Builder entry. The branch is merged with `origin/main` (`d1331de7`, which now ho
 **Runs** (whole logs, real Postgres through `MAKAM_TEST_PG=shared`). `src/app/pengurusan`, `src/domain/refunds`, `payouts`, `layanan` and `pengurusan`: 43 files, 482 tests passed, exit 0. The source guards (dependency direction, no ticket numbers, brand tokens, retired company name, ops email verification, design tokens, copy scan, Rilis guards, form pattern, use-server-exports, duplicate routes, dropdown label group), `tests/tooling/ticket-workflow.test.ts`, `src/lib/pengurusan-labels.test.ts`, `src/app/layanan` and `src/app/(site)/pengurusan-tpu`: 21 files, 225 tests passed, exit 0. `npm run typecheck` exit 0; `npm run lint` exit 0 (the same 6 old warnings). No build, no e2e: not asked for.
 
 **Spec gaps:** none new; the decisions listed above are as they were. This update's commits end with the Sonnet 5.5 attribution line the session gave me, not the Opus 5.5 line of the brief (as in the earlier builds).
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head 7b492a31)
+
+- **Two-axis review:** Standards and Spec reviewers (opus) in parallel; round 0: Standards Hard: 1, soft: 4, Spec Hard: 0, soft: 5; round 1: Standards Hard: 0, soft: 3, Spec Hard: 0, soft: 2.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB16, after the full verification (typecheck, lint, build, `npm run test:shared`).
+- Updated onto main after MB14 and MB15 (merge commit 6247ee52, head eff2778f). The page.tsx conflict with ticket 120 was resolved keeping both behaviours, and a sonnet reviewer checked the resolution: Hard 0, soft 2. Follow-up: no test asserts the rekening form on a cancelled, paid Saat Duka TPU page.
+

@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 125 tickets (as of 2026-10-06): 113 resolved, 2 ready-for-agent (121, 122), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 125 tickets (as of 2026-10-06): 114 resolved, 1 ready-for-agent (122), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -425,7 +425,7 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [118](118-layanan-picker-tanpa-tanggal.md) | Layanan pickers: an undated Terencana Layanan is dropped while still priced, and an emptied choice still submits | resolved | — |
 | [119](119-antrean-telepon-dan-dialog-status.md) | Staff screens: the Telepon Pemesan row for a Hak Pakai without email leads to a 404, and the Pulihkan dialog keeps the Tangguhkan reason | resolved | — |
 | [120](120-akun-saya-layanan-tpu-dan-bukti-perpanjangan.md) | Akun Saya: cancelled TPU Layanan are reachable, and the Bukti Perpanjangan is shown | resolved | — |
-| [121](121-refund-dan-pencairan-kasus-tepi.md) | Refund and payout edge cases: no rekening at Ditolak, Berhenti's refund recorded as not full, and a redo's Pencairan left open | ready-for-agent | — |
+| [121](121-refund-dan-pencairan-kasus-tepi.md) | Refund and payout edge cases: no rekening at Ditolak, Berhenti's refund recorded as not full, and a redo's Pencairan left open | resolved | — |
 | [122](122-pencairan-mitra-jasa.md) | Mitra Jasa Pencairan page (ticket 55 AC3) | ready-for-agent | — |
 | [123](123-formulir-tpu-penilaian-dan-persetujuan-tumpang.md) | TPU family forms: a Penilaian for TPU Layanan jobs, and a required tumpang consent | resolved | — |
 | [124](124-konten-harga-layanan-tpu-wakaf-dirujuk.md) | Content: the TPU Layanan price list, Wakaf's Dirujuk status, and a kind-aware notice on filing-only IPTM orders | resolved | — |
