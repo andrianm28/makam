@@ -51,7 +51,7 @@ Builder (Sonnet, branch `ticket-124-konten-harga-tpu-wakaf`, base `9da0fb3b`; no
 **Tests** (read off whole logs; exit codes in brackets)
 
 - Red first: `content-pages`, `pengurusan-tpu/page`, `wakaf-tanah/page` and `halaman-pesanan`: 19 failed, 41 passed [1], each for the intended reason (a missing function, the "Segera hadir" card, no "Status: Dirujuk", the burial in the filing-only notice). `pengurusan-labels`: 3 failed [1].
-- Green: those five files plus the label test: 63 tests [0]. The touched directories (`src/app/pengurusan/`, `wakaf-tanah/`, `pengurusan-tpu/`, `content-pages`, `pengurusan-labels`): 6 files, 67 tests [0].
+- Green: the four files and the label test (five files): 63 tests [0]. The touched directories (`src/app/pengurusan/`, `wakaf-tanah/`, `pengurusan-tpu/`, `content-pages`, `pengurusan-labels`): 6 files, 67 tests [0].
 - New page tests render the real page on real reads and a real Postgres (`renderToStaticMarkup`): the Layanan list in catalog order with prices and "harga contoh", none on a production paying live, the order link, the empty state, no "Segera hadir"; Wakaf outside Jabodetabek (Dirujuk and the KUA and BWI pointer, no promise of a first contact) and inside (unchanged); the filing-only notice at Dimakamkan and Menunggu Pembayaran, and the Saat Duka TPU notice unchanged.
 - Copy guards and neighbours (`dependency-direction`, `no-ticket-numbers`, `no-retired-company-name`, `brand-tokens`, `no-ops-email-verification`, `rilis-guard`, `rilis`, `proxy`, `public-navigation`, `homepage-content`, `makam-keluarga-content`, `copy-scan`, `tests/uat`): 23 files, 512 tests [0].
 - `npm run lint` [0], 0 errors (6 warnings, none in touched files); `npm run typecheck` [0].
