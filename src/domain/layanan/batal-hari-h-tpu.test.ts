@@ -455,8 +455,9 @@ describe("cancelling a Saat Duka TPU order while a hari-H Layanan is being redon
     const batal = await batalkan(s, nomor);
 
     expect(batal).toEqual({ ok: true, status: "dibatalkan", tagihanDibatalkan: false, pengembalian: tagihan.total });
-    // The redo is Dibatalkan with its order; the original stays what it was, and its Pencairan is no longer owed to its Mitra Jasa.
-    expect(await statusPekerjaan(s, nomor)).toEqual(["keluhan", "dibatalkan"]);
+    // The redo is Dibatalkan with its order, and so is the original that waited in Keluhan for it: the family's page does not go on
+    // saying it will be redone. Its Pencairan is no longer owed to its Mitra Jasa.
+    expect(await statusPekerjaan(s, nomor)).toEqual(["dibatalkan", "dibatalkan"]);
     expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan", tarif: TARIF }]);
     // The family gets the Layanan back, once, with the rest of the Tagihan: the whole of it.
     const [permintaan] = await s.setup.refunds.permintaanTerbuka();
@@ -469,6 +470,13 @@ describe("cancelling a Saat Duka TPU order while a hari-H Layanan is being redon
     expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan" }]);
     // Asked again, the Layanan has no line left to return and no job to cancel.
     expect(await s.setup.layanan.batalkanHariHTpu(nomor, db)).toMatchObject({ ok: true, dibatalkan: 0, baris: [] });
+    // The transfer of that refund returns the whole Tagihan, and the original's Pencairan stays cancelled.
+    expect((await s.setup.refunds.setujuiPengembalian(s.admin, { permintaanId: permintaan!.id })).ok).toBe(true);
+    await s.setup.refunds.isiRekeningAdmin(s.admin, { permintaanId: permintaan!.id, rekening: { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" }, alasan: "Diminta lewat telepon" });
+    const terbit = await s.setup.refunds.terbitkanBuktiPengembalianDana(s.admin, { permintaanId: permintaan!.id, ditransferPada: "2026-10-01", bukti: { body: foto(), contentType: "image/jpeg" } });
+    if (!terbit.ok) throw new Error(`transfer refused: ${terbit.reason}`);
+    expect(await s.setup.billing.tagihan(tagihan.id)).toMatchObject({ status: "dikembalikan_penuh" });
+    expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan" }]);
   });
 
   it("cancels the original job's Pencairan with the order of a family that never paid, and raises no refund", async () => {
@@ -524,6 +532,7 @@ describe("cancelling a Saat Duka TPU order while a hari-H Layanan is being redon
     expect(permintaan[0]).toMatchObject({ jumlah: tagihan.total, penuh: true });
     expect(permintaan[0]!.lines.filter((baris) => baris.label === LABEL_BUNGA).map((baris) => baris.amount)).toEqual([HARGA_BUNGA_TABUR]);
     expect(await pencairanSaya(s, asal)).toMatchObject([{ status: "dibatalkan" }]);
+    expect(await statusPekerjaan(s, nomor)).toEqual(["dibatalkan", "dibatalkan"]);
   });
 
   it("cancels every Pencairan the redone line holds when the redo is itself a redo: a second Keluhan after the first redo was approved", async () => {
@@ -547,7 +556,8 @@ describe("cancelling a Saat Duka TPU order while a hari-H Layanan is being redon
     const batal = await batalkan(s, nomor);
 
     expect(batal).toEqual({ ok: true, status: "dibatalkan", tagihanDibatalkan: false, pengembalian: tagihan.total });
-    expect(await statusPekerjaan(s, nomor)).toEqual(["selesai", "keluhan", "dibatalkan"]);
+    // The first redo, approved, stays Selesai; the one that waited in Keluhan for the second redo is Dibatalkan with it.
+    expect(await statusPekerjaan(s, nomor)).toEqual(["selesai", "dibatalkan", "dibatalkan"]);
     // The line is returned to the family once, so what the first job would have been paid is not paid either.
     const [permintaan] = await s.setup.refunds.permintaanTerbuka();
     expect(permintaan!.lines.filter((baris) => baris.label === LABEL_BUNGA).map((baris) => baris.amount)).toEqual([HARGA_BUNGA_TABUR]);

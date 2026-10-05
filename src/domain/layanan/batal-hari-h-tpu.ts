@@ -62,8 +62,9 @@ function bisaDibatalkan(job: typeof pekerjaanLayananTpu.$inferSelect, dimulai: R
  * again, and the original waits in Keluhan with a Pencairan item that only the redo's approval would release or cancel. When this
  * call cancels the redo, the family is refunded that Layanan, once, so what the original was still to be paid is cancelled in the
  * same transaction, along with the item of every earlier redo of the same line that was not yet transferred (an item already paid
- * out stays paid). The original keeps its status. Nothing is asked of Refunds a second time for a line a Keluhan refund
- * (`dana_kembali`) already returned. A redo already begun keeps going and its pay rules apply as before.
+ * out stays paid). The original that waited in Keluhan for the redo is Dibatalkan with it, so the family's page does not go on
+ * saying it will be redone. Nothing is asked of Refunds a second time for a line a Keluhan refund (`dana_kembali`) already
+ * returned. A redo already begun keeps going and its pay rules apply as before.
  *
  * The jobs are locked from the read to the last write, in a transaction of this call's own when `within` is not one (a
  * savepoint when it is), so a Mitra Jasa starting one at the same moment either began first (the job keeps its price and its
@@ -138,6 +139,16 @@ async function batalkanTerkunci(deps: LayananDeps, nomor: string, tx: Database):
       // (or cancelled before) is left as it is; Payouts answers `tidak_ditemukan` and nothing is lost by it.
       for (const asal of pendahulu(perId, job)) {
         if (asal.pencairanItemId) await deps.payouts.batalkanItem(tx, { itemId: asal.pencairanItemId, alasan: "pesanan_dibatalkan" });
+        // The job waited in Keluhan for this redo: with the redo gone nothing is left to wait for, and the family's page must not go
+        // on saying it will be redone. One already Selesai (an earlier redo, approved) keeps that status.
+        if (asal.status === "keluhan") {
+          const ditutup = await tx
+            .update(pekerjaanLayananTpu)
+            .set({ status: "dibatalkan", dibatalkanAt: now })
+            .where(and(eq(pekerjaanLayananTpu.id, asal.id), eq(pekerjaanLayananTpu.status, "keluhan")))
+            .returning({ id: pekerjaanLayananTpu.id });
+          if (ditutup.length > 0) dibatalkan.add(asal.id);
+        }
       }
       if (barisPekerjaan.has(akar.id)) dikembalikanLewatKerjaUlang.add(akar.id);
     }
