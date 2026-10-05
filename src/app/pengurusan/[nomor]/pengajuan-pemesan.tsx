@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { PengurusanOrder, PengurusanTpuStatus } from "@/domain/pengurusan";
+import { catatanPembatalanPengurusan } from "@/lib/pengurusan-labels";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 import { BatalkanPengurusanForm, UnggahDokumenForm } from "./pengajuan-forms";
 
@@ -111,9 +112,7 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
       {BOLEH_BATAL.includes(status) ? (
         <section className="flex flex-col gap-2" aria-label="Batalkan">
           <h2 className="text-title-3 text-foreground">Batalkan pengurusan</h2>
-          <p className="text-small text-muted-foreground">
-            Bisa dibatalkan sampai IPTM diajukan. Tagihan yang belum dibayar dibatalkan{order.kind === "perpanjangan_tpu" ? "." : "; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak pemakaman diatur dengan TPU."}
-          </p>
+          <p className="text-small text-muted-foreground">Bisa dibatalkan sampai IPTM diajukan. {catatanPembatalanPengurusan(order.kind)}</p>
           <BatalkanPengurusanForm nomor={order.nomor} />
         </section>
       ) : null}
