@@ -130,28 +130,48 @@ Procedure: runbook, "Rehearsal of the first production deploy". No nginx change:
 
 Procedure: runbook, "Hari switch", every step in its order; the lines below are the proof to keep, not the procedure.
 
-- [ ] **P2: B is promoted and pre-pulled, the rollback is rehearsed with B (exit 1, back to A), and B is deployed (exit 0).**
+- [x] **P2: B is promoted and pre-pulled, the rollback is rehearsed with B (exit 1, back to A), and B is deployed (exit 0).**
   Check: the two exit codes and the `deploy.log` lines.
-  Evidence:
-- [ ] **Data Contoh is planted**: `data-contoh tanam --set rilis1 --izinkan-production --tulis`, and `status` lists the set.
-  Evidence:
-- [ ] **The preflight `--rilis 1` exits 0 with no FAIL.**
-  Evidence:
-- [ ] **The old app is archived and proven** (`makam-arsip-app-lama --container makam-nonprod-postgres-1`): every table's row count equals the source's.
-  Evidence:
-- [ ] **`makam-switch --cek`, then `makam-switch --ke v1`** ran, `nginx -t` passed before the reload.
-  Evidence:
-- [ ] **The SumoPod webhook is moved to `https://makam.co.id/api/webhooks/pembayaran` and Save & Test shows 2xx.**
+  Evidence: 2026-10-05:
+  - promote run 37258121743 published `v2026.10.05-1` from f56e1ccc, digest `sha256:6477fb75…3f56a`, signed with the production key;
+  - the image was pre-pulled, and `makam-verify-image --env prod` exited 0 (run as ubuntu, which holds the ghcr login);
+  - the rehearsal with `MAKAM_HEALTH_WAIT=0` exited 1: "not 200 after 0s; rolling back" at 03:15:55 UTC, then "rolled back to sha-c04dd9c9" at 03:16:24; Deployment 6850591710 recorded `failure` ("never became healthy");
+  - the deploy of B exited 0, "healthy on sha-f56e1ccc" at 03:22:02, Deployment `success`.
+- [x] **Data Contoh is planted**: `data-contoh tanam --set rilis1 --izinkan-production --tulis`, and `status` lists the set.
+  Evidence: 2026-10-05: "Data Contoh rilis1 ditanam: 7 bagian baru (0 sudah ada), 55 Layanan dinyalakan di Lokasi (Contoh)". `status` shows "Data Contoh aktif: 77 entri".
+- [x] **The preflight `--rilis 1` exits 0 with no FAIL.**
+  Evidence: 2026-10-05:
+  - The first run gave 22 PASS and 1 FAIL: the disk was at 86–87%, over the 85% warning.
+  - The owner chose to switch with that warning outstanding and to free the space by deleting the old app afterwards.
+  - After the deletion: exit 0, 23 PASS, 0 FAIL. SKIP only for sandbox, data contoh, s3, the uptime monitor (done by the owner) and the nginx switch (done).
+- [x] **The old app is archived and proven** (`makam-arsip-app-lama --container makam-nonprod-postgres-1`): every table's row count equals the source's.
+  Evidence: 2026-10-05:
+  - The first try exited 78: the script's default user `postgres` does not exist in that container, whose superuser is `postgres_admin`. It was rerun with `--user postgres_admin`.
+  - `makam-app-lama-20261005T033624Z` was proven, every table with its rows.
+  - At the deletion the re-proof failed once (Laravel Pulse wrote between the dump and the count). With the old web and scheduler stopped, `makam-app-lama-20261005T133406Z` was proven.
+- [x] **`makam-switch --cek`, then `makam-switch --ke v1`** ran, `nginx -t` passed before the reload.
+  Evidence: 2026-10-05: `--cek` answered "lain" (exit 1). `--ke v1`: "nginx: the configuration file … syntax is ok", then "makam.co.id now serves v1" at 03:37 UTC (10:37 WIB).
+- [x] **The SumoPod webhook is moved to `https://makam.co.id/api/webhooks/pembayaran` and Save & Test shows 2xx.**
   Check: the dashboard, and a 2xx line in `/var/log/nginx/makam.co.id.access.log`.
-  Evidence:
+  Evidence: 2026-10-05: the owner moved the webhook, and Save & Test answered 200. `makam.co.id.access.log` shows "05/Oct/2026:06:55:48 POST /api/webhooks/pembayaran 200".
 - [ ] **The checks pass**: `curl -s https://makam.co.id/api/health | jq '{ok,environment,release,rilisTerbuka}'` shows `true`, `"production"`, B's commit and `1`; the banner "PEMBAYARAN UJI COBA" and the Data Contoh line are visible; the owner's Pengaturan Operator is in and TOTP enrolled; one order at a Lokasi "(Contoh)" is placed and cancelled.
-  Evidence:
-- [ ] **Monitoring works**: UptimeRobot shows Up and a test alert arrived, and `sentry-check` produced the "Error baru (email)" email.
-  Evidence:
-- [ ] **If anything failed, `makam-switch --ke pemeliharaan` was run** and the reason is written in ticket 65 (not applicable when everything passed).
-  Evidence:
-- [ ] **After the checks, the old app is deleted** (`--hapus`, the word `hapus-app-lama`) and the freeze F1 is lifted.
-  Evidence:
+  Evidence: 2026-10-05, partial:
+  - `curl https://makam.co.id/api/health` answers ok true, production, f56e1ccc, 1, and `www` answers 200;
+  - the banner "PEMBAYARAN UJI COBA" and the Data Contoh line show on every page, and `/lokasi` lists the "(Contoh)" Lokasi.
+  - Open, the owner's: Pengaturan Operator and TOTP; one order at a Lokasi "(Contoh)" placed and cancelled (none on production yet at 20:21 WIB).
+- [x] **Monitoring works**: UptimeRobot shows Up and a test alert arrived, and `sentry-check` produced the "Error baru (email)" email.
+  Evidence: 2026-10-05:
+  - UptimeRobot shows Up, and the owner received a test alert;
+  - `sentry-check.mjs web` sent event a782f391… (production) at 10:39 WIB, and the owner received the "Error baru" email;
+  - four `makam-prod-*` timers, and no failed `makam-` unit after the disk was freed.
+- [x] **If anything failed, `makam-switch --ke pemeliharaan` was run** and the reason is written in ticket 65 (not applicable when everything passed).
+  Evidence: 2026-10-05: not needed. Nothing failed after the switch, and the maintenance page was never served.
+- [x] **After the checks, the old app is deleted** (`--hapus`, the word `hapus-app-lama`) and the freeze F1 is lifted.
+  Evidence: 2026-10-05:
+  - The owner approved through the option tool: "Ya, hapus sekarang".
+  - `--hapus` with the word deleted 4 containers, `/home/ubuntu/makam-app`, `/opt/makam-notify` and 4 nginx blocks.
+  - The script's name patterns missed the volumes (`makam-nonprod_postgres_data`, `makam-nonprod_redis_data`) and the image (`ghcr.io/andrianm28/makam-app`). Both were removed by exact name, as approved.
+  - The disk is at 82%, and the freeze F1 is lifted.
 
 ## G4: the UAT at level 3 is signed (D6 to D10)
 

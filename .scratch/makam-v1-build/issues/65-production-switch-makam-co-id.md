@@ -190,4 +190,16 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   - G3: "sekarang". The switch starts now, before the 21:00 WIB window; this is the owner's call, and no staff are on duty yet in the beta.
   - Digest B: `sha256:6477fb754092bdd69f664b5cfa684a34a3ee81664a68fada69db2f7c7713f56a`, built from f56e1ccc (MB11, ticket 117). It is promoted as `v2026.10.05-1`, signed with the production key, and verified on the host.
   - The evidence is in `go-live-rilis-1.md`, G2.
+- 2026-10-05 — **G3: makam.co.id serves v1** (orchestrator, owner present). The switch ran at 10:37 WIB on `v2026.10.05-1` (f56e1ccc, digest `sha256:6477fb75…3f56a`), at `RILIS_TERBUKA=1` on the SumoPod sandbox.
+  - The rollback was rehearsed across digests (exit 1, Deployment `failure`); then B was deployed (exit 0).
+  - Data Contoh rilis1 is planted (77 entries).
+  - The old app is archived and proven, and the webhook is moved (Save & Test 200).
+  - UptimeRobot and the GlitchTip email work.
+  - The old app is deleted. The final preflight has 0 FAIL.
+  - Deviations, each with the owner's approval:
+    - the switch ran before 21:00 WIB ("sekarang");
+    - the preflight's disk warning stayed open until the old app was deleted;
+    - an unused old makam image and, after `--hapus` missed them, the old app's two volumes and its image were removed by exact name.
+  - `makam-arsip-app-lama` needs `--user postgres_admin` on this host. Its patterns miss underscore volume names and the registry-prefixed image.
+  - Open, the owner's: Pengaturan Operator and TOTP, one order at a Lokasi "(Contoh)" placed and cancelled, and archiving the `makam-app` repository (runbook step 13). Evidence: `go-live-rilis-1.md`, G3.
 
