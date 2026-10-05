@@ -14,8 +14,9 @@ const HARI_INI = wib("2026-10-01 10:00");
 const foto = () => new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Budi Santoso" };
 
-/** A paid Layanan order at a Lokasi Mitra, `jumlahItem` Pekerjaan Layanan (one unless told) targeting the 20th. */
-async function siap(bayar = true, jumlahItem = 1) {
+/** A Layanan order at a Lokasi Mitra, paid unless `bayar` is false, with `jumlahItem` Pekerjaan Layanan (one unless told) targeting the 20th. */
+async function siap(options: { bayar?: boolean; jumlahItem?: number } = {}) {
+  const { bayar = true, jumlahItem = 1 } = options;
   const setup = layananOnTestDatabase(db);
   await siapkanOperatorLayanan(setup);
   const lokasi = await lokasiDenganLayanan(setup, { amount: 750_000 });
@@ -37,8 +38,7 @@ async function siap(bayar = true, jumlahItem = 1) {
   const dibaca = await setup.layanan.pesananLayananOf(order.pesanan.nomor, pemesan);
   const pekerjaan = dibaca?.item[0].pekerjaan;
   if (!pekerjaan) throw new Error("no job");
-  const semuaPekerjaan = (dibaca?.item ?? []).map((item) => item.pekerjaan?.id ?? "");
-  return { setup, lokasi, pemesan, order, pekerjaanId: pekerjaan.id, semuaPekerjaan };
+  return { setup, lokasi, pemesan, order, pekerjaanId: pekerjaan.id };
 }
 
 /** Admin Platform approves the one open request, enters the account and transfers it: the Bukti Pengembalian Dana. */
@@ -83,7 +83,7 @@ describe("a Pekerjaan Layanan still open when its Lokasi Mitra Berhenti takes ef
   });
 
   it("is cancelled with no refund request when its Tagihan was never paid", async () => {
-    const { setup, lokasi } = await siap(false);
+    const { setup, lokasi } = await siap({ bayar: false });
 
     expect(await setup.layanan.batalkanSisaBerhenti(lokasi.lokasiMitra.id)).toEqual({ dibatalkan: 1, tertunda: 0 });
     expect(await setup.layanan.pengembalianTerbuka()).toEqual([]);
@@ -118,7 +118,7 @@ describe("the refund of the Layanan a Lokasi Mitra's Berhenti cancels", () => {
   });
 
   it("is one request for an order's two jobs, penuh once the second completes the Tagihan, and the platform fee is returned once", async () => {
-    const { setup, lokasi, order } = await siap(true, 2);
+    const { setup, lokasi, order } = await siap({ jumlahItem: 2 });
     await setup.layanan.batalkanSisaBerhenti(lokasi.lokasiMitra.id);
 
     const permintaan = await setup.refunds.permintaanTerbuka();
@@ -131,8 +131,7 @@ describe("the refund of the Layanan a Lokasi Mitra's Berhenti cancels", () => {
   });
 
   it("is not penuh when a job already Selesai keeps its price: only the rest of the Tagihan comes back, and it is Dikembalikan Sebagian", async () => {
-    const { setup, lokasi, order, semuaPekerjaan } = await siap(true, 2);
-    const [selesai] = semuaPekerjaan as [string, string];
+    const { setup, lokasi, order, pekerjaanId: selesai } = await siap({ jumlahItem: 2 });
     setup.clock.set(wib("2026-10-22 09:00"));
     await tandaiTerlambat(setup.db, setup.clock.now());
     await setup.layanan.unggahBuktiPekerjaan(lokasi.adminLokasi, bukti(selesai, "foto_sebelum"));

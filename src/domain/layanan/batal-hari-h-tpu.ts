@@ -61,8 +61,9 @@ function bisaDibatalkan(job: typeof pekerjaanLayananTpu.$inferSelect, dimulai: R
  * **A redo ends with its order** (owner rule C1, ticket 121). A redo (kerja ulang after an upheld Keluhan) is its original's line
  * again, and the original waits in Keluhan with a Pencairan item that only the redo's approval would release or cancel. When this
  * call cancels the redo, the family is refunded that Layanan, once, so what the original was still to be paid is cancelled in the
- * same transaction, along with the item of every earlier redo of the same line that was not yet transferred (an item already paid
- * out stays paid). The original that waited in Keluhan for the redo is Dibatalkan with it, so the family's page does not go on
+ * same transaction, along with the item of every earlier redo of the same line that was not yet transferred. An item already paid
+ * out stays paid and nothing is taken back from its Mitra Jasa (the Operator bears that refund, as it does a Keluhan refund; owner
+ * decision 8 of ticket 121). The original that waited in Keluhan for the redo is Dibatalkan with it, so the family's page does not go on
  * saying it will be redone. Nothing is asked of Refunds a second time for a line a Keluhan refund (`dana_kembali`) already
  * returned. A redo already begun keeps going and its pay rules apply as before.
  *

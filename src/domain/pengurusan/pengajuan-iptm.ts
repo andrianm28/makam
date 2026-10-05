@@ -581,9 +581,12 @@ export async function batalkanPengurusan(
         // Refunds refuses the request, and with it the cancellation, when the lines do not add up to the whole Tagihan. `penuhBilaLengkap`
         // is the lenient one: before Dimakamkan the request is marked penuh when it completes the Tagihan with what was refunded earlier
         // (a Terlambat job the Pemesan cancelled before), and is an ordinary partial request, never refused, when it does not.
+        // After a Harga Khusus every line comes back at its floor-apportioned share (ticket 95), so the lines can add up to a rupiah or two less
+        // than the Tagihan paid, and the family's cancellation must not be refused for that: only the lenient flag speaks for such a Tagihan.
+        const denganHargaKhusus = berlaku.lines.some((line) => line.kind === "penyesuaian_harga_khusus");
         const diajukan = await deps.refunds.ajukanBaris(
           berlaku.id,
-          { pihakBersalah: "pemesan", penuh: !sudahDimakamkan && hariH.tidakDikembalikan === 0, penuhBilaLengkap: !sudahDimakamkan, lines },
+          { pihakBersalah: "pemesan", penuh: !sudahDimakamkan && hariH.tidakDikembalikan === 0 && !denganHargaKhusus, penuhBilaLengkap: !sudahDimakamkan, lines },
           tx,
         );
         if (!diajukan.ok) return { ok: false as const, reason: "pengembalian_tidak_terbit" as const };
