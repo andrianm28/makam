@@ -20,8 +20,8 @@ const STATUS_LABEL = { aktif: "Aktif", kedaluwarsa: "Kedaluwarsa", berakhir: "Be
 /**
  * One Hak Pakai at the Admin Lokasi's own Lokasi Mitra: its dates and state, and the two things the
  * Admin Lokasi alone does at its end (ending it by hand, recording the Pembongkaran). Reached from
- * the Denah's Petak and from the Antrean's "Hak Pakai dalam masa tenggang" row. Another Lokasi's
- * Hak Pakai is nothing found here.
+ * the Denah's Petak and from the Antrean's "Hak Pakai dalam masa tenggang" and "Telepon Pemesan" rows
+ * (the call is logged on the row). Another Lokasi's Hak Pakai is nothing found here.
  */
 export default async function HakPakaiLokasiPage({ params }: PageProps<"/staf/admin-lokasi/[lokasiId]/hak-pakai/[hakPakaiId]">) {
   const { lokasiId, hakPakaiId } = await params;
@@ -47,6 +47,8 @@ export default async function HakPakaiLokasiPage({ params }: PageProps<"/staf/ad
         <CardContent>
           <dl className="flex flex-col gap-2 text-body">
             <Baris label="Pemegang Hak" value={hak.pemegangHak?.name ?? "Belum ada"} />
+            {/* The Antrean's Telepon Pemesan row leads here for a Pemegang Hak with no email: this is the number to call. */}
+            {hak.pemegangHak?.phoneNumber ? <Baris label="Telepon Pemegang Hak" value={hak.pemegangHak.phoneNumber} /> : null}
             <Baris label="Berlaku" value={hak.tenureYears ? `${hak.tenureYears} tahun` : "Selamanya"} />
             <Baris label="Berakhir" value={hak.endDate ? formatTanggal(wibDateOf(hak.endDate)) : "Belum tercatat"} />
             <Baris label="Status" value={STATUS_LABEL[hak.status]} />

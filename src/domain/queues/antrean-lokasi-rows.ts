@@ -12,6 +12,7 @@
  * (the failed-message row, whose call is logged in place).
  */
 import type { Actor } from "@/domain/identity";
+import type { TeleponPemesan } from "@/domain/notifications";
 import { formatTanggal, wib, wibDateOf } from "@/lib/time/jakarta";
 import type { AntreanRowDeps } from "./row-types";
 
@@ -43,6 +44,9 @@ export interface AntreanLokasiRowType {
 }
 
 const pemakamanHref = (lokasiId: string, nomor: string) => `/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}`;
+
+/** One Hak Pakai's own page in its Lokasi's staff area (the Denah's Petak leads here too). */
+const hakPakaiHref = (lokasiId: string, hakPakaiId: string) => `/staf/admin-lokasi/${lokasiId}/hak-pakai/${hakPakaiId}`;
 
 /** Where the Admin Lokasi does the work: one job's own page, in its own Lokasi's staff area. */
 const pekerjaanHref = (lokasiId: string, pekerjaanId: string) => `/staf/admin-lokasi/${lokasiId}/pekerjaan/${pekerjaanId}`;
@@ -83,6 +87,8 @@ export const konfirmasiSaatDukaRowType: AntreanLokasiRowType = {
  * Bukti Pemesanan, a Perpanjangan, a Hak Pakai expiry, a Layanan at that
  * Lokasi). Today only the Saat Duka order's own messages exist; the others
  * arrive with the tickets that send them, and their rows need no change here.
+ * What the row opens depends on what the call is about (`teleponHref`): an
+ * order, or a Hak Pakai (cleared in the Denah, it has no order to open).
  */
 export const pesanLokasiGagalRowType: AntreanLokasiRowType = {
   key: "pesan_lokasi_gagal",
@@ -98,11 +104,25 @@ export const pesanLokasiGagalRowType: AntreanLokasiRowType = {
         subjectKind: "telepon_pemesan",
         subjectId: telepon.id,
         subjectLabel: telepon.perihal ?? telepon.nomorPemesanan ?? telepon.nomorTagihan ?? telepon.subjectId,
-        href: pemakamanHref(lokasiId, telepon.nomorPemesanan ?? ""),
+        href: teleponHref(lokasiId, telepon),
         deadline: null,
       }));
   },
 };
+
+/**
+ * Where a "Telepon Pemesan" row leads: the page of what the call is about, and always a page that exists.
+ * The call about a Hak Pakai (its end is near, or its Pemegang Hak has no email on record) carries no Nomor, because
+ * a Hak Pakai cleared in the Denah has no order at all, so it leads to the Hak Pakai's own page. An order's own
+ * message, or a Tagihan of one, leads to the order. Anything else (a Bukti Perpanjangan to hand over, a reminder
+ * email that failed) has no page of its own yet, so the row stays in this Antrean rather than point at `/pesanan/`
+ * with no Nomor behind it.
+ */
+function teleponHref(lokasiId: string, telepon: TeleponPemesan): string {
+  if (telepon.subjectKind === "hak_pakai") return hakPakaiHref(lokasiId, telepon.subjectId);
+  if (telepon.nomorPemesanan) return pemakamanHref(lokasiId, telepon.nomorPemesanan);
+  return `/staf/admin-lokasi/${lokasiId}/antrean`;
+}
 
 /**
  * "Petak Perlu Verifikasi" (Lainnya): the Lokasi Mitra's own count of Petak
@@ -150,7 +170,7 @@ export const hakPakaiMasaTenggangRowType: AntreanLokasiRowType = {
       subjectKind: "hak_pakai",
       subjectId: satu.hakPakaiId,
       subjectLabel: `${satu.label} · berakhir ${formatTanggal(satu.endDate)}, masa tenggang ${satu.lewatMasaTenggang ? "berakhir" : "sampai"} ${formatTanggal(satu.masaTenggangBerakhir)}`,
-      href: `/staf/admin-lokasi/${lokasiId}/hak-pakai/${satu.hakPakaiId}`,
+      href: hakPakaiHref(lokasiId, satu.hakPakaiId),
       deadline: null,
     }));
   },
