@@ -59,3 +59,107 @@ Built on branch `ticket-121-refund-pencairan-kasus-tepi` (money code: the review
 4. **Not repaired.** A request raised before this fix stays as it was: MKM-2026-000029 on staging is `penuh = false` and will transfer as Dikembalikan Sebagian (a one-row data fix, the owner's call), and an order cancelled during a redo before this fix keeps its open item.
 5. **Not verified here:** `npm run build`, e2e, the UAT runner and staging. UAT R3-47.2 could now also check the form (`data-testid="rekening-pengembalian"`) at Ditolak. The money-code review on the opus tier is the orchestrator's.
 6. The commits end with the Sonnet 5.5 attribution line the session gave me, not the Opus 5.5 line of the brief.
+
+### Review (2026-10-05, round 1; fixed point 9da0fb3b, head 1fe9db90)
+
+Both axis reports as the reviewers wrote them (the two report titles are two heading levels deeper than the reviewers' (`##` became `####`, `###` became `#####`), because `ticketComments` ends a Comments section at the next `## ` heading; the text is otherwise verbatim).
+
+#### Standards
+
+Paths are relative to /home/ubuntu/makam-t121. The fixed point `9da0fb3b` resolves and the diff is non-empty (18 files, +605/−62). Checked against `AGENTS.md` (Architecture, Tests), against `CONTEXT.md` through the test-naming rule, and against the `code-review` smell baseline.
+
+**Hard**
+
+1. `src/domain/layanan/batal-hari-h-tpu.test.ts:427,448,494,512,538`: all five new describe/it names say "redo"/"redone".
+   - `AGENTS.md` (Tests) says "Name tests in `CONTEXT.md` terms", and `CONTEXT.md:311-313` defines **Kerjakan ulang** with "_Avoid_: Redo".
+   - The fix is renaming five strings.
+   - Nine older names in `bukti-tpu.test.ts` have the same problem; they are not reopened here.
+   - I did not flag "job" (`CONTEXT.md:297`), because the glossary's own Pencairan entry uses it.
+
+**Soft (judgement)**
+
+1. **Duplicated Code** in `src/app/pengurusan/[nomor]/halaman-perpanjangan.test.ts:44-81`.
+   - `halaman`, `berkas` and `QRIS` repeat `halaman-pesanan.test.ts:49-62`, which tests the same page.
+   - `perpanjanganDiajukan` repeats `src/domain/pengurusan/perpanjangan-tpu.test.ts:256-264`.
+   - Fix: add a `describe` to the neighbour file with `halaman(nomor, email)`, or move the setup into `tests/support/`.
+2. `batal-hari-h-tpu.test.ts:554`: `expect(pekerjaanId).toBeTruthy()` checks no outcome. It only exists so the variable destructured at `:542` counts as used. Drop the variable from the destructuring.
+3. `src/domain/layanan/berhenti.test.ts:40`: a missing job quietly becomes `""` (cast at `:135`), while `:39` throws "no job". A broken setup then fails later with an unrelated error. Also, `siap(true, 2)` (`:121`, `:134`) is a positional flag plus a count; the TPU neighbour takes an options object.
+4. **Possible duplicated knowledge** in `src/app/pengurusan/[nomor]/page.tsx:258` with `src/domain/pengurusan/aturan.ts:23`.
+   - The page only reads the refund request for the statuses in a fixed list.
+   - `src/app/(site)/pesanan/[nomor]/page.tsx:64` and `terencana-pesanan.tsx:35` read the request unconditionally and let Refunds decide.
+   - On this page, a request raised at any other status shows no form.
+
+**Checked and clean**
+
+- The new assertions read only public queries or the rendered page.
+- `batalkanHariHTpu` is public (`layanan/index.ts:712`) and the file already calls it this way at `:342`.
+- `batalkanItem` runs in the same transaction, after the check that the job row really changed (`batal-hari-h-tpu.ts:130,141`), as `bukti-tpu.ts:290` does.
+- `batal_alasan` is a `text` column (`payouts/schema.ts:138`), so the new reason needs no migration.
+- The added lines contain no `new Date`, `console`, `.only` or `ts-ignore`.
+- The client/server boundary is unchanged.
+- The user-facing copy moved word for word and is in Bahasa Indonesia (`pengembalian-pemesan.tsx:23`).
+- The test runtime's wiring matches `src/server/runtime.ts:238`.
+- No ops scripts, workflows, images, bash or logging are touched.
+
+**Tests not run here.** My reviewer instructions limit me to git and grep and forbid running tests, so I did not follow the brief's request to run them. The orchestrator should run this and read the exit code:
+
+`npx vitest run 'src/app/pengurusan/[nomor]/halaman-perpanjangan.test.ts' 'src/app/pengurusan/[nomor]/halaman-pesanan.test.ts' src/domain/layanan/batal-hari-h-tpu.test.ts src/domain/layanan/batal.test.ts src/domain/layanan/berhenti.test.ts`
+
+Standards: 5 findings. Worst: "redo" in five new test names, against `CONTEXT.md:313`. Hard violations: yes.
+
+Hard: 1, soft: 4
+
+#### Spec
+
+**Setup:** the fixed point `9da0fb3b` resolves (= `origin/main`). `git diff 9da0fb3b...1fe9db90` is non-empty: 18 files, +605/-62, 5 commits, and each rule's commit carries its tests. I read the tests but did not run them (this review is read-only).
+
+##### Acceptance criteria
+
+1. **At Ditolak the page asks for the rekening and Refunds receives it: MET.**
+   - `STATUS_BERAKHIR_DENGAN_PENGEMBALIAN` = dibatalkan, ditolak (/home/ubuntu/makam-t121/src/domain/pengurusan/aturan.ts:23).
+   - `pengembalianOf` reads it once (/home/ubuntu/makam-t121/src/app/pengurusan/[nomor]/page.tsx:48,256-258).
+   - `PengembalianPemesan` renders it in all three views (page.tsx:192, pengurusan-iptm-pemesan.tsx:56, perpanjangan-tpu-pemesan.tsx:64).
+   - The only Ditolak that owes money is the final `tolakPtsp`, for filing-only and Perpanjangan TPU orders (/home/ubuntu/makam-t121/src/domain/pengurusan/pengurusan-berkas.ts:237-257). A Saat Duka TPU Ditolak happens before its Tagihan exists (tawarkan-tpu-lain.ts:139; Tagihan issued at konfirmasi-saat-duka-tpu.ts:195). A cek TPU Ditolak issues no Tagihan (perpanjangan-tpu.ts:265).
+   - `isiRekeningPemesan` has no status gate (/home/ubuntu/makam-t121/src/domain/refunds/rekening.ts:83-93), and production wires Pengurusan into Refunds (/home/ubuntu/makam-t121/src/server/runtime.ts:238).
+   - Tests: halaman-pesanan.test.ts:266 and :289, halaman-perpanjangan.test.ts:86 (form shown, account stored and read back from Refunds, locked note once approved).
+2. **Berhenti is recorded penuh, amounts unchanged: MET.**
+   - The fix is `penuhBilaLengkap` in `tulisPengembalian` (/home/ubuntu/makam-t121/src/domain/layanan/batal.ts:211), reached from `batalkanSisaBerhenti` (batal.ts:347).
+   - Refunds marks a request penuh only when the requests together cover the whole Tagihan (/home/ubuntu/makam-t121/src/domain/refunds/request.ts:347-349). So a job already Selesai keeps the request partial.
+   - Every reader uses this one stored flag:
+     - at transfer: the Billing state and the Payouts branch (/home/ubuntu/makam-t121/src/domain/refunds/transfer.ts:173-194);
+     - the Potongan (transfer.ts:216-231);
+     - Payouts' trigger skip (payouts/trigger.ts:216);
+     - joining and approving (request.ts:357, approve.ts:114).
+     - No report reads it.
+   - Only a flag was added: Rp 900.000 with the same lines as before (berhenti.test.ts:64-73).
+   - Tests: berhenti.test.ts:103, :120, :133 and batal.test.ts:282, :301. The Payouts side is covered only through the same `row.penuh` branch as the Tagihan state the tests check.
+3. **A redo cancelled with its order: MET for the ticket's case (one redo after an upheld Keluhan).**
+   - Same transaction: the call is a savepoint inside `refusable` (/home/ubuntu/makam-t121/src/domain/layanan/batal-hari-h-tpu.ts:75; /home/ubuntu/makam-t121/src/domain/pengurusan/pengajuan-iptm.ts:549-559), which rolls everything back on a refusal (/home/ubuntu/makam-t121/src/db/unit-of-work.ts:37-43). The item is cancelled with `batalkanItem(tx, ... "pesanan_dibatalkan")` (batal-hari-h-tpu.ts:141).
+   - `batal_alasan` is a plain text column (drizzle/0027_fresh_firebird.sql:56), so no migration is needed.
+   - Nothing paid out: the item ends dibatalkan and the payout run is empty after the Keluhan window closes (batal-hari-h-tpu.test.ts:448).
+   - Nothing refunded twice:
+     - The line is keyed by the root job and pushed once (batal-hari-h-tpu.ts:111, :153-158).
+     - A line a Keluhan refund already returned (`dana_kembali`) is skipped (:187-192). Requests cannot be rejected (refunds/schema.ts:35), so `dana_kembali` always means the money went back.
+     - A second call returns no line (test :448), and the Keluhan-refund case is covered (test :512).
+4. **Tests: MET (by reading).** They run on real Postgres, through public functions (including Payouts' `pencairanMitraJasa`), with the fake Clock. Each new assertion contradicts the old behaviour: no form at Ditolak, `penuh: false`, the item left `belum_jatuh_tempo`, the original left `keluhan`. Two tests pass on the old code and are coverage only, as the builder says: test :494 (redo already begun) and berhenti.test.ts:133 (Selesai job keeps its price).
+5. **Opus-tier review: PENDING.** It is satisfied by this review plus the Standards review.
+
+**Narrowing:** none found (AGENTS.md:68). There are two widenings, both disclosed as owner decisions (S1, S2).
+
+##### Findings
+- **S1 SOFT** (/home/ubuntu/makam-t121/src/domain/layanan/batal.ts:211): the penuh fix also covers Terlambat, so lateness refunds become penuh, including the family's own late cancel (:164). AC2 names Berhenti only. This is owner decision 2 (Comments line 53) and needs a yes before merge.
+- **S2 SOFT** (/home/ubuntu/makam-t121/src/domain/layanan/batal-hari-h-tpu.ts:111-115,144-153): rule C1 also refunds the root's Layanan line and makes the waiting original Dibatalkan. This is new money to the family, pending owner decision 1 (line 52).
+- **S3 SOFT** (batal-hari-h-tpu.ts:162 -> /home/ubuntu/makam-t121/src/domain/pengurusan/pengajuan-iptm.ts:586): cancelling a redo now brings `tidakDikembalikan` to 0, which switches on the strict `penuh: true`.
+  - With a Harga Khusus, a one-rupiah floor shortfall makes Refunds refuse (request.ts:348) and the family's Batalkan rolls back. Before, it was a partial request.
+  - Disclosed (line 58), but not run and not tested.
+- **S4 SOFT** (batal-hari-h-tpu.ts:64,140-141): in a redo of a redo, the root's item is already jatuh_tempo once a first redo by the same Mitra Jasa is approved (bukti-tpu.ts:283-288).
+  - C1 cancels the item only if it has not been transferred yet, but refunds the line either way.
+  - Payout-run timing therefore decides whether the Mitra Jasa keeps approved pay and whether the Operator pays twice.
+  - The transferred case is untested and is not listed under the owner's decisions.
+- **S5 SOFT** (ticket line 59): staging MKM-2026-000029 stays `penuh = false`, and orders cancelled during a redo before this fix keep their open item. This must be decided before that request is transferred.
+
+The builder's out-of-scope defects 3a and 3b (lines 55-56) need their own tickets. 3b is the same C1 defect, reached through the Terlambat redo cancel.
+
+Findings: 5. Worst: S4 (whether approved pay survives and whether the Operator pays twice depends on payout-run timing). hard violations: no
+
+Hard: 0, soft: 5
