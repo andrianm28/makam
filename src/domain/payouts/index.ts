@@ -78,6 +78,7 @@ import {
   type TransferKeluarPencairan,
 } from "./laporan";
 import { batalkanPembayaranLangsung, type BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
+import { daftarPencairanMitraJasa, type DaftarPencairanMitraJasa } from "./pencairan-mitra-jasa";
 import { jalankanPencairan, tahanPencairan, type TahanPencairanResult } from "./run";
 import {
   buktiPencairanByLink,
@@ -112,6 +113,12 @@ export type { BuktiPencairan, DokumenBuktiPencairan, KirimBuktiPencairan, Terbit
 export type { BarisPotonganUmum, CatatPotonganInput, CatatPotonganLunasResult, CatatPotonganResult } from "./potongan";
 export type { BatalkanPembayaranLangsungResult } from "./pembayaran-langsung";
 export type { BarisJatuhTempo, PencairanLokasi, PencairanMitraJasa, StatusPencairanPesanan } from "./reads";
+export type {
+  DaftarPencairanMitraJasa,
+  PekerjaanPencairanMitraJasa,
+  PencairanMitraJasaEntri,
+  StatusPencairanMitraJasa,
+} from "./pencairan-mitra-jasa";
 export type { PencairanDibayar, PencairanDibayarPerJenis, RentangTanggal, TransferKeluarPencairan } from "./laporan";
 export type { TahanPencairanResult } from "./run";
 export type { TickPencairanResult } from "./trigger";
@@ -234,10 +241,13 @@ export interface Payouts {
       lokasiId: string | null;
       pekerjaan: string;
       layanan: string | null;
+      tpu?: string | null;
       tanggal: string | null;
       tarif: number;
       nomorPemesanan?: string | null;
       label?: string;
+      /** The earliest the job's Pencairan can fall due (the end of its Keluhan window), which the Mitra Jasa is shown as the date to expect. */
+      jatuhTempoPalingCepat?: Date | null;
     },
   ): Promise<CatatLayananMitraJasaResult>;
   /**
@@ -282,8 +292,18 @@ export interface Payouts {
   pencairanJatuhTempo(): Promise<BarisJatuhTempo[]>;
   /** One Lokasi Mitra's Pencairan: per order Belum jatuh tempo / Jatuh tempo / Dicairkan, its Bukti Pencairan list and its Potongan. */
   pencairanLokasi(by: Actor, lokasiId: string): Promise<PencairanLokasi>;
-  /** A Mitra Jasa's own Pencairan: each job with its Layanan, date, rate and Bukti Pencairan, and nothing else. */
+  /**
+   * A Mitra Jasa's own Pencairan, flat, one row per job with its Layanan, date, rate and Bukti Pencairan, and nothing else.
+   * Only tests read it today, and it has no Ditahan status: their page reads `daftarPencairanMitraJasa`, and the one to
+   * retire is this (a follow-up: the Layanan, Payouts and batal-hari-H tests still assert on it).
+   */
   pencairanMitraJasa(by: Actor): Promise<PencairanMitraJasa>;
+  /**
+   * A Mitra Jasa's own Pencairan as their page lists it, newest first (ticket 55 AC 3): a transfer already made as one entry
+   * holding the jobs it covered, every other Pencairan as its own, each with its status, date, jobs (Layanan, TPU, date, rate)
+   * and total. Never a Potongan, never anybody else's, never an order or a family; a Ditangguhkan or Berhenti Mitra Jasa reads it too.
+   */
+  daftarPencairanMitraJasa(by: Actor): Promise<DaftarPencairanMitraJasa>;
   /** What the Bukti Pencairan transferred in a span of WIB dates come to, by kind of recipient (the Laporan; Admin Platform only, zeros for anyone else; ticket 33). */
   pencairanDibayar(by: Actor, span: RentangTanggal): Promise<PencairanDibayar>;
   /** Every Pencairan transfer made in a span of WIB dates, oldest first, with its issuer and a short-lived link to its proof (the weekly transfer list; Admin Platform only; ticket 33). */
@@ -344,6 +364,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     pencairanJatuhTempo: () => pencairanJatuhTempo(deps.db),
     pencairanLokasi: (by, lokasiId) => pencairanLokasi(deps.db, by, lokasiId),
     pencairanMitraJasa: (by) => pencairanMitraJasa(deps.db, by),
+    daftarPencairanMitraJasa: (by) => daftarPencairanMitraJasa(deps.db, by),
     pencairanDibayar: (by, span) => pencairanDibayar(deps.db, by, span),
     transferKeluar: (by, span) => transferKeluarPencairan({ db: deps.db, audit: deps.audit, files: deps.files }, by, span),
     buktiPencairan: (link) => buktiPencairanByLink(deps.db, link),

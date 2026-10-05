@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import type { Actor } from "@/domain/identity";
+import { wib } from "@/lib/time/jakarta";
 import { adminPlatformOf } from "./identity";
 import { layananOnTestDatabase, mitraJasaLengkap, newLayananFor, signedInMitraJasa, siapkanOperatorLayanan, type LayananSetup } from "./layanan";
 import { pemesanDenganEmail } from "./pemesanan";
@@ -126,6 +127,13 @@ export async function pencairanSaya(s: SiapTpuBertarif, mitra: MitraJasaTpu) {
   return hasil.pekerjaan;
 }
 
+/** The Mitra Jasa's Pencairan as their page lists it, newest first: a transfer made as one entry, every other Pencairan as its own. */
+export async function daftarPencairanSaya(s: SiapTpuBertarif, mitra: MitraJasaTpu) {
+  const hasil = await s.setup.payouts.daftarPencairanMitraJasa(mitra.actor);
+  if (!hasil.ok) throw new Error(hasil.reason);
+  return hasil.pencairan;
+}
+
 /**
  * A standalone TPU order of one Layanan, paid, handed to `mitra` and accepted by them: the job waits for its proof.
  * Returns the job and the order it belongs to.
@@ -165,6 +173,53 @@ export async function pekerjaanTpuSelesai(s: SiapTpuBertarif, mitra: MitraJasaTp
   await kirimBuktiPekerjaanTpu(s, mitra, kerja.pekerjaanId);
   await setujui(s, kerja.pekerjaanId);
   return kerja;
+}
+
+/** `kirimBuktiPekerjaanTpu` under the name the Mitra Jasa's Pencairan tests (ticket 122) call it by. */
+export const kirimBukti = kirimBuktiPekerjaanTpu;
+
+/** Where the fake Clock of the TPU fixtures starts: a Thursday at 09:00 WIB, well before the usual target dates. */
+const MULAI = "2026-10-01 09:00";
+
+/** Moves the fake Clock forward to `pada`, and refuses to turn it back: the jobs and the ticks that follow start from where it is. */
+function majukanClock(s: SiapTpuBertarif, pada: string, untuk: string) {
+  const tujuan = wib(pada);
+  if (tujuan.getTime() < s.setup.clock.now().getTime()) {
+    throw new Error(`${untuk}: the fake Clock does not run backwards (it is at ${s.setup.clock.now().toISOString()}, ${pada} WIB is earlier)`);
+  }
+  s.setup.clock.set(tujuan);
+}
+
+/**
+ * A paid TPU order for one Layanan, handed to `mitra`, who accepts and sends the proof, which Admin Platform approves:
+ * the Mitra Jasa's Pencairan exists from here on, Belum jatuh tempo until the Keluhan window has closed. The order is
+ * placed at `dipesanPada`, or by default where the fake Clock is (for the first job that is the usual start, a Thursday at
+ * 09:00 WIB well before the target date: a Clock set earlier is moved up to it), and the proof is sent and approved at
+ * `disetujuiPada` (default: straight away), as a Mitra Jasa does the work on the day. The Clock only ever runs forward: a
+ * second job is ordered when the first was approved or later, so a `dipesanPada` or `disetujuiPada` before the Clock's
+ * time is refused.
+ */
+export async function pekerjaanDisetujui(
+  s: SiapTpuBertarif,
+  mitra: MitraJasaTpu,
+  opsi: { varianId?: string; targetDate?: string; dipesanPada?: string; disetujuiPada?: string } = {},
+) {
+  if (opsi.dipesanPada) majukanClock(s, opsi.dipesanPada, "dipesanPada");
+  else if (s.setup.clock.now().getTime() < wib(MULAI).getTime()) s.setup.clock.set(wib(MULAI));
+  const dipesan = await s.setup.layanan.placePesananLayananTpu(
+    s.pemesan,
+    orderTpu(s, [{ layananVariantId: opsi.varianId ?? s.bunga.id, targetDate: opsi.targetDate ?? "2026-10-05" }]),
+  );
+  if (!dipesan.ok) throw new Error(`order refused: ${dipesan.reason}`);
+  const dibayar = await s.setup.billing.recordPayment(dipesan.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: s.setup.clock.now() });
+  if (!dibayar.ok) throw new Error("payment refused");
+  const job = (await s.setup.layanan.pekerjaanTpuUntukStaf(s.admin)).find((satu) => satu.nomor === dipesan.pesanan.nomor);
+  if (!job) throw new Error("the order has no job");
+  await diterima(s, mitra, job.id);
+  if (opsi.disetujuiPada) majukanClock(s, opsi.disetujuiPada, "disetujuiPada");
+  await kirimBukti(s, mitra, job.id);
+  await setujui(s, job.id);
+  return { pekerjaanId: job.id, nomor: dipesan.pesanan.nomor, tagihanId: dipesan.tagihan.id };
 }
 
 /** What the TPU order form sends: a described grave with no Makam TPU, one Layanan on it. */

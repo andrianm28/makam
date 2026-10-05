@@ -368,6 +368,8 @@ export async function catatItemLayananMitraJasa(
     pekerjaan: string;
     /** The Layanan's name, as the family's order reads it. */
     layanan: string | null;
+    /** The TPU the job is done at, as its Mitra Jasa reads it on their Pencairan; none for a job that is not at a TPU. */
+    tpu?: string | null;
     /** The target date (WIB "YYYY-MM-DD"). */
     tanggal: string | null;
     /** The Mitra Jasa rate, whole rupiah and positive. */
@@ -376,6 +378,11 @@ export async function catatItemLayananMitraJasa(
     nomorPemesanan?: string | null;
     /** The Label the Bukti Pencairan repeats. */
     label?: string;
+    /**
+     * The earliest the job's Pencairan can fall due: when its Keluhan window ends, which only the Layanan module knows.
+     * The Mitra Jasa is shown it as the date to expect; the item falls due only when the module says so (`itemJatuhTempo`).
+     */
+    jatuhTempoPalingCepat?: Date | null;
   },
   now: Date,
 ): Promise<CatatLayananMitraJasaResult> {
@@ -386,10 +393,12 @@ export async function catatItemLayananMitraJasa(
       lokasiId: z.string().trim().min(1).max(64).nullable(),
       pekerjaan: z.string().trim().min(1).max(300),
       layanan: z.string().trim().min(1).max(300).nullable(),
+      tpu: z.string().trim().min(1).max(300).nullish(),
       tanggal: z.iso.date().nullable(),
       tarif: rupiahSchema,
       nomorPemesanan: nomorPemesananSchema.nullish(),
       label: z.string().trim().min(1).max(300).optional(),
+      jatuhTempoPalingCepat: z.date().nullish(),
     })
     .safeParse(input);
   if (!parsed.success || parsed.data.tarif === 0) return { ok: false, reason: "input_tidak_valid" };
@@ -407,10 +416,12 @@ export async function catatItemLayananMitraJasa(
       tanggalLayanan: parsed.data.tanggal,
       pekerjaanLabel: parsed.data.pekerjaan,
       layananNama: parsed.data.layanan,
+      tpuNama: parsed.data.tpu ?? null,
       // Not due yet: the Layanan module's own Keluhan window closing is what makes
       // it due, and when that happens is not this module's to guess.
       dueAt: null,
       jatuhTempoAt: null,
+      jatuhTempoPalingCepatAt: parsed.data.jatuhTempoPalingCepat ?? null,
       status: "belum_jatuh_tempo",
       dibuatPada: now,
     })

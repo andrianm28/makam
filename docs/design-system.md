@@ -279,6 +279,10 @@ One mapping in `StatusBadge` (`statusVocabulary`, checked by `src/components/mak
 | `dibatalkan` | Dibatalkan | neutral | Ended before it happened, by the family or CS |
 | `disetujui` | Disetujui | success | A Pembatalan request the Lokasi Mitra approved |
 | `perlu_perbaikan` | Perlu Perbaikan | warning | A request the Lokasi Mitra sent back for a fix; the family acts |
+| `belum_jatuh_tempo` | Belum Jatuh Tempo | neutral | A Mitra Jasa's Pencairan still waiting for its job's Keluhan window to close |
+| `jatuh_tempo` | Jatuh Tempo | info | A Pencairan that is due and waits on Admin Platform's transfer |
+| `ditahan` | Ditahan | warning | A due Pencairan Admin Platform is holding out for now (the reason stays with staff) |
+| `dicairkan` | Dicairkan | success | A Pencairan transferred, with its Bukti Pencairan |
 
 New statuses join this table (and the component) before they appear on a screen. Danger is kept for "past a deadline"; don't use red for ordinary negative states.
 
