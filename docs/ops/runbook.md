@@ -795,6 +795,15 @@ output. A warm `main` run takes about 11 to 12 minutes.
   (`trivy-findings`: `trivy.sarif` and `critical.txt`, 30 days). Code scanning
   is not available on this private repo on GitHub Free; if it ever is, set the
   repo variable `CODE_SCANNING=true`.
+  A CRITICAL that Debian's security archive already fixes is fixed in the
+  image, not accepted in `.trivyignore` (ticket 126: `perl-base`, which the pinned
+  node base image still shipped in its old version). The Dockerfile's `runner`
+  stage runs `apt-get upgrade`, and the `image` job passes the UTC day and the
+  run attempt as the build argument `DEBIAN_PACKAGES_AS_OF`, which that layer
+  sits behind: BuildKit's layer cache (`cache-from: type=gha`) would otherwise
+  keep it until the base digest moves. The first build of each day rebuilds the
+  layer. When a scan names such a CRITICAL after that first build, "Re-run all
+  jobs" (not "failed jobs") on the run rebuilds it with the fixed package.
 - **actionlint** (ticket 106) lints every file under `.github/workflows` with
   `rhysd/actionlint`, pinned by version and image digest like gitleaks, and runs
   shellcheck on every `run:` script. A `needs.<job>.outputs.<name>` that the job

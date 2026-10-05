@@ -35,7 +35,26 @@ FROM base AS runner
 # pages with Debian's chromium-headless-shell: the headless-only build, far
 # smaller than the full chromium package and with no Node dependency. DejaVu
 # covers any glyph the page's own web fonts do not.
+#
+# The same layer first upgrades every Debian package already installed (ticket
+# 126). The base image is only as fresh as its maintainers' last rebuild, and
+# CI's image scan (Trivy) fails a `main` build on any CRITICAL that has a fix:
+# perl-base 5.36.0-7+deb12u3 stopped every deploy on 2026-10-05 while
+# bookworm-security already shipped 5.36.0-7+deb12u4, and the newest digest of
+# the base tag still carried the old one. Refreshing the lists, upgrading and
+# installing share one layer, so the lists are fresh for all three and leave
+# with it.
+#
+# The layer sits behind an ARG that no command reads. BuildKit reuses a layer
+# whose instruction and parent are unchanged, and CI keeps layers between builds
+# (cache-from type=gha), so without the ARG the upgrade would run again only
+# when the base digest moves, and a fix published in between would never land.
+# ci.yml passes the UTC day and the attempt of the run: the layer is rebuilt by
+# the first build of each day, or at once by "Re-run all jobs". A build outside
+# CI leaves it empty.
+ARG DEBIAN_PACKAGES_AS_OF=""
 RUN apt-get update \
+ && apt-get upgrade -y --no-install-recommends \
  && apt-get install -y --no-install-recommends chromium-headless-shell fonts-dejavu-core \
  && rm -rf /var/lib/apt/lists/*
 ENV CHROMIUM_PATH=/usr/bin/chromium-headless-shell

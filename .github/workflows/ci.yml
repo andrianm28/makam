@@ -238,6 +238,9 @@ jobs:
           tags: type=sha,format=long
       - uses: ./.github/actions/ghcr-login
         if: env.RELEASE == 'true'
+      - name: Cache key (the runner stage's Debian packages, rebuilt each day)
+        id: day
+        run: echo "day=$(date -u +%F)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         id: build
         with:
@@ -253,6 +256,14 @@ jobs:
             # the `sourcemaps` job uploads under. Nothing environment-specific
             # goes in here; the browser DSN stays a runtime value.
             SENTRY_RELEASE=${{ github.sha }}
+            # The Dockerfile's runner stage upgrades the Debian packages, and
+            # `cache-from: type=gha` would hand back last week's upgrade for as
+            # long as the base image digest stays: this value, which no command
+            # reads, is what moves the layer's cache key (ticket 126). A new day
+            # rebuilds it, and so does Re-run all jobs (a new attempt), which is
+            # what to do when a scan names a CRITICAL that bookworm-security fixed
+            # after today's first build.
+            DEBIAN_PACKAGES_AS_OF=${{ steps.day.outputs.day }}-${{ github.run_attempt }}
 
   e2e:
     name: E2E (Playwright against the pushed image)
