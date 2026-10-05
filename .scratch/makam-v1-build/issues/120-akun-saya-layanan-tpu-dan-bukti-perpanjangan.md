@@ -1,6 +1,6 @@
 # Akun Saya: cancelled TPU Layanan are reachable, and the Bukti Perpanjangan is shown
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the reviews of ticket 117 and the UAT runner audit; group A, plus owner rule C4; owner approved "ya keduanya", 2026-10-05)
 Spec: tickets 41 and 42 (Perpanjangan documents) and 53 and 56 (TPU Layanan); checklist R2-41.1, R3-53.1
 
@@ -37,3 +37,10 @@ Built on branch `ticket-120-akun-saya-layanan-tpu-bukti`, from origin/main 9da0f
 2. **"Every status" means every status that has Layanan.** Pekerjaan Layanan exist from the confirmation on, so an order that is Diajukan, or was Ditolak or cancelled before it, has none to show. The hari-H items the family chose at submission are stored on the order but not on its read model, and are not shown before the confirmation; I did not widen the read model for it.
 3. **Only the latest Bukti Perpanjangan** is linked per card, as the AC says; earlier ones stay reachable by their emailed link only.
 4. **Found, not changed.** (a) A cancelled Saat Duka TPU order's page still reads "Pengurusan terkirim" and "Kami mengonfirmasi pemakaman ... paling lambat ...", as for any order not yet confirmed; for an order that was confirmed and then cancelled this is misleading and wants its own ticket. (b) The test web runtime (`tests/support/server-runtime.ts`) composes Refunds without the Pengurusan reference production passes (`pemilikPesananDari`), so `isiRekeningPemesan` on a TPU order answers `tidak_ditemukan` there; the page test records the bank account as Admin Platform instead. (c) `/layanan/<nomor>` shows a Dibatalkan job without the refund state; it is an async page whose job list renders a threaded async component, so a static render cannot reach it, and the refund block stays on the order page. (d) A Hak Pakai whose Lokasi Berhenti is read-only still lists its Bukti Perpanjangan, as it lists its Bukti Pemesanan.
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head b62ee3b1)
+
+- **Two-axis review:** Standards and Spec reviewers (sonnet) in parallel; round 0: Standards Hard: 0, soft: 8, Spec Hard: 0, soft: 6.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB15, after the full verification (typecheck, lint, build, `npm run test:shared`).
+

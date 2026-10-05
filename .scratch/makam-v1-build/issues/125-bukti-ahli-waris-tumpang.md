@@ -1,6 +1,6 @@
 # Tumpang at a Lokasi Mitra: the heirship proof can be uploaded
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the UAT runner audit; group B; owner approved "ya keduanya", 2026-10-05)
 Spec: ticket 35 (tumpang under an existing Hak Pakai, with consent); checklist R2-35.3
 
@@ -49,3 +49,10 @@ Builder (Sonnet, branch `ticket-125-bukti-ahli-waris-tumpang`, base `9da0fb3b`; 
 - Counts, each read off a whole log: the five files above, 5 files / 49 tests passed, exit 0; the touched module's neighbours (`src/domain/pemesanan`, `src/app/staf/admin-lokasi`, `rilis-guard`, `rilis`, `duplicate-routes`, `tumpang-panel`), 38 files / 324 tests passed, exit 0; `npm run typecheck` exit 0; `npm run lint` exit 0 (0 errors, 6 warnings in files this change does not touch).
 
 **Unverified:** a real browser (the field's enabling and requirement with the radio, a multipart upload through Next's Server Action, following the 303 to a `DiskFileStore` link); `npm run build` and e2e were not run (no schema, no new dependency; the client file imports only a pure lib). The UAT journey R2-35.3 (`uat/perjalanan/rilis2-tanpa-bayar.uat.ts`) still walks the heirship step by hand, as before; it can now attach the file after picking the radio.
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head 0ac31234)
+
+- **Two-axis review:** Standards and Spec reviewers (sonnet) in parallel; round 0: Standards Hard: 0, soft: 7, Spec Hard: 0, soft: 5.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB15, after the full verification (typecheck, lint, build, `npm run test:shared`).
+

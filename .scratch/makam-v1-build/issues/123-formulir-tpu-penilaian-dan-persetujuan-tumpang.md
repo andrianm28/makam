@@ -1,6 +1,6 @@
 # TPU family forms: a Penilaian for TPU Layanan jobs, and a required tumpang consent
 
-Status: ready-for-agent
+Status: resolved
 Blocked by: none (found by the UAT runner audit; group B, plus owner rule C3; owner approved "ya keduanya", 2026-10-05)
 Spec: ticket 51 (Keluhan and Penilaian), ticket 44 (Saat Duka at a TPU, tumpang); checklist R3-51.1, R3-44.2
 
@@ -51,3 +51,10 @@ Built on `origin/main` 9da0fb3b, branch `ticket-123-tpu-penilaian-persetujuan-tu
 - New: `src/domain/layanan/penilaian-tpu.test.ts` (9: stars and one per job; not finished, even with the proof waiting; the Pemesan's own; the Pemesan's read of it; a job under a Keluhan; Admin Platform alone; the scorecard mean; the 90-day window; the Mitra Jasa who did the job), `src/app/layanan/[nomor]/actions.test.ts` (2), `src/app/pesan-makam/saat-duka/tpu/persetujuan-tumpang.test.ts` (7, static render of the box and of Kirim), and 3 each added to `src/app/layanan/[nomor]/pekerjaan-tpu.test.ts` (static render of the Penilaian) and `src/app/pesan-makam/saat-duka/actions.test.ts` (the action's refusal for the consent, at Kirim and at the Kode Masuk step, and the placed Tumpang and new grave).
 - Final consolidated run: `src/domain/layanan`, `src/domain/pengurusan`, `src/app/pesan-makam`, `src/app/layanan`, `src/app/pengurusan`, `src/app/staf/admin-platform/penilaian`, `src/components`, `tests/uat`, `tests/seed-representative.test.ts`, the release-gate, `use server` exports, copy and ticket-number guards: exit 0, **77 files, 902 tests passed**.
 - `npm run typecheck` exit 0; `npm run lint` exit 0 (0 errors, the same 6 warnings as before, none in these files); `npm run build` once, exit 0, then `rm -rf .next dist`.
+
+### Review and merge (2026-10-06, orchestrator; fixed point 9da0fb3b, head 4591e979)
+
+- **Two-axis review:** Standards and Spec reviewers (sonnet) in parallel; round 0: Standards Hard: 0, soft: 4, Spec Hard: 0, soft: 4.
+- **Status:** clean, with Hard 0 on both axes in the last round. The soft findings and the builder's spec gaps are in the review entries and in "Spec gaps and decisions for the owner" above; the owner triages them.
+- **Merged** in batch MB15, after the full verification (typecheck, lint, build, `npm run test:shared`).
+
