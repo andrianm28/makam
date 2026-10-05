@@ -126,6 +126,47 @@ export async function pencairanSaya(s: SiapTpuBertarif, mitra: MitraJasaTpu) {
   return hasil.pekerjaan;
 }
 
+/**
+ * A standalone TPU order of one Layanan, paid, handed to `mitra` and accepted by them: the job waits for its proof.
+ * Returns the job and the order it belongs to.
+ */
+export async function pekerjaanTpuDiterima(s: SiapTpuBertarif, mitra: MitraJasaTpu, over: { varianId?: string; targetDate?: string } = {}) {
+  const dipesan = await s.setup.layanan.placePesananLayananTpu(
+    s.pemesan,
+    orderTpu(s, [{ layananVariantId: over.varianId ?? s.bunga.id, targetDate: over.targetDate ?? "2026-10-05" }]),
+  );
+  if (!dipesan.ok) throw new Error(`order refused: ${dipesan.reason}`);
+  const dibayar = await s.setup.billing.recordPayment(dipesan.tagihan.id, { method: { kind: "transfer_manual" }, reference: null, paidAt: s.setup.clock.now() });
+  if (!dibayar.ok) throw new Error("payment refused");
+  const pekerjaanId = (await s.setup.layanan.pesananTpuOf(dipesan.pesanan.nomor, s.pemesan))?.item[0].id;
+  if (!pekerjaanId) throw new Error("the order has no job");
+  await diterima(s, mitra, pekerjaanId);
+  return { pekerjaanId, nomor: dipesan.pesanan.nomor, tagihanId: dipesan.tagihan.id };
+}
+
+/** The Mitra Jasa takes every shot the job's Layanan asks for and sends the proof for approval. */
+export async function kirimBuktiPekerjaanTpu(s: SiapTpuBertarif, mitra: MitraJasaTpu, pekerjaanId: string) {
+  const baca = await s.setup.layanan.buktiTpuSaya(mitra.actor, pekerjaanId);
+  if (!baca) throw new Error("the job is not this Mitra Jasa's");
+  for (const kind of baca.dibutuhkan) {
+    const diambil = await s.setup.layanan.simpanBuktiTpu(mitra.actor, { pekerjaanId, kind, takenAt: s.setup.clock.now(), file: { body: foto(), contentType: "image/jpeg" } });
+    if (!diambil.ok) throw new Error(`shot refused: ${diambil.reason}`);
+  }
+  const kirim = await s.setup.layanan.kirimBuktiTpu(mitra.actor, { pekerjaanId });
+  if (!kirim.ok) throw new Error(`send refused: ${kirim.reason}`);
+}
+
+/**
+ * `pekerjaanTpuDiterima` carried all the way: shot, sent and approved by Admin Platform on the Clock as it stands, so the job
+ * is Selesai, its proof is shown to the Pemesan and the 3×24 h Keluhan window is open.
+ */
+export async function pekerjaanTpuSelesai(s: SiapTpuBertarif, mitra: MitraJasaTpu, over: { varianId?: string; targetDate?: string } = {}) {
+  const kerja = await pekerjaanTpuDiterima(s, mitra, over);
+  await kirimBuktiPekerjaanTpu(s, mitra, kerja.pekerjaanId);
+  await setujui(s, kerja.pekerjaanId);
+  return kerja;
+}
+
 /** What the TPU order form sends: a described grave with no Makam TPU, one Layanan on it. */
 export function orderTpu(
   siap: Pick<SiapTpu, "tpu">,

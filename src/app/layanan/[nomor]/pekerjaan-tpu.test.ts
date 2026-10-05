@@ -2,6 +2,9 @@
  * The hari-H and standalone TPU jobs as the family's Layanan page reads them, rendered (ticket 117): a job that was cancelled reads
  * Dibatalkan and says nobody will do it, whoever held it, and never "Dikerjakan oleh ...". A Mitra Jasa's name is a promise that
  * somebody is doing the work, so it must not sit on a job that is gone.
+ *
+ * A finished job offers the family a Penilaian, the way a Lokasi Mitra's job does (ticket 123): 1 to 5 stars and an optional comment,
+ * once, and a job already rated says thanks instead of asking again.
  */
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -15,6 +18,7 @@ vi.mock("./actions", () => ({
   ajukanKeluhanLayanan: async () => ({ status: "gagal" as const, message: "" }),
   ajukanKeluhanPekerjaanTpu: async () => ({ status: "gagal" as const, message: "" }),
   beriPenilaianLayanan: async () => ({ status: "gagal" as const, message: "" }),
+  beriPenilaianPekerjaanTpu: async () => ({ status: "gagal" as const, message: "" }),
 }));
 
 const { PekerjaanTpuDaftar } = await import("./pekerjaan-tpu");
@@ -31,6 +35,7 @@ function pekerjaan(over: Partial<PekerjaanTpuPemesan>): PekerjaanTpuPemesan {
     mitraJasa: null,
     bukti: [],
     keluhan: { bolehDiajukan: false, berakhirAt: null, diajukan: null },
+    penilaian: { bolehDinilai: false, dinilai: false },
     ...over,
   };
 }
@@ -77,5 +82,40 @@ describe("a TPU job on the family's Layanan page", () => {
 
   it("promises a Mitra Jasa before the target date for a job nobody holds yet", () => {
     expect(daftarDengan(pekerjaan({ status: "dijadwalkan" }))).toContain("Mitra Jasa akan ditugaskan sebelum tanggal target.");
+  });
+});
+
+describe("a finished TPU job's Penilaian on the family's Layanan page (ticket 123)", () => {
+  const SELESAI = { status: "selesai" as const, mitraJasa: RUDI };
+
+  it("offers 1 to 5 stars and an optional comment on a finished job nobody has rated, and says only the team reads it", () => {
+    const markup = daftarDengan(pekerjaan({ ...SELESAI, penilaian: { bolehDinilai: true, dinilai: false } }));
+
+    expect(markup).toContain('data-testid="penilaian-tpu-form"');
+    expect(markup.match(/type="radio"/g)).toHaveLength(5);
+    expect(markup).toContain('name="bintang"');
+    expect(markup).toContain('name="komentar"');
+    expect(markup).toContain('value="pekerjaan-1"');
+    expect(markup).toContain("Kirim penilaian");
+    // A TPU job has a Mitra Jasa and no Lokasi Mitra, so it says who does not read it in those words.
+    expect(markup).toContain("Penilaian hanya dibaca tim Makam.co.id, tidak oleh Mitra Jasa.");
+    expect(markup).not.toContain("Lokasi Mitra");
+    expect(markup).not.toContain("sudah menilai");
+  });
+
+  it("thanks the family instead once the job has been rated, and does not ask a second time", () => {
+    const markup = daftarDengan(pekerjaan({ ...SELESAI, penilaian: { bolehDinilai: false, dinilai: true } }));
+
+    expect(markup).toContain("Terima kasih, Anda sudah menilai pekerjaan ini.");
+    expect(markup).not.toContain('data-testid="penilaian-tpu-form"');
+    expect(markup).not.toContain("Kirim penilaian");
+  });
+
+  it("offers none on a job that is not finished", () => {
+    const markup = daftarDengan(pekerjaan({ status: "sedang_dikerjakan", mitraJasa: RUDI }));
+
+    expect(markup).not.toContain('data-testid="penilaian-tpu-form"');
+    expect(markup).not.toContain("Kirim penilaian");
+    expect(markup).not.toContain("sudah menilai");
   });
 });
