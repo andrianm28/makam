@@ -7,8 +7,9 @@
  *
  * Owns tables: layanan_layanan, layanan_varian, layanan_penawaran, layanan_paket,
  * layanan_paket_item, pesanan_paket, pesanan_paket_item, pesanan_layanan, pesanan_layanan_item, pekerjaan_layanan,
- * pekerjaan_layanan_bukti, pengembalian_layanan, keluhan_layanan, penilaian_layanan, and the two TPU tables of
- * ticket 56 (pekerjaan_layanan_tpu, pekerjaan_layanan_tpu_penugasan).
+ * pekerjaan_layanan_bukti, pengembalian_layanan, keluhan_layanan, penilaian_layanan, and the TPU tables: the two of
+ * ticket 56 (pekerjaan_layanan_tpu, pekerjaan_layanan_tpu_penugasan) and, for a TPU job's own Penilaian,
+ * penilaian_layanan_tpu (ticket 123).
  *
  * Every price of a Layanan variant is a versioned tariff in the Tariffs module
  * (its price at a Lokasi Mitra, the DKI price, the Mitra Jasa rate), never a
@@ -156,6 +157,7 @@ import {
   type BatalkanPekerjaanTerlambatTpuResult,
 } from "./batal-terlambat-tpu";
 import { kerjaUlangTpu, type KerjaUlangTpuResult } from "./kerja-ulang-tpu";
+import { beriPenilaianTpu, type BeriPenilaianTpuResult } from "./penilaian-tpu";
 import { jendelaKeluhanTpu, pekerjaanTpuMenungguVerifikasi, type PekerjaanTpuMenungguVerifikasi } from "./bukti-tpu-baca";
 import { tandaiTerlambatTpu } from "./terlambat-tpu";
 import {
@@ -364,6 +366,7 @@ export { itemCheckoutSchema, itemCheckoutListSchema, type ItemCheckoutInput } fr
 export { JENDELA_TARGET_HARI, jendelaTarget, targetPalingDini } from "./pesanan";
 export type { AlasanTolakPesanan, PesananLayananOrder, PesananLayananItemTerbaca, PlacePesananLayananResult } from "./pesanan";
 export { JAM_RESPON_PERTAMA_KELUHAN, JENDELA_KELUHAN_JAM, jendelaKeluhanBerakhir } from "./keluhan";
+export type { BeriPenilaianTpuResult, PenilaianTpuPemesan } from "./penilaian-tpu";
 export type {
   AjukanKeluhanResult,
   BeriPenilaianResult,
@@ -748,6 +751,8 @@ export interface Layanan {
   jendelaKeluhanTpu(pekerjaanId: string): Promise<{ dibukaAt: Date | null; berakhirAt: Date | null; ditutup: boolean } | null>;
   /** The Pemesan files a Keluhan on a Selesai TPU job inside the window; the job becomes Keluhan and its Pencairan is held. */
   ajukanKeluhanTpu(pemesan: PemesanLayanan, input: unknown): Promise<AjukanKeluhanTpuResult>;
+  /** The Pemesan gives a finished TPU job an optional 1–5 star Penilaian with a comment: the same as a Lokasi Mitra's job takes (`beriPenilaian`), once per job, read by Admin Platform alone. */
+  beriPenilaianTpu(pemesan: PemesanLayanan, input: unknown): Promise<BeriPenilaianTpuResult>;
   /** Admin Platform rejects the Keluhan or has the job redone by the Mitra Jasa it names (`kerjaUlangTpu`). */
   putuskanKeluhanTpu(by: Actor, input: unknown): Promise<PutuskanKeluhanTpuResult>;
   /** The Pemesan cancels a Terlambat TPU job: the whole Tagihan is refunded and the Mitra Jasa gets no Pencairan. */
@@ -784,7 +789,7 @@ export interface Layanan {
   sesuaikanPencairanKeluhan(by: Actor, input: unknown): Promise<SesuaikanPencairanResult>;
   /** One Keluhan with the job, its proof, the Pemesan, the Penilaian and what the job pays: what Admin Platform decides on. */
   keluhanUntukPlatform(by: Actor, keluhanId: string): Promise<KeluhanUntukPlatformResult>;
-  /** Every Penilaian, newest first: Admin Platform only (nobody else's read carries one). */
+  /** Every Penilaian, a Lokasi Mitra's job and a TPU's alike, newest first: Admin Platform only (nobody else's read carries one). */
   daftarPenilaian(by: Actor): Promise<PenilaianDenganPekerjaan[]>;
   /** Every Keluhan waiting for Admin Platform's decision, oldest first: the Antrean's Tier 1 row and its counter. */
   keluhanTerbuka(): Promise<KeluhanTerbuka[]>;
@@ -957,6 +962,7 @@ export function createLayanan(deps: LayananDeps): Layanan {
     kerjaUlangTpu: (by, input) => kerjaUlangTpu(deps, by, input),
     jendelaKeluhanTpu: (pekerjaanId) => jendelaKeluhanTpu(deps.db, pekerjaanId),
     ajukanKeluhanTpu: (pemesan, input) => ajukanKeluhanTpu(deps, pemesan, input),
+    beriPenilaianTpu: (pemesan, input) => beriPenilaianTpu(deps, pemesan, input),
     putuskanKeluhanTpu: (by, input) => putuskanKeluhanTpu(deps, by, input),
     batalkanPekerjaanTerlambatTpuOlehPemesan: (pemesan, input) => batalkanPekerjaanTerlambatTpuOlehPemesan(deps, pemesan, input),
     batalkanPekerjaanTerlambatTpu: (by, input) => batalkanPekerjaanTerlambatTpu(deps, by, input),

@@ -2,6 +2,11 @@
  * The wizard's Kirim, as the Server Actions answer it (AGENTS.md: authenticate,
  * check the role, validate with Zod, call the Pemesanan module). What the
  * placement itself means is the Pemesanan module's own tests.
+ *
+ * The TPU form's Kirim refuses a Tumpang whose family has not ticked that it
+ * understands the tumpang conditions (ticket 123, owner rule C3, 2026-10-05):
+ * a Server Action is a public endpoint, so the disabled button is not the only
+ * gate.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../tests/support/next-request";
@@ -9,7 +14,9 @@ import { resetDatabase, testDatabase } from "../../../../tests/support/database"
 import { testServerRuntime } from "../../../../tests/support/server-runtime";
 import { cellsOf } from "../../../../tests/support/inventory";
 import { saatDukaFixture, siapkanOperatorPemesanan, tawarkanLayananDi } from "../../../../tests/support/pemesanan";
-import { kirimPesanan } from "./actions";
+import { saatDukaTpuFixture, type PengurusanSetup } from "../../../../tests/support/pengurusan";
+import { toBase64 } from "@/lib/files/base64";
+import { kirimPengurusanTpu, kirimPesanan, verifikasiKodeMasukDanKirimTpu } from "./actions";
 import type { DraftSaatDuka } from "./draft";
 
 vi.mock("server-only", () => ({}));
@@ -97,5 +104,68 @@ describe("Kirim pesanan with hari-H Layanan (ticket 53)", () => {
     expect(konfirmasi.ok).toBe(true);
     const pesanan = await rt.layanan.pesananLayananOf(hasil.nomor, fixture.pemesan);
     expect(pesanan?.item).toMatchObject([{ targetDate: "2026-10-02", pekerjaan: { status: "dijadwalkan" } }]);
+  });
+});
+
+/** The words a family is refused a Tumpang with when it has not ticked the box (stated here, from the ticket, not read back from the code). */
+const PESAN_PERSETUJUAN = "Centang dulu persetujuan syarat Tumpang (aturan 3 tahun dan surat persetujuan Pemegang Hak) sebelum mengirim.";
+
+/** The TPU form's draft for a new grave, as "Data & kirim" of a TPU would have it filled in. */
+function draftTpu(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    pemesanName: "Budi Santoso",
+    email: "pemesan@contoh.id",
+    phoneNumber: "081234567890",
+    almarhumName: "Siti Aminah",
+    tanggalWafat: "2026-09-30",
+    tpuId: "00000000-0000-4000-8000-000000000003",
+    jenis: "baru",
+    kelayakan: { ktpDki: true, wafatDiJakarta: true },
+    kuburan: null,
+    fotoIptm: null,
+    pemegangHak: { mode: "pemesan" },
+    layananHariH: [],
+    ...overrides,
+  };
+}
+
+/** What a Tumpang carries besides the consent: the grave described and its IPTM photographed. */
+const TUMPANG = {
+  jenis: "tumpang",
+  kuburan: { blokNomor: "Blok B-12 No. 34", nama: "Hasan Basri" },
+  fotoIptm: { nama: "iptm.jpg", contentType: "image/jpeg", isi: toBase64(new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3])) },
+};
+
+describe("Kirim pengurusan TPU (Server Action): the Tumpang consent", () => {
+  it("refuses a Tumpang whose family has not confirmed the tumpang conditions, saying so under the checkbox", async () => {
+    const login = await server.logIn("pemesan@contoh.id");
+    browser.store(login.session.cookies);
+    const refused = { status: "gagal", pesan: { persetujuanTumpang: PESAN_PERSETUJUAN }, message: PESAN_PERSETUJUAN };
+
+    expect(await kirimPengurusanTpu(draftTpu({ ...TUMPANG, persetujuanTumpang: false }))).toEqual(refused);
+    // A request that does not carry the consent at all (a stale tab, or a hand-made one) is a request without it.
+    expect(await kirimPengurusanTpu(draftTpu(TUMPANG))).toEqual(refused);
+  });
+
+  it("refuses it at the Kode Masuk step too, before the code is read or any Akun is made", async () => {
+    const data = new FormData();
+    data.set("email", "pemesan@contoh.id");
+    data.set("code", "123456");
+
+    expect(await verifikasiKodeMasukDanKirimTpu(draftTpu({ ...TUMPANG, persetujuanTumpang: false }), { status: "idle" }, data)).toMatchObject({
+      status: "gagal",
+      message: PESAN_PERSETUJUAN,
+    });
+  });
+
+  it("places a Tumpang once the box is ticked, and a new grave never needed it", async () => {
+    const rt = server.runtime();
+    const setup = { ...rt, clock: server.clock, email: server.email() } as unknown as PengurusanSetup;
+    const { tpuDki } = await saatDukaTpuFixture(setup);
+    const login = await server.logIn("pemesan@contoh.id");
+    browser.store(login.session.cookies);
+
+    expect(await kirimPengurusanTpu(draftTpu({ ...TUMPANG, tpuId: tpuDki.id, persetujuanTumpang: true }))).toMatchObject({ status: "selesai" });
+    expect(await kirimPengurusanTpu(draftTpu({ tpuId: tpuDki.id }))).toMatchObject({ status: "selesai" });
   });
 });

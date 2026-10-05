@@ -15,7 +15,7 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import type { PekerjaanMitraJasa, PekerjaanMitraJasaPort } from "./deps";
-import { pekerjaanLayananTpu, pekerjaanLayananTpuPenugasan, type PekerjaanTpuStatus, type PenugasanHasil } from "./schema";
+import { pekerjaanLayananTpu, pekerjaanLayananTpuPenugasan, penilaianLayananTpu, type PekerjaanTpuStatus, type PenugasanHasil } from "./schema";
 
 /** How a job status is worded for the scorecard while the Mitra Jasa still holds the job. */
 function statusDipegang(status: PekerjaanTpuStatus): PekerjaanMitraJasa["status"] {
@@ -44,24 +44,28 @@ export function portPekerjaanTpu(db: Database, clock: Clock): PekerjaanMitraJasa
   const port: PekerjaanMitraJasaPort = {
     async daftarPekerjaan(mitraJasaId) {
       const rows = await db
-        .select({ penugasan: pekerjaanLayananTpuPenugasan, job: pekerjaanLayananTpu })
+        .select({ penugasan: pekerjaanLayananTpuPenugasan, job: pekerjaanLayananTpu, bintang: penilaianLayananTpu.bintang })
         .from(pekerjaanLayananTpuPenugasan)
         .innerJoin(pekerjaanLayananTpu, eq(pekerjaanLayananTpu.id, pekerjaanLayananTpuPenugasan.pekerjaanId))
+        .leftJoin(penilaianLayananTpu, eq(penilaianLayananTpu.pekerjaanId, pekerjaanLayananTpu.id))
         .where(eq(pekerjaanLayananTpuPenugasan.mitraJasaId, mitraJasaId))
         .orderBy(asc(pekerjaanLayananTpuPenugasan.ditugaskanAt), asc(pekerjaanLayananTpuPenugasan.id));
-      return rows.map(({ penugasan, job }): PekerjaanMitraJasa => {
+      return rows.map(({ penugasan, job, bintang }): PekerjaanMitraJasa => {
         const berakhir = sudahBerakhir(penugasan.hasil);
+        // A job Admin Platform approved is counted when it was finished, for the Mitra Jasa who still holds it (the assignment they accepted).
+        const selesai = !berakhir && job.status === "selesai" && job.selesaiAt !== null;
         return {
           id: penugasan.id,
           status: berakhir ? "dibatalkan" : statusDipegang(job.status),
           targetDate: job.targetDate,
-          // A decline is counted when it happened; a job done, late or complained about is counted by ticket 57 and 51.
-          dihitungPada: berakhir ? penugasan.dijawabAt : null,
+          // A decline is counted when it happened and a finished job when it was finished. Terlambat and Keluhan upheld of a TPU job are not fed yet.
+          dihitungPada: berakhir ? penugasan.dijawabAt : selesai ? job.selesaiAt : null,
           terlambat: !berakhir && job.status === "terlambat",
           keluhanUpheld: false,
           ditolak: penugasan.hasil === "ditolak",
           tidakDirespons: penugasan.hasil === "tidak_direspons",
-          penilaian: null,
+          // The family's stars belong to the job's one Mitra Jasa, never to one it was taken off or who declined it.
+          penilaian: berakhir ? null : bintang,
         };
       });
     },

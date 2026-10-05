@@ -13,9 +13,9 @@ export const metadata: Metadata = {
 };
 
 /**
- * Every Penilaian a Pemesan gave a finished Pekerjaan Layanan, newest first (spec, Layanan; story 95): the
- * Operator's own read of quality. Admin Platform only: a Penilaian is never shown to an Admin Lokasi or a
- * Mitra Jasa. Reached from the Antrean, like the other pages that no menu slot holds.
+ * Every Penilaian a Pemesan gave a finished Pekerjaan Layanan, at a Lokasi Mitra or a DKI TPU, newest first (spec,
+ * Layanan; story 95): the Operator's own read of quality. Admin Platform only: a Penilaian is never shown to an
+ * Admin Lokasi or a Mitra Jasa. Reached from the Antrean, like the other pages that no menu slot holds.
  */
 export default async function PenilaianPage() {
   const actor = await staffMenuActor("admin_platform");
@@ -37,7 +37,7 @@ export default async function PenilaianPage() {
                 {nilai.bintang} dari 5 bintang · {nilai.label}
               </CardTitle>
               <CardDescription>
-                {nilai.lokasi.name} · Petak {nilai.petak} · pesanan {nilai.pesanan} · {formatTanggalJam(nilai.dibuatAt)}
+                {nilai.lokasi.name} · {nilai.sumber === "tpu" ? "Makam" : "Petak"} {nilai.petak} · pesanan {nilai.pesanan} · {formatTanggalJam(nilai.dibuatAt)}
               </CardDescription>
             </CardHeader>
             {nilai.komentar ? (

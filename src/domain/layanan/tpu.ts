@@ -33,6 +33,7 @@ import { wibDateOf } from "@/lib/time/jakarta";
 import type { LayananDeps, PemesanLayanan } from "./deps";
 import { offerings, type LayananUntukPesanan, type VarianUntukOrder } from "./harga";
 import { buktiTpuPerPekerjaan, keluhanTpuPerPekerjaan, type BuktiTpuTerbaca, type KeluhanTpuPemesan } from "./bukti-tpu-baca";
+import { penilaianTpuPerPekerjaan, type PenilaianTpuPemesan } from "./penilaian-tpu";
 import { katalog } from "./katalog";
 import { jendelaTarget, targetPalingDini } from "./pesanan";
 import {
@@ -481,6 +482,8 @@ export interface PekerjaanTpuPemesan {
   bukti: BuktiTpuTerbaca[];
   /** Whether the Pemesan may file a Keluhan now, until when, and the one they filed. */
   keluhan: KeluhanTpuPemesan;
+  /** Whether the Pemesan may give the job a Penilaian now, and whether they already did (their stars are never read back). */
+  penilaian: PenilaianTpuPemesan;
 }
 
 /** One order at a DKI TPU as its Pemesan reads it: standalone, or the hari-H items of a Saat Duka TPU order. */
@@ -519,6 +522,7 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
     .innerJoin(layananMitraJasa, eq(layananMitraJasa.id, pekerjaanLayananTpuPenugasan.mitraJasaId))
     .where(and(inArray(pekerjaanLayananTpuPenugasan.pekerjaanId, jobs.map((job) => job.id)), eq(pekerjaanLayananTpuPenugasan.hasil, "diterima")));
   const keluhanOf = await keluhanTpuPerPekerjaan(deps.db, deps.clock.now(), jobs);
+  const penilaianOf = await penilaianTpuPerPekerjaan(deps.db, jobs);
   const mitraOf = new Map(diterima.map((row) => [row.pekerjaanId, row] as const));
   // Only an approved proof is shown to the Pemesan: a job Menunggu Verifikasi has none to show yet.
   const buktiOf = await buktiTpuPerPekerjaan(
@@ -544,6 +548,8 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
       jobs.map(async (job) => {
         const keluhan = keluhanOf.get(job.id);
         if (!keluhan) throw new Error(`no Keluhan read for job ${job.id}`);
+        const penilaian = penilaianOf.get(job.id);
+        if (!penilaian) throw new Error(`no Penilaian read for job ${job.id}`);
         const mitra = mitraOf.get(job.id);
         return {
           id: job.id,
@@ -558,6 +564,7 @@ export async function pesananTpuOf(deps: LayananDeps, nomor: string, pemesan: { 
             : null,
           bukti: buktiOf.get(job.id) ?? [],
           keluhan,
+          penilaian,
         };
       }),
     ),
