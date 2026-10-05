@@ -469,3 +469,191 @@ describe("Makamkan di sini", () => {
     expect(baris).toMatchObject({ amount: 2_500_000, jatuhTempoAt: await payouts.tenggat(pemakamanPada) });
   });
 });
+
+/** The heirship proof the Admin Lokasi uploads when the Pemegang Hak has died and an ahli waris brings the proof on the day (ticket 125). */
+describe("Bukti ahli waris on a further burial's consent", () => {
+  const PDF = new TextEncoder().encode("%PDF-1.7\nsurat keterangan ahli waris\n%%EOF\n");
+  const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 1, 2, 3]);
+  const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 1]);
+  const SEPULUH_MB = 10 * 1024 * 1024;
+
+  /** A grave whose Pemegang Hak has no recorded email, as a deceased holder's has none to answer. */
+  async function hakPakaiTanpaEmail(setup: PemesananSetup) {
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const { pemesan } = await pemesanDenganEmail(setup, "keluarga@contoh.id", "Rina Wulandari");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001" });
+    return { lokasi, pemesan, hakPakaiId };
+  }
+
+  /** A further burial asked for that grave: its consent waits on the Lokasi. */
+  async function mintaTumpang(setup: PemesananSetup, hak: Awaited<ReturnType<typeof hakPakaiTanpaEmail>>, almarhumName = "Budi Santoso") {
+    const placed = await ajukan(setup, hak.lokasi, hak.hakPakaiId, hak.pemesan, almarhumName);
+    if (!placed.ok) throw new Error(`ajukanTumpang refused: ${placed.reason}`);
+    return placed.pesanan.nomor;
+  }
+
+  /** What the private FileStore holds right now, by key. */
+  const isiFileStore = (setup: PemesananSetup) => new Set(setup.files.stored.keys());
+  const baruDi = (setup: PemesananSetup, sebelum: Set<string>) => [...setup.files.stored.entries()].filter(([kunci]) => !sebelum.has(kunci));
+
+  it("keeps an heirship proof in the private FileStore only, and the order and the Entri Audit show that a proof is on file", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    const sebelum = isiFileStore(setup);
+
+    const dicatat = await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, {
+      nomor,
+      via: "ahli_waris",
+      catatan: "Surat keterangan waris dibawa keluarga.",
+      bukti: { body: PDF, contentType: "application/pdf" },
+    });
+    expect(dicatat).toMatchObject({ ok: true });
+
+    const [disimpan] = baruDi(setup, sebelum);
+    expect(baruDi(setup, sebelum)).toHaveLength(1);
+    expect(disimpan![1]).toMatchObject({ contentType: "application/pdf", body: PDF });
+    const staf = await setup.pemesanan.orderUntukStaf(hak.lokasi.adminLokasi, nomor);
+    expect(staf?.tumpang).toMatchObject({ konsen: { state: "disetujui", via: "ahli_waris" }, buktiAhliWarisAda: true, gantiPemegangHakDiingatkan: true });
+    const konsen = (await setup.audit.entriesForLokasi(hak.lokasi.lokasiMitra.id)).filter((entri) => entri.action === "pemesanan.konsen_tumpang");
+    expect(konsen).toHaveLength(1);
+    expect(konsen[0]).toMatchObject({ after: { konsen: "disetujui", via: "ahli_waris", buktiAda: true } });
+    // The file's key is nobody's to read: neither the order nor the Audit Log carries it.
+    expect(JSON.stringify([staf, konsen])).not.toContain(disimpan![0]);
+  });
+
+  it("refuses an heirship consent without the proof: nothing is stored, no Ganti Pemegang Hak reminder is raised, and the consent still waits", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    const sebelum = isiFileStore(setup);
+
+    expect(await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris dibawa keluarga." })).toEqual({
+      ok: false,
+      reason: "bukti_ahli_waris_wajib",
+    });
+
+    expect(baruDi(setup, sebelum)).toEqual([]);
+    expect((await setup.pemesanan.orderUntukStaf(hak.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({
+      konsen: { state: "menunggu_lokasi", via: null },
+      buktiAhliWarisAda: false,
+      gantiPemegangHakDiingatkan: false,
+    });
+    // The Lokasi can still log it once the proof is in hand.
+    expect(
+      await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris.", bukti: { body: PDF, contentType: "application/pdf" } }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("refuses a proof that is empty, over 10 MB, or whose bytes are not a PDF, JPG or PNG", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    const sebelum = isiFileStore(setup);
+    const kebesaran = new Uint8Array(SEPULUH_MB + 1);
+    kebesaran.set(JPEG);
+
+    const ditolak = [
+      { body: new Uint8Array(), contentType: "application/pdf" },
+      { body: kebesaran, contentType: "image/jpeg" },
+      // A renamed file of another kind: its bytes say it is not a PDF.
+      { body: new TextEncoder().encode("bukan pdf, hanya teks"), contentType: "application/pdf" },
+      // A real JPEG declared as another kind of file.
+      { body: JPEG, contentType: "text/plain" },
+      { body: JPEG, contentType: "image/gif" },
+    ];
+    for (const bukti of ditolak) {
+      expect(await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris.", bukti })).toEqual({
+        ok: false,
+        reason: "berkas_tidak_didukung",
+      });
+    }
+
+    expect(baruDi(setup, sebelum)).toEqual([]);
+    expect((await setup.pemesanan.orderUntukStaf(hak.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({ konsen: { state: "menunggu_lokasi" }, buktiAhliWarisAda: false });
+  });
+
+  it("accepts a JPG, a PNG and a PDF of exactly 10 MB", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const sepuluhMb = new Uint8Array(SEPULUH_MB);
+    sepuluhMb.set(PDF);
+    const diterima = [
+      { bukti: { body: JPEG, contentType: "image/jpeg" }, extension: "jpg" },
+      { bukti: { body: PNG, contentType: "image/png" }, extension: "png" },
+      { bukti: { body: sepuluhMb, contentType: "application/pdf" }, extension: "pdf" },
+    ];
+
+    for (const [urutan, { bukti, extension }] of diterima.entries()) {
+      const nomor = await mintaTumpang(setup, hak, `Almarhum Ke-${urutan + 1}`);
+      const sebelum = isiFileStore(setup);
+      expect(await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris.", bukti })).toMatchObject({ ok: true });
+      const [disimpan] = baruDi(setup, sebelum);
+      expect(disimpan![0]).toMatch(new RegExp(`\\.${extension}$`));
+      expect(disimpan![1]).toMatchObject({ contentType: bukti.contentType });
+    }
+  });
+
+  it("takes no file with a verbal consent: it is refused, nothing is stored, and the consent still waits", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    const sebelum = isiFileStore(setup);
+
+    expect(
+      await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "verbal", catatan: "Lewat telepon.", bukti: { body: PDF, contentType: "application/pdf" } }),
+    ).toEqual({ ok: false, reason: "bukti_hanya_untuk_ahli_waris" });
+
+    expect(baruDi(setup, sebelum)).toEqual([]);
+    expect((await setup.pemesanan.orderUntukStaf(hak.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({ konsen: { state: "menunggu_lokasi" }, buktiAhliWarisAda: false });
+    // A verbal consent without a file is as before, and shows no proof.
+    expect(await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "verbal", catatan: "Lewat telepon." })).toMatchObject({ ok: true });
+    expect((await setup.pemesanan.orderUntukStaf(hak.lokasi.adminLokasi, nomor))?.tumpang).toMatchObject({ buktiAhliWarisAda: false });
+  });
+
+  it("leaves no file behind when the consent was already settled", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    expect(await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "verbal", catatan: "Lewat telepon." })).toMatchObject({ ok: true });
+    const sebelum = isiFileStore(setup);
+
+    expect(
+      await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris.", bukti: { body: PDF, contentType: "application/pdf" } }),
+    ).toEqual({ ok: false, reason: "konsen_sudah_diputuskan" });
+
+    expect(baruDi(setup, sebelum)).toEqual([]);
+  });
+
+  it("opens the proof through a 5-minute signed link, for that Lokasi's own Admin Lokasi and for Admin Platform, and for nobody else", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris.", bukti: { body: PDF, contentType: "application/pdf" } });
+    const lain = await terverifikasiLokasi(setup, { name: "Makam Sawah Besar", city: "Kabupaten Bekasi" });
+
+    const link = await setup.pemesanan.urlBuktiAhliWaris(hak.lokasi.adminLokasi, nomor);
+    if (!link.ok) throw new Error(`urlBuktiAhliWaris refused: ${link.reason}`);
+    expect(link.expiresAt).toEqual(new Date(setup.clock.now().getTime() + 5 * 60_000));
+    expect(setup.files.open(link.url)).toMatchObject({ body: PDF, contentType: "application/pdf" });
+    expect(await setup.pemesanan.urlBuktiAhliWaris(hak.lokasi.admin, nomor)).toMatchObject({ ok: true });
+
+    // Another Lokasi Mitra's Admin Lokasi is refused outright.
+    expect(await setup.pemesanan.urlBuktiAhliWaris(lain.adminLokasi, nomor)).toEqual({ ok: false, reason: "tidak_berwenang" });
+
+    // The link is short-lived: past its 5 minutes it opens nothing.
+    setup.clock.advance({ minutes: 6 });
+    expect(setup.files.open(link.url)).toBeNull();
+  });
+
+  it("has no link for a consent that carries no proof, nor for an order that is not there", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const hak = await hakPakaiTanpaEmail(setup);
+    const nomor = await mintaTumpang(setup, hak);
+    await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "verbal", catatan: "Lewat telepon." });
+
+    expect(await setup.pemesanan.urlBuktiAhliWaris(hak.lokasi.adminLokasi, nomor)).toEqual({ ok: false, reason: "belum_ada_berkas" });
+    expect(await setup.pemesanan.urlBuktiAhliWaris(hak.lokasi.adminLokasi, "MKM-2026-999999")).toEqual({ ok: false, reason: "pesanan_tidak_ditemukan" });
+  });
+});
