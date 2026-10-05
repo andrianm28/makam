@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { UNGGAHAN_MAX_BYTES } from "@/lib/files/upload-check";
 import type { TumpangPanel } from "@/lib/tumpang-panel";
 import { catatKonsenTumpangAction, konfirmasiTumpangAction, type TumpangActionState } from "./tumpang-actions";
 
@@ -17,10 +18,16 @@ function Pesan({ state }: { state: TumpangActionState }) {
   );
 }
 
-/** The warning banner, the consent state, the forms to log verbal consent or heirship proof, and the confirmation (ticket 35). */
+/**
+ * The warning banner, the consent state, the forms to log verbal consent or heirship proof, and the confirmation (ticket 35).
+ * An heirship proof is a file (PDF, JPG or PNG) the Admin Lokasi uploads, and a settled consent that carries one links to it
+ * (ticket 125).
+ */
 export function TumpangPanelView({ lokasiId, nomor, panel, pemakamanAwal }: { lokasiId: string; nomor: string; panel: TumpangPanel; pemakamanAwal: string }) {
   const [konsenState, konsenAction, konsenPending] = useActionState(catatKonsenTumpangAction, idle);
   const [konfirmasiState, konfirmasiAction, konfirmasiPending] = useActionState(konfirmasiTumpangAction, idle);
+  // The proof belongs to the heirship choice alone: a verbal consent has no file to give, so the field waits for the other choice.
+  const [via, setVia] = useState<"verbal" | "ahli_waris">("verbal");
   return (
     <div className="flex flex-col gap-4">
       {panel.peringatan.map((teks) => (
@@ -31,6 +38,14 @@ export function TumpangPanelView({ lokasiId, nomor, panel, pemakamanAwal }: { lo
       <p data-testid="konsen-tumpang" className="text-body">
         <span className="font-medium">Persetujuan Pemegang Hak:</span> {panel.konsenLabel}
       </p>
+      {panel.buktiAhliWarisAda ? (
+        <p data-testid="bukti-ahli-waris" className="text-body">
+          <span className="font-medium">Bukti ahli waris:</span> terlampir.{" "}
+          <a href={`/staf/admin-lokasi/${lokasiId}/pesanan/${nomor}/bukti-ahli-waris`} target="_blank" rel="noopener noreferrer" className="underline">
+            Buka bukti
+          </a>
+        </p>
+      ) : null}
       {panel.pengingatGanti ? <p className="rounded-lg bg-info-soft p-3 text-body text-info-soft-foreground">{panel.pengingatGanti}</p> : null}
 
       {panel.bisaCatatKonsen ? (
@@ -40,15 +55,22 @@ export function TumpangPanelView({ lokasiId, nomor, panel, pemakamanAwal }: { lo
           <fieldset className="flex flex-col gap-2">
             <legend className="text-sm font-medium">Catat persetujuan</legend>
             <label className="flex items-center gap-2 text-body">
-              <input type="radio" name="via" value="verbal" defaultChecked /> Persetujuan lisan Pemegang Hak
+              <input type="radio" name="via" value="verbal" checked={via === "verbal"} onChange={() => setVia("verbal")} /> Persetujuan lisan Pemegang Hak
             </label>
             <label className="flex items-center gap-2 text-body">
-              <input type="radio" name="via" value="ahli_waris" /> Bukti ahli waris dibawa di hari-H
+              <input type="radio" name="via" value="ahli_waris" checked={via === "ahli_waris"} onChange={() => setVia("ahli_waris")} /> Bukti ahli waris dibawa di hari-H
             </label>
           </fieldset>
           <div className="flex flex-col gap-2">
             <label htmlFor="catatan" className="text-sm font-medium">Catatan</label>
             <Input id="catatan" name="catatan" required maxLength={1000} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <label htmlFor="bukti" className="text-sm font-medium">Unggah bukti ahli waris (PDF, JPG atau PNG)</label>
+            <Input id="bukti" name="bukti" type="file" accept="application/pdf,image/jpeg,image/png" disabled={via !== "ahli_waris"} required={via === "ahli_waris"} />
+            <p className="text-small text-muted-foreground">
+              {`Foto atau scan surat keterangan ahli waris. Wajib untuk bukti ahli waris; persetujuan lisan tidak memakainya. Paling besar ${UNGGAHAN_MAX_BYTES / (1024 * 1024)} MB. Berkas ini tersimpan di penyimpanan privat.`}
+            </p>
           </div>
           <div className="flex flex-col items-start gap-2">
             <Button type="submit" variant="outline" disabled={konsenPending}>

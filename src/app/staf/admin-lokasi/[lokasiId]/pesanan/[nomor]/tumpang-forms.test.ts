@@ -45,8 +45,10 @@ describe("the consent form of a further burial", () => {
 
     expect(field).toContain('name="bukti"');
     expect(field).toContain('accept="application/pdf,image/jpeg,image/png"');
-    expect(html).toContain("Bukti ahli waris");
-    expect(html).toContain("10 MB");
+    // It is labelled, and the limit is said beside it.
+    expect(field).toContain('id="bukti"');
+    expect(html).toContain('for="bukti"');
+    expect(html).toContain("Paling besar 10 MB");
   });
 
   it("lets the Lokasi pick the file only for an heirship proof, where it is required: a verbal consent has none to give", () => {
@@ -66,7 +68,8 @@ describe("an order whose consent carries an heirship proof", () => {
   it("says a proof is on file and links to open it through the signed-link route, in a new tab, never as a file of the page", () => {
     const html = render({ bisaCatatKonsen: false, konsenLabel: "Disetujui dengan bukti ahli waris: Surat waris", buktiAhliWarisAda: true });
 
-    expect(html).toContain("Bukti ahli waris: terlampir");
+    expect(html).toContain('data-testid="bukti-ahli-waris"');
+    expect(html).toContain("terlampir");
     expect(html).toContain(`href="/staf/admin-lokasi/${LOKASI_ID}/pesanan/${NOMOR}/bukti-ahli-waris"`);
     expect(html).toContain('target="_blank"');
     expect(html).toContain('rel="noopener noreferrer"');

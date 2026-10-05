@@ -25,6 +25,9 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
+/** The heirs' letter an ahli waris brings: an heirship consent rests on this file (ticket 125). */
+const SURAT_WARIS = { body: new TextEncoder().encode("%PDF-1.7\nsurat keterangan ahli waris\n%%EOF\n"), contentType: "application/pdf" };
+
 /** A Terverifikasi Lokasi Mitra with Pengaturan Operator entered and cleared Petak, plus a way to read its cells. */
 async function lokasiDenganPetak(setup: PemesananSetup) {
   await siapkanOperatorPemesanan(setup);
@@ -205,7 +208,7 @@ describe("Makamkan di sini", () => {
     const dua = (await ajukan(setup, lokasi, hakPakaiId, pemesan, "Almarhum Lain")) as { pesanan: { nomor: string } };
 
     await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: satu.pesanan.nomor, via: "verbal", catatan: "Lewat telepon." });
-    await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: dua.pesanan.nomor, via: "ahli_waris", catatan: "Surat keterangan waris dibawa keluarga." });
+    await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: dua.pesanan.nomor, via: "ahli_waris", catatan: "Surat keterangan waris dibawa keluarga.", bukti: SURAT_WARIS });
     expect((await setup.pemesanan.orderUntukStaf(lokasi.adminLokasi, satu.pesanan.nomor))?.tumpang).toMatchObject({ konsen: { state: "disetujui", via: "verbal" }, gantiPemegangHakDiingatkan: false });
     expect((await setup.pemesanan.orderUntukStaf(lokasi.adminLokasi, dua.pesanan.nomor))?.tumpang).toMatchObject({ konsen: { state: "disetujui", via: "ahli_waris" }, gantiPemegangHakDiingatkan: true });
   });
@@ -342,7 +345,7 @@ describe("Makamkan di sini", () => {
     await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: satu.pesanan.nomor, via: "verbal", catatan: "Lewat telepon." });
     expect(await peringatan()).toEqual([]);
 
-    await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: dua.pesanan.nomor, via: "ahli_waris", catatan: "Surat waris." });
+    await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: dua.pesanan.nomor, via: "ahli_waris", catatan: "Surat waris.", bukti: SURAT_WARIS });
     const pesan = await peringatan();
     expect(pesan.map((satu) => satu.channel)).toContain("email");
     expect(pesan.find((satu) => satu.channel === "email")?.subject).toContain(dua.pesanan.nomor);
@@ -472,7 +475,7 @@ describe("Makamkan di sini", () => {
 
 /** The heirship proof the Admin Lokasi uploads when the Pemegang Hak has died and an ahli waris brings the proof on the day (ticket 125). */
 describe("Bukti ahli waris on a further burial's consent", () => {
-  const PDF = new TextEncoder().encode("%PDF-1.7\nsurat keterangan ahli waris\n%%EOF\n");
+  const PDF = SURAT_WARIS.body;
   const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 1, 2, 3]);
   const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 1]);
   const SEPULUH_MB = 10 * 1024 * 1024;
@@ -621,6 +624,24 @@ describe("Bukti ahli waris on a further burial's consent", () => {
 
     expect(
       await setup.pemesanan.catatKonsenTumpang(hak.lokasi.adminLokasi, { nomor, via: "ahli_waris", catatan: "Surat waris.", bukti: { body: PDF, contentType: "application/pdf" } }),
+    ).toEqual({ ok: false, reason: "konsen_sudah_diputuskan" });
+
+    expect(baruDi(setup, sebelum)).toEqual([]);
+  });
+
+  it("deletes the file again when the write is refused after it was taken: an implicit consent is already settled", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const { pemesan } = await pemesanDenganEmail(setup, "pemegang@contoh.id", "Siti Aminah");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001", email: "pemegang@contoh.id" });
+    const placed = await ajukan(setup, lokasi, hakPakaiId, pemesan);
+    if (!placed.ok) throw new Error(`ajukanTumpang refused: ${placed.reason}`);
+    expect(placed.konsen.state).toBe("implisit");
+    const sebelum = isiFileStore(setup);
+
+    expect(
+      await setup.pemesanan.catatKonsenTumpang(lokasi.adminLokasi, { nomor: placed.pesanan.nomor, via: "ahli_waris", catatan: "Surat waris.", bukti: { body: PDF, contentType: "application/pdf" } }),
     ).toEqual({ ok: false, reason: "konsen_sudah_diputuskan" });
 
     expect(baruDi(setup, sebelum)).toEqual([]);
