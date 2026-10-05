@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 125 tickets (as of 2026-10-06): 113 resolved, 2 ready-for-agent (121, 122), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 126 tickets (as of 2026-10-06): 113 resolved, 3 ready-for-agent (121, 122, 126), 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
 
 ## Tickets
 
@@ -430,3 +430,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [123](123-formulir-tpu-penilaian-dan-persetujuan-tumpang.md) | TPU family forms: a Penilaian for TPU Layanan jobs, and a required tumpang consent | resolved | — |
 | [124](124-konten-harga-layanan-tpu-wakaf-dirujuk.md) | Content: the TPU Layanan price list, Wakaf's Dirujuk status, and a kind-aware notice on filing-only IPTM orders | resolved | — |
 | [125](125-bukti-ahli-waris-tumpang.md) | Tumpang at a Lokasi Mitra: the heirship proof can be uploaded | resolved | — |
+| [126](126-trivy-perl-base.md) | Runtime image: fixable CRITICAL in Debian's perl-base fails the main CI's Trivy gate | ready-for-agent | — |
