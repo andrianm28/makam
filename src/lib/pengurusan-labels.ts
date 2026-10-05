@@ -1,4 +1,5 @@
 import type { WorkingTimeResult } from "@/domain/lokasi";
+import type { PengurusanTpuKind } from "@/domain/pengurusan";
 import { formatTanggalJam } from "@/lib/time/jakarta";
 
 /**
@@ -81,4 +82,22 @@ export function pengurusanMessage(reason: PengurusanRefusal): string {
 export function konfirmasiTpuLabel(batas: WorkingTimeResult): string {
   if (batas.ok) return `Dikonfirmasi paling lambat ${formatTanggalJam(batas.at)}`;
   return "Jadwal konfirmasi TPU ini belum bisa dihitung. Hubungi CS bila lupa.";
+}
+
+/**
+ * What a Pemesan is told about the refund when cancelling an order of this kind (spec, Pengurusan; story 77). The rule is the
+ * Pengurusan module's (`batalkanPengurusan`): an unpaid Tagihan is voided, and a paid one is refunded in full except the Biaya
+ * Pengurusan once the order is at Dimakamkan or later. Only its wording is here, in the words of the order's own kind: a Saat
+ * Duka TPU order has a burial the Operator arranged with the TPU, a filing-only order has none (the family buried on its own and
+ * the order starts at Dimakamkan), so it speaks of the filing, and a Perpanjangan TPU order keeps nothing back.
+ */
+export function catatanPembatalanPengurusan(kind: PengurusanTpuKind): string {
+  switch (kind) {
+    case "saat_duka_tpu":
+      return "Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak pemakaman diatur dengan TPU.";
+    case "pengurusan_iptm":
+      return "Tagihan yang belum dibayar dibatalkan; yang sudah dibayar dikembalikan, kecuali Biaya Pengurusan sejak berkas IPTM mulai kami urus.";
+    case "perpanjangan_tpu":
+      return "Tagihan yang belum dibayar dibatalkan.";
+  }
 }
