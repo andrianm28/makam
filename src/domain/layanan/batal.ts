@@ -203,6 +203,12 @@ async function tulisPengembalian(
     tagihan.id,
     {
       pihakBersalah: sebab === "pemesan" ? "pemesan" : "lokasi",
+      // When the fault is the Lokasi's (Terlambat, Berhenti) the Biaya Layanan Platform comes back too, so a request that, with the
+      // earlier ones, returns every line of the Tagihan returns the whole Tagihan: it is penuh, its transfer makes the Tagihan
+      // Dikembalikan penuh and cancels what the Lokasi Mitra was still to be paid for it. Never refused for not being complete (a
+      // job already Selesai keeps its price, so the rest is an ordinary partial request). The Pemesan's own cancellation keeps the
+      // fee, and stays a partial refund of the Tagihan as it always was.
+      penuhBilaLengkap: sebab !== "pemesan",
       lines: [{ label: line.label, amount, lokasiId: line.provider.kind === "lokasi_mitra" ? line.provider.lokasiId : null }],
     },
     tx,

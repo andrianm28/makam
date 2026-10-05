@@ -15,6 +15,13 @@ export const STATUS_MENERIMA_UNGGAHAN: readonly PengurusanTpuStatus[] = ["dimaka
 /** Where the Pemesan may cancel: until the IPTM is filed. */
 export const STATUS_BOLEH_DIBATALKAN: readonly PengurusanTpuStatus[] = ["diajukan", "dikonfirmasi", "dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
 
+/**
+ * Where a paid order has ended with its money owed back to the Pemesan: they cancelled it (Dibatalkan) or the PTSP refused it for
+ * good (Ditolak, ticket 121). Refunds' request for the order waits there for the Pemesan's rekening, so the family's page asks for
+ * it in exactly these statuses.
+ */
+export const STATUS_BERAKHIR_DENGAN_PENGEMBALIAN: readonly PengurusanTpuStatus[] = ["dibatalkan", "ditolak"];
+
 /** From these on the Operator has arranged the burial with the TPU, so a refund keeps its Biaya Pengurusan. */
 export const STATUS_SUDAH_DIMAKAMKAN: readonly PengurusanTpuStatus[] = ["dimakamkan", "dokumen_lengkap", "menunggu_pembayaran"];
 
