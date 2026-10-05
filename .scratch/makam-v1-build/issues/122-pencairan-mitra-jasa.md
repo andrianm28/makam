@@ -55,3 +55,87 @@ Spec: ticket 55 AC3 (the Mitra Jasa sees their Pencairan), ticket 57 (TPU jobs p
 - Final run of the touched and neighbouring paths (`src/domain/payouts`, the Layanan TPU tests, `src/app/staf/mitra-jasa`, `src/lib/staff-navigation`, `src/components/makam`, the two copy guards, the migration guards `destructive-ddl*` and `seed-representative`): **29 files, 312 tests passed, exit 0**. `npm run typecheck` exit 0 (0 errors); `npm run lint` exit 0 (0 errors, 6 warnings, all in files this ticket does not touch). No `npm run build` (the ticket does not need one).
 
 **Not verified**: the page on a phone or in a browser (no screenshot taken); the migration on a database with real rows beyond the repository's migration guards.
+
+### Review (2026-10-05, round 1; fixed point 9da0fb3b, head 921d0fd7)
+
+Both axis reports as the reviewers wrote them (the two report titles are two heading levels deeper than the reviewers' (`##` became `####`), because `ticketComments` ends a Comments section at the next `## ` heading, the same as on ticket 110; the text is otherwise verbatim).
+
+#### Standards
+
+Head `921d0fd7` confirmed. Fixed point `9da0fb3b` resolves and equals both origin/main and the merge-base. The diff is non-empty (21 files) and the worktree is clean.
+
+**Tests not run.** The orchestrator's brief asked me to run the ticket's tests with `npx vitest run`, but the reviewer role forbids it (`.claude/agents/reviewer.md:8`: "never … run a test suite"), so no exit code was read. The orchestrator should run:
+
+`MAKAM_TEST_PG=shared npx vitest run src/domain/payouts/pencairan-mitra-jasa.test.ts src/domain/layanan/pencairan-mitra-jasa.test.ts src/app/staf/mitra-jasa/pencairan src/components/makam/status-badge.test.ts src/lib/staff-navigation.test.ts`
+
+The builder's "312 tests passed, exit 0" (ticket :55) is unchecked. I did not run the migration checker either. By reading it, `drizzle/0065_regular_cammi.sql:1` adds one nullable column (expand only). The snapshot chain is intact: 0065's prevId is 0064's id, and the only change is `tpu_nama`.
+
+**Hard: none.** Rules checked and met:
+- Payouts reads only its own tables (`src/domain/payouts/pencairan-mitra-jasa.ts:80-97`).
+- The TPU enters through Payouts' public function and is validated with Zod (`src/domain/payouts/item.ts:390`).
+- No `new Date()` / `Date.now()`, console or env use added.
+- The page and component only display; there is no business rule in them.
+- No `"use client"`; the one import from the barrel is a type, in a server component.
+- Tests go through public functions on real Postgres, never touch tables, mock no database, assert only outcomes and use CONTEXT.md names.
+- The migration was generated after the schema change.
+- The copy is in Bahasa Indonesia.
+- Ops scripts, bash, workflow pinning, secrets in logs and image retention: not in this diff.
+
+**Soft**
+1. `src/app/staf/mitra-jasa/pencairan/daftar-pencairan.tsx:78`: "Menunggu jendela Keluhan …" translates "Keluhan window" word for word. The rest of the app says "masa keluhan" (`src/app/staf/admin-platform/keluhan-tpu/[keluhanId]/keluhan-tpu-forms.tsx:36`, `src/components/layanan/thread-daftar.tsx:48`).
+2. `src/app/staf/mitra-jasa/pencairan/page.test.ts:55-64`: `signInAsMitraJasa` is a verbatim copy of `src/app/staf/mitra-jasa/akses.test.ts:45-54`. It belongs in `tests/support/server-sign-in.ts` next to `signInAsAdminLokasi`.
+3. `tests/support/layanan-tpu.ts:159`: `pekerjaanDisetujui` sets the shared fake Clock back to 2026-10-01 09:00 on every call. The later calls in `src/domain/layanan/pencairan-mitra-jasa.test.ts:96-97` and `:115` therefore move time backwards past an earlier approval. The tests pass today, but a later assertion that depends on a tick will trip on it.
+4. `src/domain/payouts/index.ts:290-291`: the flat `pencairanMitraJasa` read is now used only by tests (`potongan.test.ts`, `tests/support/layanan-tpu.ts:125`) and has no Ditahan status. Two public views of the same Pencairan can drift apart; a follow-up should retire the flat one or derive one from the other.
+5. tdd: all tests and code are in one build commit (`1165abd6`), so the history cannot show that tests came first. The builder also says the Layanan TPU test was written after the code, with a mutation check instead (`.scratch/makam-v1-build/issues/122-pencairan-mitra-jasa.md:49`). Noted for the record; no code change needed.
+6. Nits: `daftar-pencairan.tsx:23` calls `tanggalPencairan(satu)` twice per card. `src/domain/payouts/pencairan-mitra-jasa.ts:182` nests a ternary three levels deep; a switch like `statusOf` at :168 would read better.
+
+Standards: 6 findings (0 hard, 6 soft); worst: the user-facing "jendela Keluhan" where the app says "masa keluhan" (daftar-pencairan.tsx:78); hard violations: no.
+
+Hard: 0, soft: 6
+
+#### Spec
+
+Fixed point 9da0fb3b resolves (= origin/main). The diff 9da0fb3b...921d0fd7 is non-empty: 21 files.
+
+**AC1 (sees their Pencairan, newest first; status, due/paid date, jobs, total, no Potongan): PARTIAL**
+- Newest first: `pencairan-mitra-jasa.ts:148`. Tests: payouts `:82-104`, `:164-179`; layanan `:111-118`; page `:104-105`.
+- Status badge: `daftar-pencairan.tsx:22`. Jobs with Layanan, TPU, date and rate: `:29-37`. Total: `:39-42`.
+- No Potongan: `page.tsx:23` says "Tarif Anda dibayar penuh"; tests at payouts `:113` and the static render `:91-96`.
+- Totals equal what Payouts pays:
+  - Open entries use `jumlahOf` (`baca.ts:101-103`), the same amount the run (`run.ts:77-81`) and the transfer (`transfer.ts:274`, `:342`) use.
+  - A Dicairkan entry's total is the Bukti's own amount (`:123`), and a Mitra Jasa never carries a Potongan (`transfer.ts:285-287`).
+- Dates:
+  - Shown: Dicairkan (transfer date), Jatuh Tempo (pay-by deadline; the builder raised this one with the owner) and Dibatalkan (cancel date).
+  - Missing: **Belum Jatuh Tempo and Ditahan entries show no date** (HARD-1).
+  - Rows written before 0065 show no TPU (SOFT-1).
+
+**AC2 (only their own; nothing of other parties, family or Hak Pakai): MET**
+- The query is keyed on `penerimaKind` and the Akun (`:80-97`). `pencairan.punya_saya` requires the `mitra_jasa` role (`authorize.ts:665-668`).
+- The projection is explicit (`:157-165`).
+- Tests: payouts `:106-114`, `:181-191`; layanan `:134-143`; page `:110-123`.
+
+**AC3 (empty state): MET**
+- "Belum ada Pencairan" at `page.tsx:25-30`.
+- Tests: page `:125-133`, payouts `:234-239`, layanan `:162-174`.
+
+**AC4 (tests: read on real Postgres, static render): MET**
+- `testDatabase()` connects to the run's migrated Postgres (`tests/support/database.ts:7-15`).
+- Only own items: payouts `:181-191`.
+- Amounts: equal to the run's `neto` (`:129-143`, `:221-232`) and to the Bukti's amount (`:144-161`). Layanan `:91-109` checks the sum and the item ids against the run's row.
+- Static render: `daftar-pencairan.test.ts` (6 tests), plus the real page rendered with `renderToStaticMarkup` (page `:50`).
+
+**AC5 (money display reviewed on the opus tier): MET by this review.**
+
+The test counts in the Comments match the files (10/7/6/5).
+
+**Findings**
+- **HARD-1**: AC1 asks for "due or paid date" for each entry. `tanggalOf` returns null for Belum Jatuh Tempo and Ditahan (`pencairan-mitra-jasa.ts:181-184`, `daftar-pencairan.tsx:59-72`), and tests pin this (payouts `:91,98,119,202`).
+  - The docstring says such an entry has "no date yet". In fact the window closes 72 h after approval (`layanan/keluhan.ts:48`, `:56-58`), and Layanan exposes that date publicly (`jendelaKeluhanTpu`, `layanan/index.ts:748`). That is the read the ticket pointed at and Decision 1 dropped.
+  - The owner section of the ticket (`:40-47`) does not mention it. This is an undisclosed narrowing, which `AGENTS.md:68` forbids.
+- **SOFT-1**: Decision 4 (no TPU on rows from before 0065) is filed under Decisions (ticket `:37`), not in the owner section. `pekerjaanLabel` already holds the TPU (`bukti-tpu.ts:269`), so a display fallback is cheap.
+- **SOFT-2**: The header copy "tidak lagi bisa dibatalkan" (`page.tsx:23`) contradicts the Dibatalkan entries on the page, and Belum Jatuh Tempo ones a redo can still cancel (`item.ts:332-345`).
+- **SOFT-3**: `page.test.ts:98` passes on the "Belum Jatuh Tempo" string, so the real page never proves the Jatuh Tempo badge or its date.
+
+Findings: 4 (worst: Belum Jatuh Tempo and Ditahan entries carry no due date, a narrowing not raised with the owner). hard violations: yes
+
+Hard: 1, soft: 3
