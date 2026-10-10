@@ -73,7 +73,7 @@
     "@types/web-push": "^3.6.4",
     "drizzle-kit": "^0.31.11",
     "esbuild": "^0.28.2",
-    "eslint": "^9",
+    "eslint": "^10",
     "eslint-config-next": "16.3.7",
     "http_ece": "^1.2.0",
     "mailparser": "^3.9.32",
