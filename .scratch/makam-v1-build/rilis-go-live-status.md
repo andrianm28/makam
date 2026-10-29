@@ -68,3 +68,5 @@ Usulan awal, angka harus diputuskan pemilik.
 2. Repo publik atau privat (audit A-2) sebelum data nyata masuk; nomor telepon Admin Platform di `go-live-rilis-1.md:26` sebaiknya dihapus.
 3. Angka RPO/RTO dan retensi berkas.
 4. Kapan G4 dilakukan (butuh tangan Anda di staging) dan jendela jam sepi untuk G5.
+
+**Diputuskan 2026-10-29 (kartu opsi):** repo tetap publik, data pribadi dihapus dari berkas (nomor telepon Admin Platform dihapus dari `go-live-rilis-1.md`; klaim "privat" dikoreksi di spec dan runbook; riwayat git tetap memuatnya). RPO 24 jam, RTO 4 jam, berkas keluarga disimpan 2 tahun setelah pesanan selesai (angka bisa direvisi penasihat hukum).

@@ -793,7 +793,7 @@ output. A warm `main` run takes about 11 to 12 minutes.
   It fails on any CRITICAL vulnerability that has a fix. The run keeps the
   image's SBOM (`sbom` artifact, CycloneDX, 90 days) and all findings
   (`trivy-findings`: `trivy.sarif` and `critical.txt`, 30 days). Code scanning
-  is not available on this private repo on GitHub Free; if it ever is, set the
+  is not available on this repo on GitHub Free; if it ever is, set the
   repo variable `CODE_SCANNING=true`.
   A CRITICAL that Debian's security archive already fixes is fixed in the
   image, not accepted in `.trivyignore` (ticket 126: `perl-base`, which the pinned
