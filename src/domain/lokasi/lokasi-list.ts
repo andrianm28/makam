@@ -2,10 +2,10 @@ import { and, asc, count, eq, ilike, or, type SQL } from "drizzle-orm";
 import { semuaLokasiMitraResource, writeRefusal, type Actor } from "@/domain/identity";
 import type { LokasiDeps, LokasiMitraStatus } from "./lokasi-mitra";
 import { lokasiMitra as lokasiMitraTable } from "./schema";
+import { LOKASI_LIST_DEFAULT_PAGE_SIZE, LOKASI_LIST_MAX_PAGE_SIZE } from "./skema-klien";
 
-/** The rows a page of the Lokasi Mitra list shows at most, and by default. */
-export const LOKASI_LIST_MAX_PAGE_SIZE = 50;
-export const LOKASI_LIST_DEFAULT_PAGE_SIZE = 10;
+export { LOKASI_LIST_DEFAULT_PAGE_SIZE, LOKASI_LIST_MAX_PAGE_SIZE };
+
 
 export interface LokasiMitraListQuery {
   /** A part of the name, kota / kabupaten or pengelola, any case. Blank finds all. */

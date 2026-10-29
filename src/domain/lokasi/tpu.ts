@@ -18,19 +18,9 @@ import { semuaTpuDkiResource, tpuDkiResource, writeRefusal, type Actor, type Wri
 import { wibDateOf } from "@/lib/time/jakarta";
 import { actingRole, isLokasiId, type LokasiDeps, type WriteResult } from "./lokasi-mitra";
 import { tpuDki as tpuDkiTable } from "./schema";
+import { TPU_LIMITS } from "./skema-klien";
 
-/**
- * How long each of a TPU's own fields may be typed, in one number per field:
- * the module's schema refuses past it, and a form's `maxLength` stops there,
- * so a length is never written twice (the same split as the Operator settings'
- * `pengaturanOperatorLimits`).
- */
-export const TPU_LIMITS = {
-  name: 120,
-  address: 300,
-  city: 120,
-  dataSource: 200,
-} as const;
+export { TPU_LIMITS };
 
 /** A map pin, anywhere on earth. A TPU may have none: a street address is enough to find it. */
 const pinSchema = z.object({

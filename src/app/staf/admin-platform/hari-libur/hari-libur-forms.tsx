@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { FieldError } from "@/components/makam/form-section";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
-import { HARI_LIBUR_NASIONAL_NAME_MAX, hariLiburNasionalSchema, hapusHariLiburSchema } from "@/domain/lokasi";
+import { HARI_LIBUR_NASIONAL_NAME_MAX, hariLiburNasionalSchema, hapusHariLiburSchema } from "@/domain/lokasi/skema-klien";
 import type { HariLiburNasionalInput, HapusHariLiburInput } from "@/domain/lokasi";
 import { ServerResult, idleFormState } from "../../form-feedback";
 import { useResetAfterSubmit } from "../../form-reset";
