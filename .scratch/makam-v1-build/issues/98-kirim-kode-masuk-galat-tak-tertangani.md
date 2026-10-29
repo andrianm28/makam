@@ -211,3 +211,5 @@ Builder, branch `ticket-98-stale-form-address-check`, on top of the recorded rev
   - **Status stays in-progress** until the re-test on a fresh staging digest: a form opened before a deploy shows the Indonesian page, and `.invalid` shows "gagal kirim". After that, close the ticket.
   - **Optional AC (stable action ids) stays open:** it needs two builds with a constant key, plus the owner's acceptance.
   - **Owner notes from the builder:** stale-action errors are deliberately not reported to GlitchTip; the null-MX refusal and the rethrow in the two Lokasi error boundaries go beyond the AC wording.
+
+- Reconciliation 2026-10-29 (documents lane, from the October audit): the cause was found on 2026-10-04 and the fix merged in MB2 (`e2e/stale-action.spec.ts`, `src/app/error.tsx`, `global-error.tsx`). The only step left is a re-test on a fresh staging digest; tick the ACs and resolve once the owner has done it.

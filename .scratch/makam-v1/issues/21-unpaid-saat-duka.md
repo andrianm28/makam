@@ -1,5 +1,8 @@
 # Unpaid Saat Duka Tagihan at a Lokasi Mitra
 
+> **Superseded in part (ADR 0004, 2026-10).** Accounts and login are email with Kode Masuk, and notifications go by email and web push; there is no WhatsApp account, OTP or chasing in v1. Where this ticket says otherwise, ADR 0004 wins, even though `makam-v1-build/spec.md` says a cited decision ticket wins.
+
+
 Type: grilling
 Status: resolved
 Map: ../map.md

@@ -1,5 +1,7 @@
 # Checklist UAT Rilis 1 — uji manual (human)
 
+> **Reconciliation 2026-10-29:** G2 (UAT of Rilis 1 and every payment case) was signed on 2026-10-05; its evidence is in `go-live-rilis-1.md` and ticket 65 Comments, not in these boxes.
+
 Environment: `https://dev.makam.co.id` (staging; banner "STAGING — bukan layanan resmi").
 Isi bukti tiap langkah: screenshot + catatan HTTP/webhook. Tandai `[x]` bila lolos.
 Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.

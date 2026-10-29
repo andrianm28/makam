@@ -34,3 +34,5 @@ The nginx server block for `makam.co.id` is not changed here; ticket 07 switches
 - [x] DNS A record `errors.makam.co.id` → 103.92.214.243 (added by the user 2026-09-25). Site enabled, Certbot certificate issued, HTTP→HTTPS redirect, `https://errors.makam.co.id/_health/` → `ok`; GitHub variable `NEXT_PUBLIC_SENTRY_DSN` set to the public staging DSN so the next image reports browser errors.
 - [ ] External uptime monitor (e.g. UptimeRobot free) on `https://dev.makam.co.id/api/health`, alerting on non-200 (runbook "Uptime alarm").
 - [ ] Change the GlitchTip superuser password after first login (`/opt/makam-v1/glitchtip/admin-credentials.txt`).
+
+- Reconciliation 2026-10-29 (documents lane, from the October audit): GlitchTip, DNS and deploys are done. AC 7 still lists `VPS_HOST/VPS_USER/VPS_SSH_KEY` secrets; that is superseded by ADR 0002 (pull-based deploy, no deploy key, no inbound SSH). Tick the remaining boxes with the owner.

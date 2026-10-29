@@ -335,3 +335,5 @@ Spec: 0 new findings.
   - G1 (2026-10-04): the preflight had no FAIL; `makam-prod` was deployed through the promotion (`v2026.10.04-1`) on 127.0.0.1:3100 with sandbox keys and no nginx change; an image signed only for staging was refused with exit 77; a forced failing healthcheck rolled back.
   - G3 (2026-10-05): the rollback across digests with `MAKAM_HEALTH_WAIT=0` exited 1 back to A, Deployment `failure`. The cosign key pairs exist now, so the "Not run" note above is history.
 
+
+- Reconciliation 2026-10-29 (documents lane, from the October audit): the three "Added (preflight)" ACs are merged (b78cdf5) and ran in G1; the Rehearsal AC is ticked but its text still reads "Not run" (it was run, 2026-10-04); "Releases/source maps" is implemented but never run, with a non-blocking 408 on upload.
