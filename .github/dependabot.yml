@@ -20,6 +20,9 @@ updates:
       # Types must not outrun the runtime: they follow the Dockerfile's Node major.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # eslint 10 fails `npm run lint` until eslint-config-next supports it (PR 16, 2026-10-10).
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
@@ -29,6 +32,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Only even (LTS) Node majors run in production; node 25 is a Current release (PR 13).
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
 
   # Postgres, GlitchTip and Valkey in the compose files.
   - package-ecosystem: docker-compose
