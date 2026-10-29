@@ -1,5 +1,7 @@
 # Map: Makam.co.id v1
 
+> **Reading note (2026-10-29).** Lines about WhatsApp OTP login, kirim.dev and WhatsApp chasing are superseded by ADR 0004 (email accounts, Kode Masuk, no WhatsApp in v1).
+
 Label: wayfinder:map
 
 ## Destination
