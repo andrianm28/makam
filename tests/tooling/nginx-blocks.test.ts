@@ -36,7 +36,8 @@ describe("the production block for makam.co.id and www", () => {
   it("proxies every location to makam-prod web on 127.0.0.1:3100 and never to staging's port", () => {
     expect(proxy).toContain("proxy_pass         http://127.0.0.1:3100;");
     expect(block).not.toContain("3110");
-    expect(block.match(/include snippets\/makam-prod-proxy\.conf;/g)).toHaveLength(3);
+    // Four locations since the rate limits: health, the payment webhook, /dokumen/ and the catch-all.
+    expect(block.match(/include snippets\/makam-prod-proxy\.conf;/g)).toHaveLength(4);
     // The same proxy lines as staging, apart from the port.
     const lines = (text: string) => text.split("\n").filter((l) => l && !l.startsWith("#"));
     expect(lines(proxy).join("\n").replace("3100", "3110").replace("$makam_prod_connection_upgrade", "$makam_connection_upgrade")).toBe(lines(stagingProxy).join("\n"));
