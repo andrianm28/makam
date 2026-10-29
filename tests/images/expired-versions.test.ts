@@ -25,9 +25,9 @@ const NOW = new Date("2026-09-27T00:00:00Z");
 const RUNNING = digest(9);
 
 /** A ghcr container version, the shape the packages API returns. */
-const version = (n: number, options: { tags?: string[]; age?: number } = {}) => ({
+const version = (n: number, options: { tags?: string[]; age?: number; from?: Date } = {}) => ({
   name: digest(n),
-  created_at: daysAgo(options.age ?? 0),
+  created_at: daysAgo(options.age ?? 0, options.from),
   metadata: { container: { tags: options.tags ?? [sha(n)] } },
 });
 
@@ -140,7 +140,12 @@ describe("the retention run itself", () => {
       { state: "success", environment: "production", payload: { image_digest: digest(2) } },
       { state: "failure", environment: "staging", payload: { image_digest: digest(1) } },
     ];
-    const result = run([version(1, { age: 90 }), version(2, { age: 120 }), version(3, { age: 2 })], deployments);
+    // The CLI reads the real clock, so these ages are counted back from today, not from NOW.
+    const today = new Date();
+    const result = run(
+      [version(1, { age: 90, from: today }), version(2, { age: 120, from: today }), version(3, { age: 2, from: today })],
+      deployments,
+    );
     // The digest production runs survives however old it is; the failed
     // staging attempt is not something anything is running.
     expect(result.output.split("\n")).toEqual([digest(1)]);
