@@ -9,7 +9,7 @@ are not `makam-staging`, `makam-prod` or `glitchtip`**, and never run
 
 | What | Compose project | Listens on | Public URL |
 |---|---|---|---|
-| v1 staging (`web`, `worker`, `postgres`) | `makam-staging` | `127.0.0.1:3110` (web) | https://dev.makam.co.id (basic auth) |
+| v1 staging (`web`, `worker`, `postgres`) | `makam-staging` | `127.0.0.1:3110` (web) | https://dev.makam.co.id (public, no basic auth) |
 | GlitchTip (`web`, `worker`, `postgres`, `valkey`) | `glitchtip` | `127.0.0.1:8130` (web) | https://errors.makam.co.id (live since 2026-09-25) |
 | v1 production (ticket 65) | `makam-prod` | `127.0.0.1:3100` | https://makam.co.id |
 
@@ -40,7 +40,7 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/staging/staging.env` | staging secrets and settings (see below) |
 | `/opt/makam-v1/staging/deployed.env` | tag and release now running, and the previous tag (written by the deploy script) |
 | `/opt/makam-v1/staging/deploy.log` | every deploy step, with migrate output |
-| `/opt/makam-v1/staging-basic-auth.txt` | dev.makam.co.id basic auth user and password |
+| `/opt/makam-v1/staging-basic-auth.txt` | Legacy, unused: staging has been public without basic auth since 2026-09-25 (ADR 0002) |
 | `/etc/nginx/makam-staging.htpasswd` | its hash (root:www-data 0640) |
 | `/opt/makam-v1/nginx-backups/` | verbatim backups of nginx blocks this work replaced |
 | `/opt/makam-v1/glitchtip/compose.yml` | copy of `deploy/glitchtip/compose.yml` |
@@ -793,7 +793,7 @@ output. A warm `main` run takes about 11 to 12 minutes.
   It fails on any CRITICAL vulnerability that has a fix. The run keeps the
   image's SBOM (`sbom` artifact, CycloneDX, 90 days) and all findings
   (`trivy-findings`: `trivy.sarif` and `critical.txt`, 30 days). Code scanning
-  is not available on this private repo on GitHub Free; if it ever is, set the
+  was not available on GitHub Free when the repo was private (it is public now: re-check); if it ever is, set the
   repo variable `CODE_SCANNING=true`.
   A CRITICAL that Debian's security archive already fixes is fixed in the
   image, not accepted in `.trivyignore` (ticket 126: `perl-base`, which the pinned

@@ -24,3 +24,5 @@ Biznet Gio NEO is the local fallback only after a compatibility spike; don't set
 
 - **SES is dropped from v1.** Every email goes through the SumoPod SMTP relay (ticket 04 for the set-up, ticket 68 for the adapter), so this ticket is now S3 only: files (ticket 60) and backups (ticket 64). The title was "AWS Jakarta: private S3 buckets and SES domain"; the file was `03-aws-s3-and-ses-jakarta.md`. Do not create an SES identity or grant `ses:Send*` to any IAM user.
 - 2026-09-26 — User decision: moved to v2; v1 goes live as a beta for UAT without S3.
+
+- Reconciliation 2026-10-29 (documents lane, from the October audit): **deferred-v2.** S3 moved to v2 (ADR 0002 amendment; files on the host's disk, nightly local `pg_dump`). The ticket stays `ready-for-human` so it is not lost; do not build it for v1.

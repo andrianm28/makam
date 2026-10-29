@@ -1,4 +1,6 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 126 tickets (as of 2026-10-06): 116 resolved, 5 ready-for-human (02, 03, 04, 06, 65), 2 wontfix (05, 62), 3 in-progress (72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 126 tickets (as of 2026-10-06): 116 resolved, 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 4 in-progress (65, 72, 87, 98).
+
+> **Reading note (2026-10-29):** a `resolved` ticket is audited by its Comments (evidence and the two-axis review), not by its checkboxes: 88 of the 116 resolved tickets still show unchecked ACs. The guard `ticket-workflow.test.ts` enforces the review marker and index match only.
 
 ## Tickets
 
@@ -221,7 +223,7 @@ Decided by the user and written into the spec, ADRs 0002 / 0003 (amendments) and
 ## Split of ticket 07 (2026-09-25)
 
 | [64](64-backups-s3-jakarta.md) | Encrypted Postgres backups to S3 Jakarta and restore test (rescoped for beta: nightly encrypted local dump) | resolved | 03, 07 |
-| [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | ready-for-human | 07, 60, 64, 68, 86 |
+| [65](65-production-switch-makam-co-id.md) | Production switch: makam.co.id from the old app to v1 | in-progress | 07, 60, 64, 68, 86 |
 | [66](66-staging-banner.md) | Staging banner on dev.makam.co.id | resolved | — |
 
 ## Decisions 2026-09-25 (email login)

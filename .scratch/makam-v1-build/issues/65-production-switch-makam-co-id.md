@@ -1,6 +1,6 @@
 # Production switch: makam.co.id from the old app to v1
 
-Status: ready-for-human
+Status: in-progress
 Blocked by: 07, 60, 64, 68, 86
 Spec: Implementation Decisions > Architecture (production on makam.co.id); Further Notes > Cutover, Pre-launch checklist; ADR 0002 (and its 2026-09-25 amendment)
 
@@ -203,3 +203,5 @@ Split from ticket 07 on 2026-09-25. Replace the frozen Laravel app on `makam.co.
   - `makam-arsip-app-lama` needs `--user postgres_admin` on this host. Its patterns miss underscore volume names and the registry-prefixed image.
   - Open, the owner's: Pengaturan Operator and TOTP, one order at a Lokasi "(Contoh)" placed and cancelled, and archiving the `makam-app` repository (runbook step 13). Evidence: `go-live-rilis-1.md`, G3.
 
+
+- Reconciliation 2026-10-29 (documents lane, from the October audit): the switch itself is done (G3, 2026-10-05, v2026.10.05-1) and the old app is deleted, so the ACs above are met in substance; the boxes were never ticked because the evidence lives in the Comments and in `go-live-rilis-1.md`. Status moved from `ready-for-human` to `in-progress` because three owner items stay open: Pengaturan Operator and TOTP, one test order at a Lokasi "(Contoh)", and archiving the `makam-app` repository (runbook step 13). Resolve the ticket when those are done.

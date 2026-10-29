@@ -1,5 +1,7 @@
 # Orchestration optimization and the plan as skills (ticket 87)
 
+> **Status (2026-10-29): analysis only, not decided.** Owner decisions are in ticket 87 (D5 dropped). The files this document cites do not exist: `scripts/agents/poll.sh`, `tests/tooling/skills.test.ts`, `.claude/hooks/require-thread-tier.sh`, `.claude/skills/makam-thread` and `makam-coordinator`, `.claude/commands/`.
+
 2026-10-03, base `origin/main` 4fab4b1. Analysis only: nothing changes `orchestration.md`, `project-instructions.md`, `AGENTS.md`, settings, hooks or skills until the owner decides. On Opus by owner decision (2026-10-03, an exception to the research tier). Four analysts, then two skeptics re-deriving each load-bearing claim from primary evidence (code.claude.com docs, `gh api`, `list_sessions` / `get_session` / `list_triggers`, `git`, path:line). 57 verdicts: 42 confirmed, 3 refuted (corrected below), 12 uncertain (marked **[uncertain]**; nothing ranked first depends on them).
 
 ## Summary

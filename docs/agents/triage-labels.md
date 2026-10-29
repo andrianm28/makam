@@ -10,6 +10,8 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
+Tickets in `.scratch/` also carry two lifecycle statuses that are not triage roles: `in-progress` (a builder or the owner has started) and `resolved` (merged and reviewed). `deferred-v2` marks work deliberately moved to v2 (for example ticket 03, S3); it is written in the ticket body, not as a `Status:`.
+
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
