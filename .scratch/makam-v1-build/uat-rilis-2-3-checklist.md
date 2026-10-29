@@ -1,5 +1,7 @@
 # Checklist UAT Rilis 2 dan Rilis 3 — uji agen, lalu cek sampel owner
 
+> **Reconciliation 2026-10-29:** these boxes belong to gate G4 (level-3 UAT), which has not been run; the unticked items are open, not stale. Opening Rilis 3 on production waits for it (ADR 0006).
+
 Environment: `https://dev.makam.co.id` (staging). Rilis 2 = tiket 35, 39, 41, 42, 59, 84. Rilis 3 = tiket 43–48, 55–57, 58 dan bagian TPU dari 51–53 (Layanan di Lokasi Mitra sudah di checklist Rilis 1, §11).
 Sumber: AC tiap tiket, ADR 0006, rencana percepatan full rilis (2026-10-04), tiket 110. Isi bukti tiap butir: screenshot runner (`/home/ubuntu/uat-runs/<tanggal>-<sha>/bukti/`) dan catatan owner. Tandai `[x]` bila lolos.
 

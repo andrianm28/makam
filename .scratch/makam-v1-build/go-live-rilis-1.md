@@ -23,7 +23,7 @@ Legend: A, B and C are the three digests (A for the rehearsal, B for the switch,
 - [x] **`prod.env` is complete** ("Production (ticket 65)"): the sandbox set `SUMOPOD_BASE_URL`, `SUMOPOD_API_KEY` and `SUMOPOD_WEBHOOK_SECRET` of the project staging uses (only these three are read; the `whtok_` token is not), SMTP, and `RILIS_TERBUKA=1` written down (plan B2), mode 0600.
   Evidence: 2026-10-04: written by the orchestrator (names only reported); sandbox `SUMOPOD_BASE_URL`, key and the rotated signing secret (same project as staging); `RILIS_TERBUKA=1` added; mode 600.
 - [x] **The first Admin Platform's email and phone** for `seed:admin` are chosen (plan C4).
-  Evidence: 2026-10-04: `admin@makam.co.id`, the owner's phone (kept out of the repo, which is public); seeded on production the same day.
+  Evidence: 2026-10-04: `admin@makam.co.id`, (owner phone removed from this public repo, 2026-10-29); seeded on production the same day.
 - [x] **The Data Contoh amounts are approved** (the Lokasi and Layanan prices, the contoh Biaya Layanan Platform, the 22 DKI prices and the Mitra Jasa rates; plan C2), and **Retribusi Pemda at Rp 0 is accepted as a real value** (plan C3).
   Evidence: 2026-10-04: owner approved ticket 109's and ticket 111's sheets as listed, and Retribusi Pemda Rp 0 as a real value (recorded in both tickets).
 - [ ] **Both backup passphrases are copied somewhere offline**, and the GlitchTip superuser password is changed (plan C5).
