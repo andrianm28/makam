@@ -281,6 +281,15 @@ Payments are collected through SumoPod. The Operator issues every Tagihan and Bu
 193. As any user, I want to edit my phone number in Akun Saya, so that staff can call me; it is never verified and never logs me in.
 194. As a Pemesan, when I must act and email is not enough (an overdue Saat Duka Tagihan, a Hak Pakai nearing its end, a declined order), I want a staff member to phone me, so that I don't miss it.
 
+## Non-functional requirements (added 2026-10-29)
+
+Until now these were implicit. What is true today is stated; targets the owner has not decided are marked **owner decision**, not invented.
+
+- **Availability and recovery**: one VPS, one Postgres. Backups are a nightly local `pg_dump` kept 7 days with a restore test (runbook); uptime is watched by alarms. RPO is therefore up to 24 h and RTO is a manual restore on the same host. An off-host copy, and a stated RPO/RTO target, are **owner decision** (go-live gate, audit D-3).
+- **Performance and capacity**: no target set. The beta is one region (Jakarta), tens of Lokasi and low order volume. A budget per page and a capacity limit are **owner decision**.
+- **Accessibility and devices**: family-facing pages are phone-first and in Bahasa Indonesia, read by people under stress. WCAG 2.2 AA is the proposed level, not yet adopted or tested: **owner decision**. Supported browsers: current evergreen Chrome, Safari and Firefox on phone and desktop (no stated lower bound).
+- **Retention**: audit entries and the message log are kept for the life of the system. Retention and deletion of KTP, KK and death-certificate files, and the UU PDP position, are **owner decision** and belong to the Rilis go-live gates.
+
 ## Implementation Decisions
 
 ### Architecture (ADR 0002, ticket 12)
@@ -650,7 +659,7 @@ Core entities at a glance (details in each module):
 
 v1 ships in three releases so the first can go live sooner. Nothing is dropped; later releases follow the same spec.
 
-- **Rilis 1 (go-live)**: Lokasi Mitra Saat Duka and Terencana end to end, with the staff back office, billing, payments, refunds, Pencairan and Laporan, the brand redesign, email as the Akun key, CI/CD, the live adapters (S3, SumoPod payments, SMTP), backups and the `makam.co.id` switch. Tickets 13–17, 19–33, 34, 36–38, 40, 60, 61, 64, 65, 68, 71–83 (plus the resolved foundation). The Makam keluarga hub (34) and Perpanjangan at a Lokasi Mitra, OTP path (40), open in Rilis 1 (ADR 0005).
+- **Rilis 1 (go-live)**: Lokasi Mitra Saat Duka and Terencana end to end, with the staff back office, billing, payments, refunds, Pencairan and Laporan, the brand redesign, email as the Akun key, CI/CD, the live adapters (S3, SumoPod payments, SMTP), backups and the `makam.co.id` switch. Tickets 13–17, 19–33, 34, 36–38, 40, 60, 61, 64, 65, 68, 71–83 (plus the resolved foundation). Tickets 12, 18, 63, 67 and 85-126 (post-switch fixes, Rilis 2/3 work and hardening) are not listed here: the ticket index `00-index.md` is the full map and this list is the original plan. Excel import (a stated requirement) has no ticket yet. Index item 4 (GitHub owner versus a vendor account in PT JKP's name) is still open. The plan file cited by tickets 106, 108 and 111 lived outside the repo and is not recoverable; ADRs 0006 and 0007 carry its decisions. The Makam keluarga hub (34) and Perpanjangan at a Lokasi Mitra, OTP path (40), open in Rilis 1 (ADR 0005).
 - **Rilis 2**: Perpanjangan continued — burial under an existing Hak Pakai, Pengembalian/Ganti Pemegang Hak/Calon Penghuni, and the expiry reminders and masa tenggang (35, 39, 41, 42) — Lokasi Ditangguhkan / Berhenti (59), the Pintu Masuk cell on the Denah (84).
 - **Rilis 3**: DKI TPU (43–48), Mitra Jasa and TPU Layanan (55–57, and the TPU parts of 51–53) and Wakaf Tanah (58).
 - **Layanan Makam at a Lokasi Mitra (49–54) is Rilis 1** (ADR 0006, 2026-10-02).

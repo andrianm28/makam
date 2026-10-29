@@ -366,6 +366,18 @@ _Avoid_: Retribusi Daerah, pajak daerah, setoran pajak
 The Operator's request to pay a fixed set of lines by a due date, one per payment moment (a checkout, a Perpanjangan, a burial under an existing Hak Pakai, a standalone Layanan order, a Paket Layanan cycle); never changed once issued, only cancelled and replaced. Most are paid before anything happens and simply lapse when unpaid; only those for a burial that has already happened (a Saat Duka order, a burial under an existing Hak Pakai) are chased after their due date.
 _Avoid_: Invoice, faktur, nota
 
+**Status Tagihan**:
+Where a Tagihan stands: it is open until it is **Lunas** (paid and settled), **Dibatalkan** (cancelled, usually replaced by a new Tagihan) or, for the kinds that are chased, **Lewat Jatuh Tempo** (past its due date and still unpaid, which puts a Telepon Pemesan row in the Antrean; a Saat Duka Tagihan gets there 3×24 h after the recorded Pemakaman). A pay-first Tagihan that lapses is not chased.
+_Avoid_: Status faktur, overdue, paid/unpaid in staff-facing text
+
+**Rilis**:
+One of three stages (1, 2, 3) in which makam.co.id opens its features. Each environment carries one number, `RILIS_TERBUKA`, and a feature of a later Rilis is closed, not merely hidden: its URLs answer 404 and its links read "Segera hadir". Production opens 1 first and 3 only after a signed level-3 UAT (ADR 0006).
+_Avoid_: Versi, feature flag, fase
+
+**Segera hadir**:
+The label a link shows for a feature whose Rilis is not yet open, with no working page behind it.
+_Avoid_: Coming soon, disabled
+
 **Tidak Tertagih**:
 A Tagihan the Operator has given up chasing after its due date; it stays payable, but no one is owed a Pencairan for it.
 _Avoid_: Write-off, piutang macet, hangus

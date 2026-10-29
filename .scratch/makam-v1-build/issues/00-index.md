@@ -1,5 +1,7 @@
 Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 126 tickets (as of 2026-10-06): 116 resolved, 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 4 in-progress (65, 72, 87, 98).
 
+> **Reading note (2026-10-29):** a `resolved` ticket is audited by its Comments (evidence and the two-axis review), not by its checkboxes: 88 of the 116 resolved tickets still show unchecked ACs. The guard `ticket-workflow.test.ts` enforces the review marker and index match only.
+
 ## Tickets
 
 | # | Title | Status | Blocked by |
