@@ -62,6 +62,8 @@ Usulan awal, angka harus diputuskan pemilik.
 
 ## 6. Keputusan yang diperlukan dari pemilik
 
+**Diputuskan 2026-10-29 (pemilik, kartu opsi):** backup di luar host ditunda ke v2 (S3 Jakarta, tiket 03). Akibatnya butir backup dan uji pulih G6 tetap terbuka, dan pesanan nyata tidak boleh dibuka sebelum selesai. Beta di sandbox tidak terpengaruh.
+
 1. Penyedia dan anggaran backup di luar host.
 2. Repo publik atau privat (audit A-2) sebelum data nyata masuk; nomor telepon Admin Platform di `go-live-rilis-1.md:26` sebaiknya dihapus.
 3. Angka RPO/RTO dan retensi berkas.
