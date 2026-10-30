@@ -46,6 +46,59 @@ export function tentangKamiParagrafs(legalName: string | null): string[] {
 }
 
 /**
+ * Kebijakan Privasi: what the platform collects, why, who it is shared with and
+ * how a person reaches their own data (UU No. 27 Tahun 2022 tentang Pelindungan
+ * Data Pribadi). It states only what the product does today; no retention period
+ * is written because none is decided yet (spec: retention is out of scope). The
+ * Operator's legal name comes from Pengaturan Operator.
+ */
+export function kebijakanPrivasiSections(legalName: string | null): ContentSection[] {
+  const pengelola = legalName ?? "Pengelola makam.co.id";
+  return [
+    {
+      label: "Siapa yang mengelola data Anda",
+      paragraphs: [
+        `${pengelola} mengelola makam.co.id dan menentukan untuk apa data pribadi Anda dipakai. Kebijakan ini menjelaskan data apa yang kami kumpulkan, untuk apa, dan bagaimana Anda dapat meminta data itu dilihat, diperbaiki atau dihapus.`,
+      ],
+    },
+    {
+      label: "Data yang kami kumpulkan",
+      paragraphs: [
+        "Alamat email Anda, yang menjadi akun Anda dan tempat Kode Masuk dikirim. Nomor telepon yang Anda isi sebagai kontak; nomor ini tidak diverifikasi.",
+        "Data pesanan: nama almarhum, nama Pemegang Hak, lokasi dan petak makam, tanggal, serta riwayat pembayaran dan dokumen yang kami terbitkan.",
+        "Berkas yang Anda unggah untuk mengurus pesanan, misalnya KTP, Kartu Keluarga dan akta kematian.",
+      ],
+    },
+    {
+      label: "Untuk apa data dipakai",
+      paragraphs: [
+        "Untuk membuat dan memproses pesanan Anda, menerbitkan tagihan dan bukti, menghubungi Anda tentang pesanan itu, dan membantu Anda lewat CS. Kami tidak menjual data Anda dan tidak memakainya untuk iklan pihak lain.",
+      ],
+    },
+    {
+      label: "Dengan siapa data dibagikan",
+      paragraphs: [
+        "Lokasi Mitra yang Anda pesan hanya menerima data yang ia perlukan untuk melayani pesanan itu.",
+        "Penyedia pembayaran memproses pembayaran Anda. Kami tidak menyimpan nomor kartu atau akun pembayaran Anda.",
+        "Layanan pengiriman email dan pemantau kesalahan aplikasi dipakai untuk menjalankan situs. Pemantau kesalahan tidak menerima isi formulir, nomor telepon atau berkas Anda.",
+      ],
+    },
+    {
+      label: "Bagaimana berkas Anda dijaga",
+      paragraphs: [
+        "Berkas keluarga disimpan di penyimpanan privat dan hanya dibuka lewat tautan bertanda tangan yang berlaku singkat. Hanya staf yang berkepentingan dengan pesanan Anda yang dapat membukanya.",
+      ],
+    },
+    {
+      label: "Hak Anda",
+      paragraphs: [
+        "Anda dapat meminta untuk melihat, memperbaiki atau menghapus data pribadi Anda, dan menarik persetujuan Anda. Hubungi CS lewat halaman Hubungi Kami; kami menjawab permintaan itu dan memberi tahu bila ada data yang harus tetap kami simpan karena pesanan atau kewajiban hukum.",
+      ],
+    },
+  ];
+}
+
+/**
  * Cara Kami Bekerja: the three trust claims, one section each (spec, Content
  * pages). Each section states the rule; the prices and the fees themselves are
  * read from Tariffs, Pengurusan and Pengaturan Operator on the pages that show

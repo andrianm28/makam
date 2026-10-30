@@ -78,4 +78,5 @@ export const contentPageLinks: ContentPageLink[] = [
   { href: "/faq", label: "FAQ" },
   { href: "/hubungi-kami", label: "Hubungi Kami" },
   { href: "/lokasi", label: "Daftar Lokasi" },
+  { href: "/kebijakan-privasi", label: "Kebijakan Privasi" },
 ];

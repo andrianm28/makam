@@ -25,7 +25,7 @@ describe("the public site footer", () => {
       createElement(SiteFooter, { legalName: "PT Jaya Korpora Prima", contact }),
     );
     expect(markup).toMatch(/<nav[^>]*aria-label="Halaman isi"/);
-    for (const href of ["/tentang-kami", "/cara-kami-bekerja", "/faq", "/hubungi-kami", "/lokasi"]) {
+    for (const href of ["/tentang-kami", "/cara-kami-bekerja", "/faq", "/hubungi-kami", "/lokasi", "/kebijakan-privasi"]) {
       expect(markup).toContain(`href="${href}"`);
     }
   });

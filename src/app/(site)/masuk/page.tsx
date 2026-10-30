@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,6 +36,13 @@ export default async function MasukPage() {
           <KodeMasukForm requestAction={kirimKodeMasuk} verifyAction={masukDenganKodeMasuk} csContact={csContact} />
         </CardContent>
       </Card>
+      <p className="mt-4 text-center text-small text-muted-foreground">
+        Dengan masuk, Anda menyetujui pemakaian data Anda seperti dijelaskan di{" "}
+        <Link href="/kebijakan-privasi" className="underline underline-offset-4">
+          Kebijakan Privasi
+        </Link>
+        .
+      </p>
     </main>
   );
 }
