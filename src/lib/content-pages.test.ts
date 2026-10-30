@@ -305,6 +305,7 @@ describe("Kebijakan Privasi", () => {
     ]);
     expect(text(sections)).toContain("kewajiban hukum");
     expect(text(sections)).toContain("Jakarta, Indonesia");
+    expect(text(sections)).toContain("dua tahun setelah pesanan selesai");
   });
 
   it("writes no number, so no deadline or period can go stale: the law's own deadlines are named, not counted", () => {

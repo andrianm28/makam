@@ -48,8 +48,8 @@ export function tentangKamiParagrafs(legalName: string | null): string[] {
 /**
  * Kebijakan Privasi: what the platform collects, why, who it is shared with and
  * how a person reaches their own data (UU No. 27 Tahun 2022 tentang Pelindungan
- * Data Pribadi). It states only what the product does today; no retention period
- * is written because none is decided yet (spec: retention is an owner decision).
+ * Data Pribadi). The two years for family files is the owner's decision of
+ * 2026-10-29 (go-live status), written in words like every content page.
  * Deadlines are named as the law's (UU PDP Pasal 30, 32 and 46), not written as a
  * number, like every content page.
  * The Operator's legal name comes from Pengaturan Operator.
@@ -91,7 +91,7 @@ export function kebijakanPrivasiSections(legalName: string | null): ContentSecti
       paragraphs: [
         "Server, basis data dan berkas kami berada di Jakarta, Indonesia. Pemantau kesalahan aplikasi juga berjalan di server kami sendiri.",
         "Berkas keluarga disimpan di penyimpanan privat dan hanya dibuka lewat tautan bertanda tangan yang berlaku singkat. Hanya staf yang berkepentingan dengan pesanan Anda yang dapat membukanya.",
-        "Data disimpan selama diperlukan untuk pesanan Anda dan untuk kewajiban hukum yang berlaku.",
+        "Berkas KTP, Kartu Keluarga dan akta kematian kami simpan selama dua tahun setelah pesanan selesai, lalu kami hapus. Data pesanan dan pembayaran kami simpan selama diperlukan untuk pesanan Anda dan untuk kewajiban hukum yang berlaku.",
       ],
     },
     {
