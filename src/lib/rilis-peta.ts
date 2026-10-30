@@ -100,6 +100,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
     "layanan",
     "lokasi",
     "pemulihan-akun",
+    "pencairan",
     "pengaturan-operator",
     "pengembalian",
     "penilaian",
