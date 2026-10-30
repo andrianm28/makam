@@ -2240,6 +2240,34 @@ at once; do not wait for certainty to start the steps.
    person can do. In some cases the law also asks for a public notice.
 5. **After**, as above.
 
+**Notice template** (fill every bracket; the owner signs):
+
+> Yth. [nama], kami memberi tahu bahwa pada [tanggal, jam WIB] data pribadi Anda
+> di makam.co.id, yaitu [data apa], [bocor / dibuka oleh pihak yang tidak
+> berhak] karena [bagaimana]. Kami mengetahuinya pada [tanggal, jam WIB] dan
+> telah [tindakan]. Yang dapat Anda lakukan: [saran, misalnya waspada terhadap
+> pesan yang mengaku dari makam.co.id]. Pertanyaan: [kontak CS].
+> PT Jaya Korpora Prima
+
+### Rehearsal (once before real orders, G6)
+
+The owner approved this procedure on 2026-10-30 and chose to rehearse it once
+before 1 November. About an hour, on **staging only**, nothing sent to a real
+person. Scenario: *a staging env file was pasted in plain text into a group
+chat* (the kind of leak that has happened with credentials before).
+
+1. Note the start time (WIB). This is the start of the 3 × 24 jam clock.
+2. Contain: rotate the staging secrets that file holds ("Rotating secrets"),
+   redeploy staging, and check `/api/health` and one Kode Masuk email.
+3. Save evidence: `docker logs` of web and worker for the last hour into the
+   ticket, and note which GlitchTip events exist.
+4. Size it: write which data the leaked secrets could reach (database, SMTP,
+   SumoPod) and whose; on staging, only example data.
+5. Fill the notice template above for one made-up family and send it to the
+   owner's own email. Note the time.
+6. Record in the go-live status (G6, "Prosedur insiden") the start and end
+   times, what was slow or unclear, and fix the runbook in the same commit.
+
 ## Rotating secrets
 
 Each env file is 0600. Edit it in place (`nano /opt/makam-v1/staging/staging.env`).

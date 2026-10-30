@@ -43,15 +43,15 @@ Audit A-3 menemukan tidak ada gerbang ini. Beta berjalan di sandbox SumoPod dan 
 - [ ] **Retensi berkas keluarga**: berapa lama KTP/KK/akta disimpan setelah pesanan selesai, dan siapa menghapus. Saat ini spec mengeluarkannya dari cakupan (spec.md:616, :698).
   Evidence:
 - [ ] **Prosedur insiden** disetujui dan dilatih sekali (lihat draf di bawah).
-  Evidence:
+  Evidence: disetujui pemilik 2026-10-30 (kartu opsi "Setujui, latihan 31 Okt"); prosedur di `docs/ops/runbook.md` "Incidents (production)". Latihan: "Rehearsal (once before real orders, G6)" di bagian yang sama, dijadwalkan 2026-10-31, belum dijalankan.
 - [ ] **Preflight memeriksa G6**: `makam-preflight` mendapat baris untuk salinan luar (umur salinan terbaru), halaman privasi (HTTP 200), dan berkas prosedur insiden.
   Evidence:
 - [ ] **Pembayaran nyata (tiket 04)**: KYC SumoPod selesai, lalu runbook "Going live" langkah 1 sampai 5 (nilai nyata, `cabut`, bersihkan pesanan beta, kunci live, preflight). Pengingat keluarga untuk Tagihan TPU bayar-setelah (tiket 46 gap 5) dibangun lebih dulu. Webhook SumoPod tetap satu proyek: jalankan semua kasus bayar di staging sebelum kunci live dipasang.
   Evidence:
 
-## 5. Draf prosedur insiden (untuk disetujui, lalu masuk `docs/ops/runbook.md`)
+## 5. Draf prosedur insiden (sudah masuk `docs/ops/runbook.md`, disetujui 2026-10-30)
 
-Usulan awal, angka harus diputuskan pemilik.
+Draf awal, disimpan sebagai riwayat; yang berlaku adalah runbook.
 
 - **Target**: RPO 24 jam (backup harian; lebih ketat butuh WAL di v2), RTO 4 jam pada jam kerja.
 - **Tingkat**: S1 produksi mati atau uang salah; S2 sebagian fitur mati, data tidak terancam; S3 kecacatan kecil.
