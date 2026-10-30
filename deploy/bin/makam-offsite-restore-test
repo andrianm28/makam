@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+# makam-offsite-restore-test: proves the OFF-HOST copy can be restored. It
+# downloads the newest Dump and FileStore tar from $OFFSITE_REMOTE (written by
+# makam-backup-offsite), hands the Dump to makam-restore-test (restore into a
+# throwaway Postgres, checked against that night's row counts) and lists the
+# decrypted FileStore tar. Run weekly by makam-<env>-offsite-restore-test.timer
+# and by hand: a copy nobody has downloaded and restored is a hope.
+#
+# It reads the remote only; nothing there is changed. The download goes into a
+# 0700 directory under $MAKAM_ROOT/<env>/backups that is removed on every way
+# out. Exit 78 for a refusal (settings, passphrase, nothing off-host yet, no
+# space), 1 when the download or restore fails.
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+RCLONE=${MAKAM_RCLONE:-rclone}
+LOG_TAG=makam-offsite-restore-test
+ENV_NAME=""
+
+# shellcheck source=deploy/bin/makam-backup-lib
+. "$(dirname "$(readlink -f "$0")")/makam-backup-lib"
+BIN_DIR=$(dirname "$(readlink -f "$0")")
+
+usage() {
+  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+
+load_offsite_settings "$ENV_NAME"
+read_passphrase "$MAKAM_ROOT/$ENV_NAME/backup-passphrase" "the Dump cannot be decrypted without it"
+export BACKUP_PASSPHRASE="$PASSPHRASE"
+
+WORK="$MAKAM_ROOT/$ENV_NAME/backups/offsite-restore.$$"
+mkdir -p "$WORK"
+chmod 0700 "$WORK"
+cleanup() { rm -rf "$WORK"; }
+trap cleanup EXIT
+
+rc() { "$RCLONE" --config "$RCLONE_CONF" "$@"; }
+
+newest() {
+  rc lsf --files-only "$OFFSITE_REMOTE/$1" 2> /dev/null | grep -E "$2" | sort | tail -n 1 || true
+}
+DUMP_NAME=$(newest db '^makam-[0-9TZ]+\.dump\.enc$')
+[ -n "$DUMP_NAME" ] || refuse "no Dump at $OFFSITE_REMOTE/db; makam-backup-offsite has not shipped one"
+COUNTS_NAME="${DUMP_NAME%.dump.enc}.counts.enc"
+TAR_NAME=$(newest files '^files-[0-9TZ]+\.tar\.gz\.enc$')
+[ -n "$TAR_NAME" ] || refuse "no FileStore tar at $OFFSITE_REMOTE/files"
+
+for pair in "db $DUMP_NAME" "db $COUNTS_NAME" "files $TAR_NAME"; do
+  set -- $pair
+  rc copyto "$OFFSITE_REMOTE/$1/$2" "$WORK/$2" || { err "ERROR downloading $2 from $OFFSITE_REMOTE/$1 failed"; exit 1; }
+done
+
+started=$(date +%s)
+if ! "$BIN_DIR/makam-restore-test" --env "$ENV_NAME" --dump "$WORK/$DUMP_NAME"; then
+  err "ERROR the off-host Dump $DUMP_NAME did not restore"
+  exit 1
+fi
+
+entries=$(openssl enc -d "${CIPHER_ARGS[@]}" -in "$WORK/$TAR_NAME" -pass env:BACKUP_PASSPHRASE | tar -tz | grep -c . || true)
+if [ "$entries" -lt 1 ]; then
+  err "ERROR the off-host FileStore tar $TAR_NAME decrypts to an empty or unreadable archive"
+  exit 1
+fi
+
+date -u +%Y-%m-%dT%H:%M:%SZ > "$MAKAM_ROOT/$ENV_NAME/offsite-last-restore-ok"
+log "restored off-host $DUMP_NAME and listed $entries entries of $TAR_NAME in $(( $(date +%s) - started ))s"

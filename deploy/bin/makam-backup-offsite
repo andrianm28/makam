@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# makam-backup-offsite: copies the newest encrypted Dump of an environment, and
+# its FileStore tar (encrypted here first), to a storage account that is not this
+# host, with rclone. This is the "backup off the host" gate of the launch
+# (audit finding A-3): until it runs, every backup sits on the same disk as the
+# data it protects. Run nightly by makam-<env>-offsite-backup.timer, after
+# makam-backup-db and makam-backup-files.
+#
+# What goes where ($OFFSITE_REMOTE is a remote name and path, e.g.
+# makam-offsite:makam-backup/prod):
+#
+#   $OFFSITE_REMOTE/db/makam-<UTC timestamp>.dump.enc      as makam-backup-db wrote it
+#   $OFFSITE_REMOTE/db/makam-<UTC timestamp>.counts.enc    the row counts beside it
+#   $OFFSITE_REMOTE/files/files-<UTC timestamp>.tar.gz.enc the FileStore tar, KTP/KK
+#                                                          included, encrypted with the
+#                                                          same passphrase and cipher
+#
+# Nothing readable ever leaves the host: the Dump is encrypted by makam-backup-db,
+# the tar here, and the passphrase stays in $MAKAM_ROOT/<env>/backup-passphrase
+# (keep an offline copy: without it every file off-host is noise). Settings live
+# outside the repo, both 0600 and refused otherwise:
+#
+#   $MAKAM_ROOT/<env>/offsite.env   OFFSITE_REMOTE=<remote>:<bucket>/<path>
+#                                   OFFSITE_RETENTION_DAYS=30   (optional)
+#   $MAKAM_ROOT/<env>/rclone.conf   the rclone remote and its access keys
+#
+# Fails closed (exit 78) without settings, passphrase, a fresh local Dump (under
+# 36 h old) or enough free space; a copy whose size on the far side differs from
+# the local file is an error, not a success. Off-host files older than the
+# retention are deleted; for protection against a stolen host key, turn on
+# object versioning / lock at the provider (docs/ops/runbook.md, "Off-host backup").
+set -euo pipefail
+
+MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+RCLONE=${MAKAM_RCLONE:-rclone}
+LOG_TAG=makam-offsite-backup
+MAX_AGE_MIN=$((36 * 60))
+ENV_NAME=""
+
+# shellcheck source=deploy/bin/makam-backup-lib
+. "$(dirname "$(readlink -f "$0")")/makam-backup-lib"
+
+usage() {
+  sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'
+  exit "${1:-0}"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --env) ENV_NAME=${2:?}; shift 2 ;;
+    -h|--help) usage 0 ;;
+    *) echo "unknown argument: $1" >&2; usage 64 ;;
+  esac
+done
+case "$ENV_NAME" in
+  staging|prod) ;;
+  *) echo "--env must be staging or prod" >&2; exit 64 ;;
+esac
+
+load_offsite_settings "$ENV_NAME"
+read_passphrase "$MAKAM_ROOT/$ENV_NAME/backup-passphrase" "the same passphrase makam-backup-db uses"
+export BACKUP_PASSPHRASE="$PASSPHRASE"
+
+DB_DIR="$MAKAM_ROOT/$ENV_NAME/backups/db"
+FILES_DIR="$MAKAM_ROOT/$ENV_NAME/backups/files"
+TMP_DIR="$MAKAM_ROOT/$ENV_NAME/backups/offsite-tmp"
+mkdir -p "$TMP_DIR"
+chmod 0700 "$TMP_DIR"
+cleanup() { rm -rf "$TMP_DIR"; }
+trap cleanup EXIT
+
+DUMP=$(find "$DB_DIR" -maxdepth 1 -name 'makam-*.dump.enc' 2> /dev/null | sort | tail -n 1)
+[ -n "$DUMP" ] || refuse "no Dump in $DB_DIR; makam-backup-db has not run"
+COUNTS="${DUMP%.dump.enc}.counts.enc"
+[ -r "$COUNTS" ] || refuse "no row counts beside $DUMP"
+if [ -z "$(find "$DUMP" -mmin "-$MAX_AGE_MIN")" ]; then
+  refuse "the newest Dump ($(basename "$DUMP")) is over 36 h old; not shipping a stale night as if it were fresh"
+fi
+TAR=$(find "$FILES_DIR" -maxdepth 1 -name 'files-*.tar.gz' 2> /dev/null | sort | tail -n 1)
+[ -n "$TAR" ] || refuse "no FileStore tar in $FILES_DIR; makam-backup-files has not run"
+if [ -z "$(find "$TAR" -mmin "-$MAX_AGE_MIN")" ]; then
+  refuse "the newest FileStore tar ($(basename "$TAR")) is over 36 h old"
+fi
+
+# The encrypted tar is a second copy of the tar until it is shipped.
+require_free_space "$TMP_DIR" "$(( $(stat -c %s "$TAR") + 1 ))" "the encrypted copy of $(basename "$TAR")"
+
+# Copies one local file to $OFFSITE_REMOTE/<kind>/<name> and proves the far side
+# holds as many bytes as the local file.
+ship() {
+  local file=$1 kind=$2 name local_size remote_size
+  name=$(basename "$file")
+  local_size=$(stat -c %s "$file")
+  if ! "$RCLONE" --config "$RCLONE_CONF" copyto "$file" "$OFFSITE_REMOTE/$kind/$name"; then
+    err "ERROR copying $name to $OFFSITE_REMOTE/$kind failed"
+    exit 1
+  fi
+  remote_size=$("$RCLONE" --config "$RCLONE_CONF" lsf --format s "$OFFSITE_REMOTE/$kind/$name" 2> /dev/null | tr -d '[:space:]' || true)
+  if [ "$remote_size" != "$local_size" ]; then
+    err "ERROR $name is $local_size bytes here but '${remote_size:-unreadable}' at $OFFSITE_REMOTE/$kind"
+    exit 1
+  fi
+}
+
+TAR_ENC="$TMP_DIR/$(basename "$TAR").enc"
+if ! openssl enc "${CIPHER_ARGS[@]}" -salt -in "$TAR" -out "$TAR_ENC" -pass env:BACKUP_PASSPHRASE; then
+  err "ERROR encrypting $TAR failed; nothing shipped"
+  exit 1
+fi
+
+ship "$DUMP" db
+ship "$COUNTS" db
+ship "$TAR_ENC" files
+
+for kind in db files; do
+  "$RCLONE" --config "$RCLONE_CONF" delete "$OFFSITE_REMOTE/$kind" --min-age "${OFFSITE_RETENTION_DAYS}d" \
+    || err "WARN pruning $OFFSITE_REMOTE/$kind failed; the copy itself succeeded"
+done
+
+date -u +%Y-%m-%dT%H:%M:%SZ > "$MAKAM_ROOT/$ENV_NAME/offsite-last-success"
+log "shipped $(basename "$DUMP"), its counts and $(basename "$TAR_ENC") to $OFFSITE_REMOTE, pruned off-host files older than ${OFFSITE_RETENTION_DAYS}d"
