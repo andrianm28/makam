@@ -25,7 +25,7 @@ describe("the top bar", () => {
 
   it("is green with white lettering", () => {
     const markup = header({ items, contact });
-    expect(markup).toMatch(/<header[^>]*class="[^"]*bg-forest[^"]*text-white/);
+    expect(markup).toMatch(/<header[^>]*class="[^"]*bg-forest[^"]*text-ivory/);
   });
 
   it("lists every menu item, the signed-out one included", () => {

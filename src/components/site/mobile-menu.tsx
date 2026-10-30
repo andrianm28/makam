@@ -32,7 +32,7 @@ export function MobileMenu({
           <button
             type="button"
             aria-label="Buka menu"
-            className="inline-flex min-h-(--touch-target) min-w-(--touch-target) items-center justify-center rounded-lg text-white hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-white/50 lg:hidden"
+            className="inline-flex min-h-(--touch-target) min-w-(--touch-target) items-center justify-center rounded-lg text-ivory hover:bg-ivory/10 focus-visible:ring-3 focus-visible:ring-ivory/50 lg:hidden"
           />
         }
       >

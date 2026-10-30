@@ -23,14 +23,14 @@ export function BrandMark({ className, onBrand = false }: { className?: string; 
 /**
  * The wordmark MAKAM.CO.ID in Plus Jakarta Sans bold beside the mark, with an
  * optional caption (e.g. "Area Staf"). A collapsed sidebar shows the mark alone.
- * `onBrand` draws both in white, for the green top bar and footer.
+ * `onBrand` draws both in Ivory (the brand's white), for the green top bar and footer.
  */
 export function BrandLogo({ caption, className, onBrand = false }: { caption?: string; className?: string; onBrand?: boolean }) {
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
       <BrandMark onBrand={onBrand} />
       <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-        <span className={cn("text-small font-bold tracking-[0.04em]", onBrand ? "text-white" : "text-forest dark:text-ivory")}>MAKAM.CO.ID</span>
+        <span className={cn("text-small font-bold tracking-[0.04em]", onBrand ? "text-ivory" : "text-forest dark:text-ivory")}>MAKAM.CO.ID</span>
         {caption ? <span className="text-caption text-muted-foreground">{caption}</span> : null}
       </span>
     </span>

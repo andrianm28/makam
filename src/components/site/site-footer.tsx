@@ -13,34 +13,34 @@ import { contentPageLinks } from "@/lib/public-navigation";
  */
 export function SiteFooter({ legalName, contact }: { legalName: string | null; contact: CsContact | null }) {
   return (
-    <footer className="mt-auto bg-forest text-white">
+    <footer className="mt-auto bg-forest text-ivory">
       <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr] md:px-8">
         <div className="flex flex-col gap-3">
           <BrandLogo onBrand />
-          <p className="max-w-sm text-small text-white/80">
+          <p className="max-w-sm text-small text-ivory/80">
             Menemani keluarga, menjaga kenangan. Kami bekerja sama dengan Lokasi Mitra yang sudah terverifikasi.
           </p>
         </div>
         <nav aria-label="Halaman isi" className="flex flex-col gap-2 text-small">
-          <span className="text-caption font-semibold tracking-wide text-white/70 uppercase">Tentang</span>
+          <span className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">Tentang</span>
           {contentPageLinks.map((page) => (
-            <Link key={page.href} href={page.href} className="text-white hover:underline">
+            <Link key={page.href} href={page.href} className="text-ivory hover:underline">
               {page.label}
             </Link>
           ))}
         </nav>
         {contact ? (
           <div className="flex flex-col gap-2 text-small">
-            <span className="text-caption font-semibold tracking-wide text-white/70 uppercase">Bantuan</span>
-            <CsLink contact={contact} className="font-medium text-white underline">
+            <span className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">Bantuan</span>
+            <CsLink contact={contact} className="font-medium text-ivory underline">
               WhatsApp CS {formatTelepon(contact.whatsApp)}
             </CsLink>
-            <span className="text-white/80">{contact.replyHours}</span>
+            <span className="text-ivory/80">{contact.replyHours}</span>
           </div>
         ) : null}
       </div>
-      <div className="border-t border-white/15">
-        <p className="mx-auto max-w-(--page-max-width) px-4 py-4 text-caption text-white/80 md:px-8">
+      <div className="border-t border-ivory/15">
+        <p className="mx-auto max-w-(--page-max-width) px-4 py-4 text-caption text-ivory/80 md:px-8">
           {legalName ? `Makam.co.id dikelola oleh ${legalName}` : "Makam.co.id"}
         </p>
       </div>

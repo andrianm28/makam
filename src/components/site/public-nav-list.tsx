@@ -29,7 +29,7 @@ export function PublicNavList({
         const caption = inDrawer ? (
           <span className="text-caption text-muted-foreground">{item.description}</span>
         ) : !item.href ? (
-          <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-caption font-medium text-white">Segera</span>
+          <span className="ml-1.5 rounded-full bg-ivory/15 px-1.5 py-0.5 text-caption font-medium text-ivory">Segera</span>
         ) : null;
         const body = (
           <>
@@ -46,15 +46,16 @@ export function PublicNavList({
                 href={item.href}
                 aria-current={current ? "page" : undefined}
                 className={cn(
-                  "flex items-center rounded-lg text-body outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50",
+                  "flex items-center rounded-lg text-body outline-none transition-colors focus-visible:ring-3",
+                  inDrawer ? "focus-visible:ring-ring/50" : "focus-visible:ring-ivory/60",
                   inDrawer ? "min-h-12 flex-col items-start gap-0 px-4 py-2 text-body-lg" : "h-10 px-3",
                   current
                     ? inDrawer
                       ? "bg-brand-soft font-semibold text-brand-soft-foreground"
-                      : "font-semibold text-white underline underline-offset-8"
+                      : "font-semibold text-ivory underline underline-offset-8"
                     : inDrawer
                       ? "font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
-                      : "font-medium text-white/90 hover:bg-white/10 hover:text-white",
+                      : "font-medium text-ivory/90 hover:bg-ivory/10 hover:text-ivory",
                 )}
               >
                 {body}
@@ -63,7 +64,7 @@ export function PublicNavList({
               <span
                 className={cn(
                   "flex items-center text-body font-medium",
-                  inDrawer ? "text-muted-foreground" : "text-white/70",
+                  inDrawer ? "text-muted-foreground" : "text-ivory/70",
                   inDrawer ? "min-h-12 flex-col items-start gap-0 px-4 py-2 text-body-lg" : "h-10 px-3",
                 )}
               >
