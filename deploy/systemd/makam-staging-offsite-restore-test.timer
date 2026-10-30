@@ -1,0 +1,12 @@
+# Mondays at 06:15 WIB, after staging's own off-host copy of the night (05:45,
+# done by 06:07 at its worst), so the check downloads that copy.
+[Unit]
+Description=Weekly makam-staging off-host restore check
+
+[Timer]
+OnCalendar=Mon *-*-* 06:15:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

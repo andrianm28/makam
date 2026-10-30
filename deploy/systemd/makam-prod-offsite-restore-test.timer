@@ -1,0 +1,13 @@
+# Mondays at 06:55 WIB, after staging's off-host restore check (06:15, done by
+# 06:50 at its worst). The copy it downloads is that night's (03:45). See
+# makam-prod-db-backup.timer for how the hours are kept apart.
+[Unit]
+Description=Weekly makam-prod off-host restore check
+
+[Timer]
+OnCalendar=Mon *-*-* 06:55:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=5min
+
+[Install]
+WantedBy=timers.target

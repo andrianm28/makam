@@ -1,0 +1,13 @@
+# Nightly at 05:45 WIB: after every other nightly and Monday job of both
+# environments (the last, production's restore check, is done by 05:40 at its
+# worst), so staging's copy never shares the uplink with production's.
+[Unit]
+Description=Nightly makam-staging off-host backup
+
+[Timer]
+OnCalendar=*-*-* 05:45:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

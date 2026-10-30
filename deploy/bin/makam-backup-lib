@@ -127,3 +127,43 @@ require_free_space() {
     exit 78
   fi
 }
+
+# Settings of the off-host copy (makam-backup-offsite, makam-offsite-restore-test),
+# read from $MAKAM_ROOT/<env>/offsite.env and rclone.conf. Both must be 0600: the
+# rclone config holds the storage account's access keys. Sets OFFSITE_REMOTE,
+# OFFSITE_RETENTION_DAYS and RCLONE_CONF. The env file is parsed line by line,
+# never sourced, so nothing in it can run.
+load_offsite_settings() {
+  local env=$1 file conf mode
+  file="$MAKAM_ROOT/$env/offsite.env"
+  conf="$MAKAM_ROOT/$env/rclone.conf"
+  for f in "$file" "$conf"; do
+    [ -r "$f" ] || refuse "missing $f (docs/ops/runbook.md, \"Off-host backup\")"
+    mode=$(stat -c %a "$f" 2> /dev/null)
+    case "$mode" in
+      '' | *[!0-7]*) refuse "could not read the mode of $f" ;;
+    esac
+    if (( 0$mode & 0077 )); then
+      refuse "$f is mode $mode, readable by more than its owner: chmod 600 $f"
+    fi
+  done
+  OFFSITE_REMOTE=$(sed -n 's/^OFFSITE_REMOTE=//p' "$file" | tail -n 1)
+  OFFSITE_RETENTION_DAYS=$(sed -n 's/^OFFSITE_RETENTION_DAYS=//p' "$file" | tail -n 1)
+  OFFSITE_RETENTION_DAYS=${OFFSITE_RETENTION_DAYS:-30}
+  RCLONE_CONF=$conf
+  # The units run with ProtectHome=yes, so rclone's default cache under ~ is not writable.
+  export RCLONE_CACHE_DIR="$MAKAM_ROOT/$env/backups/rclone-cache"
+  case "$OFFSITE_REMOTE" in
+    [A-Za-z0-9_-]*:[A-Za-z0-9_-]*) ;;
+    *) refuse "$file needs OFFSITE_REMOTE=<remote>:<bucket>/<path>" ;;
+  esac
+  case "$OFFSITE_REMOTE" in
+    *[[:space:]]*|*..*) refuse "OFFSITE_REMOTE in $file has a space or '..'" ;;
+  esac
+  case "$OFFSITE_RETENTION_DAYS" in
+    '' | *[!0-9]* | 0) refuse "OFFSITE_RETENTION_DAYS in $file must be a positive whole number" ;;
+  esac
+  if [ "$OFFSITE_RETENTION_DAYS" -lt 8 ]; then
+    refuse "OFFSITE_RETENTION_DAYS=$OFFSITE_RETENTION_DAYS is shorter than the 7 days kept on the host; off-host must keep at least 8"
+  fi
+}

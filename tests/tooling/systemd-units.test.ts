@@ -116,7 +116,14 @@ describe("every staging backup, restore-check and health unit", () => {
     expect(naming).toEqual([]);
   });
 
-  it.each(["makam-prod-db-backup.service", "makam-prod-files-backup.service", "makam-prod-restore-test.service", "makam-prod-health.service"])(
+  it.each([
+    "makam-prod-db-backup.service",
+    "makam-prod-files-backup.service",
+    "makam-prod-restore-test.service",
+    "makam-prod-health.service",
+    "makam-prod-offsite-backup.service",
+    "makam-prod-offsite-restore-test.service",
+  ])(
     "%s has the same hardening as staging's, and does not run as root",
     (name) => {
       const prod = loadUnit(name);
@@ -139,6 +146,10 @@ describe("the makam-prod units", () => {
     expect(values(loadUnit("makam-prod-db-backup.service"), "Service", "ExecStart")).toEqual(["/opt/makam-v1/bin/makam-backup-db --env prod"]);
     expect(values(loadUnit("makam-prod-files-backup.service"), "Service", "ExecStart")).toEqual(["/opt/makam-v1/bin/makam-backup-files --env prod"]);
     expect(values(loadUnit("makam-prod-restore-test.service"), "Service", "ExecStart")).toEqual(["/opt/makam-v1/bin/makam-restore-test --env prod"]);
+    expect(values(loadUnit("makam-prod-offsite-backup.service"), "Service", "ExecStart")).toEqual(["/opt/makam-v1/bin/makam-backup-offsite --env prod"]);
+    expect(values(loadUnit("makam-prod-offsite-restore-test.service"), "Service", "ExecStart")).toEqual([
+      "/opt/makam-v1/bin/makam-offsite-restore-test --env prod",
+    ]);
   });
 
   it("restore-check the production Dump only after production's own database backup has had its turn", () => {
@@ -193,7 +204,7 @@ type Job = { name: string; start: number; end: number };
  * job is counted as if it ran every day, which is stricter than the truth.
  */
 function jobs(env: "staging" | "prod"): Job[] {
-  return ["db-backup", "files-backup", "restore-test"].map((family) => {
+  return ["db-backup", "files-backup", "restore-test", "offsite-backup", "offsite-restore-test"].map((family) => {
     const name = `makam-${env}-${family}`;
     const timer = loadUnit(`${name}.timer`);
     const service = loadUnit(`${name}.service`);
@@ -229,6 +240,23 @@ describe("the makam-prod backup and restore-check times (WIB)", () => {
   it("start the restore check only after the same night's Dump has finished, at its worst", () => {
     const [database, , restore] = jobs("prod");
     expect(restore.start).toBeGreaterThanOrEqual(database.end);
+  });
+
+  it("copy the night's backups off the host at 03:45 and restore-check that copy on Mondays at 06:55", () => {
+    expect(onCalendar("makam-prod-offsite-backup")).toBe("*-*-* 03:45:00 Asia/Jakarta");
+    expect(onCalendar("makam-prod-offsite-restore-test")).toBe("Mon *-*-* 06:55:00 Asia/Jakarta");
+  });
+
+  it("ship off-host only after the night's Dump and FileStore tar have finished, and restore-check only after the copy, at their worst", () => {
+    const [database, files, , offsite, offsiteRestore] = jobs("prod");
+    expect(offsite.start).toBeGreaterThanOrEqual(database.end);
+    expect(offsite.start).toBeGreaterThanOrEqual(files.end);
+    expect(offsiteRestore.start).toBeGreaterThanOrEqual(offsite.end);
+    for (const env of ["staging", "prod"] as const) {
+      expect(values(loadUnit(`makam-${env}-offsite-backup.service`), "Unit", "After")).toEqual([
+        `network-online.target makam-${env}-db-backup.service makam-${env}-files-backup.service`,
+      ]);
+    }
   });
 
   it("stay inside one calendar day, so the overlap sum above does not wrap past midnight", () => {
@@ -277,6 +305,11 @@ function host() {
         .filter((call) => call.startsWith("sudo systemctl enable"))
         .flatMap((call) => call.split(" ").filter((word) => word.endsWith(".timer"))),
     /** What the deploy script writes when a release is running. */
+    /** What the operator creates to turn the off-host copy on (docs/ops/runbook.md, "Off-host backup"). */
+    offsite: (env: "staging" | "prod") => {
+      mkdirSync(path.join(root, env), { recursive: true });
+      writeFileSync(path.join(root, env, "offsite.env"), `OFFSITE_REMOTE=makam-offsite:makam-backup/${env}\n`);
+    },
     deployed: (text: string) => {
       mkdirSync(path.join(root, "prod"), { recursive: true });
       writeFileSync(path.join(root, "prod/deployed.env"), text);
@@ -366,6 +399,51 @@ describe("deploy/install-host.sh and the makam-prod timers", () => {
   });
 });
 
+describe("deploy/install-host.sh and the off-host backup timers", () => {
+  const offsiteTimers = (env: string): string[] => [`makam-${env}-offsite-backup.timer`, `makam-${env}-offsite-restore-test.timer`];
+
+  it("installs both scripts, and enables no off-host timer until an environment has its offsite.env, saying how", () => {
+    const h = host();
+    h.deployed(releaseRecord(DIGEST));
+    const result = h.install();
+    expect(result.status, result.output).toBe(0);
+    for (const script of ["makam-backup-offsite", "makam-offsite-restore-test"]) {
+      expect(existsSync(path.join(h.root, "bin", script)), `${script} is not installed into the bin directory`).toBe(true);
+    }
+    expect(h.enabled().filter((timer) => timer.includes("-offsite-"))).toEqual([]);
+    for (const env of ["staging", "prod"]) {
+      const note = result.lines.find((line) => line.startsWith("NOTE") && line.includes(`${env}/offsite.env is missing`));
+      expect(note, result.output).toBeDefined();
+      expect(note).toContain("install-host.sh");
+    }
+  });
+
+  it("enables staging's off-host timers once staging/offsite.env exists, production or no production", () => {
+    const h = host();
+    h.offsite("staging");
+    expect(h.install().status).toBe(0);
+    expect(h.enabled()).toEqual(expect.arrayContaining(offsiteTimers("staging")));
+    expect(h.enabled().filter((timer) => timer.startsWith("makam-prod-"))).toEqual([]);
+  });
+
+  it("keeps production's off-host timers off while production is not deployed, even with prod/offsite.env", () => {
+    const h = host();
+    h.offsite("prod");
+    const result = h.install();
+    expect(result.status).toBe(0);
+    expect(h.enabled().filter((timer) => timer.startsWith("makam-prod-"))).toEqual([]);
+    expect(result.lines.some((line) => line.startsWith("NOTE") && line.includes("makam-prod-offsite-backup.timer"))).toBe(true);
+  });
+
+  it("enables production's off-host timers once production runs and prod/offsite.env exists", () => {
+    const h = host();
+    h.deployed(releaseRecord(DIGEST));
+    h.offsite("prod");
+    expect(h.install().status).toBe(0);
+    expect(h.enabled()).toEqual(expect.arrayContaining([...PROD_TIMERS, ...offsiteTimers("prod")]));
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Runbook
 // ---------------------------------------------------------------------------
@@ -400,6 +478,24 @@ describe("the runbook's backup and uptime sections", () => {
   it("describe production's FileStore backup, its hour and how to look at it", () => {
     const text = section("File storage");
     for (const word of ["makam-prod-files-backup.timer", "01:45", "/opt/makam-v1/prod/backups/files"]) {
+      expect(text, word).toContain(word);
+    }
+  });
+
+  it("describe the off-host copy, its settings, its hours, its restore check and the offline passphrase", () => {
+    const text = section("Off-host backup");
+    for (const word of [
+      "makam-prod-offsite-backup.timer",
+      "makam-prod-offsite-restore-test.timer",
+      "03:45",
+      "06:55",
+      "/opt/makam-v1/prod/offsite.env",
+      "/opt/makam-v1/prod/rclone.conf",
+      "OFFSITE_REMOTE",
+      "makam-offsite-restore-test --env prod",
+      "journalctl -t makam-offsite-backup",
+      "offline",
+    ]) {
       expect(text, word).toContain(word);
     }
   });

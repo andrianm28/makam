@@ -1,0 +1,25 @@
+# Nightly copy of the newest makam-staging Dump, its row counts and its FileStore
+# tar (encrypted first) to a storage account off this host, with rclone
+# (docs/ops/runbook.md, "Off-host backup"). Installed by
+# deploy/install-host.sh, which enables its timer only once
+# /opt/makam-v1/staging/offsite.env exists.
+[Unit]
+Description=Copy the newest makam-staging backups off the host
+Wants=network-online.target
+After=network-online.target makam-staging-db-backup.service makam-staging-files-backup.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-backup-offsite --env staging
+TimeoutStartSec=20min
+
+# Hardening, the same as the local backups'. It needs no docker socket, only the
+# network to the storage account and write access to /opt/makam-v1 (the
+# encrypted tar is staged under backups/offsite-tmp, removed again).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/makam-v1

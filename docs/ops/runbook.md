@@ -55,6 +55,8 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.dump.enc` | nightly encrypted `pg_dump`, kept 7 days (`makam-backup-db`) |
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.counts.enc` | the row counts of that night, what a restore is checked against |
 | `/opt/makam-v1/<env>/backup-passphrase` | 0600, `openssl rand -base64 32`; encrypts the database Dump. **Keep an offline copy** (below) |
+| `/opt/makam-v1/<env>/offsite.env` | 0600; `OFFSITE_REMOTE` (and `OFFSITE_RETENTION_DAYS`) of the off-host copy ("Off-host backup") |
+| `/opt/makam-v1/<env>/rclone.conf` | 0600; the off-host storage remote and its access key ("Off-host backup") |
 
 After changing any file under `deploy/` or `docker-compose.prod.yml` on
 `main`, run `deploy/install-host.sh` from an up-to-date, clean checkout of
@@ -1712,6 +1714,83 @@ second one with an 8-day interval for the weekly restore check. A heartbeat URL
 is itself a secret — anyone holding it can mark the monitor healthy — so keep it
 out of the repo, out of the journal and out of the backup scripts' environment.
 The `Uptime alarm` section above is the same idea for the app itself.
+
+## Off-host backup
+
+Every Dump and FileStore tar above sits on the same disk as the data it
+protects: a lost host, a full-disk accident or a compromised account takes the
+backups with it (audit finding A-3, launch gate 3). So each night the newest
+encrypted Dump, its row counts and the FileStore tar (KTP/KK included,
+encrypted here first with the same passphrase and cipher) are copied with
+`rclone` to a storage account that is not this host, and once a week that
+copy is downloaded and restored. Nothing readable leaves the host.
+
+| What | Unit | When (WIB) |
+|---|---|---|
+| `makam-backup-offsite --env prod` | `makam-prod-offsite-backup.timer` | nightly 03:45 |
+| `makam-offsite-restore-test --env prod` | `makam-prod-offsite-restore-test.timer` | Mondays 06:55 |
+| `makam-backup-offsite --env staging` | `makam-staging-offsite-backup.timer` | nightly 05:45 |
+| `makam-offsite-restore-test --env staging` | `makam-staging-offsite-restore-test.timer` | Mondays 06:15 |
+
+The hours keep clear of every other backup job (the same overlap test as
+above). Off-host, under `OFFSITE_REMOTE`, the files are `db/makam-<UTC>.dump.enc`,
+`db/makam-<UTC>.counts.enc` and `files/files-<UTC>.tar.gz.enc`, kept
+`OFFSITE_RETENTION_DAYS` (default 30, at least 8).
+
+**Settings** (outside the repo, owner `ubuntu`, both 0600 or the scripts refuse
+with exit 78):
+
+- `/opt/makam-v1/prod/offsite.env` (staging: `/opt/makam-v1/staging/offsite.env`):
+  `OFFSITE_REMOTE=<remote>:<bucket>/<path>` and optionally
+  `OFFSITE_RETENTION_DAYS=30`. Read line by line, never sourced.
+- `/opt/makam-v1/prod/rclone.conf`: the rclone remote and its access key.
+
+**The storage account.** Any provider rclone speaks works; the scripts do not
+care. Whatever it is, the key on the host must not be able to destroy history:
+someone who takes the host takes that key too. With Backblaze B2 that is an
+application key **without `deleteFiles`**, on a bucket whose lifecycle rule
+deletes hidden files after 30 days: rclone's prune then only hides old files,
+and nobody holding the host's key can erase a version. On an S3-style provider,
+use object versioning or object lock with the same effect.
+
+**The passphrase, offline.** Every file off-host is noise without
+`/opt/makam-v1/<env>/backup-passphrase`. Keep an offline copy of each (a
+password manager the owner controls, and on paper in a safe place), never in
+a chat, an email or the repo. Losing the host and the only copy of the
+passphrase together loses every backup.
+
+**When they are enabled.** `deploy/install-host.sh` installs all four pairs
+every time and enables an environment's two off-host timers only once its
+`offsite.env` exists (production's also only once production runs, as above);
+until then it prints a `NOTE`. After creating the settings, run
+`deploy/install-host.sh` again, or `sudo systemctl enable --now
+makam-prod-offsite-backup.timer makam-prod-offsite-restore-test.timer`.
+
+**By hand, and looking at them.**
+
+```bash
+/opt/makam-v1/bin/makam-backup-offsite --env prod          # ship tonight's copy now
+/opt/makam-v1/bin/makam-offsite-restore-test --env prod    # download it and restore it
+journalctl -t makam-offsite-backup -t makam-offsite-restore-test --since '8 days ago'
+cat /opt/makam-v1/prod/offsite-last-success /opt/makam-v1/prod/offsite-last-restore-ok
+rclone --config /opt/makam-v1/prod/rclone.conf lsl "$(sed -n 's/^OFFSITE_REMOTE=//p' /opt/makam-v1/prod/offsite.env)"
+```
+
+`makam-backup-offsite` refuses (exit 78) without settings or passphrase, or
+when the newest local Dump or tar is over 36 h old (a stale night is not
+shipped as if it were fresh), and fails (exit 1) when a copy fails or the far
+side holds a different number of bytes. `makam-offsite-restore-test` only reads
+the remote; it hands the downloaded Dump to `makam-restore-test --dump`, so the
+check is the same row-count comparison as the local one.
+
+**Restoring from off-host after losing the host.** On the new host, with the
+passphrase from its offline copy in `/opt/makam-v1/prod/backup-passphrase` and
+the same `rclone.conf`: download the newest `db/makam-*.dump.enc` and its
+`.counts.enc`, check it with `makam-restore-test --env prod --dump <file>`, then
+restore it as in "Database backup and restore" above; decrypt the FileStore tar
+with `openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -pass
+file:/opt/makam-v1/prod/backup-passphrase -in files-<UTC>.tar.gz.enc | tar -xz`
+into the new `makam-prod_files` volume.
 
 ## dev.makam.co.id and its rollback
 
