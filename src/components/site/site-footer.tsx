@@ -13,34 +13,34 @@ import { contentPageLinks } from "@/lib/public-navigation";
  */
 export function SiteFooter({ legalName, contact }: { legalName: string | null; contact: CsContact | null }) {
   return (
-    <footer className="mt-auto border-t border-border bg-muted/50">
+    <footer className="mt-auto bg-forest text-white">
       <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr] md:px-8">
         <div className="flex flex-col gap-3">
-          <BrandLogo />
-          <p className="max-w-sm text-small text-muted-foreground">
+          <BrandLogo onBrand />
+          <p className="max-w-sm text-small text-white/80">
             Menemani keluarga, menjaga kenangan. Kami bekerja sama dengan Lokasi Mitra yang sudah terverifikasi.
           </p>
         </div>
         <nav aria-label="Halaman isi" className="flex flex-col gap-2 text-small">
-          <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Tentang</span>
+          <span className="text-caption font-semibold tracking-wide text-white/70 uppercase">Tentang</span>
           {contentPageLinks.map((page) => (
-            <Link key={page.href} href={page.href} className="text-foreground hover:text-forest">
+            <Link key={page.href} href={page.href} className="text-white hover:underline">
               {page.label}
             </Link>
           ))}
         </nav>
         {contact ? (
           <div className="flex flex-col gap-2 text-small">
-            <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Bantuan</span>
-            <CsLink contact={contact} className="font-medium text-forest">
+            <span className="text-caption font-semibold tracking-wide text-white/70 uppercase">Bantuan</span>
+            <CsLink contact={contact} className="font-medium text-white underline">
               WhatsApp CS {formatTelepon(contact.whatsApp)}
             </CsLink>
-            <span className="text-muted-foreground">{contact.replyHours}</span>
+            <span className="text-white/80">{contact.replyHours}</span>
           </div>
         ) : null}
       </div>
-      <div className="border-t border-border">
-        <p className="mx-auto max-w-(--page-max-width) px-4 py-4 text-caption text-muted-foreground md:px-8">
+      <div className="border-t border-white/15">
+        <p className="mx-auto max-w-(--page-max-width) px-4 py-4 text-caption text-white/80 md:px-8">
           {legalName ? `Makam.co.id dikelola oleh ${legalName}` : "Makam.co.id"}
         </p>
       </div>

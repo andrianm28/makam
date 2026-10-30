@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
  * 45 × 96 px) until the designer's vector master arrives. Shown at 48 px tall
  * or less so it stays sharp on 2× screens.
  */
-export function BrandMark({ className }: { className?: string }) {
+export function BrandMark({ className, onBrand = false }: { className?: string; onBrand?: boolean }) {
   return (
     <Image
       src="/brand/makam-mark.png"
@@ -15,7 +15,7 @@ export function BrandMark({ className }: { className?: string }) {
       width={45}
       height={96}
       priority
-      className={cn("h-8 w-auto shrink-0 select-none", className)}
+      className={cn("h-8 w-auto shrink-0 select-none", onBrand && "brightness-0 invert", className)}
     />
   );
 }
@@ -23,13 +23,14 @@ export function BrandMark({ className }: { className?: string }) {
 /**
  * The wordmark MAKAM.CO.ID in Plus Jakarta Sans bold beside the mark, with an
  * optional caption (e.g. "Area Staf"). A collapsed sidebar shows the mark alone.
+ * `onBrand` draws both in white, for the green top bar and footer.
  */
-export function BrandLogo({ caption, className }: { caption?: string; className?: string }) {
+export function BrandLogo({ caption, className, onBrand = false }: { caption?: string; className?: string; onBrand?: boolean }) {
   return (
     <span className={cn("flex items-center gap-2.5", className)}>
-      <BrandMark />
+      <BrandMark onBrand={onBrand} />
       <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-        <span className="text-small font-bold tracking-[0.04em] text-forest dark:text-ivory">MAKAM.CO.ID</span>
+        <span className={cn("text-small font-bold tracking-[0.04em]", onBrand ? "text-white" : "text-forest dark:text-ivory")}>MAKAM.CO.ID</span>
         {caption ? <span className="text-caption text-muted-foreground">{caption}</span> : null}
       </span>
     </span>

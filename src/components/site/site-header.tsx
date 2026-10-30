@@ -16,10 +16,10 @@ export function SiteHeader({ items, contact }: { items: readonly PublicMenuItem[
   const account = items.find(isAccountItem);
   const menu = items.filter((item) => !isAccountItem(item));
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/85">
+    <header className="sticky top-0 z-40 border-b border-white/10 bg-forest text-white">
       <div className="mx-auto flex h-(--site-header-height) max-w-(--page-max-width) items-center justify-between gap-6 px-4 md:px-8">
         <Link href="/" aria-label="Makam.co.id, ke Beranda" className="rounded-sm focus-visible:ring-3 focus-visible:ring-ring/50">
-          <BrandLogo />
+          <BrandLogo onBrand />
         </Link>
         <nav aria-label="Menu utama" className="hidden lg:flex">
           <SiteNav items={menu} variant="bar" />
@@ -28,7 +28,7 @@ export function SiteHeader({ items, contact }: { items: readonly PublicMenuItem[
           {account?.href ? (
             <Link
               href={account.href}
-              className="hidden min-h-(--touch-target) items-center rounded-lg border border-border-strong px-4 text-body font-semibold text-forest transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 lg:inline-flex"
+              className="hidden min-h-(--touch-target) items-center rounded-lg border border-white/60 px-4 text-body font-semibold text-white transition-colors hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-ring/50 lg:inline-flex"
             >
               {account.label}
             </Link>

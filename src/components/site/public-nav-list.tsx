@@ -29,7 +29,7 @@ export function PublicNavList({
         const caption = inDrawer ? (
           <span className="text-caption text-muted-foreground">{item.description}</span>
         ) : !item.href ? (
-          <span className="ml-1.5 rounded-full bg-muted px-1.5 py-0.5 text-caption font-medium text-muted-foreground">Segera</span>
+          <span className="ml-1.5 rounded-full bg-white/15 px-1.5 py-0.5 text-caption font-medium text-white">Segera</span>
         ) : null;
         const body = (
           <>
@@ -51,8 +51,10 @@ export function PublicNavList({
                   current
                     ? inDrawer
                       ? "bg-brand-soft font-semibold text-brand-soft-foreground"
-                      : "font-semibold text-forest"
-                    : "font-medium text-foreground hover:bg-accent hover:text-accent-foreground",
+                      : "font-semibold text-white underline underline-offset-8"
+                    : inDrawer
+                      ? "font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
+                      : "font-medium text-white/90 hover:bg-white/10 hover:text-white",
                 )}
               >
                 {body}
@@ -60,7 +62,8 @@ export function PublicNavList({
             ) : (
               <span
                 className={cn(
-                  "flex items-center text-body font-medium text-muted-foreground",
+                  "flex items-center text-body font-medium",
+                  inDrawer ? "text-muted-foreground" : "text-white/70",
                   inDrawer ? "min-h-12 flex-col items-start gap-0 px-4 py-2 text-body-lg" : "h-10 px-3",
                 )}
               >

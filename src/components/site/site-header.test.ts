@@ -23,6 +23,11 @@ describe("the top bar", () => {
     expect(markup).toMatch(/aria-label="Buka menu"/);
   });
 
+  it("is green with white lettering", () => {
+    const markup = header({ items, contact });
+    expect(markup).toMatch(/<header[^>]*class="[^"]*bg-forest[^"]*text-white/);
+  });
+
   it("lists every menu item, the signed-out one included", () => {
     const markup = header({ items, contact });
     for (const item of items) expect(markup).toContain(item.label);
