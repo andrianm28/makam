@@ -310,7 +310,12 @@ describe("netted from the partner: money already paid out becomes a Potongan", (
     expect(potongan).toHaveLength(1);
     expect(potongan[0]).toMatchObject({ amount: 9_500_000, alasanKind: "pengembalian_dana", status: "berjalan" });
   });
-  it("issues no Bukti Pengembalian Dana while its Potongan cannot be recorded, and a retry issues both", async () => {
+  it.each([
+    ["fails", async () => {
+      throw new Error("Payouts tidak terjangkau");
+    }],
+    ["is refused", async () => ({ ok: false as const, reason: "tidak_ditemukan" as const })],
+  ])("issues no Bukti Pengembalian Dana while its Potongan %s, and a retry issues both", async (_, catatPotonganGagal) => {
     const setup = refundsOnTestDatabase(db);
     const fixture = await pesananSudahDicairkan(setup);
     const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
@@ -319,14 +324,9 @@ describe("netted from the partner: money already paid out becomes a Potongan", (
     await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
     await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
 
-    // Payouts fails to record the debt once (a lost connection, a deploy): the
+    // Payouts cannot record the debt once (a lost connection, a refusal): the
     // money the Lokasi Mitra owes must never be dropped while the refund stands.
-    const payoutsGagal: typeof setup.payouts = {
-      ...setup.payouts,
-      catatPotongan: async () => {
-        throw new Error("Payouts tidak terjangkau");
-      },
-    };
+    const payoutsGagal: typeof setup.payouts = { ...setup.payouts, catatPotongan: catatPotonganGagal };
     const { refunds: refundsGagal } = refundsFor(setup, payoutsGagal);
     await expect(
       refundsGagal.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer }),
