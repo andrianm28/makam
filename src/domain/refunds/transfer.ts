@@ -5,8 +5,8 @@
  * penuh"; ticket 31's AC 2, AC 4, AC 6).
  *
  * One transaction does the part that must never half-happen: the number (from
- * Billing's own `RFD` series), the Bukti row, the request's own status and the
- * Tagihan's status. Netting from the partner is part of the same rule money
+ * Billing's own `RFD` series), the Bukti row, the request's own status, the
+ * Tagihan's status, the netting and any Potongan. Netting from the partner is part of the same rule money
  * follows elsewhere in this codebase (Payouts' own trigger): a **goodwill**
  * refund never touches Payouts at all (Operator-funded, never netted); every
  * other refund reduces what the Lokasi Mitra is still owed for this Tagihan —
@@ -14,9 +14,11 @@
  * Duka cancellation is: the whole order, never paid for), `kurangiPencairanPesanan`
  * per Lokasi Mitra for a "sebagian" one. Either way, whatever was **already**
  * paid out is Payouts' own leftover (`sudahDicairkanUntukTagihan`) and becomes
- * a Potongan — recorded right after the transfer commits, the same way the
- * recipient's own message goes out after: a failure there must never undo a
- * transfer that really happened.
+ * a Potongan, recorded in that same transaction: a debt the Lokasi Mitra owes
+ * is never lost while the refund that caused it stands. When it cannot be
+ * recorded nothing is issued, and Admin Platform records the transfer again.
+ * Only the recipient's own message goes out after the commit, since a failed
+ * message must never undo a recorded transfer.
  */
 import { eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -51,7 +53,7 @@ export interface TransferDeps {
   notifications: Pick<Notifications, "pengembalianTerbit">;
   /** The Bukti Pengembalian Dana page's absolute URL, sent to the Pemesan and given to a Potongan raised on it. */
   buktiUrl: (link: string) => string;
-  /** Where a failure after the transfer is reported (the Potongan, the family's message): the transfer itself already happened, so this is never rolled back on it. */
+  /** Where a failure after the transfer is reported (the family's message): the transfer is already recorded, so this is never rolled back on it. */
   reportError?: ReportError;
 }
 
@@ -95,18 +97,23 @@ export async function terbitkanBuktiPengembalianDana(deps: TransferDeps, by: Act
     return { ok: false, reason: "berkas_tidak_didukung" };
   }
 
-  const hasil = await refusable<Penerbitan>(deps.db, (tx) => issueIn(deps, tx, by, { permintaanId: input.permintaanId, tanggal, key, header }, now));
+  let hasil: Penerbitan;
+  try {
+    hasil = await refusable<Penerbitan>(deps.db, (tx) => issueIn(deps, tx, by, { permintaanId: input.permintaanId, tanggal, key, header }, now));
+  } catch (error) {
+    await deps.files.delete(key).catch(() => undefined);
+    throw error;
+  }
   if (!hasil.ok) {
     await deps.files.delete(key).catch(() => undefined);
     return hasil;
   }
-  const { bukti, tidakTertutup } = hasil;
+  const { bukti } = hasil;
 
-  // After the transfer really happened: whatever was already paid out to a
-  // Lokasi Mitra becomes a Potongan, and the family hears about its money.
-  // Neither may undo the transfer, so neither runs inside its transaction; a
-  // failure here is reported, not lost and not silently swallowed.
-  await afterTransfer(deps, by, bukti, tidakTertutup).catch((error) => {
+  // After the transfer is recorded the family hears about its money. That may
+  // not undo the record, so it runs outside the transaction; a failure here is
+  // reported, not lost and not silently swallowed.
+  await kabariPemesan(deps, bukti).catch((error) => {
     deps.reportError?.(error instanceof Error ? error : new Error(String(error)), {
       tags: { module: "refunds", event: "setelah_transfer_gagal", nomorBukti: bukti.nomor },
     });
@@ -114,15 +121,10 @@ export async function terbitkanBuktiPengembalianDana(deps: TransferDeps, by: Act
   return { ok: true, bukti };
 }
 
-/**
- * A transfer that was issued. `tidakTertutup` is what a "sebagian" refund could not take off the Lokasi Mitra's
- * unpaid Pencairan, by Lokasi: exactly what an already paid item must give back as a Potongan (never more than the
- * refund itself). Null for a "penuh" refund, whose already paid items are all given back.
- */
+/** A transfer that was issued. */
 interface Diterbitkan {
   ok: true;
   bukti: BuktiPengembalianDana;
-  tidakTertutup: Map<string, number> | null;
 }
 
 /** Either a refusal (nothing was written) or the transfer that was issued: the two never share a shape, so no cast is needed to tell them apart. */
@@ -172,6 +174,9 @@ async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: Issue
 
   await deps.billing.within(tx).tandaiPengembalian(row.tagihanId, { kind: row.penuh ? "penuh" : "sebagian" });
 
+  // What a "sebagian" refund could not take off the Lokasi Mitra's unpaid Pencairan, by Lokasi: exactly what an
+  // already paid item must give back as a Potongan (never more than the refund itself). Null for a "penuh" refund,
+  // whose already paid items are all given back.
   let tidakTertutup: Map<string, number> | null = null;
   if (!row.goodwill) {
     if (row.penuh) {
@@ -194,6 +199,8 @@ async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: Issue
     }
   }
 
+  if (!row.goodwill) await catatPotonganIn(deps, tx, by, { tagihanId: row.tagihanId, nomor, link, tidakTertutup });
+
   await deps.audit.staffWrite(tx, async (auditTx, record) => {
     await record({
       actor: { accountId: by.accountId, role: "admin_platform" },
@@ -209,26 +216,40 @@ async function issueIn(deps: TransferDeps, tx: Database, by: Actor, input: Issue
 
   const dibaca = await buktiById(tx, bukti.id);
   if (!dibaca) throw new Error("the Bukti Pengembalian Dana just issued was not found");
-  return { ok: true, bukti: dibaca, tidakTertutup };
+  return { ok: true, bukti: dibaca };
 }
 
-/** What a Tagihan's items already paid to a Lokasi Mitra become: a Potongan, and the family's own message. */
-async function afterTransfer(deps: TransferDeps, by: Actor, bukti: BuktiPengembalianDana, tidakTertutup: Map<string, number> | null): Promise<void> {
-  const permintaan = await permintaanForBukti(deps.db, bukti.id);
-  if (permintaan && !permintaan.goodwill) {
-    const sudahDicairkan = await deps.payouts.sudahDicairkanUntukTagihan(bukti.tagihanId);
-    for (const { lokasiId, amount: dicairkan } of sudahDicairkan) {
-      const amount = tidakTertutup === null ? dicairkan : Math.min(dicairkan, tidakTertutup.get(lokasiId) ?? 0);
-      if (amount <= 0) continue;
-      await deps.payouts.catatPotongan(by, {
+/**
+ * What a Tagihan's items already paid to a Lokasi Mitra become: a Potongan, in the transfer's own transaction. A
+ * Potongan Payouts refuses throws, so the whole transfer rolls back rather than standing without the debt it owes.
+ */
+async function catatPotonganIn(
+  deps: TransferDeps,
+  tx: Database,
+  by: Actor,
+  input: { tagihanId: string; nomor: string; link: string; tidakTertutup: Map<string, number> | null },
+): Promise<void> {
+  const sudahDicairkan = await deps.payouts.sudahDicairkanUntukTagihan(input.tagihanId, tx);
+  for (const { lokasiId, amount: dicairkan } of sudahDicairkan) {
+    const amount = input.tidakTertutup === null ? dicairkan : Math.min(dicairkan, input.tidakTertutup.get(lokasiId) ?? 0);
+    if (amount <= 0) continue;
+    const dicatat = await deps.payouts.catatPotongan(
+      by,
+      {
         lokasiId,
         amount,
         alasanKind: "pengembalian_dana",
-        alasan: `Pengembalian dana ${bukti.nomor}: sudah dicairkan sebelum pengembalian disetujui.`,
-        tautan: deps.buktiUrl(bukti.link),
-      });
-    }
+        alasan: `Pengembalian dana ${input.nomor}: sudah dicairkan sebelum pengembalian disetujui.`,
+        tautan: deps.buktiUrl(input.link),
+      },
+      tx,
+    );
+    if (!dicatat.ok) throw new Error(`the Potongan of ${input.nomor} for Lokasi ${lokasiId} was refused: ${dicatat.reason}`);
   }
+}
+
+/** The family's own message about its money, once the transfer is recorded. */
+async function kabariPemesan(deps: TransferDeps, bukti: BuktiPengembalianDana): Promise<void> {
   await deps.notifications.pengembalianTerbit({
     tagihanId: bukti.tagihanId,
     nomorTagihan: bukti.nomorTagihan,
@@ -237,11 +258,6 @@ async function afterTransfer(deps: TransferDeps, by: Actor, bukti: BuktiPengemba
     biayaLayananPlatformDikembalikan: bukti.biayaLayananPlatformDikembalikan,
     link: bukti.link,
   });
-}
-
-async function permintaanForBukti(db: Database, buktiId: string): Promise<{ goodwill: boolean } | null> {
-  const [row] = await db.select({ goodwill: permintaanPengembalian.goodwill }).from(permintaanPengembalian).where(eq(permintaanPengembalian.buktiId, buktiId));
-  return row ?? null;
 }
 
 function groupByLokasi(lines: { amount: number; lokasiId: string | null }[]): [string, number][] {
