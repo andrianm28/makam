@@ -151,6 +151,8 @@ load_offsite_settings() {
   OFFSITE_RETENTION_DAYS=$(sed -n 's/^OFFSITE_RETENTION_DAYS=//p' "$file" | tail -n 1)
   OFFSITE_RETENTION_DAYS=${OFFSITE_RETENTION_DAYS:-30}
   RCLONE_CONF=$conf
+  # The units run with ProtectHome=yes, so rclone's default cache under ~ is not writable.
+  export RCLONE_CACHE_DIR="$MAKAM_ROOT/$env/backups/rclone-cache"
   case "$OFFSITE_REMOTE" in
     [A-Za-z0-9_-]*:[A-Za-z0-9_-]*) ;;
     *) refuse "$file needs OFFSITE_REMOTE=<remote>:<bucket>/<path>" ;;

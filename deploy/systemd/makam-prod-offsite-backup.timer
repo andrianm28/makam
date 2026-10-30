@@ -1,0 +1,14 @@
+# Nightly at 03:45 WIB: after production's own Dump (01:15) and FileStore tar
+# (01:45) and after staging's last nightly job (its FileStore tar, 03:15), and
+# done, at its worst, before staging's Monday restore check (04:15). See
+# makam-prod-db-backup.timer for how the hours are kept apart.
+[Unit]
+Description=Nightly makam-prod off-host backup
+
+[Timer]
+OnCalendar=*-*-* 03:45:00 Asia/Jakarta
+Persistent=true
+RandomizedDelaySec=2min
+
+[Install]
+WantedBy=timers.target

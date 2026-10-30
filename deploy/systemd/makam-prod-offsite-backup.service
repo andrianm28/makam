@@ -1,0 +1,25 @@
+# Nightly copy of the newest makam-prod Dump, its row counts and its FileStore
+# tar (encrypted first) to a storage account off this host, with rclone
+# (docs/ops/runbook.md, "Off-host backup"). Installed by
+# deploy/install-host.sh, which enables its timer only once production runs
+# and /opt/makam-v1/prod/offsite.env exists.
+[Unit]
+Description=Copy the newest makam-prod backups off the host
+Wants=network-online.target
+After=network-online.target makam-prod-db-backup.service makam-prod-files-backup.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-backup-offsite --env prod
+TimeoutStartSec=20min
+
+# Hardening, the same as the local backups'. It needs no docker socket, only the
+# network to the storage account and write access to /opt/makam-v1 (the
+# encrypted tar is staged under backups/offsite-tmp, removed again).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/makam-v1

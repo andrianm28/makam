@@ -1,0 +1,26 @@
+# Weekly restore of the newest OFF-HOST makam-staging Dump: downloaded from the
+# storage account, restored into a throwaway Postgres by makam-restore-test and
+# checked against its row counts, the FileStore tar decrypted and listed
+# (docs/ops/runbook.md, "Off-host backup"). Installed by
+# deploy/install-host.sh, which enables its timer only once
+# /opt/makam-v1/staging/offsite.env exists.
+[Unit]
+Description=Restore-check the newest off-host makam-staging backup
+Wants=network-online.target
+After=network-online.target docker.service makam-staging-offsite-backup.service
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+ExecStart=/opt/makam-v1/bin/makam-offsite-restore-test --env staging
+TimeoutStartSec=30min
+
+# Hardening, the same as the local restore check's. It needs the docker socket
+# (the throwaway Postgres), the network to the storage account, and write
+# access to /opt/makam-v1 for the download, which it removes again.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/makam-v1

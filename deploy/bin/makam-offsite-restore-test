@@ -59,10 +59,12 @@ COUNTS_NAME="${DUMP_NAME%.dump.enc}.counts.enc"
 TAR_NAME=$(newest files '^files-[0-9TZ]+\.tar\.gz\.enc$')
 [ -n "$TAR_NAME" ] || refuse "no FileStore tar at $OFFSITE_REMOTE/files"
 
-for pair in "db $DUMP_NAME" "db $COUNTS_NAME" "files $TAR_NAME"; do
-  set -- $pair
+fetch() {
   rc copyto "$OFFSITE_REMOTE/$1/$2" "$WORK/$2" || { err "ERROR downloading $2 from $OFFSITE_REMOTE/$1 failed"; exit 1; }
-done
+}
+fetch db "$DUMP_NAME"
+fetch db "$COUNTS_NAME"
+fetch files "$TAR_NAME"
 
 started=$(date +%s)
 if ! "$BIN_DIR/makam-restore-test" --env "$ENV_NAME" --dump "$WORK/$DUMP_NAME"; then

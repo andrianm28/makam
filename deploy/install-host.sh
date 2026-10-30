@@ -11,6 +11,8 @@
 # runs, that is once /opt/makam-v1/prod/deployed.env has a MAKAM_DIGEST (the
 # first `makam-deploy --env prod` writes it): run this script again after that
 # deploy. Until then it prints a NOTE with the command to enable them by hand.
+# Each environment's off-host backup and its restore check are enabled only
+# once that environment's offsite.env exists (and, for production, it runs).
 #
 #   deploy/install-host.sh                  # from a clean checkout of main, as ubuntu
 #   deploy/install-host.sh --allow-branch   # testing only: any branch, dirty tree allowed
@@ -59,9 +61,10 @@ install -m 0755 "$REPO/deploy/bin/makam-deploy" "$REPO/deploy/bin/makam-verify-i
   "$REPO/deploy/bin/makam-healthcheck" "$REPO/deploy/bin/makam-diskcheck" \
   "$REPO/deploy/bin/makam-backup-files" \
   "$REPO/deploy/bin/makam-backup-db" "$REPO/deploy/bin/makam-restore-test" \
+  "$REPO/deploy/bin/makam-backup-offsite" "$REPO/deploy/bin/makam-offsite-restore-test" \
   "$REPO/deploy/bin/makam-preflight" \
   "$REPO/deploy/bin/makam-switch" "$REPO/deploy/bin/makam-arsip-app-lama" "$ROOT/bin/"
-# Sourced by the two backup scripts, never run: 0644, beside them in $ROOT/bin.
+# Sourced by the backup and restore scripts, never run: 0644, beside them in $ROOT/bin.
 install -m 0644 "$REPO/deploy/bin/makam-backup-lib" "$ROOT/bin/"
 # The production and maintenance blocks, for makam-switch to install on the
 # switch day (ticket 65). Only copied here: nothing is enabled or reloaded.
@@ -122,4 +125,19 @@ if [ -n "$prod_digest" ]; then
 else
   echo "NOTE: production is not deployed yet ($ROOT/prod/deployed.env has no MAKAM_DIGEST), so its backup, restore-check and health timers are installed but NOT enabled. Run deploy/install-host.sh again after the first production deploy, or enable them by hand: sudo systemctl enable --now ${PROD_TIMERS[*]}" >&2
 fi
+
+# The off-host copy and its restore check, per environment, only once its
+# offsite.env is there (docs/ops/runbook.md, "Off-host backup"): without it, or
+# without its rclone.conf, both scripts refuse, so an enabled timer would only
+# fail every night. Production's also waits for the gate above.
+for env in staging prod; do
+  OFFSITE_TIMERS=("makam-$env-offsite-backup.timer" "makam-$env-offsite-restore-test.timer")
+  if [ ! -f "$ROOT/$env/offsite.env" ]; then
+    echo "NOTE: $ROOT/$env/offsite.env is missing, so the $env off-host backup and its restore check are installed but NOT enabled. Create it and $ROOT/$env/rclone.conf (docs/ops/runbook.md, \"Off-host backup\"), then run deploy/install-host.sh again" >&2
+  elif [ "$env" = prod ] && [ -z "$prod_digest" ]; then
+    echo "NOTE: production is not deployed yet, so ${OFFSITE_TIMERS[*]} stay NOT enabled; run deploy/install-host.sh again after the first production deploy" >&2
+  else
+    sudo systemctl enable --now "${OFFSITE_TIMERS[@]}"
+  fi
+done
 systemctl list-timers 'makam-*' --no-pager
