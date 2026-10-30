@@ -7,7 +7,8 @@ import { useRef, useState } from "react";
 import { DataTable, type DataTableColumn } from "@/components/makam/data-table";
 import { EmptyState } from "@/components/makam/empty-state";
 import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
-import { LOKASI_LIST_DEFAULT_PAGE_SIZE, LOKASI_MITRA_STATUSES, type LokasiMitraListRow, type LokasiMitraStatus } from "@/domain/lokasi";
+import type { LokasiMitraListRow, LokasiMitraStatus } from "@/domain/lokasi";
+import { LOKASI_LIST_DEFAULT_PAGE_SIZE, lokasiMitraStatuses as LOKASI_MITRA_STATUSES } from "@/domain/lokasi/skema-klien";
 
 const BASE = "/staf/admin-platform/lokasi";
 

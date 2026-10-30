@@ -2,11 +2,11 @@ import { boolean, date, doublePrecision, index, jsonb, pgTable, text, timestamp,
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiFacility } from "./profile";
 import type { JamOperasional } from "./jam-operasional-schema";
+import { lokasiMitraStatuses } from "./skema-klien";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
-/** Every status a Lokasi Mitra can have. It starts Belum Tayang; later tickets set the others. */
-export const lokasiMitraStatuses = ["belum_tayang", "terverifikasi", "ditangguhkan", "berhenti"] as const;
+export { lokasiMitraStatuses };
 
 /**
  * Owned by the Lokasi module: one row per Lokasi Mitra, its onboarding record.

@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
-import { weekdays, type JamOperasional, type KontakSiaga, type TanggalTutup } from "@/domain/lokasi";
+import { weekdays } from "@/domain/lokasi/jam-operasional-schema";
+import type { JamOperasional, KontakSiaga, TanggalTutup } from "@/domain/lokasi";
 import { NAMA_HARI } from "@/lib/time/jakarta";
 import type { FormState } from "../../../form-state";
 import { pilihKontakSiaga, simpanJamOperasional } from "./actions";

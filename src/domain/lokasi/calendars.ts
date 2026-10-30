@@ -1,23 +1,14 @@
 import { asc, eq, gte } from "drizzle-orm";
-import { z } from "zod";
+import type { z } from "zod";
 import { wibDateOf } from "@/lib/time/jakarta";
 import { hariLiburNasionalResource, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { tanggalSchema, type Tanggal } from "./jam-operasional-schema";
+import { HARI_LIBUR_NASIONAL_NAME_MAX, hapusHariLiburSchema, hariLiburNasionalSchema } from "./skema-klien";
 import { actingRole, type LokasiDeps, type NotFound } from "./lokasi-mitra";
 import { lokasiHariLiburNasional } from "./schema";
 import { adminPlatformCalendar, type HariLiburNasional } from "./working-time";
 
-/** The most characters a Hari Libur Nasional's name may be typed in. */
-export const HARI_LIBUR_NASIONAL_NAME_MAX = 120;
-
-/** A valid Hari Libur Nasional: a real date and a name. */
-export const hariLiburNasionalSchema = z.object({
-  date: tanggalSchema,
-  name: z.string().trim().min(1).max(HARI_LIBUR_NASIONAL_NAME_MAX),
-});
-
-/** A Hari Libur Nasional to take off the list: its date, and optionally why. */
-export const hapusHariLiburSchema = z.object({ date: tanggalSchema, reason: z.string().trim().max(500) });
+export { HARI_LIBUR_NASIONAL_NAME_MAX, hapusHariLiburSchema, hariLiburNasionalSchema };
 
 /** Both shapes as a form or a Server Action holds them. */
 export type HariLiburNasionalInput = z.infer<typeof hariLiburNasionalSchema>;
