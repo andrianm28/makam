@@ -49,8 +49,10 @@ export function tentangKamiParagrafs(legalName: string | null): string[] {
  * Kebijakan Privasi: what the platform collects, why, who it is shared with and
  * how a person reaches their own data (UU No. 27 Tahun 2022 tentang Pelindungan
  * Data Pribadi). It states only what the product does today; no retention period
- * is written because none is decided yet (spec: retention is out of scope). The
- * Operator's legal name comes from Pengaturan Operator.
+ * is written because none is decided yet (spec: retention is an owner decision).
+ * Deadlines are named as the law's (UU PDP Pasal 30, 32 and 46), not written as a
+ * number, like every content page.
+ * The Operator's legal name comes from Pengaturan Operator.
  */
 export function kebijakanPrivasiSections(legalName: string | null): ContentSection[] {
   const pengelola = legalName ?? "Pengelola makam.co.id";
@@ -73,6 +75,7 @@ export function kebijakanPrivasiSections(legalName: string | null): ContentSecti
       label: "Untuk apa data dipakai",
       paragraphs: [
         "Untuk membuat dan memproses pesanan Anda, menerbitkan tagihan dan bukti, menghubungi Anda tentang pesanan itu, dan membantu Anda lewat CS. Kami tidak menjual data Anda dan tidak memakainya untuk iklan pihak lain.",
+        "Kami memproses data ini karena Anda memesan layanan kepada kami, karena ada kewajiban hukum yang harus kami penuhi (misalnya pencatatan pembayaran), dan atas persetujuan yang Anda berikan saat masuk.",
       ],
     },
     {
@@ -84,15 +87,30 @@ export function kebijakanPrivasiSections(legalName: string | null): ContentSecti
       ],
     },
     {
-      label: "Bagaimana berkas Anda dijaga",
+      label: "Di mana dan bagaimana data Anda dijaga",
       paragraphs: [
+        "Server, basis data dan berkas kami berada di Jakarta, Indonesia. Pemantau kesalahan aplikasi juga berjalan di server kami sendiri.",
         "Berkas keluarga disimpan di penyimpanan privat dan hanya dibuka lewat tautan bertanda tangan yang berlaku singkat. Hanya staf yang berkepentingan dengan pesanan Anda yang dapat membukanya.",
+        "Data disimpan selama diperlukan untuk pesanan Anda dan untuk kewajiban hukum yang berlaku.",
       ],
     },
     {
       label: "Hak Anda",
       paragraphs: [
-        "Anda dapat meminta untuk melihat, memperbaiki atau menghapus data pribadi Anda, dan menarik persetujuan Anda. Hubungi CS lewat halaman Hubungi Kami; kami menjawab permintaan itu dan memberi tahu bila ada data yang harus tetap kami simpan karena pesanan atau kewajiban hukum.",
+        "Anda dapat meminta untuk melihat, memperbaiki atau menghapus data pribadi Anda, dan menarik persetujuan Anda. Hubungi CS lewat halaman Hubungi Kami.",
+        "Permintaan melihat atau memperbaiki data kami penuhi dalam batas waktu yang ditetapkan Undang-Undang Pelindungan Data Pribadi. Bila ada data yang harus tetap kami simpan karena pesanan atau kewajiban hukum, kami memberi tahu Anda data mana dan alasannya.",
+      ],
+    },
+    {
+      label: "Bila terjadi kebocoran data",
+      paragraphs: [
+        "Bila data pribadi Anda bocor atau dibuka oleh pihak yang tidak berhak, kami memberi tahu Anda secara tertulis dalam batas waktu yang ditetapkan Undang-Undang Pelindungan Data Pribadi: data apa yang terkena, kapan dan bagaimana kejadiannya, dan apa yang kami lakukan untuk menanganinya.",
+      ],
+    },
+    {
+      label: "Perubahan kebijakan ini",
+      paragraphs: [
+        "Bila kebijakan ini berubah, versi barunya kami pasang di halaman ini.",
       ],
     },
   ];

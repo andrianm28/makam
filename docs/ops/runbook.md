@@ -2118,6 +2118,29 @@ Each health timer also watches the **host's disk**: `makam-diskcheck` warns in
 the journal (tag `makam-disk`) when the root filesystem passes 85 %. See "Images
 on the host and the disk".
 
+## Data pribadi bocor (UU PDP)
+
+The Kebijakan Privasi (`/kebijakan-privasi`) promises families a written notice
+within the law's deadline when their data leaks. UU No. 27/2022 Pasal 46 sets it
+at **3 × 24 jam from when we learn of it**, to each person affected and to the
+supervising authority (until the PDP agency exists, Kementerian Komdigi). The
+clock starts at discovery, not at confirmation, so start the steps below at once.
+
+1. **Contain.** Revoke what leaked: rotate the exposed secret ("Rotating
+   secrets"), close the open path, take a database dump of the moment if the
+   rows matter for the record. Do not delete evidence (logs, GlitchTip events).
+2. **Size it.** Which data (email, phone, order data, KTP/KK/akta files), whose,
+   since when, how. Write it down with times in WIB; this is the record the law
+   asks for.
+3. **Owner decides and signs.** The Operator (PT Jaya Korpora Prima) is the
+   controller: the owner approves the notice and sends it, not an agent.
+4. **Notify within 3 × 24 jam**, in writing: to each affected person by email,
+   and to the authority. Each notice says what data, when and how it leaked,
+   and what was done and what the person can do. If many people are affected
+   and a family cannot be reached, a notice on the site may also be required.
+5. **After.** Record the incident, the notices and the fix in the ticket; add a
+   test or check so the same path cannot reopen.
+
 ## Rotating secrets
 
 Each env file is 0600. Edit it in place (`nano /opt/makam-v1/staging/staging.env`).
