@@ -17,7 +17,7 @@ import {
   konfirmasiPesanan,
   pesananSaatDukaSiap,
 } from "../../../tests/support/payouts";
-import { buktiTransfer, refundsOnTestDatabase, type RefundsSetup } from "../../../tests/support/refunds";
+import { buktiTransfer, refundsFor, refundsOnTestDatabase, type RefundsSetup } from "../../../tests/support/refunds";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -306,6 +306,42 @@ describe("netted from the partner: money already paid out becomes a Potongan", (
     });
     expect(terbit.ok).toBe(true);
 
+    const potongan = await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id);
+    expect(potongan).toHaveLength(1);
+    expect(potongan[0]).toMatchObject({ amount: 9_500_000, alasanKind: "pengembalian_dana", status: "berjalan" });
+  });
+  it("issues no Bukti Pengembalian Dana while its Potongan cannot be recorded, and a retry issues both", async () => {
+    const setup = refundsOnTestDatabase(db);
+    const fixture = await pesananSudahDicairkan(setup);
+    const dibatalkan = await setup.billing.batalkanTagihan(fixture.tagihanId, { alasan: "pemesanan_dibatalkan" });
+    if (!dibatalkan.ok) throw new Error(`cancellation refused: ${dibatalkan.reason}`);
+    const permintaan = await permintaanTerbuka(setup);
+    await setup.refunds.setujuiPengembalian(fixture.admin, { permintaanId: permintaan.id });
+    await setup.refunds.isiRekeningAdmin(fixture.admin, { permintaanId: permintaan.id, rekening, alasan: "Diminta lewat telepon" });
+
+    // Payouts fails to record the debt once (a lost connection, a deploy): the
+    // money the Lokasi Mitra owes must never be dropped while the refund stands.
+    const payoutsGagal: typeof setup.payouts = {
+      ...setup.payouts,
+      catatPotongan: async () => {
+        throw new Error("Payouts tidak terjangkau");
+      },
+    };
+    const { refunds: refundsGagal } = refundsFor(setup, payoutsGagal);
+    await expect(
+      refundsGagal.terbitkanBuktiPengembalianDana(fixture.admin, { permintaanId: permintaan.id, ditransferPada: hariTransfer, bukti: buktiTransfer }),
+    ).rejects.toThrow();
+
+    expect(await setup.refunds.permintaan(permintaan.id)).toMatchObject({ status: "disetujui" });
+    expect(await setup.billing.tagihan(fixture.tagihanId)).not.toMatchObject({ status: "dikembalikan_penuh" });
+    expect(await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id)).toEqual([]);
+
+    const terbit = await setup.refunds.terbitkanBuktiPengembalianDana(fixture.admin, {
+      permintaanId: permintaan.id,
+      ditransferPada: hariTransfer,
+      bukti: buktiTransfer,
+    });
+    expect(terbit.ok).toBe(true);
     const potongan = await setup.payouts.potonganOfLokasi(fixture.lokasiMitra.id);
     expect(potongan).toHaveLength(1);
     expect(potongan[0]).toMatchObject({ amount: 9_500_000, alasanKind: "pengembalian_dana", status: "berjalan" });

@@ -226,7 +226,7 @@ export interface Payouts {
    * what `batalkanPencairanTagihan` left alone. The Refunds module (ticket 31)
    * reads this to know whether a full refund owes a Potongan, and for how much.
    */
-  sudahDicairkanUntukTagihan(tagihanId: string): Promise<{ lokasiId: string; amount: number }[]>;
+  sudahDicairkanUntukTagihan(tagihanId: string, within?: Database): Promise<{ lokasiId: string; amount: number }[]>;
   /**
    * The Layanan module (ticket 51) records a Mitra Jasa's job as a Pencairan
    * item, carrying the four things a Mitra Jasa may see about it, and later makes
@@ -274,8 +274,11 @@ export interface Payouts {
   jadikanJatuhTempo(tx: Database, itemId: string): Promise<{ ok: true } | { ok: false; reason: "tidak_ditemukan" }>;
 
   // ---- Potongan (AC 4) ----
-  /** Admin Platform records an amount a Lokasi Mitra owes: a negative line in its next Pencairan, with a reason and a link. */
-  catatPotongan(by: Actor, input: CatatPotonganInput): Promise<CatatPotonganResult>;
+  /**
+   * Admin Platform records an amount a Lokasi Mitra owes: a negative line in its next Pencairan, with a reason and a link.
+   * `within` records it in the caller's transaction (Refunds' transfer), so the debt and what caused it commit together.
+   */
+  catatPotongan(by: Actor, input: CatatPotonganInput, within?: Database): Promise<CatatPotonganResult>;
   /** Admin Platform records that a Potongan was paid outside a run. */
   catatPotonganLunas(by: Actor, input: { potonganId: string; dibayarPada: string }): Promise<CatatPotonganLunasResult>;
   /** Worker tick: a Potongan 60 days old becomes an offline request, which Admin Platform records when it is paid. Idempotent. */
@@ -344,7 +347,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
     kurangiPencairanPesanan: (tx, input) => kurangiPencairanPesanan(tx, input, deps.clock.now()),
     kurangiPencairanSebisanya: (tx, input) => kurangiPencairanSebisanya(tx, input, deps.clock.now()),
     batalkanPencairanTagihan: (tx, input) => batalkanPencairanTagihan(tx, { tagihanId: input.tagihanId, alasan: "dikembalikan_penuh" }, deps.clock.now()),
-    sudahDicairkanUntukTagihan: (tagihanId) => sudahDicairkanUntukTagihan(deps.db, tagihanId),
+    sudahDicairkanUntukTagihan: (tagihanId, within) => sudahDicairkanUntukTagihan(within ?? deps.db, tagihanId),
     catatItemLayananMitraJasa: (tx, input) => catatItemLayananMitraJasa(tx, input, deps.clock.now()),
     itemLayanan: (tagihanId, posisi, within) => itemLayananOf(within ?? deps.db, tagihanId, posisi),
     itemLayananById: (itemId) => itemLayananById(deps.db, itemId),
@@ -355,7 +358,7 @@ export function createPayouts(deps: PayoutsDeps): Payouts {
       }),
     batalkanItem: (tx, input) => batalkanItem(tx, input, deps.clock.now()),
     jadikanJatuhTempo: async (tx, itemId) => itemJatuhTempo(tx, itemId, { now: deps.clock.now(), jatuhTempoAt: await tenggat(deps.lokasi, deps.clock.now()) }),
-    catatPotongan: (by, input) => catatPotongan(potonganDeps, by, input),
+    catatPotongan: (by, input, within) => catatPotongan(potonganDeps, by, input, within),
     catatPotonganLunas: (by, input) => catatPotonganLunas(potonganDeps, by, input),
     tickPotongan: (now) => tickPotonganUsia(deps.db, now ?? deps.clock.now()),
     potonganBerhenti: (lokasiId) => potonganBerhenti(deps.db, lokasiId, deps.clock.now()),

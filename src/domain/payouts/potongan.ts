@@ -135,7 +135,7 @@ const inputSchema = z.object({
  * it fits (AC 4). Audited. Refused for an id that is no Lokasi Mitra's, which
  * is also what makes "never a Mitra Jasa" true rather than merely intended.
  */
-export async function catatPotongan(deps: PotonganDeps, by: Actor, input: CatatPotonganInput): Promise<CatatPotonganResult> {
+export async function catatPotongan(deps: PotonganDeps, by: Actor, input: CatatPotonganInput, within?: Database): Promise<CatatPotonganResult> {
   const refusal = writeRefusal(by, "pencairan.kelola", pencairanResource());
   if (refusal) return refusal;
   const parsed = inputSchema.safeParse({ ...input, tautan: input.tautan ?? null });
@@ -144,7 +144,7 @@ export async function catatPotongan(deps: PotonganDeps, by: Actor, input: CatatP
   // Potongan charged to an id that is nobody's is money that would vanish.
   if (!(await deps.lokasiAda(parsed.data.lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
   const now = deps.clock.now();
-  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+  return deps.audit.staffWrite(within ?? deps.db, async (tx, record) => {
     const row = await sisipPotongan(tx, parsed.data, now);
     if (!row) return { ok: false, reason: "input_tidak_valid" } as const;
     await record({
