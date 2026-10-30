@@ -2118,6 +2118,49 @@ Each health timer also watches the **host's disk**: `makam-diskcheck` warns in
 the journal (tag `makam-disk`) when the root filesystem passes 85 %. See "Images
 on the host and the disk".
 
+## Incidents (production)
+
+Owner decisions of 2026-10-29: **RPO 24 h** (daily backup; tighter needs WAL
+archiving, v2), **RTO 4 h** in working hours. Drafted in
+`.scratch/makam-v1-build/rilis-go-live-status.md` §5; the G6 gate asks the owner
+to approve it and rehearse it once.
+
+**Severity.** S1: production down or money wrong. S2: part of a feature down,
+data not at risk. S3: a small defect.
+
+**S1 steps.**
+1. Name the incident lead (the owner when there is nobody else).
+2. `makam-switch --ke pemeliharaan` if families or Mitra could be harmed.
+3. Save the web, worker, nginx and audit logs before changing anything.
+4. A release caused it: roll back the digest (`rollback.yml`). Data is damaged:
+   restore from backup ("Database backup and restore"; `makam-restore-test` is
+   the rehearsal).
+5. Keep a timeline in the ticket, times in WIB.
+
+**Communication.** One person speaks to families and Mitra.
+
+**After.** A blameless review within 5 working days; fixes become tickets.
+
+### Personal data leak (UU PDP)
+
+The Kebijakan Privasi (`/kebijakan-privasi`) promises families a written notice
+within the law's deadline when their data leaks. UU No. 27/2022 Pasal 46 sets it
+at **3 × 24 jam from when we learn of it**, to each person affected and to the
+supervising authority (until the PDP agency exists, Kementerian Komdigi). Start
+at once; do not wait for certainty to start the steps.
+
+1. **Contain.** Stop the access that caused it; rotate every credential it
+   touches ("Rotating secrets": SumoPod key, webhook secret, SMTP, passphrases).
+   Keep the evidence (logs, GlitchTip events, a dump if the rows matter).
+2. **Size it.** Which data (email, phone, order data, KTP/KK/akta files), whose,
+   since when, how. This written record is what the law asks for.
+3. **Owner decides with legal counsel.** The Operator (PT Jaya Korpora Prima) is
+   the controller: the owner approves and sends the notice, never an agent.
+4. **Notify in writing within 3 × 24 jam**, each affected person by email and
+   the authority: what data, when and how it leaked, what was done, what the
+   person can do. In some cases the law also asks for a public notice.
+5. **After**, as above.
+
 ## Rotating secrets
 
 Each env file is 0600. Edit it in place (`nano /opt/makam-v1/staging/staging.env`).

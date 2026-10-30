@@ -50,13 +50,14 @@ describe("the public site menu", () => {
 });
 
 describe("the content pages", () => {
-  it("are the four written for this release plus the Lokasi directory", () => {
+  it("are the four written for this release, the Lokasi directory and the Kebijakan Privasi", () => {
     expect(contentPageLinks).toEqual([
       { href: "/tentang-kami", label: "Tentang Kami" },
       { href: "/cara-kami-bekerja", label: "Cara Kami Bekerja" },
       { href: "/faq", label: "FAQ" },
       { href: "/hubungi-kami", label: "Hubungi Kami" },
       { href: "/lokasi", label: "Daftar Lokasi" },
+      { href: "/kebijakan-privasi", label: "Kebijakan Privasi" },
     ]);
   });
 

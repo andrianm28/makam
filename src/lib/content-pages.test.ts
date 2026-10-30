@@ -6,6 +6,7 @@ import {
   catatanHargaContoh,
   catatanHargaLayananContoh,
   faqQuestions,
+  kebijakanPrivasiSections,
   jalanMasukTpuUntuk,
   kelompokHargaLayananTpu,
   LABEL_HARGA_CONTOH,
@@ -279,5 +280,36 @@ describe("Pengurusan di TPU DKI, the Layanan price list", () => {
   it("is an empty list when no Layanan is offered, and drops a Layanan that has no priced variant", () => {
     expect(kelompokHargaLayananTpu([], true)).toEqual([]);
     expect(kelompokHargaLayananTpu([{ layanan: { id: "kosong", name: "Pembersihan Makam" }, varian: [] }], true)).toEqual([]);
+  });
+});
+
+describe("Kebijakan Privasi", () => {
+  const sections = kebijakanPrivasiSections("PT Jaya Korpora Prima");
+  const text = (s: typeof sections) => s.flatMap((section) => section.paragraphs).join(" ");
+
+  it("names the Operator from Pengaturan Operator as the one who manages the data", () => {
+    expect(sections[0]!.paragraphs[0]).toContain("PT Jaya Korpora Prima mengelola makam.co.id");
+    expect(text(kebijakanPrivasiSections(null))).toContain("Pengelola makam.co.id");
+  });
+
+  it("covers what UU PDP asks a privacy notice to say", () => {
+    expect(sections.map((section) => section.label)).toEqual([
+      "Siapa yang mengelola data Anda",
+      "Data yang kami kumpulkan",
+      "Untuk apa data dipakai",
+      "Dengan siapa data dibagikan",
+      "Di mana dan bagaimana data Anda dijaga",
+      "Hak Anda",
+      "Bila terjadi kebocoran data",
+      "Perubahan kebijakan ini",
+    ]);
+    expect(text(sections)).toContain("kewajiban hukum");
+    expect(text(sections)).toContain("Jakarta, Indonesia");
+    expect(text(sections)).toContain("dua tahun setelah pesanan selesai");
+  });
+
+  it("writes no number, so no deadline or period can go stale: the law's own deadlines are named, not counted", () => {
+    expect(text(sections)).not.toMatch(/\d/);
+    expect(text(sections)).toContain("batas waktu yang ditetapkan Undang-Undang Pelindungan Data Pribadi");
   });
 });

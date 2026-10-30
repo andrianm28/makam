@@ -46,6 +46,77 @@ export function tentangKamiParagrafs(legalName: string | null): string[] {
 }
 
 /**
+ * Kebijakan Privasi: what the platform collects, why, who it is shared with and
+ * how a person reaches their own data (UU No. 27 Tahun 2022 tentang Pelindungan
+ * Data Pribadi). The two years for family files is the owner's decision of
+ * 2026-10-29 (go-live status), written in words like every content page.
+ * Deadlines are named as the law's (UU PDP Pasal 30, 32 and 46), not written as a
+ * number, like every content page.
+ * The Operator's legal name comes from Pengaturan Operator.
+ */
+export function kebijakanPrivasiSections(legalName: string | null): ContentSection[] {
+  const pengelola = legalName ?? "Pengelola makam.co.id";
+  return [
+    {
+      label: "Siapa yang mengelola data Anda",
+      paragraphs: [
+        `${pengelola} mengelola makam.co.id dan menentukan untuk apa data pribadi Anda dipakai. Kebijakan ini menjelaskan data apa yang kami kumpulkan, untuk apa, dan bagaimana Anda dapat meminta data itu dilihat, diperbaiki atau dihapus.`,
+      ],
+    },
+    {
+      label: "Data yang kami kumpulkan",
+      paragraphs: [
+        "Alamat email Anda, yang menjadi akun Anda dan tempat Kode Masuk dikirim. Nomor telepon yang Anda isi sebagai kontak; nomor ini tidak diverifikasi.",
+        "Data pesanan: nama almarhum, nama Pemegang Hak, lokasi dan petak makam, tanggal, serta riwayat pembayaran dan dokumen yang kami terbitkan.",
+        "Berkas yang Anda unggah untuk mengurus pesanan, misalnya KTP, Kartu Keluarga dan akta kematian.",
+      ],
+    },
+    {
+      label: "Untuk apa data dipakai",
+      paragraphs: [
+        "Untuk membuat dan memproses pesanan Anda, menerbitkan tagihan dan bukti, menghubungi Anda tentang pesanan itu, dan membantu Anda lewat CS. Kami tidak menjual data Anda dan tidak memakainya untuk iklan pihak lain.",
+        "Kami memproses data ini karena Anda memesan layanan kepada kami, karena ada kewajiban hukum yang harus kami penuhi (misalnya pencatatan pembayaran), dan atas persetujuan yang Anda berikan saat masuk.",
+      ],
+    },
+    {
+      label: "Dengan siapa data dibagikan",
+      paragraphs: [
+        "Lokasi Mitra yang Anda pesan hanya menerima data yang ia perlukan untuk melayani pesanan itu.",
+        "Penyedia pembayaran memproses pembayaran Anda. Kami tidak menyimpan nomor kartu atau akun pembayaran Anda.",
+        "Layanan pengiriman email dan pemantau kesalahan aplikasi dipakai untuk menjalankan situs. Pemantau kesalahan tidak menerima isi formulir, nomor telepon atau berkas Anda.",
+      ],
+    },
+    {
+      label: "Di mana dan bagaimana data Anda dijaga",
+      paragraphs: [
+        "Server, basis data dan berkas kami berada di Jakarta, Indonesia. Pemantau kesalahan aplikasi juga berjalan di server kami sendiri.",
+        "Berkas keluarga disimpan di penyimpanan privat dan hanya dibuka lewat tautan bertanda tangan yang berlaku singkat. Hanya staf yang berkepentingan dengan pesanan Anda yang dapat membukanya.",
+        "Berkas KTP, Kartu Keluarga dan akta kematian kami simpan selama dua tahun setelah pesanan selesai, lalu kami hapus. Data pesanan dan pembayaran kami simpan selama diperlukan untuk pesanan Anda dan untuk kewajiban hukum yang berlaku.",
+      ],
+    },
+    {
+      label: "Hak Anda",
+      paragraphs: [
+        "Anda dapat meminta untuk melihat, memperbaiki atau menghapus data pribadi Anda, dan menarik persetujuan Anda. Hubungi CS lewat halaman Hubungi Kami.",
+        "Permintaan melihat atau memperbaiki data kami penuhi dalam batas waktu yang ditetapkan Undang-Undang Pelindungan Data Pribadi. Bila ada data yang harus tetap kami simpan karena pesanan atau kewajiban hukum, kami memberi tahu Anda data mana dan alasannya.",
+      ],
+    },
+    {
+      label: "Bila terjadi kebocoran data",
+      paragraphs: [
+        "Bila data pribadi Anda bocor atau dibuka oleh pihak yang tidak berhak, kami memberi tahu Anda secara tertulis dalam batas waktu yang ditetapkan Undang-Undang Pelindungan Data Pribadi: data apa yang terkena, kapan dan bagaimana kejadiannya, dan apa yang kami lakukan untuk menanganinya.",
+      ],
+    },
+    {
+      label: "Perubahan kebijakan ini",
+      paragraphs: [
+        "Bila kebijakan ini berubah, versi barunya kami pasang di halaman ini.",
+      ],
+    },
+  ];
+}
+
+/**
  * Cara Kami Bekerja: the three trust claims, one section each (spec, Content
  * pages). Each section states the rule; the prices and the fees themselves are
  * read from Tariffs, Pengurusan and Pengaturan Operator on the pages that show
