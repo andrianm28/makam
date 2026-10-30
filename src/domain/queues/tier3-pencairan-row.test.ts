@@ -50,6 +50,7 @@ describe("the Antrean's Tier 3 Pencairan row", () => {
       tier: 3,
       label: "Pencairan jatuh tempo",
       subjectKind: "penerima_pencairan",
+      href: "/staf/admin-platform/pencairan",
       // A row per recipient, not per item: the transfer is per recipient.
       subjectId: expect.stringMatching(/^lokasi_mitra:/),
       deadline: wib("2026-10-06 23:59"),

@@ -14,8 +14,8 @@
 import type { AntreanRowDeps, AntreanRowType, RawAntreanRow } from "./row-types";
 import { formatRupiah } from "@/lib/rupiah";
 
-/** No Admin Platform Pencairan screen is built yet (the run is reached through the Antrean), so the row is chased here. */
-const HREF = "/staf/admin-platform/antrean";
+/** The Admin Platform Pencairan run: the recipient's row, its hold-outs and the transfer form. */
+const HREF = "/staf/admin-platform/pencairan";
 
 export const pencairanRowType: AntreanRowType = {
   key: "pencairan",
