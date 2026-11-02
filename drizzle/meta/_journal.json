@@ -484,6 +484,13 @@
       "when": 1793604232915,
       "tag": "0068_small_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793608627640,
+      "tag": "0069_colossal_lethal_legion",
+      "breakpoints": true
     }
   ]
 }

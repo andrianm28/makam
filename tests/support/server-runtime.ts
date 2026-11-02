@@ -17,6 +17,7 @@ import { pernahMenyebutPetakAtauKavling, pesananBerjalanDiLokasi } from "@/domai
 import { createLokasi } from "@/domain/lokasi";
 import { createPengurusan } from "@/domain/pengurusan";
 import { createWakaf } from "@/domain/wakaf";
+import { createKedukaan } from "@/domain/kedukaan";
 import type { Layanan } from "@/domain/layanan";
 import { createPerpanjangan } from "@/domain/perpanjangan";
 import { readRuntimeEnv } from "@/lib/env";
@@ -224,6 +225,7 @@ export function testServerRuntime() {
       fieldwork,
       notifikasi: notifications,
     });
+    const kedukaan = createKedukaan({ db: database.db, clock: adapters.clock, audit, lokasi, notifikasi: notifications });
     holder.__makamRuntime = {
       env,
       database,
@@ -258,10 +260,12 @@ export function testServerRuntime() {
         perpanjangan,
         refunds,
         wakaf,
+        kedukaan,
       }),
       pengurusan: pengursModule,
       perpanjangan,
       wakaf,
+      kedukaan,
       dataContoh: createDataContoh({
         db: database.db,
         clock: adapters.clock,

@@ -28,6 +28,7 @@ import type { Payouts } from "@/domain/payouts";
 import type { Perpanjangan } from "@/domain/perpanjangan";
 import type { Pengurusan } from "@/domain/pengurusan";
 import type { Wakaf } from "@/domain/wakaf";
+import type { Kedukaan } from "@/domain/kedukaan";
 import type { Refunds } from "@/domain/refunds";
 import type { Clock } from "@/ports/clock";
 import { ambilPengurus, ambilRow, type AmbilRowResult, type PengurusAmbil } from "./ambil";
@@ -139,6 +140,8 @@ export interface QueuesModuleDeps {
    * Optional so a fixture that composes no Wakaf has no such row; the runtime always passes it.
    */
   wakaf?: Pick<Wakaf, "pengajuanTerbuka">;
+  /** The Permintaan Kedukaan rows read the Kedukaan module's own open requests (ADR 0010); optional like Wakaf. */
+  kedukaan?: Pick<Kedukaan, "terbuka">;
   /** The Ambil claim a family's own order page shows, as a name and a contact number; Bertugas names its Admin Platform. */
   identity: Pick<Identity, "staffAccountById" | "staffAccounts">;
   /** The Tier 4 Mitra Jasa rows (onboarding and the monthly scorecard review) read the Layanan module's own queries. */

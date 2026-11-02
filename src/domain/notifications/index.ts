@@ -80,6 +80,7 @@ import {
 
 export { tambahCatatanTagihanSchema, type CatatanTagihan, type TambahCatatanTagihanInput, type TambahCatatanTagihanResult };
 import { wakafStatusBerubah, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
+import { kedukaanStatusBerubah, type KedukaanStatusBerubahInput, type KedukaanStatusBerubahResult } from "./pesan-kedukaan";
 import {
   kirimPesanJatuhTempo,
   pengembalianTerbit,
@@ -512,6 +513,11 @@ export interface Notifications {
    * per status change (`perubahanId`), whatever runs twice; the note to the Wakif, the date and the reason travel with it.
    */
   wakafStatusBerubah(input: WakafStatusBerubahInput, within?: Database): Promise<WakafStatusBerubahResult>;
+  /**
+   * Tells the family that a Permintaan Kedukaan was filed or changed status (ADR 0010), by email at any hour.
+   * One message per status change (`perubahanId`), whatever runs twice.
+   */
+  kedukaanStatusBerubah(input: KedukaanStatusBerubahInput, within?: Database): Promise<KedukaanStatusBerubahResult>;
   /**
    * One reminder that a Hak Pakai is ending (60, 30, 7 days before, then weekly in the Masa Tenggang; ticket 42):
    * an email to the recorded Pemegang Hak with the Perpanjangan link (08:00-20:00 WIB), a Peringatan Staf to each Admin
@@ -986,6 +992,10 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
       return wakafStatusBerubah(within ? { ...deps, db: within } : deps, input);
     },
 
+    async kedukaanStatusBerubah(input, within) {
+      return kedukaanStatusBerubah(within ? { ...deps, db: within } : deps, input);
+    },
+
     async pengingatHakPakaiBerakhir(input, within) {
       return pengingatHakPakaiBerakhir(within ? { ...deps, db: within } : deps, input);
     },
@@ -1140,6 +1150,7 @@ function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
 }
 
 export { wakafStatusBerubahSchema, type WakafStatusBerubahInput, type WakafStatusBerubahResult } from "./pesan-wakaf";
+export { kedukaanStatusBerubahSchema, type KedukaanStatusBerubahInput, type KedukaanStatusBerubahResult } from "./pesan-kedukaan";
 import { pengingatIptmBerakhir, type PengingatIptmBerakhirInput, type PengingatIptmBerakhirResult } from "./pesan-iptm";
 export { pengingatIptmBerakhirSchema, type PengingatIptmBerakhirInput, type PengingatIptmBerakhirResult } from "./pesan-iptm";
 import { pengingatHakPakaiBerakhir, type PengingatHakPakaiBerakhirInput, type PengingatHakPakaiBerakhirResult } from "./pesan-hak-pakai";

@@ -174,6 +174,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "wakaf.pindah_status": "Status Pengajuan Wakaf diubah",
   "wakaf.cocokkan_nazhir": "Pengajuan Wakaf dicocokkan dengan Nazhir",
   "wakaf.catatan": "Catatan Pengajuan Wakaf ditulis",
+  "kedukaan.pindah_status": "Status Permintaan Kedukaan diubah",
 };
 
 /** The role an Entri Audit's actor wrote under. */

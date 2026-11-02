@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import { createWakaf } from "@/domain/wakaf";
+import { createKedukaan } from "@/domain/kedukaan";
 import { suratKuasaDeps } from "./surat-kuasa";
 import { createQueues } from "@/domain/queues";
 import { composeLayanan } from "@/composition/layanan";
@@ -107,11 +108,13 @@ export function queuesOnTestDatabase(db: Database) {
     fieldwork: setup.fieldwork,
     notifikasi: setup.notifications,
   });
+  const kedukaan = createKedukaan({ db, clock: setup.clock, audit: setup.audit, lokasi: setup.lokasi, notifikasi: setup.notifications });
   const queues = createQueues({
     db,
     clock: setup.clock,
     audit: setup.audit,
     wakaf,
+    kedukaan,
     identity: setup.identity,
     lokasi: setup.lokasi,
     fieldwork: setup.fieldwork,
@@ -125,7 +128,7 @@ export function queuesOnTestDatabase(db: Database) {
     perpanjangan,
     refunds,
   });
-  return { ...setup, pemesanan, pengurusan, perpanjangan, payouts, refunds, layanan, wakaf, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
+  return { ...setup, pemesanan, pengurusan, perpanjangan, payouts, refunds, layanan, wakaf, kedukaan, queues, pengurusanDikonfirmasi: dikonfirmasiTpu };
 }
 
 export type QueuesSetup = ReturnType<typeof queuesOnTestDatabase>;

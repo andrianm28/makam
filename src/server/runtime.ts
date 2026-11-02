@@ -23,6 +23,7 @@ import { pernahMenyebutPetakAtauKavling, pesananBerjalanDiLokasi, type Pemesanan
 import { suratKuasaRenderPath } from "@/lib/surat-kuasa-link";
 import { createPengurusan, type Pengurusan } from "@/domain/pengurusan";
 import { createWakaf, type Wakaf } from "@/domain/wakaf";
+import { createKedukaan, type Kedukaan } from "@/domain/kedukaan";
 import { createPerpanjangan, type Perpanjangan } from "@/domain/perpanjangan";
 import type { Payouts } from "@/domain/payouts";
 import type { Refunds } from "@/domain/refunds";
@@ -61,6 +62,7 @@ export interface ServerRuntime {
   /** Perpanjangan of a Hak Pakai at a Lokasi Mitra: the direct path, a code to the recorded email (ticket 40). */
   perpanjangan: Perpanjangan;
   wakaf: Wakaf;
+  kedukaan: Kedukaan;
   /** Payouts: Pencairan items, Potongan, the Pencairan run and the Bukti Pencairan. */
   payouts: Payouts;
   /** Refunds: refund requests, their approval and the Bukti Pengembalian Dana a transfer issues. */
@@ -307,6 +309,8 @@ export function serverRuntime(): ServerRuntime {
       fieldwork,
       notifikasi: notifications,
     });
+    // Layanan Kedukaan and Konsultasi Rencana Pemakaman (ADR 0010): the Permintaan and the Antrean rows that read them.
+    const kedukaan = createKedukaan({ db: database.db, clock: adapters.clock, audit, lokasi, notifikasi: notifications });
     const dataContoh = createDataContoh({
       db: database.db,
       clock: adapters.clock,
@@ -352,10 +356,12 @@ export function serverRuntime(): ServerRuntime {
         perpanjangan,
         refunds,
         wakaf,
+        kedukaan,
       }),
       pengurusan,
       perpanjangan,
       wakaf,
+      kedukaan,
       dataContoh,
     };
   }

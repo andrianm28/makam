@@ -257,6 +257,8 @@ export type Action =
    * Mitra Jasa never see a Pengajuan Wakaf, and the Operator only facilitates; ticket 58).
    */
   | "wakaf.kelola"
+  /** Follow up Permintaan Kedukaan (Admin Platform alone: the Operator arranges Layanan Kedukaan itself; ADR 0010). */
+  | "kedukaan.kelola"
   /** The Admin Lokasi of a Lokasi Mitra ends one of its Hak Pakai by hand, or records the Pembongkaran of its plot (ticket 42). */
   | "hak_pakai.akhiri"
   | "hak_pakai.catat_pembongkaran";
@@ -304,11 +306,17 @@ export type Resource =
   /** Every TPU job (Admin Platform's hand assignment through the hard-filtered picker). */
   | { kind: "pekerjaan_tpu_semua" }
   /** Every Pengajuan Wakaf and the Nazhir list (Admin Platform alone). */
-  | { kind: "wakaf" };
+  | { kind: "wakaf" }
+  | { kind: "kedukaan" };
 
 /** Every Pengajuan Wakaf and the Nazhir list. */
 export function wakafResource(): Resource {
   return { kind: "wakaf" };
+}
+
+/** Every Permintaan Kedukaan, which only Admin Platform follows up (ADR 0010). */
+export function kedukaanResource(): Resource {
+  return { kind: "kedukaan" };
 }
 
 /** The Akun with this id, as the resource of an action. */
@@ -736,5 +744,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "lokasi_mitra" && adminLokasiOf(actor, resource.lokasiId) ? allowed : denied;
     case "wakaf.kelola":
       return resource.kind === "wakaf" && holds("admin_platform") ? allowed : denied;
+    case "kedukaan.kelola":
+      return resource.kind === "kedukaan" && holds("admin_platform") ? allowed : denied;
   }
 }

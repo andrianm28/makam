@@ -88,6 +88,7 @@ export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites
 export {
   akunResource,
   wakafResource,
+  kedukaanResource,
   antreanResource,
   auditLogLokasiResource,
   auditLogResource,
