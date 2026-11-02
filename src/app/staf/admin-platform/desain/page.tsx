@@ -273,7 +273,7 @@ export default async function DesainPage() {
           <CardHeader>
             <CardTitle>ThemeProvider</CardTitle>
             <CardDescription>
-              Membungkus seluruh aplikasi (next-themes); halaman publik, Masuk, Akun Saya dan langkah TOTP tetap terang. Tidak
+              Membungkus seluruh aplikasi (next-themes); halaman publik, Masuk dan Akun Saya tetap terang. Tidak
               punya tampilan sendiri — lihat ThemeToggle di atas untuk efeknya.
             </CardDescription>
           </CardHeader>

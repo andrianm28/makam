@@ -154,11 +154,11 @@ Procedure: runbook, "Hari switch", every step in its order; the lines below are 
 - [x] **The SumoPod webhook is moved to `https://makam.co.id/api/webhooks/pembayaran` and Save & Test shows 2xx.**
   Check: the dashboard, and a 2xx line in `/var/log/nginx/makam.co.id.access.log`.
   Evidence: 2026-10-05: the owner moved the webhook, and Save & Test answered 200. `makam.co.id.access.log` shows "05/Oct/2026:06:55:48 POST /api/webhooks/pembayaran 200".
-- [ ] **The checks pass**: `curl -s https://makam.co.id/api/health | jq '{ok,environment,release,rilisTerbuka}'` shows `true`, `"production"`, B's commit and `1`; the banner "PEMBAYARAN UJI COBA" and the Data Contoh line are visible; the owner's Pengaturan Operator is in and TOTP enrolled; one order at a Lokasi "(Contoh)" is placed and cancelled.
+- [ ] **The checks pass**: `curl -s https://makam.co.id/api/health | jq '{ok,environment,release,rilisTerbuka}'` shows `true`, `"production"`, B's commit and `1`; the banner "PEMBAYARAN UJI COBA" and the Data Contoh line are visible; the owner's Pengaturan Operator is in and the owner's Admin Platform signs in with the Kode Masuk alone (no TOTP since ADR 0008); one order at a Lokasi "(Contoh)" is placed and cancelled.
   Evidence: 2026-10-05, partial:
   - `curl https://makam.co.id/api/health` answers ok true, production, f56e1ccc, 1, and `www` answers 200;
   - the banner "PEMBAYARAN UJI COBA" and the Data Contoh line show on every page, and `/lokasi` lists the "(Contoh)" Lokasi.
-  - Open, the owner's: Pengaturan Operator and TOTP; one order at a Lokasi "(Contoh)" placed and cancelled (none on production yet at 20:21 WIB).
+  - Open, the owner's: Pengaturan Operator (the TOTP part fell away with ADR 0008, 2026-11-02); one order at a Lokasi "(Contoh)" placed and cancelled (none on production yet at 20:21 WIB).
 - [x] **Monitoring works**: UptimeRobot shows Up and a test alert arrived, and `sentry-check` produced the "Error baru (email)" email.
   Evidence: 2026-10-05:
   - UptimeRobot shows Up, and the owner received a test alert;

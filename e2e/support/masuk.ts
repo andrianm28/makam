@@ -1,5 +1,4 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
-import { authenticatorCode } from "../../tests/support/totp";
 import { lastEmailCode } from "./email-outbox";
 
 /**
@@ -54,17 +53,4 @@ export async function masukSetelahJeda(
   await page.getByRole("button", { name: "Masuk" }).click();
   // Wait for the login's own redirect to land, so a caller's next navigation is not raced by it.
   await expect(page).toHaveURL(/\/(akun|staf)/, { timeout: 15_000 });
-}
-
-/** On the TOTP step, starts enrolment and returns the authenticator secret the screen shows. */
-export async function startTotpEnrolment(page: Page): Promise<string> {
-  await expect(page).toHaveURL(/\/staf\/totp$/);
-  await page.getByRole("button", { name: "Daftarkan aplikasi authenticator" }).click();
-  return (await page.getByTestId("totp-secret").textContent())!.replace(/\s/g, "");
-}
-
-/** Types the authenticator's current code for `secret` and submits it. */
-export async function submitTotp(page: Page, secret: string) {
-  await page.getByLabel("Kode authenticator").fill(authenticatorCode(secret, new Date()));
-  await page.getByRole("button", { name: "Verifikasi" }).click();
 }

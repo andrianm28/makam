@@ -18,8 +18,8 @@ const alreadySeeded = "sudah ada Admin Platform";
 
 /**
  * Seeds the e2e Admin Platform unless the stack already has an Admin Platform,
- * and returns its email. `fresh` is false when it was already there (it may
- * then have enrolled TOTP in an earlier run).
+ * and returns its email. `fresh` is false when it was already there (from an
+ * earlier run).
  */
 export function seedE2eAdminPlatform(): { email: string; fresh: boolean } {
   const [command, ...args] = SEED_ADMIN;

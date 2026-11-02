@@ -1,6 +1,6 @@
 import "server-only";
 import { redirect } from "next/navigation";
-import { authorize, needsTotp, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
+import { authorize, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
 import type { LokasiMitraSummary } from "@/domain/lokasi";
 import { rilisAktif, type Rilis } from "@/lib/rilis";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
@@ -15,23 +15,21 @@ export function heldStaffRoles(roles: Role[]): StaffRole[] {
   return staffRoles.filter((role) => roles.includes(role));
 }
 
-/** Where a signed-in actor lands: the TOTP step, the first staff menu, or Akun Saya. */
+/** Where a signed-in actor lands: the first staff menu, or Akun Saya. */
 export function homeFor(actor: Actor): string {
-  if (needsTotp(actor)) return "/staf/totp";
   const [first] = heldStaffRoles(actor.roles);
   return first ? staffRoleHome(first) : "/akun";
 }
 
 /**
  * The actor allowed to see `role`'s menu, or a redirect: to Masuk when signed
- * out, to the TOTP step for an Admin Platform who has not passed it, and back
- * to the staff area's start for a role the Akun does not hold.
+ * out, and back to the staff area's start for a role the Akun does not hold.
  */
 export async function staffMenuActor(role: StaffRole): Promise<Actor> {
   const actor = await currentActor();
   if (!actor) redirect("/masuk");
   const authorization = authorize(actor, "staf.menu", stafMenuResource(role));
-  if (!authorization.allowed) redirect(authorization.reason === "perlu_totp" ? "/staf/totp" : "/staf");
+  if (!authorization.allowed) redirect("/staf");
   return actor;
 }
 
@@ -64,12 +62,11 @@ export interface StaffShell {
 
 /**
  * What the staff shell shows the signed-in Akun, or null when it gets no shell:
- * signed out, a Pemesan, or an Admin Platform who has not passed the TOTP step
- * (those pages render bare; each page still checks access itself).
+ * signed out or a Pemesan (each page still checks access itself).
  */
 export async function staffShell(): Promise<StaffShell | null> {
   const actor = await currentActor();
-  if (!actor || needsTotp(actor)) return null;
+  if (!actor) return null;
   const held = heldStaffRoles(actor.roles);
   if (held.length === 0) return null;
 

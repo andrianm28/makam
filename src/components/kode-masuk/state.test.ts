@@ -14,7 +14,6 @@ const everyRefusal: IdentityRefusal[] = [
   "belum_masuk",
   "tidak_berwenang",
   "input_tidak_valid",
-  "perlu_totp",
   "email_tidak_valid",
   "email_sudah_dipakai",
 ];

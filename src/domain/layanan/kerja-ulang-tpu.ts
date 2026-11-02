@@ -7,7 +7,7 @@ import { tugaskanMitraJasa, type TugaskanMitraJasaResult } from "./penugasan-tpu
 import { pekerjaanLayananTpu } from "./schema";
 import { kerjaUlangTpuSchema } from "./tpu-skema";
 
-type Penolakan = { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "belum_masuk" };
+type Penolakan = { ok: false; reason: "tidak_berwenang" | "belum_masuk" };
 
 export type KerjaUlangTpuResult =
   | { ok: true; pekerjaanId: string; penugasan: Extract<TugaskanMitraJasaResult, { ok: true }> }

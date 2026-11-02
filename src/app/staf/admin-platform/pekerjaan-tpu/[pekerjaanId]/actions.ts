@@ -20,7 +20,7 @@ const LIST = "/staf/admin-platform/pekerjaan-tpu";
 const field = (formData: FormData, name: string) => String(formData.get(name) ?? "");
 
 function refused(reason: keyof typeof penugasanMessages): FormState {
-  return { status: "gagal", message: reason === "tidak_berwenang" || reason === "perlu_totp" ? guardMessage(reason) : penugasanMessages[reason] };
+  return { status: "gagal", message: reason === "tidak_berwenang" ? guardMessage(reason) : penugasanMessages[reason] };
 }
 
 /** Admin Platform hands the job to one Mitra Jasa, who is told by push and email and must answer by the deadline. */

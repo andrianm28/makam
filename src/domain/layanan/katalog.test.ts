@@ -32,15 +32,6 @@ describe("who may add a Layanan to the catalog", () => {
     expect(await setup.layanan.katalog()).toEqual([]);
     expect(await setup.audit.entriesAbout({ kind: "layanan", id: "katalog" })).toEqual([]);
   });
-
-  it("refuses an Admin Platform whose session has not passed TOTP", async () => {
-    const setup = layananOnTestDatabase(db);
-    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
-    const beforeTotp = await actorOf(setup.identity, (await logIn(setup, "admin@makam.co.id")).cookies);
-
-    expect(await setup.layanan.createLayanan(beforeTotp, newLayananInput())).toEqual({ ok: false, reason: "perlu_totp" });
-    expect(await setup.layanan.katalog()).toEqual([]);
-  });
 });
 
 describe("the Layanan catalog", () => {

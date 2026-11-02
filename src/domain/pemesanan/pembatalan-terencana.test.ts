@@ -22,7 +22,7 @@ const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "R
 
 /** The signed-in Pemesan of a fixture, as the guard would hand it to Refunds. */
 function sebagaiActor(pemesan: { accountId: string; email: string }): Actor {
-  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-uji" };
+  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], sessionId: "sesi-uji" };
 }
 
 interface OpsiPesanan extends TerencanaOptions {

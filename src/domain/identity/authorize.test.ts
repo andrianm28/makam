@@ -13,13 +13,13 @@ import {
   type Role,
 } from "./index";
 
-const pemesan: Actor = { accountId: "akun-1", email: "sari@contoh.id", phoneNumber: "+6281234567890", roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-1" };
+const pemesan: Actor = { accountId: "akun-1", email: "sari@contoh.id", phoneNumber: "+6281234567890", roles: ["pemesan"], lokasiIds: [], sessionId: "sesi-1" };
 
-function staff(roles: Role[], totp: Actor["totp"] = "tidak_perlu"): Actor {
-  return { accountId: "akun-staf", email: "staf@makam.co.id", phoneNumber: "+6281111111111", roles: ["pemesan", ...roles], lokasiIds: [], totp, sessionId: "sesi-staf" };
+function staff(roles: Role[]): Actor {
+  return { accountId: "akun-staf", email: "staf@makam.co.id", phoneNumber: "+6281111111111", roles: ["pemesan", ...roles], lokasiIds: [], sessionId: "sesi-staf" };
 }
 
-const adminPlatform = staff(["admin_platform"], "lolos");
+const adminPlatform = staff(["admin_platform"]);
 
 describe("authorize(actor, action, resource)", () => {
   it("rejects every action from someone who is not signed in", () => {
@@ -118,27 +118,18 @@ describe("staff access", () => {
     });
   });
 
-  it("an Akun holding Admin Platform that has not passed TOTP may do nothing but TOTP and Keluar, whatever other roles it holds", () => {
-    for (const totp of ["perlu_daftar", "perlu_verifikasi"] as const) {
-      const notYet = staff(["admin_platform", "admin_lokasi"], totp);
-      expect(authorize(notYet, "staf.menu", stafMenuResource("admin_lokasi"))).toEqual({
-        allowed: false,
-        reason: "perlu_totp",
-      });
-      expect(authorize(notYet, "staf.undang", stafResource())).toEqual({ allowed: false, reason: "perlu_totp" });
-      expect(authorize(notYet, "audit.lihat", auditLogResource())).toEqual({ allowed: false, reason: "perlu_totp" });
-      expect(authorize(notYet, "akun.lihat", akunResource("akun-staf"))).toEqual({
-        allowed: false,
-        reason: "perlu_totp",
-      });
-      expect(authorize(notYet, "akun.totp", akunResource("akun-staf"))).toEqual({ allowed: true });
-      expect(authorize(notYet, "akun.keluar", akunResource("akun-staf"))).toEqual({ allowed: true });
-    }
+  it("an Akun holding Admin Platform needs nothing beyond the Kode Masuk: every menu it holds opens (ADR 0008)", () => {
+    const keduanya = staff(["admin_platform", "admin_lokasi"]);
+    expect(authorize(keduanya, "staf.menu", stafMenuResource("admin_platform"))).toEqual({ allowed: true });
+    expect(authorize(keduanya, "staf.menu", stafMenuResource("admin_lokasi"))).toEqual({ allowed: true });
+    expect(authorize(keduanya, "staf.undang", stafResource())).toEqual({ allowed: true });
+    expect(authorize(keduanya, "audit.lihat", auditLogResource())).toEqual({ allowed: true });
+    expect(authorize(keduanya, "akun.lihat", akunResource("akun-staf"))).toEqual({ allowed: true });
   });
 });
 
 describe("who may write tariffs (tarif.ubah)", () => {
-  it("only an Admin Platform past TOTP, for a Lokasi Mitra's tariffs and the global ones; never an Admin Lokasi, even of that Lokasi", () => {
+  it("only an Admin Platform, for a Lokasi Mitra's tariffs and the global ones; never an Admin Lokasi, even of that Lokasi", () => {
     const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
     const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
     const write = (who: Actor) => [
@@ -147,10 +138,6 @@ describe("who may write tariffs (tarif.ubah)", () => {
     ];
 
     expect(write(adminPlatform)).toEqual([{ allowed: true }, { allowed: true }]);
-    expect(write(staff(["admin_platform"], "perlu_verifikasi"))).toEqual([
-      { allowed: false, reason: "perlu_totp" },
-      { allowed: false, reason: "perlu_totp" },
-    ]);
     for (const who of [adminLokasi, staff(["petugas_lapangan", "mitra_jasa"]), pemesan]) {
       expect(write(who)).toEqual([
         { allowed: false, reason: "tidak_berwenang" },
@@ -162,7 +149,7 @@ describe("who may write tariffs (tarif.ubah)", () => {
 });
 
 describe("who may build a Lokasi Mitra's Denah (denah.ubah)", () => {
-  it("only that Lokasi's own Admin Lokasi, past TOTP if it also holds Admin Platform; not Admin Platform, and not another Lokasi's Admin Lokasi", () => {
+  it("only that Lokasi's own Admin Lokasi; not Admin Platform, and not another Lokasi's Admin Lokasi", () => {
     const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
     const otherLokasiId = "5d1f4c2e-0000-4000-8000-000000000002";
     const adminLokasi = { ...staff(["admin_lokasi"]), lokasiIds: [lokasiId] };
@@ -177,14 +164,6 @@ describe("who may build a Lokasi Mitra's Denah (denah.ubah)", () => {
     }
   });
 
-  it("an Admin Lokasi that also holds Admin Platform without TOTP still can't build the Denah", () => {
-    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
-    const notYet = { ...staff(["admin_platform", "admin_lokasi"], "perlu_verifikasi"), lokasiIds: [lokasiId] };
-    expect(authorize(notYet, "denah.ubah", lokasiMitraResource(lokasiId))).toEqual({
-      allowed: false,
-      reason: "perlu_totp",
-    });
-  });
 });
 
 describe("who may complete a Hak Pakai flagged Perlu Verifikasi (hak_pakai.selesaikan_verifikasi)", () => {
@@ -212,14 +191,6 @@ describe("who may complete a Hak Pakai flagged Perlu Verifikasi (hak_pakai.seles
     });
   });
 
-  it("an Admin Lokasi that also holds Admin Platform without TOTP still can't complete it", () => {
-    const lokasiId = "5d1f4c2e-0000-4000-8000-000000000001";
-    const notYet = { ...staff(["admin_platform", "admin_lokasi"], "perlu_verifikasi"), lokasiIds: [lokasiId] };
-    expect(authorize(notYet, "hak_pakai.selesaikan_verifikasi", lokasiMitraResource(lokasiId))).toEqual({
-      allowed: false,
-      reason: "perlu_totp",
-    });
-  });
 });
 
 describe("who may review a manual Perpanjangan request and record a holder (perpanjangan.periksa, hak_pakai.ubah_pemegang)", () => {
@@ -255,11 +226,10 @@ describe("who may see a Lokasi Mitra's Denah (denah.lihat)", () => {
 });
 
 describe("who may open the Pengaturan Operator screen", () => {
-  it("only an Admin Platform past TOTP; no other role, not even one holding several", () => {
+  it("only an Admin Platform; no other role, not even one holding several", () => {
     const open = (who: Actor) => authorize(who, "pengaturan_operator.lihat", pengaturanOperatorResource());
 
     expect(open(adminPlatform)).toEqual({ allowed: true });
-    expect(open(staff(["admin_platform"], "perlu_verifikasi"))).toEqual({ allowed: false, reason: "perlu_totp" });
     expect(open(staff(["admin_lokasi", "petugas_lapangan", "mitra_jasa"]))).toEqual({
       allowed: false,
       reason: "tidak_berwenang",

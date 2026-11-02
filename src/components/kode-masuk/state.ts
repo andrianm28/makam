@@ -79,8 +79,6 @@ export function identityMessage(reason: IdentityRefusal, retryAt?: Date, now?: D
       return "Silakan masuk dulu dengan email Anda.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
-    case "perlu_totp":
-      return "Masukkan kode dari aplikasi authenticator Anda dulu.";
     case "input_tidak_valid":
       return "Periksa lagi isian Anda.";
     case "email_tidak_valid":

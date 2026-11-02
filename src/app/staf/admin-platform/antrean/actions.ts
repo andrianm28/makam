@@ -58,7 +58,6 @@ export async function konfirmasiSyaratTayangMasihTerpenuhi(_previous: FormState,
 
 const domainRefusalMessages: Record<string, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   catatan_tidak_valid: "Isi Catatan Internal tidak boleh kosong (maksimum 2000 karakter).",
 };
 
@@ -88,7 +87,6 @@ const kosong = z.object({});
 
 const bertugasRefusalMessages: Record<string, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   perlu_perangkat_push:
     "Bertugas hanya bisa dinyalakan dengan push aktif. Nyalakan push di perangkat ini lewat panel di atas halaman, lalu coba lagi.",
   sudah_bertugas: "Anda sudah Bertugas.",

@@ -14,8 +14,8 @@
  * and the Retribusi Pemda of an IPTM at Rp 0 as a REAL value (the owner's decision), which no registry row names.
  * It builds on the launch data (the Layanan catalog and the DKI TPU, `import:data-peluncuran`) and on `--set rilis1`.
  *
- * Like the other ops CLIs it acts as the stack's first Admin Platform (past
- * TOTP, on a stack whose shell the operator already holds; run `seed:admin`
+ * Like the other ops CLIs it acts as the stack's first Admin Platform (on
+ * a stack whose shell the operator already holds; run `seed:admin`
  * first), writes only through the owning modules' public functions, and every
  * write carries a reason naming this command and the environment. A dry run
  * (no `--tulis`) reads only and writes nothing; the dry runs of `cabut` and of

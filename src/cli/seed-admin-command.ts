@@ -63,7 +63,7 @@ export async function seedAdminCommand(
       if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };
       return {
         exitCode: 0,
-        output: `Admin Platform pertama dibuat: ${result.account.email} (Email Terverifikasi; telepon ${result.account.phoneNumber}). Masuk lewat /masuk dengan Kode Masuk ke email itu, lalu daftarkan TOTP.`,
+        output: `Admin Platform pertama dibuat: ${result.account.email} (Email Terverifikasi; telepon ${result.account.phoneNumber}). Masuk lewat /masuk dengan Kode Masuk ke email itu.`,
       };
     } finally {
       await database.close();

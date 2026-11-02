@@ -1,7 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { actorOf, logIn } from "../../../tests/support/identity";
-import { authenticatorCode } from "../../../tests/support/totp";
 import { newTpuDki } from "../../../tests/support/lokasi";
 import {
   layananOnTestDatabase,
@@ -535,7 +534,7 @@ describe("one Akun, many roles", () => {
     // spec, Identity & Access: "One account can hold many roles." An Operator's own
     // email may be onboarded as a Mitra Jasa, and then that Akun holds both roles.
     const setup = layananOnTestDatabase(db);
-    const { actor: admin, totpSecret } = await signedInAdminPlatform(setup);
+    const { actor: admin } = await signedInAdminPlatform(setup);
     const email = "admin@makam.co.id";
     const dibuat = await setup.layanan.buatMitraJasa(admin, email, newMitraJasaInput({ namaLengkap: "Ratna Operator" }));
     if (!dibuat.ok) throw new Error(`Mitra Jasa refused: ${dibuat.reason}`);
@@ -547,14 +546,8 @@ describe("one Akun, many roles", () => {
     if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
     setup.clock.advance({ minutes: 2 });
     const cookies = (await logIn(setup, email)).cookies;
-    const masuk = await actorOf(setup.identity, cookies);
-    expect(masuk.roles).toEqual(expect.arrayContaining(["admin_platform", "mitra_jasa"]));
-    // Its new session owes the TOTP an Admin Platform owes (per session), so the two
-    // doors below answer about the profile and neither answers about TOTP. The
-    // account is enrolled already, from the seeded admin's own enrolment.
-    const lewatTotp = await setup.identity.passTotp(masuk, authenticatorCode(totpSecret, setup.clock.now()));
-    if (!lewatTotp.ok) throw new Error(`TOTP refused: ${lewatTotp.reason}`);
     const duaPeran = await actorOf(setup.identity, cookies);
+    expect(duaPeran.roles).toEqual(expect.arrayContaining(["admin_platform", "mitra_jasa"]));
 
     // One question — "which Mitra Jasa is this Akun?" — read through each feature's
     // own door. Both must name the same record, or the person owns two profiles.

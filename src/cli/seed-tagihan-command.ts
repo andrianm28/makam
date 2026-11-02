@@ -58,14 +58,13 @@ export async function seedTagihanCommand(
           (account) => account.roles.includes("admin_platform") && !account.deactivated,
         );
         if (!admin) return { exitCode: 1, output: "Ditolak: belum ada Admin Platform. Jalankan seed:admin dulu." };
-        // Local stacks only: acts as that Admin Platform past TOTP, as a developer with the stack's shell could anyway.
+        // Local stacks only: acts as that Admin Platform, as a developer with the stack's shell could anyway.
         const asAdmin: Actor = {
           accountId: admin.accountId,
           email: admin.email ?? "",
           phoneNumber: admin.phoneNumber,
           roles: ["admin_platform"],
           lokasiIds: [],
-          totp: "lolos",
           sessionId: `seed-tagihan-${randomUUID()}`,
         };
         const entered = await isiPengaturanOperatorBilaKosong(operatorSettings, asAdmin, "Contoh untuk stack lokal (seed-tagihan)");

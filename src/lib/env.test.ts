@@ -48,10 +48,9 @@ describe("runtime environment", () => {
     expect(env.FAKE_PAYMENT_WEBHOOK_SECRET).toBeUndefined();
   });
 
-  const TOTP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
   const LIVE_SMTP = { SMTP_USER: "v1-user", SMTP_PASSWORD: "v1-password", EMAIL_FROM: "no-reply@makam.co.id" };
   const LIVE_SUMOPOD = { SUMOPOD_API_KEY: "sumopod-key", SUMOPOD_WEBHOOK_SECRET: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==" };
-  const AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id", TOTP_ENCRYPTION_KEY };
+  const AUTH = { AUTH_SECRET: "s".repeat(32), APP_BASE_URL: "https://makam.co.id" };
   const LIVE_AUTH = { ...AUTH, ...LIVE_SMTP, ...LIVE_SUMOPOD, ...VAPID };
 
   it.each(["staging", "production"])("needs the VAPID key pair and subject for web push in %s", (APP_ENV) => {
@@ -90,25 +89,10 @@ describe("runtime environment", () => {
     expect(readRuntimeEnv({ DATABASE_URL, APP_ENV }).vapid).toEqual(env.vapid);
   });
 
-  it.each(["staging", "production"])("needs TOTP_ENCRYPTION_KEY in %s", (APP_ENV) => {
-    expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: "" })).toThrow(
-      /TOTP_ENCRYPTION_KEY is required/,
-    );
-  });
-
-  it("rejects a TOTP_ENCRYPTION_KEY that is not 32 bytes in base64", () => {
-    const sixteenBytes = Buffer.alloc(16, 1).toString("base64");
-    expect(() =>
-      readRuntimeEnv({ DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: sixteenBytes }),
-    ).toThrow(/TOTP_ENCRYPTION_KEY/);
-    expect(() =>
-      readRuntimeEnv({ DATABASE_URL, APP_ENV: "production", ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: "not base64!" }),
-    ).toThrow(/TOTP_ENCRYPTION_KEY/);
-  });
-
-  it.each(["development", "test"])("gives %s a local 32-byte TOTP_ENCRYPTION_KEY when unset", (APP_ENV) => {
-    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, TOTP_ENCRYPTION_KEY: "" });
-    expect(Buffer.from(env.TOTP_ENCRYPTION_KEY, "base64")).toHaveLength(32);
+  it.each(["staging", "production"])("no longer needs TOTP_ENCRYPTION_KEY in %s, and ignores one still set (ADR 0008)", (APP_ENV) => {
+    expect(() => readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH })).not.toThrow();
+    const env = readRuntimeEnv({ DATABASE_URL, APP_ENV, ...LIVE_AUTH, TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64") });
+    expect(env.TOTP_ENCRYPTION_KEY).toBeUndefined();
   });
 
   it.each(["staging", "production"])("needs AUTH_SECRET and APP_BASE_URL in %s", (APP_ENV) => {
@@ -214,7 +198,6 @@ describe("EmailSender environment (SumoPod SMTP relay)", () => {
       APP_ENV: "production",
       AUTH_SECRET: "s".repeat(32),
       APP_BASE_URL: "https://makam.co.id",
-      TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
       ...VAPID,
       ...LIVE_SMTP,
       SUMOPOD_API_KEY: "sumopod-key",
@@ -238,7 +221,6 @@ describe("PaymentProvider environment (SumoPod)", () => {
     APP_ENV,
     AUTH_SECRET: "s".repeat(32),
     APP_BASE_URL: "https://makam.co.id",
-    TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
     ...VAPID,
     ...LIVE_SMTP,
   });

@@ -3,8 +3,8 @@ import { expect, test } from "../support/uji";
 
 /*
  * Checklist Rilis 1, bagian 0: prasyarat dan akun. The Admin Platform's part of it (Pengaturan Operator) is walked in
- * 08-admin-platform.uat.ts: the first Admin Platform login must be section 1's, which types a wrong authenticator
- * code first, and a saved session would make that check skip.
+ * 08-admin-platform.uat.ts: the first Admin Platform login must be section 1's, and a saved session would make
+ * that check skip.
  */
 
 test.describe("§0 Prasyarat dan akun", { tag: ["@rilis1"] }, () => {
@@ -24,7 +24,7 @@ test.describe("§0 Prasyarat dan akun", { tag: ["@rilis1"] }, () => {
       }
     });
 
-    await manual(null, "Akun Admin Platform siap (email + authenticator) dan Admin Lokasi memegang peran Lokasi uji", "terbukti oleh login persona; Kontak Siaga dipilih diperiksa di bagian 6");
+    await manual(null, "Akun Admin Platform siap (email) dan Admin Lokasi memegang peran Lokasi uji", "terbukti oleh login persona; Kontak Siaga dipilih diperiksa di bagian 6");
     await manual(null, "Mailbox penerima tidak di suppression list SumoPod; cek folder spam", "hanya bisa dicek owner di mailbox dan dashboard SumoPod");
     await manual(null, 'Proyek SumoPod: "Charge fee to customer" OFF; webhook /api/webhooks/pembayaran tersimpan; Save & Test 2xx', "hanya bisa dicek owner di dashboard SumoPod");
   });

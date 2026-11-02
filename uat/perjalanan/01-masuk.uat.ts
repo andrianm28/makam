@@ -25,10 +25,10 @@ test.describe("§1 Masuk dan identitas", { tag: ["@rilis1"] }, () => {
     await manual(page, "Kode Masuk tiba di email dalam beberapa menit", "dinilai owner dari mailbox");
   });
 
-  test("§1 Admin Platform: Kode Masuk lalu TOTP, kode TOTP salah ditolak dengan pesan jelas", async ({ anonim }) => {
+  test("§1 Admin Platform: masuk hanya dengan Kode Masuk, langsung ke Area Staf", async ({ anonim }) => {
     test.skip(adaSesi("admin-platform"), "Admin Platform sudah punya sesi tersimpan; hapus sesinya untuk mengulang uji login");
     const page = await anonim();
-    await masukDenganKode(page, "admin-platform", { totpSalahDulu: true });
+    await masukDenganKode(page, "admin-platform");
     await langkah(page, "Admin Platform mendarat di Area Staf", async () => {
       await expect(page).toHaveURL(/\/staf\/admin-platform/);
       await expect(page.getByRole("navigation", { name: "Menu Admin Platform" })).toBeVisible();

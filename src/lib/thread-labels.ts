@@ -3,7 +3,7 @@ export type PesanThreadState = { status: "idle" } | { status: "gagal"; message: 
 
 /** The words for each refusal of a thread message, in the design system's plain Bahasa. */
 export const pesanThreadMessages: Record<
-  "input_tidak_valid" | "tertutup" | "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" | "tidak_ditemukan" | "bukan_pemesan" | "tidak_berwenang" | "perlu_totp" | "belum_masuk",
+  "input_tidak_valid" | "tertutup" | "berkas_tidak_didukung" | "penyimpanan_belum_tersedia" | "tidak_ditemukan" | "bukan_pemesan" | "tidak_berwenang" | "belum_masuk",
   string
 > = {
   input_tidak_valid: "Tulis pesan atau lampirkan foto (paling banyak tiga, JPG, PNG atau WebP).",
@@ -13,6 +13,5 @@ export const pesanThreadMessages: Record<
   tidak_ditemukan: "Percakapan tidak ditemukan.",
   bukan_pemesan: "Percakapan ini bukan milik Akun Anda.",
   tidak_berwenang: "Anda tidak punya akses ke percakapan ini.",
-  perlu_totp: "Masukkan kode keamanan Anda dulu.",
   belum_masuk: "Masuk dulu untuk membalas.",
 };

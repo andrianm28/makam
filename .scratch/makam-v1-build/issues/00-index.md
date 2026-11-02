@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 127 tickets (as of 2026-11-02): 116 resolved, 1 ready-for-agent (127), 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 4 in-progress (65, 72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 129 tickets (as of 2026-11-02): 116 resolved, 2 ready-for-agent (127, 129), 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 5 in-progress (65, 72, 87, 98, 128).
 
 > **Reading note (2026-10-29):** a `resolved` ticket is audited by its Comments (evidence and the two-axis review), not by its checkboxes: 88 of the 116 resolved tickets still show unchecked ACs. The guard `ticket-workflow.test.ts` enforces the review marker and index match only.
 
@@ -117,7 +117,7 @@ Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 127 tickets (as of 2026-
 | 39 | 36 | 102 | 38 | 165 | 33 |
 | 40 | 36 | 103 | 39 | 166 | 58 |
 | 41 | 36 | 104 | 39 | 167 | 09, 82 |
-| 42 | 36 | 105 | 39 | 168 | 09 |
+| 42 | 36 | 105 | 39 | 168 | 09, 128 (ADR 0008) |
 | 43 | 36 | 106 | 59 | 169 | 14 |
 | 44 | 36 | 107 | 38 | 170 | 09, 67 |
 | 45 | 36 | 108 | 58 | 171 | 52 |
@@ -434,3 +434,5 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [125](125-bukti-ahli-waris-tumpang.md) | Tumpang at a Lokasi Mitra: the heirship proof can be uploaded | resolved | — |
 | [126](126-trivy-perl-base.md) | Runtime image: fixable CRITICAL in Debian's perl-base fails the main CI's Trivy gate | resolved | — |
 | [127](127-retensi-berkas-keluarga.md) | Family files are deleted two years after the order is finished | ready-for-agent | — |
+| [128](128-admin-platform-tanpa-totp.md) | Admin Platform tanpa TOTP: the Kode Masuk is the only login factor (ADR 0008) | in-progress | — |
+| [129](129-contract-identity-totp.md) | Contract step of ADR 0008: drop identity_totp, the session's TOTP columns and TOTP_ENCRYPTION_KEY | ready-for-agent | 128 released |

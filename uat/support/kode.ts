@@ -2,16 +2,15 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node
 import { join } from "node:path";
 
 /*
- * The owner reads a Kode Masuk (or an authenticator code, for an Admin Platform)
- * out of their mailbox or phone; the orchestrator writes it to
- * `$UAT_OUT/kode/<persona>.txt` and the runner types it. Nothing else crosses
- * between the two: the runner has no mailbox access and never sees a TOTP secret.
+ * The owner reads a Kode Masuk out of their mailbox; the orchestrator writes it
+ * to `$UAT_OUT/kode/<persona>.txt` and the runner types it. Nothing else crosses
+ * between the two: the runner has no mailbox access.
  *
  * While the runner waits it leaves `<persona>.minta` (JSON: who, which kind of
  * code, which file) so whoever drives it can see that a code is wanted.
  */
 
-export type JenisKode = "kode-masuk" | "totp";
+export type JenisKode = "kode-masuk";
 
 /** Six digits, with spaces, line breaks and hyphens ignored; anything else is not a code. */
 export function bacaKode(isi: string): string | null {

@@ -73,7 +73,7 @@ export interface OperatorSettings {
    * issued document renders its header from its own copy, not from this.
    */
   inForceAt(instant: Date): Promise<OperatorSettingsValues | null>;
-  /** Admin Platform (past TOTP) saves all the values as a new version in force from now; audited with before/after. */
+  /** Admin Platform saves all the values as a new version in force from now; audited with before/after. */
   change(by: Actor, input: ChangeOperatorSettingsInput): Promise<ChangeOperatorSettingsResult>;
 }
 

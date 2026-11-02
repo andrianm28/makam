@@ -427,9 +427,9 @@ describe("makam-preflight", () => {
   it("validates the env file inside the image with the app's own env schema, naming what is missing and no value", () => {
     const missing = preflight(healthy(world()), ["--digest", DIGEST], {
       FAKE_ENVCHECK_CODE: "1",
-      FAKE_ENVCHECK_OUT: "[env-check] environment is not valid for production; check: SUMOPOD_API_KEY, TOTP_ENCRYPTION_KEY",
+      FAKE_ENVCHECK_OUT: "[env-check] environment is not valid for production; check: SUMOPOD_API_KEY, AUTH_SECRET",
     });
-    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 04, 72\].*env schema.*SUMOPOD_API_KEY, TOTP_ENCRYPTION_KEY/));
+    expect(missing.lines).toContainEqual(expect.stringMatching(/^FAIL .*\[02, 04, 72\].*env schema.*SUMOPOD_API_KEY, AUTH_SECRET/));
 
     const complete = preflight(healthy(world()), ["--digest", DIGEST]);
     expect(complete.lines).toContainEqual(expect.stringMatching(/^PASS .*\[02, 04, 72\].*env schema/));

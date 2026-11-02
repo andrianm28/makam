@@ -82,7 +82,6 @@ export function catatPemakamanMessage(reason: string): string {
     case "hak_pakai_tidak_ditemukan":
     case "petak_tidak_ditemukan":
       return "Hak Pakai petak ini tidak ditemukan, jadi pemakaman tidak bisa dicatat. Periksa Denah Lokasi Mitra ini.";
-    case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     default:
@@ -115,7 +114,6 @@ export function konfirmasiMessage(reason: string): string {
       return "Tagihan belum bisa diterbitkan, jadi pesanan tidak jadi dikonfirmasi. Periksa Pengaturan Operator.";
     case "lokasi_tidak_dibuka":
       return "Lokasi Mitra ini tidak ditemukan.";
-    case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     default:
@@ -140,7 +138,6 @@ export function pembayaranLangsungMessage(reason: string): string {
       return "Tagihan ini bukan tagihan Lokasi Mitra, jadi tidak bisa dicatat dibayar langsung.";
     case "pengaturan_operator_belum_diisi":
       return "Pengaturan Operator belum diisi, jadi Bukti Pembayaran tidak bisa diterbitkan.";
-    case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     default:

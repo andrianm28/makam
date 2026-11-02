@@ -454,7 +454,7 @@ export async function completeTugasLapangan(
       // the other. A permission refusal from the inner write is its own
       // `WriteRefusal` and passes through as itself.
       if (!setor.ok) {
-        if (setor.reason === "sudah_disetor" || setor.reason === "tidak_berwenang" || setor.reason === "perlu_totp")
+        if (setor.reason === "sudah_disetor" || setor.reason === "tidak_berwenang")
           return setor;
         return { ok: false, reason: "setor_tidak_tercatat" } as const;
       }

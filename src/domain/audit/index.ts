@@ -43,9 +43,9 @@ export type AuditAction =
   | "akun.pemulihan"
   /** An Akun Staf changes its own phone number (a contact). */
   | "akun.ubah_telepon"
-  /** Admin Platform completes TOTP enrolment. */
+  /** Admin Platform completed TOTP enrolment (history only: TOTP is gone since ADR 0008). */
   | "akun.totp_daftar"
-  /** `reset-totp`: ops clears an Admin Platform's TOTP enrolment. */
+  /** Ops reset an Admin Platform's TOTP enrolment (history only: TOTP is gone since ADR 0008). */
   | "akun.totp_reset"
   /** An old app's catalog code is bound to the Lokasi Mitra or Jenis Makam the import created from it (ticket 86). */
   | "katalog_lama.impor"

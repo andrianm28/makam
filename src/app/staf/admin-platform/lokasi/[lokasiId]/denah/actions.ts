@@ -20,8 +20,6 @@ function renumberMessage(reason: string, extra?: Record<string, unknown>): strin
     }
     case "tidak_berwenang":
       return "Hanya Admin Platform yang dapat mengubah nomor Petak.";
-    case "perlu_totp":
-      return "Masukkan kode dari aplikasi authenticator Anda dulu.";
     case "belum_masuk":
       return "Sesi Anda sudah berakhir. Silakan masuk lagi.";
     default:

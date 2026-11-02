@@ -5,10 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { KodeTidakDiberikan, bacaKode, mintaKode } from "../../uat/support/kode";
 
 /*
- * The owner reads a Kode Masuk (or an authenticator code, for an Admin Platform)
- * out of their mailbox or phone; the orchestrator writes it to
+ * The owner reads a Kode Masuk out of their mailbox; the orchestrator writes it to
  * $UAT_OUT/kode/<persona>.txt and the runner types it. Nothing else crosses
- * between the two: no mailbox access, no TOTP secret.
+ * between the two: no mailbox access.
  */
 
 const folders: string[] = [];
@@ -113,9 +112,9 @@ describe("the runner asks for the owner's code and types what arrives", () => {
       }
     });
 
-    await mintaKode({ dir, persona: "admin-platform", jenis: "totp", timeoutMs: 60_000, ...waktu, kirim: async () => {} });
+    await mintaKode({ dir, persona: "admin-platform", jenis: "kode-masuk", timeoutMs: 60_000, ...waktu, kirim: async () => {} });
 
-    expect(isiPenanda).toMatchObject({ persona: "admin-platform", jenis: "totp" });
+    expect(isiPenanda).toMatchObject({ persona: "admin-platform", jenis: "kode-masuk" });
     expect(existsSync(penanda)).toBe(false);
   });
 

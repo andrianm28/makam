@@ -199,7 +199,7 @@ describe("Pemulihan Akun", () => {
     expect(files.stored.size).toBe(0);
   });
 
-  it("only an Admin Platform past TOTP may do a Pemulihan Akun", async () => {
+  it("only an Admin Platform may do a Pemulihan Akun", async () => {
     const setup = await pemesanWhoLostTheirEmail();
     const notAdmin = await setup.identity.actorFromCookies(setup.pemesan.cookies);
     if (!notAdmin) throw new Error("not signed in");

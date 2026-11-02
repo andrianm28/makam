@@ -439,19 +439,6 @@ describe("Perangkat Push", () => {
     expect(await setup.notifications.pushDevices(login.account.id)).toEqual([]);
   });
 
-  it("an Admin Platform that has not passed TOTP in this session is refused (perlu_totp) and nothing is stored", async () => {
-    const setup = notificationsOnTestDatabase(db);
-    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
-    const { login, cookies } = await logIn(setup, "admin@makam.co.id");
-    const belumTotp = await actorOf(setup.identity, cookies);
-
-    expect(await setup.notifications.enablePush(belumTotp, { subscription: browserPushSubscription() })).toEqual({
-      ok: false,
-      reason: "perlu_totp",
-    });
-    expect(await setup.notifications.pushDevices(login.account.id)).toEqual([]);
-  });
-
   it("refuses a browser whose push data is not valid (no https push service, or bad keys): perangkat_tidak_valid", async () => {
     const setup = notificationsOnTestDatabase(db);
     const adminLokasi = await signedInStaff(setup, "admin_lokasi");

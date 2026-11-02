@@ -223,17 +223,4 @@ describe("Pengaturan Operator", () => {
     expect(await setup.operatorSettings.current()).toBeNull();
     expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toEqual([]);
   });
-
-  it("an Admin Platform who has not passed TOTP in this session is refused", async () => {
-    const setup = operatorSettingsOnTestDatabase();
-    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
-    const { cookies } = await logIn(setup, "admin@makam.co.id");
-    const adminBeforeTotp = await actorOf(setup.identity, cookies);
-
-    expect(await setup.operatorSettings.change(adminBeforeTotp, { ...pengaturan, reason: null })).toEqual({
-      ok: false,
-      reason: "perlu_totp",
-    });
-    expect(await setup.operatorSettings.current()).toBeNull();
-  });
 });

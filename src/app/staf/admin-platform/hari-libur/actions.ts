@@ -18,7 +18,6 @@ type Refused<T> = T extends { ok: false; reason: infer R } ? R : never;
 
 const refusalMessages: Record<Refused<AddHariLiburNasionalResult | RemoveHariLiburNasionalResult>, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "Tanggal ini tidak ada di daftar Hari Libur Nasional.",
   hari_libur_tidak_valid: "Isi tanggal yang benar dan nama hari liburnya.",
   hari_libur_sudah_ada: "Tanggal ini sudah ada di daftar Hari Libur Nasional.",

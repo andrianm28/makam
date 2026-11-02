@@ -11,7 +11,6 @@ import { guardMessage } from "../../messages";
 
 const domainRefusalMessages: Record<string, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "Tugas Lapangan ini tidak ditemukan.",
   sudah_selesai: "Tugas Lapangan ini sudah Selesai.",
   form_tidak_valid: "Periksa lagi isian formulirnya.",

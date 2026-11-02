@@ -22,7 +22,6 @@ export function pembayaranManualMessage(reason: string): string {
       return "Bukti pembayaran harus foto (JPG, PNG) atau PDF, paling besar 10 MB.";
     case "pengaturan_operator_belum_diisi":
       return "Pengaturan Operator belum diisi, jadi Bukti Pembayaran tidak bisa diterbitkan.";
-    case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     default:
@@ -53,7 +52,6 @@ export function hargaKhususMessage(reason: string): string {
       return "Total Tagihan baru akan melebihi batas Rp 10.000.000.";
     case "pengaturan_operator_belum_diisi":
       return "Pengaturan Operator belum diisi.";
-    case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     default:
@@ -72,7 +70,6 @@ export function batalkanMessage(reason: string): string {
       return "Pembayaran langsung ini sudah dibatalkan sebelumnya.";
     case "sudah_dipotong":
       return "Potongan untuk pembayaran ini sudah tercatat dalam Bukti Pencairan atau lunas offline, jadi tidak bisa dibatalkan lagi.";
-    case "perlu_totp":
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
     default:

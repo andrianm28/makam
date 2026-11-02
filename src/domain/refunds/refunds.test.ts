@@ -25,7 +25,7 @@ beforeEach(resetDatabase);
 
 /** The signed-in Pemesan of a fixture's order, as the guard would hand it to the module. */
 function pemesanActor(pemesan: { accountId: string; email: string }): Actor {
-  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-uji" };
+  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], sessionId: "sesi-uji" };
 }
 
 const pemakaman = wib("2026-10-02 10:00");

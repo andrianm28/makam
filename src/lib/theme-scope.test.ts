@@ -9,8 +9,8 @@ describe("where dark mode applies", () => {
     },
   );
 
-  it.each(["/", "/masuk", "/masuk/email", "/akun", "/health", "/stafxyz", "/staf/totp"])(
-    "public pages, Masuk, Akun Saya and the TOTP step stay light: %s",
+  it.each(["/", "/masuk", "/masuk/email", "/akun", "/health", "/stafxyz"])(
+    "public pages, Masuk and Akun Saya stay light: %s",
     (pathname) => {
       expect(forcedThemeFor(pathname)).toBe("light");
     },

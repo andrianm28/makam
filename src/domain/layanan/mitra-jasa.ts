@@ -569,8 +569,7 @@ export async function tidakTersediaPada(deps: LayananDeps, mitraJasaId: string, 
  *
  * Holding both roles loosens nothing: the strictest rule still applies to the
  * whole account, whatever other roles it holds (spec:344) — 12 h from
- * `sessionLengthMs`, which asks the roles and not this lookup, and TOTP from
- * `authorize`'s `needsTotp`. Which *features* it may reach is a separate
+ * `sessionLengthMs`, which asks the roles and not this lookup. Which *features* it may reach is a separate
  * question, and `authorize` is where it is answered: `mitra_jasa.lihat_saya` and
  * `mitra_jasa.tidak_tersedia` take the Akun's own resource and require the
  * `mitra_jasa` role, so an address with no record and a role with no record are

@@ -2,7 +2,6 @@ import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
-import { authenticatorCode } from "../../../../../tests/support/totp";
 import { simpanPengaturanOperator } from "./actions";
 
 vi.mock("server-only", () => ({}));
@@ -16,18 +15,13 @@ beforeEach(async () => {
   browser.reset();
 });
 
-/** The first Admin Platform, signed in in this browser and past TOTP. */
+/** The first Admin Platform, signed in in this browser. */
 async function signInAsAdminPlatform() {
   const { identity } = server.runtime();
   const seeded = await identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
   if (!seeded.ok) throw new Error(`seed refused: ${seeded.reason}`);
   const login = await server.logIn("admin@makam.co.id");
   browser.store(login.session.cookies);
-  const actor = async () => (await identity.actorFromCookies(browser.cookieHeader()))!;
-  const enrolment = await identity.startTotpEnrolment(await actor());
-  if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await identity.passTotp(await actor(), authenticatorCode(enrolment.secret, server.clock.now()));
-  if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
 }
 
 function form(values: Record<string, string>): FormData {

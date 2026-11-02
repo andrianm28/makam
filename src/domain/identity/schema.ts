@@ -145,9 +145,9 @@ export const identitySession = pgTable(
     expiresAt: at("expires_at").notNull(),
     ipAddress: text("ip_address"),
     userAgent: text("user_agent"),
-    /** When this session passed TOTP (Admin Platform only). Unknown to Better Auth. */
+    /** Unused since ADR 0008 (no TOTP): kept for expand/contract, dropped in the next release. */
     totpPassedAt: at("totp_passed_at"),
-    /** Wrong TOTP codes typed in this session; the 5th ends it. Unknown to Better Auth. */
+    /** Unused since ADR 0008 (no TOTP): kept for expand/contract, dropped in the next release. */
     totpWrongAttempts: integer("totp_wrong_attempts").notNull().default(0),
     createdAt: at("created_at").notNull(),
     updatedAt: at("updated_at").notNull(),
@@ -247,9 +247,9 @@ export const identityIpRequest = pgTable(
 );
 
 /**
- * The authenticator an Admin Platform enrolled for TOTP. The secret is kept
- * only encrypted with TOTP_ENCRYPTION_KEY (AES-256-GCM). Until `confirmedAt`
- * the enrolment is pending and may be restarted.
+ * Unused since ADR 0008 (Admin Platform without TOTP): nothing reads or writes
+ * it. Kept in this release so the running one still works during the rollout
+ * (expand/contract); the next release drops it with a `-- contract:` line.
  */
 export const identityTotp = pgTable("identity_totp", {
   accountId: text("account_id")

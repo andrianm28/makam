@@ -1,6 +1,6 @@
 # An Email Terverifikasi is the account; no WhatsApp channel in v1
 
-Supersedes ADR 0003 ("A WhatsApp number is the account") and its amendments. User decision, 2026-09-26.
+Supersedes ADR 0003 ("A WhatsApp number is the account") and its amendments. User decision, 2026-09-26. Amended by ADR 0008 (2026-11-02): Admin Platform no longer passes TOTP.
 
 v1 sends nothing through WhatsApp. The WhatsApp Business API (Meta and the kirim.dev reseller) is taken out of v1: its approval, message templates, per-message cost and vendor dependency weighed more than its reach, and it sat on the launch path. The `WhatsAppSender` port, its adapters and the WhatsApp Kode Masuk are removed rather than kept idle; a later version that wants WhatsApp builds the port again from the ports/adapters pattern. Tickets 05 and 62 leave v1.
 

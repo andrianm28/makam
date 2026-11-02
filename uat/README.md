@@ -1,6 +1,6 @@
 # UAT runner (ticket 110)
 
-Playwright journeys for the staging UAT of Rilis 1, 2 and 3. Agents run them against `https://dev.makam.co.id` with an automated browser; the owner reads out the Kode Masuk and authenticator codes, spot-checks the screenshots and signs off. It is **not** the e2e suite: its own `uat/perjalanan` directory, never run by CI or by `npm run e2e`, and it **refuses any base URL other than staging or a local stack** (production is never a target; a browser request to a production host is aborted).
+Playwright journeys for the staging UAT of Rilis 1, 2 and 3. Agents run them against `https://dev.makam.co.id` with an automated browser; the owner reads out the Kode Masuk codes, spot-checks the screenshots and signs off. It is **not** the e2e suite: its own `uat/perjalanan` directory, never run by CI or by `npm run e2e`, and it **refuses any base URL other than staging or a local stack** (production is never a target; a browser request to a production host is aborted).
 
 Checklists the journeys follow: `.scratch/makam-v1-build/uat-rilis-1-checklist.md` (sections 0 to 11) and `uat-rilis-2-3-checklist.md` (items tagged [BAYAR] / [TANPA-BAYAR]).
 
@@ -38,7 +38,7 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 
 ## The owner's codes
 
-When a journey needs a code the runner presses the send button and then waits, printing `[UAT] MENUNGGU kode-masuk untuk persona <nama>: tulis 6 angka ke <UAT_OUT>/kode/<nama>.txt` and leaving `<nama>.minta` (JSON: who, which kind). Whoever drives the run writes the six digits (the Kode Masuk from the mailbox, or the authenticator code for an Admin Platform) to that `.txt` file; the runner types them and deletes the file. A leftover file is removed before the send, so an old code is never typed.
+When a journey needs a code the runner presses the send button and then waits, printing `[UAT] MENUNGGU kode-masuk untuk persona <nama>: tulis 6 angka ke <UAT_OUT>/kode/<nama>.txt` and leaving `<nama>.minta` (JSON: who, which kind). Whoever drives the run writes the six digits (the Kode Masuk from the mailbox) to that `.txt` file; the runner types them and deletes the file. A leftover file is removed before the send, so an old code is never typed.
 
 ## Refusals before any journey
 

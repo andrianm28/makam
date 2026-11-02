@@ -62,7 +62,7 @@ export async function masukDenganKodeMasuk(_previous: KodeMasukVerifyState, form
   redirect(landingFor(result.roles));
 }
 
-/** Staff go to the staff area (which holds an Admin Platform at the TOTP step first); a Pemesan to Akun Saya. */
+/** Staff go to the staff area; a Pemesan to Akun Saya. */
 function landingFor(roles: Role[]): string {
   return roles.some((role) => role !== "pemesan") ? "/staf" : "/akun";
 }

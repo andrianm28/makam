@@ -254,10 +254,10 @@ describe('the runbook "Hari switch", for gate G3 of the go-live checklist', () =
     expect(step).toMatch(/staging[^\n]*(not confirmed|no longer)/i);
   });
 
-  it("checks the site: health with environment, release and rilisTerbuka, the banner, Pengaturan Operator, TOTP and one order at a Lokasi (Contoh)", () => {
+  it("checks the site: health with environment, release and rilisTerbuka, the banner, Pengaturan Operator, the Kode Masuk login and one order at a Lokasi (Contoh)", () => {
     const step = stepTitled(/Checks/);
     expect(step).toContain("https://makam.co.id/api/health");
-    for (const word of ["environment", "release", "rilisTerbuka", "PEMBAYARAN UJI COBA", "Pengaturan Operator", "TOTP", "(Contoh)", "data-contoh.mjs status"]) {
+    for (const word of ["environment", "release", "rilisTerbuka", "PEMBAYARAN UJI COBA", "Pengaturan Operator", "Kode Masuk", "(Contoh)", "data-contoh.mjs status"]) {
       expect(step, word).toContain(word);
     }
   });

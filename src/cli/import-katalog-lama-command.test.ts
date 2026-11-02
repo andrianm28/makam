@@ -34,7 +34,6 @@ function stackLive(appEnv: "staging" | "production"): Record<string, string> {
     APP_ENV: appEnv,
     AUTH_SECRET: "s".repeat(32),
     APP_BASE_URL: "https://makam.co.id",
-    TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 9).toString("base64"),
     SMTP_USER: "v1-user",
     SMTP_PASSWORD: "v1-password",
     EMAIL_FROM: "no-reply@makam.co.id",

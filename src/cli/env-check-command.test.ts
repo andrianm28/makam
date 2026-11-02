@@ -11,7 +11,6 @@ const completeProduction = (): Record<string, string> => ({
   DATABASE_URL: `postgresql://makam:${SECRET}@postgres:5432/makam`,
   AUTH_SECRET: SECRET + SECRET,
   APP_BASE_URL: "https://makam.co.id",
-  TOTP_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
   VAPID_PUBLIC_KEY: "BNbxGYNMhEIi9zrneh7mqV4oUanjLUK3m-mzQTyE9Oy9w_lZmWjkiB_GzOvbJmoGuAnrBhVMZTeHkU9YyDR5jlE",
   VAPID_PRIVATE_KEY: "Dt1CLgQlkiaA-tmCkATyKZeoF1-Gtw1-gdEuWrspXhA",
   VAPID_SUBJECT: "mailto:ops@makam.co.id",
@@ -35,13 +34,13 @@ describe("env-check: is this environment complete for production?", () => {
   it("names every missing variable and never a value", async () => {
     const env = completeProduction();
     delete env.SUMOPOD_API_KEY;
-    delete env.TOTP_ENCRYPTION_KEY;
+    delete env.AUTH_SECRET;
 
     const result = await envCheckCommand(["production"], env);
 
     expect(result.exitCode).toBe(1);
     expect(result.output).toContain("SUMOPOD_API_KEY");
-    expect(result.output).toContain("TOTP_ENCRYPTION_KEY");
+    expect(result.output).toContain("AUTH_SECRET");
     expect(result.output).not.toContain(SECRET);
   });
 

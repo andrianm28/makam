@@ -21,7 +21,6 @@ export async function GET(_request: Request, context: RouteContext<"/staf/admin-
   }
   switch (scan.reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return new Response("Tidak berwenang", { status: 403 });
     case "tidak_ditemukan":
     case "belum_ada_berkas":

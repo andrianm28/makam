@@ -42,7 +42,6 @@ describe("a Kode Masuk to an email", () => {
       phoneNumber: null,
       roles: ["pemesan"],
       lokasiIds: [],
-      totp: "tidak_perlu",
       sessionId: expect.any(String),
     });
   });

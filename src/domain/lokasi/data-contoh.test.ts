@@ -103,7 +103,7 @@ describe("a Lokasi Mitra marked as example data (data_contoh)", () => {
 
   it("is written by Admin Platform only, like the rest of the Lokasi Mitra's record", async () => {
     const { setup, admin, lokasiMitraId } = await adminDanLokasi();
-    const pemesan = { ...admin, roles: ["pemesan" as const], totp: "tidak_perlu" as const };
+    const pemesan = { ...admin, roles: ["pemesan" as const] };
 
     expect(await setup.lokasi.tandaiDataContoh(pemesan, lokasiMitraId, { dataContoh: true, reason: "contoh" })).toEqual({
       ok: false,

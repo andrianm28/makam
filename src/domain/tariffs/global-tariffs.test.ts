@@ -32,15 +32,6 @@ describe("who may enter a global tariff", () => {
     expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toEqual([]);
     expect(await setup.audit.entriesAbout({ kind: "tarif_global", id: "biaya_layanan_platform" })).toEqual([]);
   });
-
-  it("an Admin Platform who has not passed TOTP in this session is refused", async () => {
-    const setup = tariffsOnTestDatabase(db);
-    await setup.identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
-    const beforeTotp = await actorOf(setup.identity, (await logIn(setup, "admin@makam.co.id")).cookies);
-
-    expect(await setup.tariffs.setGlobalTariff(beforeTotp, biayaLayananPlatform)).toEqual({ ok: false, reason: "perlu_totp" });
-    expect(await setup.tariffs.globalTariffHistory("biaya_layanan_platform")).toEqual([]);
-  });
 });
 
 describe("the Biaya Layanan Platform", () => {

@@ -1,10 +1,11 @@
 /**
  * Identity & Access: Akun keyed by one Email Terverifikasi (ADR 0004), the
- * Kode Masuk, roles, Undangan Staf, sessions, TOTP and Pemulihan Akun.
+ * Kode Masuk, roles, Undangan Staf, sessions and Pemulihan Akun.
  *
  * Owns tables: identity_user, identity_session, identity_auth_account,
  * identity_verification (Better Auth's models), identity_otp_request,
- * identity_ip_request, identity_staff_role, identity_staff_invite and identity_totp.
+ * identity_ip_request, identity_staff_role, identity_staff_invite and identity_totp (unused since ADR 0008,
+ * dropped in the next release).
  *
  * Every staff write here records an Entri Audit through the Audit Log module,
  * in the same transaction.
@@ -59,14 +60,6 @@ import {
   type StaffAccount,
   type StaffRecipient,
 } from "./staff";
-import {
-  passTotp,
-  resetTotp,
-  startTotpEnrolment,
-  type PassTotpResult,
-  type ResetTotpResult,
-  type StartTotpEnrolmentResult,
-} from "./totp";
 
 export { normalisePhoneNumber, type PhoneNumberRejection, type PhoneNumberResult } from "./phone-number";
 export { normaliseEmail } from "./email-address";
@@ -74,7 +67,6 @@ export { pruneIpRequests, type CodeRejection } from "./otp";
 export { ADMIN_PLATFORM_SESSION_MS, PEMESAN_SESSION_MS, STAFF_SESSION_MS } from "./better-auth";
 export type { Account } from "./akun-lookup";
 export type { RequestKodeMasukResult, VerifyKodeMasukResult } from "./kode-masuk";
-export type { PassTotpResult, ResetTotpResult, StartTotpEnrolmentResult } from "./totp";
 export type { MarkEmailVerifiedByOpsResult } from "./ops-email-verification";
 export type { ConfirmEmailVerificationResult, RequestEmailVerificationResult, UpdatePhoneNumberResult } from "./email";
 export type { SessionCookie } from "./sessions";
@@ -116,7 +108,6 @@ export {
   setorRetribusiResource,
   tagihanResource,
   semuaMitraJasaResource,
-  needsTotp,
   pengaturanOperatorResource,
   stafMenuResource,
   stafResource,
@@ -133,7 +124,6 @@ export {
   type Role,
   type StaffRole,
   writeRefusal,
-  type TotpStatus,
   type WriteRefusal,
 } from "./authorize";
 
@@ -148,8 +138,6 @@ export interface IdentityDeps {
   audit: AuditLog;
   /** Signs session cookies and keys the code hashes (AUTH_SECRET). */
   secret: string;
-  /** Encrypts TOTP secrets at rest (TOTP_ENCRYPTION_KEY): 32 bytes, base64. */
-  totpEncryptionKey: string;
   /** The site's own origin, e.g. https://makam.co.id. */
   baseURL: string;
   /**
@@ -229,12 +217,6 @@ export interface Identity {
   accountOnRecord(accountId: string): Promise<AccountOnRecord | null>;
   /** Every Undangan Staf not yet accepted and not expired; with `lokasiId`, the Admin Lokasi invites to that Lokasi Mitra. */
   openStaffInvites(filter?: { lokasiId?: string }): Promise<StaffInvite[]>;
-  /** Starts (or restarts a pending) TOTP enrolment for the signed-in Admin Platform (the guarded actor). */
-  startTotpEnrolment(by: Actor): Promise<StartTotpEnrolmentResult>;
-  /** Checks an authenticator code for the signed-in Admin Platform's session (the guarded actor's). */
-  passTotp(by: Actor, code: string): Promise<PassTotpResult>;
-  /** Ops (`reset-totp` CLI): clears an Admin Platform's TOTP enrolment and ends its sessions; audited as ops_cli. */
-  resetTotp(input: { email: string; reason: string }): Promise<ResetTotpResult>;
   /** Akun Saya: the Akun's phone number, a contact (+62, never verified); audited for an Akun Staf. */
   updatePhoneNumber(by: Actor, input: { phoneNumber: string }): Promise<UpdatePhoneNumberResult>;
   /** Verifikasi Email, step 1: sends a code to the email typed; nothing changes on the Akun yet. */
@@ -276,9 +258,6 @@ export function createIdentity(deps: IdentityDeps): Identity {
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
     recoverAccount: (by, input) => recoverAccount(reporting, by, input),
     accountOnRecord: (accountId) => accountOnRecord(deps, accountId),
-    startTotpEnrolment: (by) => startTotpEnrolment(deps, by),
-    passTotp: (by, code) => passTotp(deps, by, code),
-    resetTotp: (input) => resetTotp(deps, input),
     updatePhoneNumber: (by, input) => updatePhoneNumber(deps, by, input),
     requestEmailVerification: (by, input) => requestEmailVerification(reporting, by, input),
     confirmEmailVerification: (by, input) => confirmEmailVerification(reporting, by, input),

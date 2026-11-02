@@ -15,7 +15,6 @@ await build({
     "seed-saat-duka": "src/cli/seed-saat-duka.ts",
     "seed-contoh-publik": "src/cli/seed-contoh-publik.ts",
     "data-contoh": "src/cli/data-contoh.ts",
-    "reset-totp": "src/cli/reset-totp.ts",
     "verify-email": "src/cli/verify-email.ts",
     "sentry-check": "src/cli/sentry-check.ts",
     "email-check": "src/cli/email-check.ts",

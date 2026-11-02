@@ -147,7 +147,7 @@ type NamaDanEmail = { pemesanName: string; email: string };
  * ones both label maps already carry a message for (the other two are answered
  * above, before any wording is needed).
  */
-type KataSebab = (reason: "tidak_berwenang" | "perlu_totp") => string;
+type KataSebab = (reason: "tidak_berwenang") => string;
 
 /**
  * The body both signed-in Kirims share (AGENTS.md's four steps): the guard

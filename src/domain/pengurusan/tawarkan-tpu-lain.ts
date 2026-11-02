@@ -42,7 +42,7 @@ export type TawarkanTpuLainResult =
   /** It is the TPU the order already names, so nothing is being offered. */
   | { ok: false; reason: "tpu_sama" }
   /** A staff write this actor may not do. */
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+  | { ok: false; reason: "tidak_berwenang" };
 
 /** What the Pemesan's accept or decline sends. */
 export const jawabTpuLainSchema = z.object({

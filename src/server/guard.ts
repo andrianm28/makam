@@ -14,7 +14,7 @@ export function gerbangAksi(fitur: Fitur): void {
   if (!rilisTerbuka(fitur)) notFound();
 }
 
-export type GuardError = "belum_masuk" | "tidak_berwenang" | "perlu_totp" | "input_tidak_valid";
+export type GuardError = "belum_masuk" | "tidak_berwenang" | "input_tidak_valid";
 
 /**
  * A refused action. `issues` rides along with `input_tidak_valid`, so the form

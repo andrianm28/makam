@@ -88,7 +88,7 @@ describe("a job on the Admin Lokasi's own list", () => {
     if (!kerja) throw new Error("no job");
     // The family's own Akun holds no staff role, so a job is not theirs to read;
     // Admin Platform, who sees every Lokasi's work, may.
-    const keluarga: Actor = { accountId: pemesan.accountId, email: pemesan.email, phoneNumber: null, roles: [], lokasiIds: [], totp: "lolos", sessionId: "sesi-keluarga" };
+    const keluarga: Actor = { accountId: pemesan.accountId, email: pemesan.email, phoneNumber: null, roles: [], lokasiIds: [], sessionId: "sesi-keluarga" };
     expect(await setup.layanan.pekerjaanUntukStaf(keluarga, { pekerjaanId: kerja.id })).toEqual({ ok: false, reason: "tidak_berwenang" });
     expect((await setup.layanan.pekerjaanUntukStaf(await adminPlatform(setup), { pekerjaanId: kerja.id })).ok).toBe(true);
   });

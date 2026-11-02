@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { wib } from "@/lib/time/jakarta";
 import { PENGATURAN_OPERATOR, resolvePembayaranPerluDitinjauForTest } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, logIn, nextTestIp } from "../../../tests/support/identity";
+import { logIn, nextTestIp } from "../../../tests/support/identity";
 import {
   newLokasiMitra,
   newTpuDki,
@@ -15,7 +15,6 @@ import {
   tariffsCheckedFact,
   type QueuesSetup,
 } from "../../../tests/support/queues";
-import { authenticatorCode } from "../../../tests/support/totp";
 import type { Actor } from "@/domain/identity";
 
 const { db, close } = testDatabase();
@@ -25,15 +24,11 @@ beforeEach(resetDatabase);
 const jpegBytes = new Uint8Array([0xff, 0xd8, 0xff, 0, 1, 2, 3]);
 const kunjunganUpload = { kind: "foto_lokasi", file: { body: jpegBytes, contentType: "image/jpeg" } };
 
-/** A second Admin Platform: invited by `admin`, logged in and past its own TOTP, for Ambil's "takeable by anyone" test. */
+/** A second Admin Platform: invited by `admin`, logged in, for Ambil's "takeable by anyone" test. */
 async function secondAdminPlatform(setup: QueuesSetup, admin: Actor, email = "admin.dua@makam.co.id"): Promise<Actor> {
   const invited = await setup.identity.inviteStaff(admin, { email, phoneNumber: "082222222222", role: "admin_platform" });
   if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
   const { cookies } = await logIn(setup, email);
-  const enrolment = await setup.identity.startTotpEnrolment(await actorOf(setup.identity, cookies));
-  if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await setup.identity.passTotp(await actorOf(setup.identity, cookies), authenticatorCode(enrolment.secret, setup.clock.now()));
-  if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
   const actor = await setup.identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
   return actor;

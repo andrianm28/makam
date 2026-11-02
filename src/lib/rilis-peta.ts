@@ -80,7 +80,6 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   // Staff.
   ["/staf", "inti"],
   ["/staf/email", "inti"],
-  ["/staf/totp", "inti"],
   ["/staf/petugas-lapangan/**", "inti"],
   ["/staf/mitra-jasa/**", "mitra_jasa"],
   ["/staf/admin-lokasi", "inti"],

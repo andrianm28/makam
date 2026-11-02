@@ -47,7 +47,6 @@ type LokasiRefusal = Refused<
 /** What each refusal says on screen, in Bahasa Indonesia: the one map every Lokasi form uses. */
 const refusalMessages: Record<LokasiRefusal, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "Lokasi Mitra ini tidak ditemukan.",
   profil_tidak_valid: "Periksa lagi profilnya: nama, alamat dan kota wajib, dan pin harus di Indonesia.",
   kebijakan_tidak_valid:

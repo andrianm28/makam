@@ -12,8 +12,8 @@ import { PERSONA, berkasSesi, emailPersona, type NamaPersona } from "./persona";
  * Signing a persona in, as sparingly as the server lets us. A saved session is
  * tried first; only a persona with no session (or one that has run out: an
  * Admin Platform's lasts 12 hours) goes through Masuk, and then only after
- * the 60 s / five-an-hour pacing, with the Kode Masuk (and, for an Admin Platform,
- * the authenticator code) read from $UAT_OUT/kode/<persona>.txt.
+ * the 60 s / five-an-hour pacing, with the Kode Masuk read from
+ * $UAT_OUT/kode/<persona>.txt.
  */
 
 export const log = (pesan: string) => console.log(`[UAT] ${pesan}`);
@@ -73,7 +73,7 @@ export async function konteksBaru(browser: Browser, storageState?: string): Prom
 
 async function sesiMasihBerlaku(page: Page, nama: NamaPersona): Promise<boolean> {
   await page.goto(PERSONA[nama].halamanTerlindungi);
-  return !/^\/(masuk|staf\/totp)/.test(new URL(page.url()).pathname);
+  return !/^\/masuk/.test(new URL(page.url()).pathname);
 }
 
 /** What the Masuk journey checks on the way, beyond signing in. */
@@ -82,14 +82,10 @@ export interface PeriksaMasuk {
   kodeSalahDulu?: boolean;
   /** Check that Kirim ulang kode is held back for its cooldown. */
   jedaKirimUlang?: boolean;
-  /** An Admin Platform types a wrong authenticator code first and expects the message. */
-  totpSalahDulu?: boolean;
 }
 
 export async function masukDenganKode(page: Page, nama: NamaPersona, periksa: PeriksaMasuk = {}): Promise<void> {
   const email = emailPersona(nama);
-  const dir = join(keluaranDir(), "kode");
-
   await langkah(page, `Masuk sebagai ${nama}: Kirim Kode Masuk`, async () => {
     await page.goto("/masuk");
     await page.getByLabel("Email").fill(email);
@@ -115,33 +111,6 @@ export async function masukDenganKode(page: Page, nama: NamaPersona, periksa: Pe
     await expect(page).toHaveURL(/\/(akun|staf)/, { timeout: 30_000 });
   });
 
-  if (PERSONA[nama].totp && new URL(page.url()).pathname.endsWith("/staf/totp")) {
-    if (await page.getByRole("button", { name: "Daftarkan aplikasi authenticator" }).isVisible()) {
-      throw new Error(`TOTP persona ${nama} belum didaftarkan. Daftarkan authenticator-nya lebih dulu secara manual (checklist Rilis 1, bagian 0).`);
-    }
-    const totp = await mintaKode({
-      dir,
-      persona: nama,
-      jenis: "totp",
-      timeoutMs: timeoutKodeMs(),
-      sekarang: () => Date.now(),
-      tidur,
-      catat: log,
-      kirim: async () => {},
-    });
-    if (periksa.totpSalahDulu) {
-      await langkah(page, `Masuk sebagai ${nama}: kode authenticator salah ditolak`, async () => {
-        await page.getByLabel("Kode authenticator").fill(totp === "000000" ? "111111" : "000000");
-        await page.getByRole("button", { name: "Verifikasi" }).click();
-        await expect(page.getByText("Kode authenticator salah")).toBeVisible();
-      });
-    }
-    await langkah(page, `Masuk sebagai ${nama}: kode authenticator benar`, async () => {
-      await page.getByLabel("Kode authenticator").fill(totp);
-      await page.getByRole("button", { name: "Verifikasi" }).click();
-      await expect(page).toHaveURL(/\/staf\/admin-platform/, { timeout: 30_000 });
-    });
-  }
 }
 
 /** Saves a persona's session, so the next journey and the next run need no new Kode Masuk. */

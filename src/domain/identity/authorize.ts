@@ -9,20 +9,6 @@ export const staffRoles = ["admin_platform", "admin_lokasi", "petugas_lapangan",
 export type StaffRole = (typeof staffRoles)[number];
 export type Role = "pemesan" | StaffRole;
 
-/**
- * Where the signed-in session stands on TOTP. Only an Akun holding Admin
- * Platform needs it, and then for the whole Akun (spec: the strictest rule).
- */
-export type TotpStatus =
-  /** The Akun holds no Admin Platform role. */
-  | "tidak_perlu"
-  /** Admin Platform has not enrolled an authenticator yet. */
-  | "perlu_daftar"
-  /** Enrolled, but this session has not passed TOTP yet. */
-  | "perlu_verifikasi"
-  /** This session passed TOTP. */
-  | "lolos";
-
 /** Who is acting: the signed-in account behind a request. */
 export interface Actor {
   accountId: string;
@@ -33,8 +19,7 @@ export interface Actor {
   roles: Role[];
   /** The Lokasi Mitra this Akun is Admin Lokasi of (empty without that role). Scopes every Admin Lokasi screen. */
   lokasiIds: string[];
-  totp: TotpStatus;
-  /** The session this actor signed in with (TOTP is passed per session). */
+  /** The session this actor signed in with. */
   sessionId: string;
 }
 
@@ -44,8 +29,6 @@ export type Action =
   | "akun.lihat"
   /** Sign out (Keluar). */
   | "akun.keluar"
-  /** Enrol or pass TOTP on one's own Akun. */
-  | "akun.totp"
   /** Change one's own Akun's email (Verifikasi Email). */
   | "akun.email"
   /** Change one's own Akun's phone number (a contact). */
@@ -473,21 +456,13 @@ export function pekerjaanTpuSemuaResource(): Resource {
 
 export type Authorization =
   | { allowed: true }
-  | { allowed: false; reason: "belum_masuk" | "tidak_berwenang" | "perlu_totp" };
+  | { allowed: false; reason: "belum_masuk" | "tidak_berwenang" };
 
 const allowed: Authorization = { allowed: true };
 const denied: Authorization = { allowed: false, reason: "tidak_berwenang" };
 
-/** True while the actor's session must still enrol or pass TOTP before anything else (Admin Platform only). */
-export function needsTotp(actor: Pick<Actor, "totp">): boolean {
-  return actor.totp === "perlu_daftar" || actor.totp === "perlu_verifikasi";
-}
-
-/** Actions an Akun holding Admin Platform may take before passing TOTP. */
-const beforeTotp: ReadonlySet<Action> = new Set<Action>(["akun.totp", "akun.keluar"]);
-
 /** Why a domain module refuses a write the actor may not do. */
-export type WriteRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+export type WriteRefusal = { ok: false; reason: "tidak_berwenang" };
 
 /**
  * A domain module's own check before a write (defence in depth behind
@@ -497,7 +472,7 @@ export type WriteRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp"
 export function writeRefusal(actor: Actor, action: Action, resource: Resource): WriteRefusal | null {
   const authorization = authorize(actor, action, resource);
   if (authorization.allowed) return null;
-  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+  return { ok: false, reason: "tidak_berwenang" };
 }
 
 /** True when the actor holds Admin Lokasi and is Admin Lokasi of this Lokasi Mitra. */
@@ -507,15 +482,11 @@ function adminLokasiOf(actor: Actor, lokasiId: string): boolean {
 
 export function authorize(actor: Actor | null, action: Action, resource: Resource): Authorization {
   if (!actor) return { allowed: false, reason: "belum_masuk" };
-  if (needsTotp(actor) && !beforeTotp.has(action)) {
-    return { allowed: false, reason: "perlu_totp" };
-  }
   const holds = (role: Role) => actor.roles.includes(role);
 
   switch (action) {
     case "akun.lihat":
     case "akun.keluar":
-    case "akun.totp":
     case "akun.email":
     case "akun.telepon":
       return resource.kind === "akun" && resource.accountId === actor.accountId ? allowed : denied;

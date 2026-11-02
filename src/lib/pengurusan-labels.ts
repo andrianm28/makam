@@ -27,7 +27,6 @@ export type PengurusanRefusal =
   | "layanan_tidak_tersedia"
   | "teks_kosong"
   | "tidak_berwenang"
-  | "perlu_totp"
   | "input_tidak_valid";
 
 /** The message for a refusal, saying what to do next rather than only what went wrong. */
@@ -65,8 +64,6 @@ export function pengurusanMessage(reason: PengurusanRefusal): string {
       return "Layanan yang Anda pilih meminta tulisan. Isi tulisannya atau lepaskan layanan itu.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
-    case "perlu_totp":
-      return "Masukkan kode dari aplikasi authenticator Anda dulu.";
     case "input_tidak_valid":
       return "Periksa lagi isian Anda.";
   }

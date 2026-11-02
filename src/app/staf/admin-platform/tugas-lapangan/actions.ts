@@ -11,7 +11,6 @@ import { guardMessage } from "../../messages";
 
 const domainRefusalMessages: Record<string, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   input_tidak_valid: "Periksa lagi isian Anda: subjek, alamat, tanggal rencana dan Petugas Lapangan wajib diisi.",
   bukan_petugas_lapangan: "Akun yang dipilih bukan Petugas Lapangan aktif.",
 };

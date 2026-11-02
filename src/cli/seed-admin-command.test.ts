@@ -10,7 +10,7 @@ beforeEach(resetDatabase);
 const env = () => ({ APP_ENV: "test", DATABASE_URL: inject("databaseUrl") });
 
 describe("npm run seed:admin -- --email <email> --phone <phone>", () => {
-  it("creates the first Admin Platform with its email as its Email Terverifikasi: a Kode Masuk logs it in, TOTP still required", async () => {
+  it("creates the first Admin Platform with its email as its Email Terverifikasi: a Kode Masuk alone logs it in", async () => {
     const setup = identityOnTestDatabase(db);
 
     const result = await seedAdminCommand(["--email", "Admin@Makam.co.id", "--phone", "0811-1111-1111"], env());
@@ -18,11 +18,11 @@ describe("npm run seed:admin -- --email <email> --phone <phone>", () => {
     expect(result).toEqual({
       exitCode: 0,
       output:
-        "Admin Platform pertama dibuat: admin@makam.co.id (Email Terverifikasi; telepon +6281111111111). Masuk lewat /masuk dengan Kode Masuk ke email itu, lalu daftarkan TOTP.",
+        "Admin Platform pertama dibuat: admin@makam.co.id (Email Terverifikasi; telepon +6281111111111). Masuk lewat /masuk dengan Kode Masuk ke email itu.",
     });
     const { login, cookies } = await logIn(setup, "admin@makam.co.id");
     expect(login).toMatchObject({ accountCreated: false, roles: ["pemesan", "admin_platform"] });
-    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ totp: "perlu_daftar", phoneNumber: "+6281111111111" });
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan", "admin_platform"], phoneNumber: "+6281111111111" });
   });
 
   it("records the seed as an Entri Audit by seed_cli", async () => {

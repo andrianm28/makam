@@ -34,7 +34,6 @@ export type RecoverAccountResult =
       ok: false;
       reason:
         | "tidak_berwenang"
-        | "perlu_totp"
         | "ktp_belum_dicek"
         | "berkas_ktp_wajib"
         | "berkas_ktp_tidak_didukung"

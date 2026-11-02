@@ -39,7 +39,6 @@ type LayananRefusal = Extract<LayananResult, { ok: false }>;
 function refusalMessage(refusal: LayananRefusal): string {
   switch (refusal.reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return guardMessage(refusal.reason);
     case "tidak_ditemukan":
       return "Layanan, Pilihan, Paket atau Lokasi Mitra ini tidak ditemukan.";

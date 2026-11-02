@@ -83,7 +83,7 @@ to run unless the first three match `--env`:
 | `MAKAM_WEB_PORT` | `3110` | web's port on 127.0.0.1 |
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | secret | staging's own Postgres |
 | `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and Kode Masuk codes |
-| `TOTP_ENCRYPTION_KEY` | secret, `openssl rand -base64 32` (exactly 32 bytes) | encrypts Admin Platform TOTP secrets at rest; **required from ticket 09 on**: without it `migrate`, `web` and `worker` refuse to start |
+| `TOTP_ENCRYPTION_KEY` | retired (ADR 0008) | no longer read: optional and ignored in this release, so an existing env file still loads; remove it from `staging.env` / `production.env` after the release that drops it from `src/lib/env.ts` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | secret pair from `npx web-push generate-vapid-keys` (unpadded base64url), one pair per environment | signs web push to staff (ticket 21); **required from ticket 21 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `VAPID_SUBJECT` | `mailto:<ops address>` or an https URL, never localhost | the contact push services see |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | GlitchTip internal DSN, `staging` | server-side errors |
@@ -128,11 +128,14 @@ Locally: `npm run seed:admin -- --email admin@example.co.id --phone 0812xxxxxxxx
 (the main checkout's `makam-v1-dev` stack: `docker compose -p makam-v1-dev exec web ...`).
 
 The seeded Admin Platform then logs in at `/masuk` with the Kode Masuk sent to
-that email and enrols an authenticator app for TOTP at once. The Kode Masuk
+that email; there is no second factor (ADR 0008), so that Akun is only as safe
+as its mailbox: give every Admin Platform email its own 2FA at the email
+provider and a strong password. The Kode Masuk
 goes through the live EmailSender (the SumoPod SMTP relay, `SMTP_*` above):
 when the relay refuses, Masuk says the code could not be sent, and nothing
-else happens (run `email-check`, below, to see why). There is no self-service
-recovery of a lost authenticator; see "Resetting an Admin Platform's TOTP" below.
+else happens (run `email-check`, below, to see why). An Admin Platform who
+lost access to their email is moved to a new one by Pemulihan Akun (another
+Admin Platform, after a KTP check).
 
 When an Akun already has that email as its Email Terverifikasi (someone logged
 in with it before), the seed makes that Akun the Admin Platform and records the
@@ -304,7 +307,7 @@ Against a worktree's local stack, `npm run stack -- up --build -d` first, then
 the same commands with `DATABASE_URL` pointing at that stack (or inside it,
 `docker compose exec -T web npx tsx src/cli/import-katalog-lama.ts …`). A
 `seed:admin` must have run on the stack first: the import acts as that first
-Admin Platform, past TOTP, and every write it makes is audited under that Akun.
+Admin Platform, and every write it makes is audited under that Akun.
 Which Entri Audit entries that is, exactly:
 
 - `lokasi.buat` and `lokasi.ubah_profil` (creating the Lokasi Mitra and its
@@ -634,33 +637,6 @@ fixed file does the rest); exit code 0 means none was.
   nothing.
 - Never run it from a development machine against a host's database.
 
-## Resetting an Admin Platform's TOTP (`reset-totp`)
-
-When an Admin Platform loses their authenticator, ops resets it. Confirm who
-is asking first (a call to the phone number on record, or another Admin
-Platform vouching), then:
-
-```bash
-cd /opt/makam-v1/staging
-S="docker compose -p makam-staging -f compose.yml --env-file staging.env --env-file deployed.env"
-$S exec web node dist/reset-totp.mjs admin@example.co.id --alasan "HP hilang; dikonfirmasi lewat telepon oleh <nama>"
-# [reset-totp] TOTP Admin Platform admin@example.co.id direset dan semua sesinya diakhiri. ...
-```
-
-The email is the Admin Platform's Email Terverifikasi. The command clears its
-enrolled authenticator and ends every session of the Akun, so the next Kode
-Masuk login must enrol a new authenticator. It records an Entri Audit (actor
-role `ops_cli`, action `akun.totp_reset`, the reason, before/after
-`terdaftar: true` → `false`; never the secret). Exit 0 reset; exit 1 refused
-(the email is not an Admin Platform's Email Terverifikasi, the reason is empty,
-nothing is enrolled, or the database could not be reached: the message names
-only the error code); exit 2 prints the usage. Locally:
-`npm run reset-totp -- admin@example.co.id --alasan "..."` (with `DATABASE_URL`).
-
-Never delete from `identity_totp` or `identity_session` by hand: that leaves no
-Entri Audit. The Audit Log itself is append-only (the database refuses
-`UPDATE` and `DELETE` on `audit_entry`).
-
 ## Akun from before ADR 0004 (Pemulihan Akun, `verify-email`)
 
 Migration 0011 (ADR 0004) keys every Akun by its Email Terverifikasi. An Akun
@@ -674,7 +650,7 @@ seeded before it without `--email-terverifikasi` has no Email Terverifikasi:
 the migration ends its session, and it cannot log in again (a Kode Masuk to
 its email would make a new, plain Akun). So, right after the deploy and before
 anyone logs in with that email, run `verify-email <its email> --alasan "..."`
-(below) for it; then it logs in with a Kode Masuk to that email and passes TOTP
+(below) for it; then it logs in with a Kode Masuk to that email
 as before. Check who needs it with the staff roster ("Perlu Pemulihan Akun")
 or, before the deploy, `select email from identity_user u join identity_staff_role r
 on r.account_id = u.id and r.role = 'admin_platform' where u.email_verified_at is null;`.
@@ -706,8 +682,8 @@ $S exec web node dist/verify-email.mjs admin@example.co.id --alasan "Admin Platf
 # [verify-email] Email admin@example.co.id kini Email Terverifikasi Admin Platform itu. ...
 ```
 
-The Admin Platform then logs in at `/masuk` with a Kode Masuk to that email and
-still passes TOTP. The command logs no one in and creates no Akun. It records
+The Admin Platform then logs in at `/masuk` with a Kode Masuk to that email (no
+TOTP since ADR 0008). The command logs no one in and creates no Akun. It records
 an Entri Audit: action `akun.email_verifikasi`, actor role `ops_cli`,
 before/after `{ email, terverifikasi: false → true }`, with the reason; no code
 or secret is in it. Exit 0 when marked; exit 1 when refused: no Admin Platform
@@ -2277,7 +2253,6 @@ Never paste values into the repo, a ticket or chat.
 |---|---|
 | Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending Kode Masuk become invalid. |
-| `TOTP_ENCRYPTION_KEY` (staging) | Rotate only if it leaked: the old key is needed to read every enrolled secret, and there is no re-encryption step. Put a new `openssl rand -base64 32` in `staging.env`, `makam-deploy --env staging --force`, then run `reset-totp` (above) for every Admin Platform with `--alasan "Rotasi TOTP_ENCRYPTION_KEY"`, so each enrols again at its next login. Until it is reset, an Admin Platform cannot pass TOTP under the new key. |
 | `SMTP_PASSWORD` (staging) | create new SMTP credentials in the SumoPod dashboard, put them in `staging.env`, `makam-deploy --env staging --force`, run `email-check` (above), then revoke the old credentials |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (staging) | Rotate only if the private key leaked. Put a new pair in `staging.env`, `makam-deploy --env staging --force`. Every stored Perangkat Push was made for the old public key and stops receiving pushes (push services refuse it, and the device is removed at the next Peringatan Staf); staff press *Aktifkan notifikasi push* again on each device. The email copy of each Peringatan Staf is unaffected. |
 | Staging Postgres password | see "Rotating a Postgres password" below |
@@ -2326,7 +2301,7 @@ file alone never changes an existing database's password.
 `MAKAM_WEB_PORT=3100`, `RILIS_TERBUKA=1` (written explicitly: an unset value means
 the same, but nobody wrote it and the preflight cannot check it; ADR 0006's
 amendment of 2026-10-04), `APP_BASE_URL=https://makam.co.id`, a new
-`POSTGRES_PASSWORD`, `AUTH_SECRET` and `TOTP_ENCRYPTION_KEY`, a VAPID pair with
+`POSTGRES_PASSWORD` and `AUTH_SECRET`, a VAPID pair with
 `VAPID_SUBJECT`, `SENTRY_DSN` from `dsn-makam-prod-internal.txt`, the public
 `NEXT_PUBLIC_SENTRY_DSN` from `dsn-makam-prod-public.txt` (a runtime value, see
 "Browser errors" above), and the SumoPod SMTP settings (`SMTP_USER`,
@@ -2775,7 +2750,8 @@ has passed. The commands run in `/opt/makam-v1/prod`, with
    - every page shows the banner "PEMBAYARAN UJI COBA" and, while Data Contoh is
      active, its second line; a Tagihan's Bayar step shows the sandbox notice;
    - the seeded Admin Platform signs in at `/masuk` (the Kode Masuk comes by email),
-     enrols TOTP and enters the real Pengaturan Operator (the owner, plan C10);
+     lands on its menu with no TOTP step (ADR 0008) and enters the real
+     Pengaturan Operator (the owner, plan C10);
    - one order at a Lokasi "(Contoh)" is placed and cancelled again (the Pemesan's
      "Batalkan pesanan ini"), so that the Antrean has no open row from the beta;
    - `$P exec web node dist/data-contoh.mjs status --izinkan-production` lists the

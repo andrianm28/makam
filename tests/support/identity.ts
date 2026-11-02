@@ -10,12 +10,8 @@ import { startSession } from "@/domain/identity/sessions";
 import { wib } from "@/lib/time/jakarta";
 import type { EmailSender } from "@/ports/email-sender";
 import type { FileStore } from "@/ports/file-store";
-import { authenticatorCode } from "./totp";
 
 export const TEST_AUTH_SECRET = "test-secret-for-identity-tests-0123456789abcdef";
-/** 32 bytes, base64: the TOTP secret encryption key used in tests. */
-export const TEST_TOTP_KEY = Buffer.alloc(32, 7).toString("base64");
-
 let ipCounter = 0;
 /** A fresh IP (benchmarking range), so one request never meets another's per-IP 60 s wait. */
 export function nextTestIp(): string {
@@ -46,7 +42,6 @@ export function identityOnTestDatabase(
     files: options.files ?? fakeFiles,
     audit,
     secret: TEST_AUTH_SECRET,
-    totpEncryptionKey: TEST_TOTP_KEY,
     baseURL: options.baseURL ?? "http://localhost:3000",
     reportError: options.reportError ?? (() => {}),
   });
@@ -76,23 +71,19 @@ export async function logIn(setup: IdentitySetup, address: string, options: { ph
 }
 
 /**
- * The first Admin Platform, seeded, logged in by Kode Masuk and past TOTP: the
+ * The first Admin Platform, seeded and logged in by Kode Masuk: the
  * actor a guarded staff Server Action would hand to the identity module. Seeding
  * is refused a second time, so a test that needs that actor in two fixtures must
  * take it from `adminPlatformOf` rather than call this twice.
  */
 export async function signedInAdminPlatform(setup: IdentitySetup, email = "admin@makam.co.id") {
-  const { identity, clock } = setup;
+  const { identity } = setup;
   const seeded = await identity.seedFirstAdminPlatform({ email, phoneNumber: "081111111111" });
   if (!seeded.ok) throw new Error(`seed refused: ${seeded.reason}`);
   const { cookies } = await logIn(setup, email);
-  const enrolment = await identity.startTotpEnrolment(await actorOf(identity, cookies));
-  if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await identity.passTotp(await actorOf(identity, cookies), authenticatorCode(enrolment.secret, clock.now()));
-  if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
   const actor = await identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
-  return { actor, cookies, totpSecret: enrolment.secret };
+  return { actor, cookies };
 }
 
 /** The one Admin Platform a setup acts as, kept per setup: seeding is refused twice, so every fixture shares this one. */

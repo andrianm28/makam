@@ -5,7 +5,7 @@ import { PushPanelClient } from "./push-panel-client";
 
 /**
  * The staff area's install hint and push switch for the browser in use, shown
- * to a signed-in Akun Staf (an Admin Platform once past TOTP). Peringatan Staf
+ * to a signed-in Akun Staf. Peringatan Staf
  * go by push to each Perangkat Push and by email.
  */
 export async function PushPanel() {

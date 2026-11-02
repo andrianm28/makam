@@ -15,7 +15,6 @@ const PESANAN_TIDAK_DITEMUKAN = "Pesanan tidak ditemukan.";
 export function konfirmasiTerencanaMessage(reason: Refusal<KonfirmasiTerencanaResult>): string {
   switch (reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return TIDAK_BERWENANG;
     case "input_tidak_valid":
       return "Nomor pesanan tidak valid.";
@@ -42,7 +41,6 @@ export function konfirmasiTerencanaMessage(reason: Refusal<KonfirmasiTerencanaRe
 export function tolakTerencanaMessage(reason: Refusal<TolakTerencanaResult>): string {
   switch (reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return TIDAK_BERWENANG;
     case "input_tidak_valid":
       return "Pilih salah satu alasan dari daftar.";

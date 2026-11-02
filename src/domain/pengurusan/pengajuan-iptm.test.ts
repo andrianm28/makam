@@ -483,7 +483,7 @@ describe("cancelling a Saat Duka TPU order", () => {
     await dimakamkan(setup, dasar);
     await setup.pengurusan.batalkanPengurusan(dasar.pemesan, { nomor: dasar.nomor });
     const [permintaan] = await setup.refunds.permintaanTerbuka();
-    const pemesanActor = { ...dasar.pemesan, phoneNumber: null, roles: ["pemesan" as const], lokasiIds: [], totp: "tidak_perlu" as const, sessionId: "sesi-uji" };
+    const pemesanActor = { ...dasar.pemesan, phoneNumber: null, roles: ["pemesan" as const], lokasiIds: [], sessionId: "sesi-uji" };
     const isi = await setup.refunds.isiRekeningPemesan(pemesanActor, {
       nomorPemesanan: dasar.nomor,
       rekening: { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Siti" },
@@ -508,7 +508,7 @@ describe("cancelling a Saat Duka TPU order", () => {
     const dibayar = await setup.billing.recordPayment(dasar.tagihanId, { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null });
     if (!dibayar.ok) throw new Error(`payment refused: ${dibayar.reason}`);
     await setup.pengurusan.batalkanPengurusan(dasar.pemesan, { nomor: dasar.nomor });
-    const actorDari = (akun: typeof dasar.pemesan) => ({ ...akun, phoneNumber: null, roles: ["pemesan" as const], lokasiIds: [], totp: "tidak_perlu" as const, sessionId: "sesi-uji" });
+    const actorDari = (akun: typeof dasar.pemesan) => ({ ...akun, phoneNumber: null, roles: ["pemesan" as const], lokasiIds: [], sessionId: "sesi-uji" });
     const rekening = { bank: "Bank Syariah Indonesia", nomor: "7123456789", nama: "Siti" };
 
     const lain = (await pemesanDenganEmail(setup, "lain@contoh.id")).pemesan;

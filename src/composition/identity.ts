@@ -6,7 +6,7 @@ import type { Adapters } from "@/ports";
 
 /**
  * Wires the Audit Log and the identity module on one database: shared by the
- * `web` runtime (src/server/runtime.ts) and the ops CLIs (seed:admin, reset-totp).
+ * `web` runtime (src/server/runtime.ts) and the ops CLIs (seed:admin, verify-email).
  */
 export function composeIdentity(deps: {
   env: RuntimeEnv;
@@ -26,7 +26,6 @@ export function composeIdentity(deps: {
     files: deps.adapters.files,
     audit,
     secret: deps.env.AUTH_SECRET,
-    totpEncryptionKey: deps.env.TOTP_ENCRYPTION_KEY,
     baseURL: deps.env.APP_BASE_URL,
   });
   return { audit, identity };

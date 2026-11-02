@@ -20,8 +20,8 @@ export const metadata: Metadata = {
 
 /**
  * The staff area: its own section of the app, apart from the public site and
- * Akun Saya. A signed-in Akun Staf gets the staff shell; the TOTP step (and
- * anyone the pages send on elsewhere) renders bare.
+ * Akun Saya. A signed-in Akun Staf gets the staff shell; anyone the pages
+ * send on elsewhere renders bare.
  */
 export default async function StafLayout({ children }: LayoutProps<"/staf">) {
   const shell = await staffShell();

@@ -48,7 +48,6 @@ export type InviteStaffResult =
       ok: false;
       reason:
         | "tidak_berwenang"
-        | "perlu_totp"
         | "email_wajib"
         | "email_tidak_valid"
         /** An Admin Lokasi invite names no Lokasi Mitra. */

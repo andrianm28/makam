@@ -51,7 +51,6 @@ export async function adminPlatform(identity: Identity): Promise<Actor | null> {
     phoneNumber: admin.phoneNumber,
     roles: ["admin_platform"],
     lokasiIds: [],
-    totp: "lolos",
     sessionId: `dev-seed-${admin.accountId}`,
   };
 }
@@ -125,7 +124,6 @@ export async function actorAkunYangAda(
     phoneNumber: akun.phoneNumber,
     roles: akun.roles,
     lokasiIds,
-    totp: "lolos",
     sessionId: `dev-seed-${akun.accountId}`,
   };
 }

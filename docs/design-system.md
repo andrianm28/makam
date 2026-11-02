@@ -119,7 +119,7 @@ Derived from the brand, not an inversion: a very dark Forest ground, Ivory text,
 | `secondary` | `oklch(0.33 0.03 162)` | `#273A31` |
 | `highlight` | `var(--sand)` | `#D8C6A5` |
 
-**Where it applies.** The theme is a class on `<html>` (next-themes, `src/components/makam/theme-provider.tsx`). Only the staff area follows the person's choice (Terang, Gelap, Ikuti perangkat; the header's theme toggle). Every other page (the public site, Masuk, Akun Saya and the TOTP step) is held to light by `forcedThemeFor()` in `src/lib/theme-scope.ts`.
+**Where it applies.** The theme is a class on `<html>` (next-themes, `src/components/makam/theme-provider.tsx`). Only the staff area follows the person's choice (Terang, Gelap, Ikuti perangkat; the header's theme toggle). Every other page (the public site, Masuk and Akun Saya) is held to light by `forcedThemeFor()` in `src/lib/theme-scope.ts`.
 
 ### Semantic
 
@@ -201,7 +201,7 @@ Every staff role works inside one frame (`src/app/staf/layout.tsx` → `StaffShe
 - **Tier 1 banner** (`Tier1Banner`, `src/app/staf/staff-shell.tsx`): a `danger-soft` strip under the header of every staff page of an Admin Platform (whichever role's page it is on) while any Tier 1 Antrean row is untaken: "N baris Tier 1 belum diambil" and "Buka Antrean". Nothing when there is none. It is the only thing left in view when nobody answers an alert (no call row, ADR 0004).
 - **Peringatan Staf bell** (`NotificationBell`, `src/app/staf/notification-bell.tsx`): the unread count and the latest Peringatan Staf of the signed-in Akun, each linking to its subject; opening it marks them read (`bacaPeringatanStaf`, `src/app/staf/alert-actions.ts`). Empty: "Belum ada Peringatan Staf."
 - **On phones** the sidebar is a sheet opened from the header's menu button, and the role switcher moves into the account menu. **Mitra Jasa and Petugas Lapangan** get a bottom navigation instead (`BottomNav`, `src/app/staf/staff-shell.tsx`): their whole menu, with no separate Beranda, as up to 4 tappable items (Mitra Jasa — Pekerjaan, Pencairan, Peringatan, Akun; Petugas Lapangan — Tugas, Jadwal, Peringatan, Akun), safe-area aware, 44 px touch targets; the sheet trigger hides on phones for these two roles, but their sidebar still works at `md` and up.
-- The shell appears only for a signed-in Akun Staf past the TOTP step (`staffShell()` in `src/server/staff-area.ts`); the TOTP step renders bare, light, with the logo and Keluar. Each page still checks its own access on the server.
+- The shell appears only for a signed-in Akun Staf (`staffShell()` in `src/server/staff-area.ts`). Each page still checks its own access on the server.
 
 ## Components
 
@@ -330,4 +330,4 @@ Plain Sage is 2.3:1 on Ivory, so it is never used for text (use `sage-strong`). 
 5. **Catalogue**: becomes a real Admin Platform staff page in its own slice.
 6. **Bottom navigation** for Mitra Jasa and Petugas Lapangan (4 items max) in its own slice.
 7. **Card surface**: warm off-white `#FCFAF5` instead of pure white in light mode.
-8. **Dark mode** for the staff area only; the public site, Masuk, Akun Saya and the TOTP step stay light.
+8. **Dark mode** for the staff area only; the public site, Masuk and Akun Saya stay light.

@@ -1,20 +1,17 @@
 import { expect, test, type Browser, type Page } from "@playwright/test";
-import { authenticatorCode } from "../tests/support/totp";
 import { e2eAdminPlatform, seedE2eAdminPlatform } from "./support/admin-platform";
 import { emailsTo } from "./support/email-outbox";
 import { coldEmail } from "./support/emails";
-import { masuk, startTotpEnrolment, submitTotp } from "./support/masuk";
+import { masuk } from "./support/masuk";
 import { coldNumber } from "./support/numbers";
 import { seedTagihan } from "./support/tagihan";
 
 /*
  * Staff access on a fresh local stack (docker compose -p makam-v1-dev up --build -d):
  * the e2e Admin Platform (seeded by the seed CLI, see e2e/support/admin-platform.ts)
- * logs in with a Kode Masuk, enrols and passes TOTP, invites a Petugas Lapangan (who is also a
+ * logs in with a Kode Masuk alone (ADR 0008: no TOTP), invites a Petugas Lapangan (who is also a
  * Mitra Jasa), and the invitee logs in and switches roles. (Admin Lokasi are
- * invited from their Lokasi Mitra's page.) The first test
- * enrols TOTP, so this file needs a stack whose e2e Admin Platform has not
- * enrolled yet (a fresh one, or `down -v` between runs).
+ * invited from their Lokasi Mitra's page.)
  */
 
 test.describe.configure({ mode: "serial" });
@@ -31,27 +28,9 @@ test.beforeAll(async ({ browser }: { browser: Browser }) => {
   adminPage = await (await browser.newContext()).newPage();
 });
 
-test("the seeded Admin Platform logs in with a Kode Masuk, must enrol TOTP, and passes it with the authenticator code", async ({
-  request,
-}) => {
+test("the seeded Admin Platform logs in with a Kode Masuk alone and lands on its menu, no TOTP step", async ({ request }) => {
   const page = adminPage;
   await masuk(page, request, admin);
-
-  // Staff land in the staff area; an Admin Platform without TOTP is held at the TOTP step.
-  await expect(page).toHaveURL(/\/staf\/totp$/);
-  await page.goto("/akun");
-  await expect(page).toHaveURL(/\/staf\/totp$/);
-  await page.goto("/staf/admin-platform");
-  await expect(page).toHaveURL(/\/staf\/totp$/);
-
-  const secret = await startTotpEnrolment(page);
-  expect(secret).toMatch(/^[A-Z2-7]{32}$/);
-
-  await page.getByLabel("Kode authenticator").fill("000000" === authenticatorCode(secret, new Date()) ? "111111" : "000000");
-  await page.getByRole("button", { name: "Verifikasi" }).click();
-  await expect(page.getByText("Kode authenticator salah")).toBeVisible();
-
-  await submitTotp(page, secret);
 
   await expect(page).toHaveURL(/\/staf\/admin-platform$/);
   await expect(page.getByRole("heading", { name: "Admin Platform" })).toBeVisible();

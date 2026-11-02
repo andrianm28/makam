@@ -7,7 +7,7 @@ const { db, close } = testDatabase();
 afterAll(close);
 beforeEach(resetDatabase);
 
-/** The Katalog Lama module on the test Postgres, with an Admin Platform past TOTP and the Lokasi Mitra to import. */
+/** The Katalog Lama module on the test Postgres, with an Admin Platform and the Lokasi Mitra to import. */
 async function setup() {
   const test = lokasiOnTestDatabase(db);
   const katalog = createKatalogLama({ db, clock: test.clock, audit: test.audit });
@@ -20,7 +20,6 @@ async function setup() {
 const pemesan = (admin: Awaited<ReturnType<typeof signedInAdminPlatform>>["actor"]) => ({
   ...admin,
   roles: ["pemesan" as const],
-  totp: "tidak_perlu" as const,
 });
 
 describe("the Katalog Lama ledger: the old app's catalog codes", () => {

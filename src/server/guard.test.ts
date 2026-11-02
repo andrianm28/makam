@@ -1,6 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { akunResource, stafResource } from "@/domain/identity";
+import { akunResource } from "@/domain/identity";
 import { browser } from "../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../tests/support/database";
 import { testServerRuntime } from "../../tests/support/server-runtime";
@@ -73,26 +73,6 @@ describe("a guarded Server Action", () => {
     const ditolak = await signOutOwnAccount({ perangkat: "" });
     expect(ditolak).toMatchObject({ ok: false, error: "input_tidak_valid" });
     expect(ditolak.ok === false && ditolak.issues?.map((issue) => issue.path)).toEqual([["perangkat"]]);
-  });
-
-  it("refuses an Admin Platform who has not passed TOTP with perlu_totp, before running anything", async () => {
-    await server.runtime().identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
-    const login = await server.logIn("admin@makam.co.id");
-    browser.store(login.session.cookies);
-    let ran = false;
-
-    const result = await guarded({ fitur: "inti",
-      action: "staf.undang",
-      resource: () => stafResource(),
-      schema,
-      input: { perangkat: "ponsel" },
-      run: async () => {
-        ran = true;
-      },
-    });
-
-    expect(result).toEqual({ ok: false, error: "perlu_totp" });
-    expect(ran).toBe(false);
   });
 
   it("runs the domain call with the signed-in Pemesan and the parsed input", async () => {

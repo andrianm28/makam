@@ -31,7 +31,7 @@ export async function jawabPenugasan(_previous: FormState, formData: FormData): 
   if (!hasil.ok) return { status: "gagal", message: guardMessage(hasil.error) };
   if (!hasil.value.ok) {
     const { reason } = hasil.value;
-    return { status: "gagal", message: reason === "tidak_berwenang" || reason === "perlu_totp" ? guardMessage(reason) : penugasanMessages[reason] };
+    return { status: "gagal", message: reason === "tidak_berwenang" ? guardMessage(reason) : penugasanMessages[reason] };
   }
   revalidatePath("/staf/mitra-jasa/pekerjaan");
   return {

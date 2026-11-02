@@ -49,7 +49,6 @@ function refusal(refused: Extract<ChangeOperatorSettingsResult, { ok: false }>):
     case "nomor_tidak_valid":
     case "nomor_bukan_indonesia":
       return `Nomor WhatsApp CS: ${phoneNumberRefusals[refused.reason]}`;
-    case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refused.reason);
   }

@@ -26,7 +26,7 @@ export type MarkEmailVerifiedByOpsResult =
  * email on record was never verified: with no Email Terverifikasi it cannot
  * log in, and a Pemulihan Akun needs another Admin Platform. Marks that email
  * as its Email Terverifikasi, audited as `ops_cli` with the reason; it then
- * logs in with a Kode Masuk to that email, and still passes TOTP.
+ * logs in with a Kode Masuk to that email.
  *
  * One transaction: the Akun's row is locked first, then its role is checked
  * and the email marked.

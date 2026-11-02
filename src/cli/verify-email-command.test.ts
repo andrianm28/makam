@@ -15,7 +15,7 @@ async function adminPlatformFromBeforeEmailKey() {
 }
 
 describe('npm run verify-email -- <email> --alasan "<reason>"', () => {
-  it("makes the email on record of an Admin Platform from before ADR 0004 its Email Terverifikasi: a Kode Masuk then logs it in, TOTP still required", async () => {
+  it("makes the email on record of an Admin Platform from before ADR 0004 its Email Terverifikasi: a Kode Masuk alone then logs it in", async () => {
     const setup = identityOnTestDatabase(db);
     const legacy = await adminPlatformFromBeforeEmailKey();
 
@@ -24,11 +24,11 @@ describe('npm run verify-email -- <email> --alasan "<reason>"', () => {
     expect(result).toEqual({
       exitCode: 0,
       output:
-        "Email admin@makam.co.id kini Email Terverifikasi Admin Platform itu. Masuk lewat /masuk dengan Kode Masuk ke email itu, lalu daftarkan TOTP.",
+        "Email admin@makam.co.id kini Email Terverifikasi Admin Platform itu. Masuk lewat /masuk dengan Kode Masuk ke email itu.",
     });
     const { login, cookies } = await logIn(setup, "admin@makam.co.id");
     expect(login).toMatchObject({ accountCreated: false, account: { id: legacy.accountId }, roles: ["pemesan", "admin_platform"] });
-    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ totp: "perlu_daftar" });
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ roles: expect.arrayContaining(["admin_platform"]) });
   });
 
   it("records an Entri Audit by ops_cli: akun.email_verifikasi, terverifikasi false to true, with the reason", async () => {

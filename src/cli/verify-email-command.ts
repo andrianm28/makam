@@ -58,7 +58,7 @@ export async function verifyEmailCommand(
       if (!result.ok) return { exitCode: 1, output: refusals[result.reason] };
       return {
         exitCode: 0,
-        output: `Email ${result.account.email} kini Email Terverifikasi Admin Platform itu. Masuk lewat /masuk dengan Kode Masuk ke email itu, lalu daftarkan TOTP.`,
+        output: `Email ${result.account.email} kini Email Terverifikasi Admin Platform itu. Masuk lewat /masuk dengan Kode Masuk ke email itu.`,
       };
     } finally {
       await database.close();

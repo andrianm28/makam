@@ -7,7 +7,7 @@ import { lokasiMitraResource, staffRoles, stafResource, writeRefusal, type Actor
 import { placeholderEmailFor, verifiedEmailIs, type Account } from "./akun-lookup";
 import { normaliseEmail } from "./email-address";
 import { normalisePhoneNumber, type PhoneNumberRejection } from "./phone-number";
-import { identityAdminLokasi, identitySession, identityStaffRole, identityTotp, identityUser } from "./schema";
+import { identityAdminLokasi, identitySession, identityStaffRole, identityUser } from "./schema";
 
 export interface StaffAccount {
   accountId: string;
@@ -111,7 +111,7 @@ export async function adminLokasiSince(
 
 export type RemoveAdminLokasiResult =
   | { ok: true }
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "alasan_wajib" | "bukan_admin_lokasi_di_sini" };
+  | { ok: false; reason: "tidak_berwenang" | "alasan_wajib" | "bukan_admin_lokasi_di_sini" };
 
 /**
  * Admin Platform removes an Admin Lokasi from one Lokasi Mitra: the Akun keeps
@@ -216,7 +216,7 @@ export type DeactivateStaffResult =
   | { ok: true }
   | {
       ok: false;
-      reason: "tidak_berwenang" | "perlu_totp" | "alasan_wajib" | "bukan_akun_staf" | "akun_sendiri" | "sudah_dinonaktifkan";
+      reason: "tidak_berwenang" | "alasan_wajib" | "bukan_akun_staf" | "akun_sendiri" | "sudah_dinonaktifkan";
     };
 
 /**
@@ -255,8 +255,6 @@ export async function deactivateStaff(
     const lokasiIds = await adminLokasiIdsOf(tx, input.accountId);
     await tx.delete(identityAdminLokasi).where(eq(identityAdminLokasi.accountId, input.accountId));
     await tx.delete(identitySession).where(eq(identitySession.userId, input.accountId));
-    // A TOTP enrolment belongs to the Admin Platform role: if the Akun is invited back, it enrols afresh.
-    await tx.delete(identityTotp).where(eq(identityTotp.accountId, input.accountId));
     const entry = {
       actor: { accountId: by.accountId, role: "admin_platform" as const },
       action: "staf.nonaktifkan" as const,
@@ -322,7 +320,7 @@ export interface StaffRecipient {
   /** Its Email Terverifikasi; null for an Akun from before ADR 0004 still waiting for a Pemulihan Akun. */
   email: string | null;
   roles: StaffRole[];
-  /** Sessions not ended (Keluar, Dinonaktifkan, a new role grant, reset-totp, Pemulihan Akun) nor expired on the Clock. */
+  /** Sessions not ended (Keluar, Dinonaktifkan, a new role grant, Pemulihan Akun) nor expired on the Clock. */
   liveSessionIds: string[];
 }
 

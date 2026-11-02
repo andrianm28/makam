@@ -1,13 +1,12 @@
 import { getSessionCookie } from "better-auth/cookies";
 import { constantTimeEqual, makeSignature } from "better-auth/crypto";
-import { and, eq, type SQL } from "drizzle-orm";
+import { eq, type SQL } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { Clock } from "@/ports/clock";
 import { COOKIE_PREFIX, type MakamAuth } from "./better-auth";
 import type { Actor, Role } from "./authorize";
 import { identitySession, identityUser } from "./schema";
 import { adminLokasiIdsOf, rolesOf } from "./staff";
-import { totpStatus } from "./totp";
 
 /** A cookie the web layer must set on the response: Better Auth's signed session cookie. */
 export interface SessionCookie {
@@ -34,14 +33,12 @@ export async function actorFromCookies(
 ): Promise<Actor | null> {
   const session = await activeSession(deps, cookieHeader);
   if (!session) return null;
-  const totp = await totpStatus(deps.db, session);
   return {
     accountId: session.accountId,
     email: session.email,
     phoneNumber: session.phoneNumber,
     roles: session.roles,
     lokasiIds: session.roles.includes("admin_lokasi") ? await adminLokasiIdsOf(deps.db, session.accountId) : [],
-    totp,
     sessionId: session.id,
   };
 }
@@ -57,7 +54,6 @@ export interface ActiveSession {
   roles: Role[];
   createdAt: Date;
   expiresAt: Date;
-  totpPassedAt: Date | null;
 }
 
 /**
@@ -73,15 +69,6 @@ export async function activeSession(
   return liveSession(deps, eq(identitySession.token, token));
 }
 
-/**
- * The signed-in actor's own session, still live on the Clock: for writes on
- * the session itself (TOTP) after `guarded()` resolved the actor. Null when it
- * has ended since.
- */
-export async function actorSession(deps: { db: Database; clock: Clock }, actor: Actor): Promise<ActiveSession | null> {
-  return liveSession(deps, and(eq(identitySession.id, actor.sessionId), eq(identitySession.userId, actor.accountId)));
-}
-
 async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | undefined): Promise<ActiveSession | null> {
   const [row] = await deps.db
     .select({
@@ -90,7 +77,6 @@ async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | un
       accountId: identitySession.userId,
       createdAt: identitySession.createdAt,
       expiresAt: identitySession.expiresAt,
-      totpPassedAt: identitySession.totpPassedAt,
       email: identityUser.contactEmail,
       emailVerifiedAt: identityUser.emailVerifiedAt,
       phoneNumber: identityUser.phoneNumber,
@@ -112,7 +98,6 @@ async function liveSession(deps: { db: Database; clock: Clock }, where: SQL | un
     roles,
     createdAt: row.createdAt,
     expiresAt: row.expiresAt,
-    totpPassedAt: row.totpPassedAt,
   };
 }
 

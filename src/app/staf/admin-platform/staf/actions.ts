@@ -49,7 +49,6 @@ function inviteRefusal(refusal: Extract<InviteStaffResult, { ok: false }>): stri
     case "nomor_tidak_valid":
     case "nomor_bukan_indonesia":
       return phoneNumberRefusals[refusal.reason];
-    case "perlu_totp":
     case "tidak_berwenang":
       return guardMessage(refusal.reason);
   }
@@ -73,7 +72,6 @@ export async function nonaktifkanStaf(_previous: FormState, formData: FormData):
       bukan_akun_staf: "Akun ini bukan Akun Staf.",
       akun_sendiri: "Anda tidak bisa menonaktifkan Akun Anda sendiri.",
       sudah_dinonaktifkan: "Akun ini sudah dinonaktifkan.",
-      perlu_totp: guardMessage("perlu_totp"),
       tidak_berwenang: guardMessage("tidak_berwenang"),
     };
     return { status: "gagal", message: messages[deactivated.reason] };

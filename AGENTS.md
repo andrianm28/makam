@@ -38,7 +38,7 @@ From the v1 spec (`.scratch/makam-v1/spec.md`, Implementation and Testing Decisi
 - Playwright (`e2e/`) covers the spec's critical paths and a short smoke test when a ticket asks for one; each file under ~10 s, nothing a domain test already covers. CI runs e2e on every `main` build on a fresh, empty stack (`APP_ENV=development`), so a new spec must pass there.
 - **Migrations are expand/contract**: CI migrates from the running release's schema with rows in it. Destructive DDL (DROP, RENAME, SET NOT NULL, a type change, a NOT NULL column without a default) needs a `-- contract: <reason>` line directly above it, in a later release than its expand step.
 - CI also fails on a fixable CRITICAL (Trivy; exceptions only in `.trivyignore` with a reason and an `exp:` at most 90 days out), on gitleaks (accepted findings in `.gitleaks.toml`) and on a fixable critical in `npm audit --omit=dev`. Pin a new action by commit SHA and a new image by digest.
-- `seed-tagihan` and the other seed CLIs build their own Admin Platform actor without login or TOTP and refuse to run unless the fakes are in use; **never copy that pattern into app code**.
+- `seed-tagihan` and the other seed CLIs build their own Admin Platform actor without login and refuse to run unless the fakes are in use; **never copy that pattern into app code**.
 - `data-contoh` (ticket 109), unlike the seeds, may also run on production, and on staging and production only with `--izinkan-staging` / `--izinkan-production`: it plants and retires the marked "(Contoh)" example records a beta shows (a dry run unless `--tulis`, no Pengaturan Operator on production, plants on production only while payments are a trial). Same CLI-only actor pattern; never in app code.
 
 ## Worktrees on the shared host

@@ -43,7 +43,6 @@ const lines = (value: string) =>
 function refusalMessage(reason: string): string {
   switch (reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return guardMessage(reason);
     case "email_tidak_valid":
       return "Alamat email harus email yang benar: undangan staf dikirim ke alamat itu, dan Akun dengan Email Terverifikasi itulah yang menerimanya.";

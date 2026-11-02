@@ -40,7 +40,6 @@ const missingLabels: Record<MissingTariff, string> = {
 function refusalMessage(refusal: TariffRefusal): string {
   switch (refusal.reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return guardMessage(refusal.reason);
     case "tidak_ditemukan":
       return "Lokasi Mitra atau Jenis Makam ini tidak ditemukan.";

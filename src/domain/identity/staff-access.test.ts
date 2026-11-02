@@ -1,10 +1,9 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { FakeEmailSender } from "@/adapters/memory";
 import { wib } from "@/lib/time/jakarta";
-import { akunResource, authorize, stafMenuResource } from "./index";
+import { akunResource, authorize, stafMenuResource, tarifGlobalResource } from "./index";
 import { actorOf, identityOnTestDatabase, logIn, signedInAdminPlatform } from "../../../tests/support/identity";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { authenticatorCode } from "../../../tests/support/totp";
 
 /** The Lokasi Mitra an Admin Lokasi invite names (the identity module keeps it as given). */
 const LOKASI = "5d1f4c2e-0000-4000-8000-000000000001";
@@ -131,7 +130,6 @@ describe("Undangan Staf", () => {
       // The invite's phone number becomes the new Akun's contact.
       phoneNumber: "+6282222222222",
       roles: ["pemesan", "admin_lokasi"],
-      totp: "tidak_perlu",
     });
     expect(await identity.staffAccounts()).toContainEqual(
       expect.objectContaining({ email: INVITEE, roles: ["admin_lokasi"], deactivated: false }),
@@ -328,7 +326,7 @@ describe("Undangan Staf", () => {
     expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan", "admin_lokasi"] });
   });
 
-  it("is refused to anyone but an Admin Platform past TOTP", async () => {
+  it("is refused to anyone but an Admin Platform", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
     await setup.identity.inviteStaff(actor, { email: INVITEE, phoneNumber: "082222222222", role: "admin_lokasi", lokasiId: LOKASI });
@@ -337,18 +335,12 @@ describe("Undangan Staf", () => {
     expect(
       await setup.identity.inviteStaff(adminLokasi, { email: "x@contoh.id", phoneNumber: "083333333333", role: "admin_platform" }),
     ).toEqual({ ok: false, reason: "tidak_berwenang" });
-
-    setup.clock.advance({ minutes: 5 });
-    const adminBeforeTotp = await actorOf(setup.identity, (await logIn(setup, "admin@makam.co.id")).cookies);
-    expect(
-      await setup.identity.inviteStaff(adminBeforeTotp, { email: "x@contoh.id", phoneNumber: "083333333333", role: "mitra_jasa" }),
-    ).toEqual({ ok: false, reason: "perlu_totp" });
     expect(await setup.identity.openStaffInvites()).toMatchObject([]);
   });
 });
 
 describe("staff sessions", () => {
-  it("an Akun Staf without Admin Platform needs no TOTP and its session lasts 30 days on the Clock", async () => {
+  it("an Akun Staf without Admin Platform gets a session that lasts 30 days on the Clock", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
     await setup.identity.inviteStaff(actor, { email: "p@contoh.id", phoneNumber: "082222222222", role: "petugas_lapangan" });
@@ -358,12 +350,28 @@ describe("staff sessions", () => {
     expect(login.session.expiresAt).toEqual(wib("2026-10-31 09:00"));
     expect(login.session.cookies.find((cookie) => cookie.name === "makam.session_token")?.maxAge).toBe(30 * 86_400);
     setup.clock.set(wib("2026-10-31 08:59"));
-    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ totp: "tidak_perlu" });
+    expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({ roles: ["pemesan", "petugas_lapangan"] });
     setup.clock.set(wib("2026-10-31 09:00"));
     expect(await setup.identity.actorFromCookies(cookies)).toBeNull();
   });
 
-  it("an Akun holding Admin Platform and Admin Lokasi gets the 12 h session and must pass TOTP", async () => {
+  it("Admin Platform masuk hanya dengan Kode Masuk: right after it, a new Admin Platform may invite staff and save Tarif (ADR 0008)", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    await setup.identity.inviteStaff(actor, { email: "dua@makam.co.id", phoneNumber: "082222222222", role: "admin_platform" });
+
+    const { login, cookies } = await logIn(setup, "dua@makam.co.id");
+    const baru = await actorOf(setup.identity, cookies);
+
+    expect(login.session.expiresAt).toEqual(wib("2026-10-01 21:00"));
+    expect(authorize(baru, "staf.menu", stafMenuResource("admin_platform"))).toEqual({ allowed: true });
+    expect(authorize(baru, "tarif.ubah", tarifGlobalResource())).toEqual({ allowed: true });
+    expect(
+      await setup.identity.inviteStaff(baru, { email: "x@contoh.id", phoneNumber: "083333333333", role: "mitra_jasa" }),
+    ).toMatchObject({ ok: true });
+  });
+
+  it("an Akun holding Admin Platform and Admin Lokasi gets the 12 h session", async () => {
     const setup = identityOnTestDatabase(db);
     const { actor } = await signedInAdminPlatform(setup);
     await setup.identity.inviteStaff(actor, { email: "dua@contoh.id", phoneNumber: "082222222222", role: "admin_lokasi", lokasiId: LOKASI });
@@ -373,7 +381,6 @@ describe("staff sessions", () => {
 
     expect(await setup.identity.actorFromCookies(cookies)).toMatchObject({
       roles: ["pemesan", "admin_platform", "admin_lokasi"],
-      totp: "perlu_daftar",
     });
     expect(login.session.expiresAt).toEqual(wib("2026-10-01 21:00"));
   });
@@ -393,7 +400,6 @@ describe("staff sessions", () => {
     expect(await identity.actorFromCookies(otherDevice.cookies)).toBeNull();
     expect(await identity.actorFromCookies(newLogin.cookies)).toMatchObject({
       roles: ["pemesan", "admin_platform", "admin_lokasi"],
-      totp: "perlu_daftar",
     });
     expect(newLogin.login.session.expiresAt).toEqual(wib("2026-10-01 21:05"));
   });
@@ -452,7 +458,7 @@ describe("deactivating an Akun Staf", () => {
 
     expect(again.login).toMatchObject({ accountCreated: false, account: { id: staff.login.account.id }, roles: ["pemesan"] });
     const actor = await identity.actorFromCookies(again.cookies);
-    expect(actor).toMatchObject({ roles: ["pemesan"], totp: "tidak_perlu" });
+    expect(actor).toMatchObject({ roles: ["pemesan"] });
     expect(authorize(actor, "akun.lihat", akunResource(staff.login.account.id))).toEqual({ allowed: true });
     expect(authorize(actor, "staf.menu", stafMenuResource("admin_lokasi"))).toEqual({
       allowed: false,
@@ -498,7 +504,7 @@ describe("deactivating an Akun Staf", () => {
     );
   });
 
-  it("needs a reason, an Akun Staf other than one's own, and an Admin Platform past TOTP", async () => {
+  it("needs a reason, an Akun Staf other than one's own, and an Admin Platform", async () => {
     const setup = await withAdminLokasi();
     const { identity, admin, staff } = setup;
     const adminLokasi = await actorOf(identity, staff.cookies);
@@ -576,26 +582,6 @@ describe("deactivating an Akun Staf", () => {
     expect(await identity.adminLokasiOf(LOKASI)).toEqual([]);
   });
 
-  it("a Dinonaktifkan Admin Platform invited back must enrol a new authenticator: deactivation clears its TOTP", async () => {
-    const setup = identityOnTestDatabase(db);
-    const { identity, clock } = setup;
-    const admin = await signedInAdminPlatform(setup);
-    await identity.inviteStaff(admin.actor, { email: "dua@makam.co.id", phoneNumber: "082222222222", role: "admin_platform" });
-    const second = await logIn(setup, "dua@makam.co.id");
-    const enrolment = await identity.startTotpEnrolment(await actorOf(identity, second.cookies));
-    if (!enrolment.ok) throw new Error(enrolment.reason);
-    expect(await identity.passTotp(await actorOf(identity, second.cookies), authenticatorCode(enrolment.secret, clock.now()))).toEqual({ ok: true });
-
-    await identity.deactivateStaff(admin.actor, { accountId: second.login.account.id, reason: "Cuti panjang" });
-    clock.advance({ days: 1 });
-    await identity.inviteStaff(admin.actor, { email: "dua@makam.co.id", phoneNumber: "082222222222", role: "admin_platform" });
-    const back = await logIn(setup, "dua@makam.co.id");
-
-    expect(await identity.actorFromCookies(back.cookies)).toMatchObject({
-      roles: ["pemesan", "admin_platform"],
-      totp: "perlu_daftar",
-    });
-  });
 });
 
 describe("Admin Lokasi of a Lokasi Mitra continuously since a time", () => {

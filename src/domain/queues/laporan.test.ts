@@ -39,7 +39,7 @@ async function pesananTerbayar(setup: PayoutsSetup, nama: string, email: string,
 
 /** The signed-in Pemesan of a fixture's order, as the guard would hand it to the module. */
 function pemesanActor(pemesan: { accountId: string; email: string }): Actor {
-  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "sesi-uji" };
+  return { ...pemesan, phoneNumber: null, roles: ["pemesan"], lokasiIds: [], sessionId: "sesi-uji" };
 }
 
 /** Pays that order out to its Lokasi Mitra in two transfers, one item each, on the two dates given (the Clock moves to the later one first, so neither is in the future). */

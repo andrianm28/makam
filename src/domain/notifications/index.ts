@@ -1112,8 +1112,7 @@ function lockScreenSafe(text: string): boolean {
 }
 
 /**
- * Only an Akun Staf turns push on or off, and only for itself (an Admin
- * Platform after TOTP). Allowed: the role its Entri Audit names, its first staff role.
+ * Only an Akun Staf turns push on or off, and only for itself. Allowed: the role its Entri Audit names, its first staff role.
  */
 function pushWriter(by: Actor): { ok: true; role: StaffRole } | WriteRefusal {
   const refusal = writeRefusal(by, "akun.push", akunResource(by.accountId));

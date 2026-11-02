@@ -22,7 +22,6 @@ type TpuRefusal = Extract<TpuResult, { ok: false }>;
 /** What each refusal says on screen, in Bahasa Indonesia. */
 const refusalMessages: Record<TpuRefusal["reason"], string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "TPU ini tidak ada di daftar TPU DKI.",
   tpu_tidak_valid: "Profil TPU ini tidak bisa disimpan: periksa nama, alamat, kota dan sumber data.",
   nama_sudah_ada: "Sudah ada TPU dengan nama ini.",

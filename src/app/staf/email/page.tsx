@@ -8,14 +8,14 @@ import { heldStaffRoles } from "@/server/staff-area";
 
 /**
  * The Akun Staf's Email Terverifikasi (Verifikasi email) and phone number in
- * the staff area, for every staff role (an Admin Platform passes TOTP first).
+ * the staff area, for every staff role.
  * Each change is a staff write with an Entri Audit.
  */
 export default async function StafEmailPage() {
   const actor = await currentActor();
   if (!actor) redirect("/masuk");
   const authorization = authorize(actor, "akun.email", akunResource(actor.accountId));
-  if (!authorization.allowed) redirect(authorization.reason === "perlu_totp" ? "/staf/totp" : "/staf");
+  if (!authorization.allowed) redirect("/staf");
   if (heldStaffRoles(actor.roles).length === 0) redirect("/akun");
 
   return (

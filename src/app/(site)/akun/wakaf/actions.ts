@@ -16,7 +16,6 @@ import type { FormState } from "@/app/staf/form-state";
 
 const guardPesan: Record<string, string> = {
   belum_masuk: "Sesi Anda sudah berakhir. Silakan masuk lagi.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
   input_tidak_valid: "Periksa lagi isian Anda.",
 };

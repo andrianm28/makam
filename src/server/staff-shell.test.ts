@@ -49,7 +49,7 @@ describe("the staff shell", () => {
     ]);
   });
 
-  it("an Admin Platform past the TOTP step gets the shell with its one role and its account for the account menu", async () => {
+  it("an Admin Platform gets the shell right after the Kode Masuk with its one role and its account for the account menu", async () => {
     await signInAsAdminPlatform(server, "admin@makam.co.id");
 
     expect(await staffShell()).toMatchObject({
@@ -58,12 +58,7 @@ describe("the staff shell", () => {
     });
   });
 
-  it("there is no shell before the TOTP step, for a Pemesan, or when signed out", async () => {
-    const { identity } = server.runtime();
-    await identity.seedFirstAdminPlatform({ email: "admin@makam.co.id", phoneNumber: "081111111111" });
-    await signIn("admin@makam.co.id");
-    expect(await staffShell()).toBeNull();
-
+  it("there is no shell for a Pemesan, or when signed out", async () => {
     await signIn("pemesan@contoh.id");
     expect(await staffShell()).toBeNull();
 

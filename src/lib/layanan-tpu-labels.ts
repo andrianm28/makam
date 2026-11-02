@@ -9,7 +9,7 @@ import type { PengembalianPesanan } from "@/domain/refunds";
  */
 
 /** Why the TPU order cannot be placed, saying what to do next. */
-export const layananTpuOrderMessages: Record<AlasanTolakPesananTpu | "belum_masuk" | "perlu_totp" | "tidak_berwenang", string> = {
+export const layananTpuOrderMessages: Record<AlasanTolakPesananTpu | "belum_masuk" | "tidak_berwenang", string> = {
   input_tidak_valid: "Periksa lagi isian Anda.",
   tpu_tidak_ada: "TPU ini tidak ada di daftar kami. Pilih TPU dari daftar.",
   layanan_tidak_tersedia: "Layanan ini tidak tersedia di TPU. Pilih dari daftar yang tersedia.",
@@ -25,7 +25,6 @@ export const layananTpuOrderMessages: Record<AlasanTolakPesananTpu | "belum_masu
   nomor_tidak_valid: "Nomor telepon belum lengkap. Tulis ulang dengan nomor yang bisa dihubungi.",
   nomor_bukan_indonesia: "Nomor telepon harus berawalan 08 atau berformat luar negeri.",
   belum_masuk: "Masuk dulu untuk memesan layanan.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 };
 
@@ -37,7 +36,6 @@ export const penugasanMessages: Record<
   string
 > = {
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   belum_masuk: "Masuk dulu untuk melanjutkan.",
   input_tidak_valid: "Periksa lagi isian Anda.",
   tidak_ditemukan: "Pekerjaan ini tidak ditemukan, atau bukan lagi milik Anda.",
@@ -88,7 +86,6 @@ export const keluhanTpuMessages: Record<string, string> = {
   jendela_tertutup: "Batas 3×24 jam untuk mengajukan keluhan sudah lewat. Hubungi kami bila masih ada yang mengganjal.",
   sudah_ada: "Keluhan untuk pekerjaan ini sudah pernah diajukan.",
   belum_masuk: "Masuk dulu untuk mengajukan keluhan.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 };
 

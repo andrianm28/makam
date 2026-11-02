@@ -19,7 +19,6 @@ type Refused<T> = T extends { ok: false; reason: infer R } ? R : never;
 
 const refusalMessages: Record<Refused<SetJamOperasionalResult | PickKontakSiagaResult>, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
-  perlu_totp: guardMessage("perlu_totp"),
   tidak_ditemukan: "Lokasi Mitra ini tidak ditemukan.",
   jam_operasional_tidak_valid:
     "Periksa lagi Jam Operasional: jam buka harus sebelum jam tutup (JJ:MM), dan setiap tanggal tutup hanya sekali (satu tanggal per baris, mis. 2026-12-25 Natal).",

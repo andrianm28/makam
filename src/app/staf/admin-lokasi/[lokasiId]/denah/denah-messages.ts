@@ -79,8 +79,6 @@ export function denahRefusalMessage(reason: string, extra?: Record<string, unkno
       return "Isi alasan menghapus Blok.";
     case "tidak_berwenang":
       return "Anda tidak berwenang melakukan ini.";
-    case "perlu_totp":
-      return "Masukkan kode dari aplikasi authenticator Anda dulu.";
     case "belum_masuk":
       return "Sesi Anda sudah berakhir. Silakan masuk lagi.";
     default: {

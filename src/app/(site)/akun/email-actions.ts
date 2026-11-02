@@ -14,8 +14,7 @@ import { serverRuntime } from "@/server/runtime";
 /*
  * The Akun's own email (its key, changed only by Verifikasi Email) and phone
  * number (a contact), in Akun Saya and in the staff area. Every action goes
- * through the guard (`akun.email` / `akun.telepon` on the actor's own Akun, so
- * an Admin Platform passes TOTP first); the identity module audits the ones an
+ * through the guard (`akun.email` / `akun.telepon` on the actor's own Akun); the identity module audits the ones an
  * Akun Staf makes.
  */
 

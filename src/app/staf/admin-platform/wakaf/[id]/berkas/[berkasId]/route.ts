@@ -8,6 +8,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!actor) return NextResponse.redirect(new URL("/masuk", request.url));
   const { id, berkasId } = await params;
   const hasil = await serverRuntime().wakaf.berkasUrlStaf(actor, id, berkasId);
-  if (!hasil.ok) return new NextResponse("Tidak ditemukan", { status: hasil.reason === "tidak_berwenang" || hasil.reason === "perlu_totp" ? 403 : 404 });
+  if (!hasil.ok) return new NextResponse("Tidak ditemukan", { status: hasil.reason === "tidak_berwenang" ? 403 : 404 });
   return NextResponse.redirect(hasil.url);
 }

@@ -188,7 +188,7 @@ export async function importKatalogLamaCommand(
       const now = adapters.clock.now();
 
       // An ops command, on a stack whose shell the operator already holds: the import acts as the
-      // stack's first Admin Platform, past TOTP. Every write it makes is audited under that Akun.
+      // stack's first Admin Platform. Every write it makes is audited under that Akun.
       const admin = (await identity.staffAccounts()).find(
         (account) => account.roles.includes("admin_platform") && !account.deactivated,
       );
@@ -204,7 +204,6 @@ export async function importKatalogLamaCommand(
           phoneNumber: admin.phoneNumber,
           roles: ["admin_platform"],
           lokasiIds: [],
-          totp: "lolos",
           sessionId: `import-katalog-lama-${wibDateOf(now)}`,
         },
         hariIni: wibDateOf(now),

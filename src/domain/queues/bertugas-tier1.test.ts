@@ -11,12 +11,11 @@ import type { Actor } from "@/domain/identity";
 import { wib } from "@/lib/time/jakarta";
 import { PENGATURAN_OPERATOR } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
-import { actorOf, adminPlatformOf, logIn } from "../../../tests/support/identity";
+import { adminPlatformOf, logIn } from "../../../tests/support/identity";
 import { browserPushSubscription } from "../../../tests/support/notifications";
 import { orderSaatDuka, saatDukaFixture } from "../../../tests/support/pemesanan";
 import { orderSaatDukaTpu, saatDukaTpuFixture } from "../../../tests/support/pengurusan";
 import { queuesOnTestDatabase, type QueuesSetup } from "../../../tests/support/queues";
-import { authenticatorCode } from "../../../tests/support/totp";
 import { createQueuesTicks } from "./index";
 import { antreanRowTypes } from "./index";
 import { tier1RowTypes } from "./registry";
@@ -56,17 +55,13 @@ async function adminDenganPush(setup: QueuesSetup): Promise<Actor> {
   return actor;
 }
 
-/** Another Admin Platform, invited by the first, past its own TOTP, optionally with a Perangkat Push. */
+/** Another Admin Platform, invited by the first, optionally with a Perangkat Push. */
 async function adminLain(setup: QueuesSetup, email: string, options: { push: boolean }): Promise<Actor> {
   const { actor: admin } = await adminPlatformOf(setup);
   const invited = await setup.identity.inviteStaff(admin, { email, phoneNumber: "082222222222", role: "admin_platform" });
   if (!invited.ok) throw new Error(`invite refused: ${invited.reason}`);
   setup.clock.advance({ minutes: 1 });
   const { cookies } = await logIn(setup, email);
-  const enrolment = await setup.identity.startTotpEnrolment(await actorOf(setup.identity, cookies));
-  if (!enrolment.ok) throw new Error(`enrolment refused: ${enrolment.reason}`);
-  const passed = await setup.identity.passTotp(await actorOf(setup.identity, cookies), authenticatorCode(enrolment.secret, setup.clock.now()));
-  if (!passed.ok) throw new Error(`TOTP refused: ${passed.reason}`);
   const actor = await setup.identity.actorFromCookies(cookies);
   if (!actor) throw new Error("not signed in");
   if (options.push) await setup.notifications.enablePush(actor, { subscription: browserPushSubscription() });

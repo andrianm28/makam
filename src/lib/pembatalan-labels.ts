@@ -75,7 +75,6 @@ export function pembatalanFamilyMessage(reason: string): string {
 export function pembatalanStafMessage(reason: Refusal<SetujuiPembatalanResult>): string {
   switch (reason) {
     case "tidak_berwenang":
-    case "perlu_totp":
       return "Anda tidak berwenang untuk pesanan ini.";
     case "input_tidak_valid":
       return "Isi alasan atau catatan terlebih dulu (paling banyak 500 huruf).";

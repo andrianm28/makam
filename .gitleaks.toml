@@ -48,7 +48,7 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "tests/support/totp.test.ts: the RFC 6238 TOTP test secret, used only by Vitest"
+description = "History only: the RFC 6238 TOTP test secret of the removed tests/support/totp.test.ts (ADR 0008), never a real one"
 regexTarget = "secret"
 regexes = ['''GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ''']
 

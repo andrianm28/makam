@@ -3,7 +3,6 @@ import type { BerkasWakafInput } from "@/domain/wakaf/skema";
 /** Every reason the Wakaf module can refuse a write, in Bahasa Indonesia: one map for the three action files. */
 const pesanAlasan: Record<string, string> = {
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   input_tidak_valid: "Periksa lagi isian Anda.",
   nomor_telepon_tidak_valid: "Nomor telepon tidak valid. Tulis nomor Indonesia, misalnya 0812 3456 7890.",
   pengajuan_tidak_ditemukan: "Pengajuan Wakaf ini tidak ditemukan.",

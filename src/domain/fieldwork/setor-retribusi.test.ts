@@ -255,7 +255,7 @@ describe("the Setor Retribusi row", () => {
     // A Petugas who is not a staff member of the roster cannot record it either.
     expect(
       await setup.fieldwork.catatSetorRetribusi(
-        { accountId: "bukan-akun", email: "bukan@contoh.id", phoneNumber: null, roles: ["pemesan"], lokasiIds: [], totp: "tidak_perlu", sessionId: "s" },
+        { accountId: "bukan-akun", email: "bukan@contoh.id", phoneNumber: null, roles: ["pemesan"], lokasiIds: [], sessionId: "s" },
         { tagihanId, dibayarkanPada: "2026-10-05", bukti: bukti(), catatan: "" },
       ),
     ).toEqual({ ok: false, reason: "tidak_berwenang" });

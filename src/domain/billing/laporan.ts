@@ -72,7 +72,7 @@ const kosong = (): LaporanBilling => ({
   dibayarSetelahTidakTertagih: { jumlah: 0, amount: 0 },
 });
 
-export type LaporanBillingResult = { ok: true; laporan: LaporanBilling } | { ok: false; reason: "tidak_berwenang" | "perlu_totp" };
+export type LaporanBillingResult = { ok: true; laporan: LaporanBilling } | { ok: false; reason: "tidak_berwenang" };
 
 export async function laporanBilling(db: Database, by: Actor, span: RentangWaktu): Promise<LaporanBillingResult> {
   const ditolak = writeRefusal(by, "laporan.lihat", laporanResource());

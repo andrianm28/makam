@@ -8,7 +8,7 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 
 ## 0. Prasyarat & akun
 - [ ] `/api/health` staging `ok` + worker `fresh`.
-- [ ] Akun **Admin Platform** (email + authenticator TOTP) siap; penerima Kode Masuk memang membaca mailboxnya.
+- [ ] Akun **Admin Platform** (email; tanpa TOTP sejak ADR 0008) siap; penerima Kode Masuk memang membaca mailboxnya.
 - [ ] Akun **Admin Lokasi** untuk Lokasi uji (mis. `firdaus@makam.co.id`) sudah memegang peran; Kontak Siaga sudah dipilih.
 - [ ] Mailbox penerima **tidak** di suppression list SumoPod; cek spam.
 - [ ] Proyek SumoPod: **"Charge fee to customer" OFF** (fee ditanggung Operator), webhook URL `/api/webhooks/pembayaran` tersimpan, **"Save & Test"** 2xx.
@@ -18,7 +18,7 @@ Sumber: spec "Release plan", ticket 61 AC, handoff 2026-10-01, ADR 0004/0005.
 - [ ] `/masuk` → email → "Kirim Kode Masuk" → Kode Masuk tiba (≤ beberapa menit).
 - [ ] Kode salah → pesan "kode salah", bisa coba lagi.
 - [ ] Kode benar → masuk; staf mendarat di Area Staf, Pemesan di Akun Saya.
-- [ ] **Admin Platform** diminta **TOTP** setelah Kode Masuk; kode TOTP salah → pesan jelas.
+- [ ] **Admin Platform** masuk hanya dengan **Kode Masuk** dan langsung mendarat di menu Admin Platform, tanpa langkah TOTP (ADR 0008).
 - [ ] Resend Kode Masuk menghormati cooldown (~59 s) dan batas per-email/IP.
 - [ ] Email `.invalid`/tidak ada → muncul **"gagal kirim"** (bukan halaman error framework) — ticket 98.
 

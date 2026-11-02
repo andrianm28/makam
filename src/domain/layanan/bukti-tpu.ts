@@ -52,7 +52,7 @@ const BUKTI_TYPES: readonly DocumentContentType[] = ["image/jpeg", "image/png", 
 const JAM_MS = 3_600_000;
 
 
-type Penolakan = { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "belum_masuk" };
+type Penolakan = { ok: false; reason: "tidak_berwenang" | "belum_masuk" };
 
 /* ── the Mitra Jasa captures and sends ── */
 

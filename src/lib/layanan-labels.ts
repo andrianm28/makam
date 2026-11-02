@@ -110,7 +110,7 @@ export const pembatalanLayananLabels = {
  * went wrong. A `Record` over the module's own union, so a new refusal reason
  * cannot reach a screen without a sentence.
  */
-export const layananOrderMessages: Record<AlasanTolakPesanan | "belum_masuk" | "perlu_totp" | "tidak_berwenang", string> = {
+export const layananOrderMessages: Record<AlasanTolakPesanan | "belum_masuk" | "tidak_berwenang", string> = {
   input_tidak_valid: "Periksa lagi isian Anda.",
   grave_tidak_ditemukan: "Makam ini tidak ditemukan. Cari ulang lewat Makam Keluarga.",
   lokasi_tidak_terbuka: "Lokasi Mitra ini sudah tidak menerima pesanan layanan. Pilih Lokasi Mitra lain.",
@@ -127,7 +127,6 @@ export const layananOrderMessages: Record<AlasanTolakPesanan | "belum_masuk" | "
   tagihan_tidak_terbit: "Tagihan belum bisa diterbitkan, jadi pesanan tidak jadi dibuat. Periksa Pengaturan Operator.",
   email_bukan_akun_ini: "Email ini bukan email akun Anda. Kirim ulang dengan email lain.",
   belum_masuk: "Masuk dulu untuk memesan layanan.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   nomor_tidak_valid: "Nomor telepon belum lengkap. Tulis ulang dengan nomor yang bisa dihubungi.",
   nomor_bukan_indonesia: "Nomor telepon harus berawalan 08 atau berformat luar negeri.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
@@ -149,7 +148,6 @@ export const layananBatalMessages = {
   sudah_dikerjakan: "Pekerjaan ini sudah lewat batas pembatalan (H-1), sudah dikerjakan, atau pembayarannya belum masuk.",
   pengembalian_tertunda: "Pembatalan belum bisa diproses karena pengembalian dana pesanan ini sedang berjalan. Coba lagi setelah selesai, atau hubungi kami.",
   belum_masuk: "Masuk dulu untuk membatalkan pekerjaan ini.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;
 
@@ -167,7 +165,6 @@ export const pekerjaanPesanMessages = {
   penyimpanan_belum_tersedia: "Penyimpanan berkas belum tersedia, jadi bukti belum bisa disimpan.",
   belum_masuk: "Masuk dulu untuk mengerjakan layanan ini.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_perlu_verifikasi: "Hak Pakai petak ini sudah lengkap.",
 } as const satisfies Record<string, string>;
 
@@ -199,7 +196,6 @@ export const keluhanMessages = {
   jendela_tertutup: "Batas 3×24 jam untuk mengajukan keluhan sudah lewat. Hubungi kami bila masih ada yang mengganjal.",
   sudah_ada: "Keluhan untuk pekerjaan ini sudah pernah diajukan.",
   belum_masuk: "Masuk dulu untuk mengajukan keluhan.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;
 
@@ -211,7 +207,6 @@ export const penilaianMessages = {
   belum_selesai: "Pekerjaan ini belum selesai, jadi belum bisa dinilai.",
   sudah_dinilai: "Pekerjaan ini sudah Anda nilai. Terima kasih.",
   belum_masuk: "Masuk dulu untuk memberi penilaian.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;
 
@@ -225,7 +220,6 @@ export const sesuaikanPencairanMessages = {
   melebihi_tarif: "Jumlah tidak boleh melebihi tarif yang ditagihkan untuk pekerjaan ini.",
   sudah_dicairkan: "Pencairan untuk pekerjaan ini sudah ditransfer atau dibatalkan, jadi tidak bisa disesuaikan.",
   belum_masuk: "Sesi Anda sudah berakhir. Silakan masuk lagi.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;
 
@@ -237,6 +231,5 @@ export const putuskanKeluhanMessages = {
   pengembalian_tidak_bisa_diajukan: "Pengembalian dana untuk pekerjaan ini belum bisa diajukan. Periksa Tagihan dan permintaan pengembalian yang sedang berjalan.",
   pengembalian_tertunda: "Sudah ada permintaan pengembalian yang disetujui untuk Tagihan ini. Selesaikan itu dulu, lalu putuskan keluhan ini.",
   belum_masuk: "Sesi Anda sudah berakhir. Silakan masuk lagi.",
-  perlu_totp: "Masukkan kode dari aplikasi authenticator Anda dulu.",
   tidak_berwenang: "Anda tidak berwenang melakukan ini.",
 } as const satisfies Record<string, string>;

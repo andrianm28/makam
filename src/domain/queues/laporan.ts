@@ -27,7 +27,7 @@ export const bulanLaporanSchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/);
 /** Any WIB calendar date, "2026-10-14": it names the week it falls in. */
 export const tanggalMingguSchema = z.iso.date();
 
-export type LaporanRefusal = { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "input_tidak_valid" };
+export type LaporanRefusal = { ok: false; reason: "tidak_berwenang" | "input_tidak_valid" };
 
 export interface LaporanDeps {
   billing: Pick<Billing, "laporan">;
@@ -104,7 +104,7 @@ export type LaporanResult = { ok: true; laporan: Laporan } | LaporanRefusal;
 function refusal(by: Actor): LaporanRefusal | null {
   const authorization = authorize(by, "laporan.lihat", laporanResource());
   if (authorization.allowed) return null;
-  return { ok: false, reason: authorization.reason === "perlu_totp" ? "perlu_totp" : "tidak_berwenang" };
+  return { ok: false, reason: "tidak_berwenang" };
 }
 
 /** The first date of the month after `bulan`. */

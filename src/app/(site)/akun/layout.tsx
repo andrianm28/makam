@@ -27,7 +27,7 @@ export default async function AkunSayaLayout({ children }: LayoutProps<"/akun">)
   const actor = await currentActor();
   if (!actor) redirect("/masuk");
   const authorization = authorize(actor, "akun.lihat", akunResource(actor.accountId));
-  if (!authorization.allowed) redirect(authorization.reason === "perlu_totp" ? "/staf/totp" : "/masuk");
+  if (!authorization.allowed) redirect("/masuk");
   const isStaff = heldStaffRoles(actor.roles).length > 0;
   const { perluTindakan } = await dataAkunSaya(actor.accountId);
 

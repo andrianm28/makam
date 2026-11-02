@@ -98,7 +98,7 @@ describe("the Peringatan Staf bell", () => {
     expect(await notifications.staffAlerts(adminLokasi)).toMatchObject({ unread: 1 });
   });
 
-  it("is refused to an Akun without a staff role, and to an Admin Platform before the TOTP step", async () => {
+  it("is refused to an Akun without a staff role", async () => {
     const setup = notificationsOnTestDatabase(db);
     const { notifications, identity } = setup;
     const { actor: admin } = await signedInAdminPlatform(setup);
@@ -109,8 +109,6 @@ describe("the Peringatan Staf bell", () => {
 
     expect(await notifications.staffAlerts(pemesan)).toEqual({ ok: false, reason: "tidak_berwenang" });
     expect(await notifications.markStaffAlertsRead(pemesan)).toEqual({ ok: false, reason: "tidak_berwenang" });
-    const beforeTotp = { ...admin, totp: "perlu_verifikasi" as const };
-    expect(await notifications.staffAlerts(beforeTotp)).toEqual({ ok: false, reason: "perlu_totp" });
   });
 
   it("records nothing for an Akun that no longer holds a staff role", async () => {

@@ -4,7 +4,7 @@
  * DKI Layanan prices with the Mitra Jasa rate, and the Nazhir list.
  *
  * It writes only through the owning modules' public functions, acting as the
- * stack's first Admin Platform past TOTP (an ops command on a stack whose shell the
+ * stack's first Admin Platform (an ops command on a stack whose shell the
  * operator already holds, as `import:katalog-lama` does). A dry run unless `--tulis`.
  */
 import { existsSync, readFileSync, statSync } from "node:fs";
@@ -405,7 +405,6 @@ async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntim
     phoneNumber: admin.phoneNumber,
     roles: ["admin_platform"],
     lokasiIds: [],
-    totp: "lolos",
     sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
   };
   const tariffs = createTariffs({ db, clock: adapters.clock, audit, lokasi });

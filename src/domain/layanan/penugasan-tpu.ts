@@ -117,7 +117,7 @@ export async function pekerjaanTpuUntukStaf(deps: LayananDeps, by: Actor): Promi
 
 export type BacaPekerjaanTpuResult =
   | { ok: true; pekerjaan: PekerjaanTpuStaf; calon: MitraJasaTersedia[] }
-  | { ok: false; reason: "tidak_ditemukan" | "tidak_berwenang" | "perlu_totp" | "belum_masuk" };
+  | { ok: false; reason: "tidak_ditemukan" | "tidak_berwenang" | "belum_masuk" };
 
 /** One TPU job with the picker's candidates for it: Aktif, covering, and free on the date. */
 export async function bacaPekerjaanTpu(deps: LayananDeps, by: Actor, pekerjaanId: string): Promise<BacaPekerjaanTpuResult> {
@@ -199,7 +199,7 @@ async function stafDari(db: Database, rows: (typeof pekerjaanLayananTpu.$inferSe
 
 export type TugaskanMitraJasaResult =
   | { ok: true; penugasanId: string; batasJawab: Date }
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "belum_masuk" | "input_tidak_valid" }
+  | { ok: false; reason: "tidak_berwenang" | "belum_masuk" | "input_tidak_valid" }
   | { ok: false; reason: "tidak_ditemukan" | "bukan_dijadwalkan" | "sudah_ditugaskan" | "mitra_jasa_tidak_tersedia" };
 
 /**
@@ -278,7 +278,7 @@ export async function tugaskanMitraJasa(deps: LayananDeps, by: Actor, rawInput: 
 
 export type LepasPenugasanResult =
   | { ok: true }
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "belum_masuk" | "input_tidak_valid" | "tidak_ditemukan" | "tidak_ada_penugasan" };
+  | { ok: false; reason: "tidak_berwenang" | "belum_masuk" | "input_tidak_valid" | "tidak_ditemukan" | "tidak_ada_penugasan" };
 
 /**
  * Admin Platform takes a job off the Mitra Jasa who holds it (flagged for
@@ -321,7 +321,7 @@ export async function lepasPenugasan(deps: LayananDeps, by: Actor, rawInput: unk
 
 export type JawabPenugasanResult =
   | { ok: true; hasil: "diterima" | "ditolak" }
-  | { ok: false; reason: "tidak_berwenang" | "perlu_totp" | "belum_masuk" | "input_tidak_valid" | "tidak_ditemukan" | "sudah_dijawab" | "lewat_batas" };
+  | { ok: false; reason: "tidak_berwenang" | "belum_masuk" | "input_tidak_valid" | "tidak_ditemukan" | "sudah_dijawab" | "lewat_batas" };
 
 /**
  * The Mitra Jasa accepts or declines the job assigned to them, in the app, by the

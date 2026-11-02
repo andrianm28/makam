@@ -12,23 +12,20 @@ export interface DefinisiPersona {
   peran: string;
   /** The environment variable that holds the persona's email. */
   env: string;
-  /** Admin Platform passes TOTP after the Kode Masuk. */
-  totp: boolean;
-  /** A page that only this persona's session opens: a redirect to /masuk or /staf/totp means the session is gone. */
+  /** A page that only this persona's session opens: a redirect to /masuk means the session is gone. */
   halamanTerlindungi: string;
 }
 
 export const PERSONA = {
-  pemesan: { peran: "Pemesan (keluarga)", env: "UAT_EMAIL_PEMESAN", totp: false, halamanTerlindungi: "/akun" },
-  "admin-lokasi": { peran: "Admin Lokasi", env: "UAT_EMAIL_ADMIN_LOKASI", totp: false, halamanTerlindungi: "/staf/admin-lokasi" },
-  "admin-platform": { peran: "Admin Platform", env: "UAT_EMAIL_ADMIN_PLATFORM", totp: true, halamanTerlindungi: "/staf/admin-platform" },
+  pemesan: { peran: "Pemesan (keluarga)", env: "UAT_EMAIL_PEMESAN", halamanTerlindungi: "/akun" },
+  "admin-lokasi": { peran: "Admin Lokasi", env: "UAT_EMAIL_ADMIN_LOKASI", halamanTerlindungi: "/staf/admin-lokasi" },
+  "admin-platform": { peran: "Admin Platform", env: "UAT_EMAIL_ADMIN_PLATFORM", halamanTerlindungi: "/staf/admin-platform" },
   "petugas-lapangan": {
     peran: "Petugas Lapangan",
     env: "UAT_EMAIL_PETUGAS_LAPANGAN",
-    totp: false,
     halamanTerlindungi: "/staf/petugas-lapangan/tugas",
   },
-  "mitra-jasa": { peran: "Mitra Jasa", env: "UAT_EMAIL_MITRA_JASA", totp: false, halamanTerlindungi: "/staf/mitra-jasa/pekerjaan" },
+  "mitra-jasa": { peran: "Mitra Jasa", env: "UAT_EMAIL_MITRA_JASA", halamanTerlindungi: "/staf/mitra-jasa/pekerjaan" },
 } as const satisfies Record<string, DefinisiPersona>;
 
 export type NamaPersona = keyof typeof PERSONA;
