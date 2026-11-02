@@ -195,7 +195,8 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
             total: baru.total,
             dueAt: baru.dueAt,
             link: baru.link,
-            lewatJatuhTempoAt: jangkar?.at ?? null,
+            // A Rp 0 replacement is Lunas at once: nothing left to chase.
+            lewatJatuhTempoAt: baru.total === 0 ? null : (jangkar?.at ?? null),
           });
           // The Harga Khusus is never blocked by its own announcement.
           if (!diumumkan.ok) deps.reportError?.(new Error("tetapkanHargaKhusus: announcement refused"), { tags: { module: "billing", template: "tagihan_terbit" } });
