@@ -498,6 +498,13 @@
       "when": 1793609671757,
       "tag": "0070_round_pride",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1793630164338,
+      "tag": "0071_perfect_venom",
+      "breakpoints": true
     }
   ]
 }

@@ -55,7 +55,7 @@ describe("the public Lokasi page's prices (spec, story 9: the page equals quote(
     expect(pricing.jenisMakam[0].perpanjangan).toBeNull();
   });
 
-  it("hides a Jenis Makam whose all-in total exceeds the Rp 10.000.000 QRIS cap (spec, decision 2026-09-26)", async () => {
+  it("shows a Jenis Makam whose all-in total exceeds the Rp 10.000.000 QRIS cap (ADR 0013 replaced the 2026-09-26 rule)", async () => {
     const setup = publishOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const { lokasiMitra } = await publishedLokasiMitra(setup, admin, undefined, {
@@ -69,8 +69,8 @@ describe("the public Lokasi page's prices (spec, story 9: the page equals quote(
 
     const pricing = await setup.tariffs.lokasiPricing(lokasiMitra.id, at);
 
-    expect(pricing.jenisMakam).toHaveLength(0);
-    expect(pricing.mulaiDari).toBeNull();
+    expect(pricing.jenisMakam).toHaveLength(1);
+    expect(pricing.mulaiDari).toBeGreaterThan(50_000_000);
   });
 
   it("mulaiDari is the lowest Harga Hak Pakai all-in among several Jenis Makam", async () => {

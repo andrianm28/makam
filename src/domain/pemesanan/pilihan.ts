@@ -54,8 +54,8 @@ export interface PilihanSaatDukaQuery {
 /**
  * Every Terverifikasi Lokasi Mitra that still has a Jenis Makam with a cleared
  * Tersedia unit, cheapest all-in total first, filtered by kota. A Jenis Makam
- * with none is left out, and so is one whose all-in total is above the QRIS
- * cap (v1 takes no such order). No actor: this is the wizard's own read.
+ * with none is left out, and so is one whose all-in total is above the largest
+ * Tagihan (`BATAS_TAGIHAN`). No actor: this is the wizard's own read.
  *
  * `kecualiLokasiId` leaves one Lokasi Mitra out of the answer itself rather than
  * of the screen: a family whose order was declined there is sent back to the rest,
@@ -142,7 +142,7 @@ const belumDiisi: WorkingTimeResult = { ok: false, reason: "jam_operasional_belu
  * The all-in total of one Saat Duka card, priced the way its Tagihan will be
  * (Harga Hak Pakai + Biaya Pemakaman + one Biaya Layanan Platform, exactly what
  * `quote()` adds to a Lokasi Mitra order), or null when it cannot be priced
- * now or is above the QRIS cap: a card that shows no total is no card.
+ * now or is above the largest Tagihan (`BATAS_TAGIHAN`): a card that shows no total is no card.
  */
 export async function saatDukaHarga(
   deps: Pick<PemesananDeps, "tariffs">,

@@ -14,7 +14,8 @@ import {
   type reviewReasons,
 } from "./schema";
 import { notPayableBecause, settleIn, type EffectDeps } from "./settlement";
-import { currentHeader, documentLinkSchema, withinPaymentCap, type DocumentHeader } from "./shared";
+import { caraBayar } from "./batas";
+import { currentHeader, documentLinkSchema, type DocumentHeader } from "./shared";
 
 export interface BayarDeps {
   db: Database;
@@ -31,8 +32,11 @@ export type BayarResult =
   | { ok: false; reason: "sudah_lunas"; buktiLink: string }
   /** A Dibatalkan Tagihan (lapsed or replaced), or a pay-first one past its due date, can no longer be paid. */
   | { ok: false; reason: "tagihan_dibatalkan" | "batas_pembayaran_lewat" }
-  /** The Tagihan's total is above the QRIS payment cap (Rp 10.000.000): v1 has no way to pay it. */
-  | { ok: false; reason: "melebihi_batas_qris" }
+  /**
+   * The total is above what the PaymentProvider takes online (ADR 0013): it is
+   * paid by transfer to the Operator's account and recorded by Admin Platform.
+   */
+  | { ok: false; reason: "transfer_manual" }
   /** The PaymentProvider could not be reached or refused: nothing changed, the payer may try again. */
   | { ok: false; reason: "penyedia_gagal" };
 
@@ -64,7 +68,8 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
       return { ok: false, reason: "sudah_lunas", buktiLink: bukti.link };
     }
     if (notPayable) return { ok: false, reason: notPayable };
-    if (!withinPaymentCap(row.total)) return { ok: false, reason: "melebihi_batas_qris" };
+    const cara = caraBayar(row.total, deps.payments.batasVirtualAccount);
+    if (cara === "transfer_manual") return { ok: false, reason: "transfer_manual" };
 
     const [valid] = await tx
       .select({ paymentUrl: providerPayment.paymentUrl })
@@ -85,6 +90,7 @@ export async function bayar(deps: BayarDeps, link: string, now: Date): Promise<B
         reference: row.nomor,
         amountRupiah: row.total,
         description: `Tagihan ${row.nomor} · Makam.co.id`,
+        metode: cara,
         returnUrl: deps.publicDocumentUrl(row.link),
       });
     } catch {

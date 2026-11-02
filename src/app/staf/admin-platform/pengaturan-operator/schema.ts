@@ -23,8 +23,15 @@ export const pengaturanOperatorLimits = {
   email: EMAIL_MAX,
   csWhatsApp: PHONE_NUMBER_MAX,
   csReplyHours: 200,
+  rekeningBank: 100,
+  rekeningNomor: 42,
+  rekeningAtasNama: 200,
   reason: 500,
-} as const satisfies Record<OperatorSettingsField | "reason", number>;
+} as const satisfies Record<OperatorSettingsField | RekeningFormField | "reason", number>;
+
+/** The bank account's three form fields (ADR 0013): optional, all three or none. */
+export const rekeningFormFields = ["rekeningBank", "rekeningNomor", "rekeningAtasNama"] as const;
+export type RekeningFormField = (typeof rekeningFormFields)[number];
 
 const valueSchemas = {
   legalName: z.string().max(pengaturanOperatorLimits.legalName),
@@ -37,6 +44,9 @@ const valueSchemas = {
 
 export const pengaturanOperatorSchema = z.object({
   ...valueSchemas,
+  rekeningBank: z.string().max(pengaturanOperatorLimits.rekeningBank),
+  rekeningNomor: z.string().max(pengaturanOperatorLimits.rekeningNomor),
+  rekeningAtasNama: z.string().max(pengaturanOperatorLimits.rekeningAtasNama),
   reason: z.string().max(pengaturanOperatorLimits.reason),
 });
 

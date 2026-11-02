@@ -646,7 +646,7 @@ export interface PaketSiklusDijedaEmailInput {
 
 /**
  * A Paket Layanan cycle whose Tagihan Billing refused because its total would
- * pass the Rilis 1 QRIS cap (ticket 54). The Paket is paused automatically and
+ * pass the largest Tagihan (`BATAS_TAGIHAN`; ticket 54 paused on the largest Tagihan (`BATAS_TAGIHAN`) until ADR 0013). The Paket is paused automatically and
  * no charge was made; the family is told and asked to contact us so it can
  * continue once a payment route that fits exists.
  */
@@ -657,7 +657,7 @@ export function paketSiklusDijedaEmail(input: PaketSiklusDijedaEmailInput): { su
       "Yth. Bapak/Ibu,",
       "",
       `Siklus langganan paket Anda di ${input.lokasiName} untuk Petak ${input.petakNomor}, yang jatuh pada ${formatTanggal(input.siklus)}, tidak dapat kami terbitkan tagihannya.`,
-      `Total satu siklus melewati batas pembayaran QRIS Rp 10.000.000 per transaksi yang berlaku saat ini, jadi tidak ada tagihan yang dibuat dan tidak ada biaya yang dibebankan.`,
+      `Total satu siklus melewati batas jumlah satu tagihan, jadi tidak ada tagihan yang dibuat dan tidak ada biaya yang dibebankan.`,
       "Langganan paket Anda kami jeda untuk sementara. Hubungi kami agar langganan bisa dilanjutkan kembali.",
       "",
       "Hormat kami,",

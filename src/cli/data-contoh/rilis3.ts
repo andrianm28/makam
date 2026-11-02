@@ -114,7 +114,7 @@ export interface AturanRilis2 {
  * The Rilis 2 rules on two Lokasi (Contoh) with a Hak Pakai berjangka, so Perpanjangan, the masa tenggang and the Ganti
  * Pemegang Hak by sale have a Lokasi that allows them; the other three Lokasi (Contoh) keep the defaults (sale forbidden), so a
  * refused sale can be tried too. Perpanjangan Makam Taman at the first, three terms, is Rp 9.000.000: with the contoh Biaya
- * Layanan Platform it stays under the Rp 10.000.000 QRIS cap.
+ * Layanan Platform it stays under the largest Tagihan (`BATAS_TAGIHAN`).
  */
 export const ATURAN_RILIS2_DATA_CONTOH: AturanRilis2[] = [
   { lokasi: "Taman Makam Firdaus", masaTenggangMonths: 3, maxPerpanjanganTerms: 3, gantiPemegangHakFee: 500_000, saleTransfersAllowed: true },

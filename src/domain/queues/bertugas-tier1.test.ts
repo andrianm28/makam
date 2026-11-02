@@ -492,7 +492,7 @@ describe("Tier 1 alerts", () => {
     await setup.notifications.enablePush(admin, { subscription: browserPushSubscription() });
     const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
     if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
-    const payment = await setup.payments.createPayment({ reference: "referensi-tak-dikenal", amountRupiah: 500_000, description: "Pembayaran QRIS" });
+    const payment = await setup.payments.createPayment({ metode: "qris", reference: "referensi-tak-dikenal", amountRupiah: 500_000, description: "Pembayaran QRIS" });
     await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
 
     const rows = await setup.queues.antrean(admin);

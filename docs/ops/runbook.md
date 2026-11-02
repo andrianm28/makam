@@ -93,8 +93,9 @@ to run unless the first three match `--env`:
 | `SMTP_HOST`, `SMTP_PORT` | `smtp.sumopod.com`, `465` (the defaults) | the EmailSender's SumoPod SMTP relay: implicit TLS, certificate verified (ticket 68) |
 | `SMTP_USER`, `SMTP_PASSWORD` | secret (v1's own SumoPod SMTP credentials, ticket 04) | relay login; **required from ticket 68 on**: without them (and `EMAIL_FROM`) `migrate`, `web` and `worker` refuse to start |
 | `EMAIL_FROM`, `EMAIL_FROM_NAME` | `no-reply@makam.co.id`, `Makam.co.id` (the default name) | sender of every email; Message-IDs are on its domain |
-| `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret (SumoPod's **sandbox** project key and Svix secret in staging for the v1 beta; ticket 04) | the live PaymentProvider (QRIS, ticket 61); **required from ticket 61 on**: without them `migrate`, `web` and `worker` refuse to start |
+| `SUMOPOD_API_KEY`, `SUMOPOD_WEBHOOK_SECRET` | secret (SumoPod's **sandbox** project key and Svix secret in staging for the v1 beta; ticket 04) | the live PaymentProvider (QRIS, and Virtual Account up to `SUMOPOD_BATAS_VA`; ticket 61, ADR 0013); **required from ticket 61 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `SUMOPOD_BASE_URL` | unset (defaults to the sandbox host in staging, the live host in production) | override of the Managed Payment API host. **Production on the sandbox** until the live merchant account exists: `https://api-pay-sandbox.sumopod.com` (ticket 101; see "Production on SumoPod's sandbox" below). Remove it when the live keys are installed |
+| `SUMOPOD_BATAS_VA` | unset (Virtual Account off) | the largest Tagihan paid by **Virtual Account**, in whole rupiah (ADR 0013). Above Rp 10.000.000 and up to this, Bayar opens SumoPod's checkout for a VA; above it, the Tagihan shows the Operator's bank account (Pengaturan Operator) for a manual transfer. Set it only after a sandbox VA payment of that size went through (see "Virtual Account check" below) |
 | `FILES_ROOT` | not set (defaults to `/data/files`, the `files` volume's mount point) | where the live FileStore (ticket 60) reads and writes; only set it to something else if the volume is ever mounted elsewhere |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
@@ -271,8 +272,7 @@ drift apart, and a hand-written `"["parkir","musala"]"` fails the build.
 npm run import:katalog-lama -- --sumber ~/katalog-lama.json
 # [import-katalog-lama] Mode dry-run: tidak ada yang ditulis.
 # Lokasi: 3 dibaca, 3 akan diimpor, 1 ditolak.
-# Di luar cap QRIS Rp 10.000.000, tetap diimpor tapi tidak ditampilkan (1):
-#   - TPU-BT-01-DLX: Rp 12.750.000
+# Di luar batas Tagihan Rp 100.000.000.000, tetap diimpor tapi tidak ditampilkan (0):
 # Data contoh di aplikasi lama (2 Lokasi): TPU-BT-01 (alamat diawali "Jl. Contoh") ...
 # Ditolak (1):
 #   - TPU-CMG-03-PKG [jenis_makam]: harga_belum_dapat_dimasukkan (hanya rentang indikatif ...)
@@ -356,10 +356,11 @@ On staging the reason is `impor katalog aplikasi lama (staging,
 - **Ditolak `pengelola_kosong`** — the source names nobody to run that cemetery,
   and v1 will not invent a name for a field a person reads. Fill `pengelola` in
   the export and run it again; nothing else is written for that row.
-- **Di luar cap QRIS** — a Jenis Makam whose all-in total (Harga Hak Pakai plus
-  the Lokasi's Biaya Pemakaman) passes Rp 10.000.000. It is imported and kept;
-  the public pricing leaves it out, so no order can be taken for it (spec,
-  decision 2026-09-26).
+- **Di luar batas Tagihan** — a Jenis Makam whose all-in total (Harga Hak Pakai
+  plus the Lokasi's Biaya Pemakaman) passes Rp 100.000.000.000, the largest
+  Tagihan. It is imported and kept; the public pricing leaves it out. (Until
+  ADR 0013 this was the Rp 10.000.000 QRIS cap; a total above that is now paid
+  by Virtual Account or manual transfer.)
 - **All imported Lokasi Mitra stay Belum Tayang.** Publishing one needs a
   Kunjungan Verifikasi, an agreement, a Jam Operasional and "tarif diperiksa",
   none of which the old app has: listing them is the owner's decision, not the
@@ -2047,6 +2048,23 @@ SPF passes for SumoPod's own bounce domain (return-path), so DMARC alignment com
 from DKIM. Images built before ticket 68 have no `dist/email-check.mjs`; build it
 (`npm run build:worker`) and `docker cp` it into the container's `/tmp`, as for
 `sentry-check`.
+
+## Virtual Account check (ADR 0013)
+
+SumoPod publishes no Virtual Account limit, so `SUMOPOD_BATAS_VA` stays unset
+(every Tagihan above Rp 10.000.000 is then a manual transfer) until a sandbox
+VA payment has gone through:
+
+1. In the SumoPod dashboard (sandbox), check that at least one Virtual Account
+   bank is enabled under "Supported Payment Methods" for the v1 project.
+2. On staging, set `SUMOPOD_BATAS_VA` to the amount to test (e.g.
+   `200000000`), `makam-deploy --env staging --force`.
+3. Issue a Tagihan above Rp 10.000.000 (e.g. a Data Contoh Kavling), press
+   Bayar, choose a VA bank on SumoPod's page, and pay it with the sandbox
+   simulator. The Tagihan must turn Lunas and its Bukti say "Virtual Account".
+4. If SumoPod refuses the amount, lower `SUMOPOD_BATAS_VA` and repeat; keep the
+   highest amount that went through. Production takes the same value once its
+   live keys are in.
 
 ## Test payment (SumoPod sandbox, webhook resend runbook)
 

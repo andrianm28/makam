@@ -82,7 +82,7 @@ export type KonfirmasiSaatDukaTpuResult =
   | { ok: false; reason: "bukan_petugas_lapangan" }
   /** Neither the Pemesan nor the Pemegang Hak left a number the Tagihan can be addressed to. */
   | { ok: false; reason: "kontak_pemesan_kosong" }
-  /** The TPU price can no longer be quoted, or its total is above the QRIS cap. */
+  /** The TPU price can no longer be quoted, or its total is above the largest Tagihan (`BATAS_TAGIHAN`). */
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** A Tagihan could not be issued (no Pengaturan Operator, a total past a cap): nothing at all is written. */
   | { ok: false; reason: "tagihan_tidak_terbit" };

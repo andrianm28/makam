@@ -184,7 +184,7 @@ export async function penawaranLayananPerpanjangan(deps: PerpanjanganDeps, hakPa
 export type TawaranResult =
   | { ok: true; endDate: string; opsi: OpsiMasa[] }
   | { ok: false; reason: "tidak_boleh"; catatan: CatatanPerpanjangan }
-  /** Nothing can be priced (no Perpanjangan price entered) or even one term passes the QRIS cap: the family is pointed to CS. */
+  /** Nothing can be priced (no Perpanjangan price entered) or even one term passes the largest Tagihan (`BATAS_TAGIHAN`): the family is pointed to CS. */
   | { ok: false; reason: "harga_tidak_tersedia" };
 
 /** Every choice of 1..K terms with its all-in price (Perpanjangan price x terms plus Biaya Layanan Platform, from `quote()`), within the payment cap. */
@@ -241,8 +241,8 @@ export type AjukanResult =
   | { ok: false; reason: "terms_melebihi_batas"; maxTerms: number }
   /** An earlier Perpanjangan of this Hak Pakai still waits for its money; its Tagihan is never changed, only paid or lapsed. */
   | { ok: false; reason: "tagihan_terbuka"; tagihanTerbuka: TagihanTerbuka }
-  /** The Tagihan would pass the QRIS cap: v1 takes no such order, the family is pointed to CS. */
-  | { ok: false; reason: "melebihi_batas_qris" };
+  /** The Tagihan would pass the largest Tagihan (`BATAS_TAGIHAN`): v1 takes no such order, the family is pointed to CS. */
+  | { ok: false; reason: "melebihi_batas_tagihan" };
 
 /**
  * Orders a Perpanjangan of `terms` terms: issues the pay-first Tagihan (due
@@ -320,7 +320,7 @@ export async function pesanTagihan(
   const hasil = await refusable<
     | { ok: true; id: string; tagihan: Tagihan; layananNomor: string | null }
     | { ok: false; reason: "tagihan_terbuka"; tagihanTerbuka: TagihanTerbuka }
-    | { ok: false; reason: "melebihi_batas_qris" | "tagihan_tidak_terbit" }
+    | { ok: false; reason: "melebihi_batas_tagihan" | "tagihan_tidak_terbit" }
   >(deps.db, async (tx) => {
     // One order of this Hak Pakai at a time: the lock makes two clicks queue instead of both passing the check below.
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`perpanjangan.${hak.id}`}))`);
@@ -408,8 +408,8 @@ export async function pesanTagihan(
   };
 }
 
-function issueRefusal(refusal: IssueRefusal): "melebihi_batas_qris" | "tagihan_tidak_terbit" {
-  return refusal.reason === "melebihi_batas_qris" ? "melebihi_batas_qris" : "tagihan_tidak_terbit";
+function issueRefusal(refusal: IssueRefusal): "melebihi_batas_tagihan" | "tagihan_tidak_terbit" {
+  return refusal.reason === "jumlah_terlalu_besar" ? "melebihi_batas_tagihan" : "tagihan_tidak_terbit";
 }
 
 /** The quoted lines as Tagihan lines: the Perpanjangan tariff (the Lokasi Mitra's) and the Biaya Layanan Platform (the Operator's). */

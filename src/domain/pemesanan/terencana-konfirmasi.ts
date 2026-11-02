@@ -67,8 +67,8 @@ export type KonfirmasiTerencanaResult =
   | { ok: false; reason: "pesanan_sudah_ditutup" }
   /** A chosen Jenis Makam can no longer be priced. */
   | { ok: false; reason: "harga_tidak_tersedia" }
-  /** The total is past the Rp 10.000.000 QRIS cap v1 takes. */
-  | { ok: false; reason: "melebihi_batas_qris"; total: number }
+  /** The total is past the largest Tagihan (`BATAS_TAGIHAN`). */
+  | { ok: false; reason: "melebihi_batas_tagihan"; total: number }
   /** The Lokasi Mitra is not there any more, so its hold policy cannot be read. */
   | { ok: false; reason: "lokasi_tidak_terbuka" }
   /** A Tagihan could not be issued (no Pengaturan Operator, a total past a cap): nothing at all is written. */
@@ -129,7 +129,7 @@ export async function konfirmasiTerencana(deps: PemesananDeps, by: Actor, rawInp
     now,
   );
   if (!harga.ok) return { ok: false, reason: "harga_tidak_tersedia" };
-  if (!withinPaymentCap(harga.total)) return { ok: false, reason: "melebihi_batas_qris", total: harga.total };
+  if (!withinPaymentCap(harga.total)) return { ok: false, reason: "melebihi_batas_tagihan", total: harga.total };
   const baris = hariHBaris(deps, harga, layananSiap, order);
   if (!baris.ok) return { ok: false, reason: "tagihan_tidak_terbit" };
   // One Harga Hak Pakai line per plot, in the order the plots were picked; the Biaya Layanan Platform line follows them.

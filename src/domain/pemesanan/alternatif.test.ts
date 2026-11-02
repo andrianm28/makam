@@ -157,12 +157,12 @@ describe("the alternative a Lokasi Mitra offers on a Saat Duka order", () => {
     await setup.pemesanan.tawarkanAlternatif(fixture.adminLokasi, { nomor: fixture.nomor, jenisMakamId: fixture.khana.id, pemakamanAt: "" });
 
     // The offered Jenis Makam's price goes up the next morning until its all-in
-    // total passes the QRIS cap, so `quote()` no longer answers for it: what was
+    // total passes the largest Tagihan, so it no longer has a price: what was
     // on the table an hour ago can no longer be priced.
     setup.clock.set(wib("2026-10-02 08:00"));
     const naik = await setup.tariffs.setJenisMakamTariff(fixture.admin, fixture.khana.id, {
       ...jenisMakamInput().tariff,
-      hargaHakPakai: 9_000_000,
+      hargaHakPakai: 100_000_000_000,
       effectiveOn: "2026-10-02",
       reason: "Kenaikan tarif October",
     });
@@ -171,7 +171,7 @@ describe("the alternative a Lokasi Mitra offers on a Saat Duka order", () => {
     const order = await setup.pemesanan.orderOf(fixture.nomor, fixture.pemesan);
     // No total is not a total of zero: to a family burying someone, zero reads as
     // a free plot, and the screen would then offer a one tap that is refused.
-    expect(order?.alternatif).toMatchObject({ jenisMakam: { id: fixture.khana.id }, total: null, lines: [] });
+    expect(order?.alternatif).toMatchObject({ total: null, lines: [] });
     expect(order?.alternatif?.total).not.toBe(0);
     // The one tap is refused for the same reason the screen must not show a number.
     expect(await setup.pemesanan.terimaAlternatif(fixture.pemesan, { nomor: fixture.nomor })).toEqual({

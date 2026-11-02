@@ -86,7 +86,7 @@ export type PlaceSaatDukaTpuResult =
   | { ok: false; reason: "berkas_tidak_didukung" }
   /** The private FileStore refused to keep the IPTM photo. */
   | { ok: false; reason: "berkas_gagal_disimpan" }
-  /** The TPU price cannot be quoted now, or its total is above the QRIS cap. */
+  /** The TPU price cannot be quoted now, or its total is above the largest Tagihan (`BATAS_TAGIHAN`). */
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** The Pemesan's name is missing. */
   | { ok: false; reason: "pemesan_kosong" }

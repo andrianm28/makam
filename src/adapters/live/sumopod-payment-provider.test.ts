@@ -68,11 +68,12 @@ function respondCreated(service: StandInSumopod, overrides: Record<string, unkno
   };
 }
 
-function adapterFor(service: StandInSumopod, options: { webhookSecret?: string } = {}) {
+function adapterFor(service: StandInSumopod, options: { webhookSecret?: string; batasVirtualAccount?: number } = {}) {
   return new SumopodPaymentProvider({
     apiKey: API_KEY,
     webhookSecret: options.webhookSecret ?? WEBHOOK_SECRET,
     baseUrl: service.origin,
+    batasVirtualAccount: options.batasVirtualAccount,
   });
 }
 
@@ -88,6 +89,7 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     respondCreated(service);
 
     const created = await adapterFor(service).createPayment({
+      metode: "qris",
       reference: "TGH/2026/000001",
       amountRupiah: 150_000,
       description: "Tagihan TGH/2026/000001 · Makam.co.id",
@@ -115,12 +117,36 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     expect((request.body as { order_id: string }).order_id).toMatch(/^TGH-2026-000001-[0-9a-f]{8}$/);
   });
 
+  it("leaves a Virtual Account payment's method to SumoPod's hosted checkout (no QRIS code sent)", async () => {
+    respondCreated(service);
+
+    await adapterFor(service, { batasVirtualAccount: 500_000_000 }).createPayment({
+      metode: "virtual_account",
+      reference: "TGH/2026/000003",
+      amountRupiah: 109_700_000,
+      description: "x",
+    });
+
+    expect(service.requests).toHaveLength(1);
+    expect(service.requests[0].body).toMatchObject({ amount: 109_700_000, currency: "IDR" });
+    expect(service.requests[0].body).not.toHaveProperty("payment_method_type_code");
+  });
+
+  it("refuses a Virtual Account payment above its limit (Virtual Account off by default) without calling SumoPod", async () => {
+    respondCreated(service);
+
+    await expect(
+      adapterFor(service).createPayment({ metode: "virtual_account", reference: "TGH-1", amountRupiah: 20_000_000, description: "x" }),
+    ).rejects.toThrow(/Virtual Account limit/);
+    expect(service.requests).toEqual([]);
+  });
+
   it("gives every created payment a different order_id, even for the same Tagihan (re-created after expiry)", async () => {
     respondCreated(service);
     const adapter = adapterFor(service);
 
-    await adapter.createPayment({ reference: "TGH/2026/000002", amountRupiah: 1_000, description: "x" });
-    await adapter.createPayment({ reference: "TGH/2026/000002", amountRupiah: 1_000, description: "x" });
+    await adapter.createPayment({ metode: "qris", reference: "TGH/2026/000002", amountRupiah: 1_000, description: "x" });
+    await adapter.createPayment({ metode: "qris", reference: "TGH/2026/000002", amountRupiah: 1_000, description: "x" });
 
     const orderIds = service.requests.map((request) => (request.body as { order_id: string }).order_id);
     expect(new Set(orderIds).size).toBe(2);
@@ -130,7 +156,7 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     respondCreated(service);
 
     await expect(
-      adapterFor(service).createPayment({ reference: "TGH-1", amountRupiah: 1_000.5, description: "x" }),
+      adapterFor(service).createPayment({ metode: "qris", reference: "TGH-1", amountRupiah: 1_000.5, description: "x" }),
     ).rejects.toThrow(/whole-rupiah/);
     expect(service.requests).toEqual([]);
   });
@@ -140,7 +166,7 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     service.nextBody = { message: "unauthorized", api_key: API_KEY };
 
     const failure: unknown = await adapterFor(service)
-      .createPayment({ reference: "TGH-1", amountRupiah: 1_000, description: "x" })
+      .createPayment({ metode: "qris", reference: "TGH-1", amountRupiah: 1_000, description: "x" })
       .catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(Error);
@@ -153,7 +179,7 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     service.nextBody = { ok: true };
 
     await expect(
-      adapterFor(service).createPayment({ reference: "TGH-1", amountRupiah: 1_000, description: "x" }),
+      adapterFor(service).createPayment({ metode: "qris", reference: "TGH-1", amountRupiah: 1_000, description: "x" }),
     ).rejects.toThrow(/unexpected shape/);
   });
 });

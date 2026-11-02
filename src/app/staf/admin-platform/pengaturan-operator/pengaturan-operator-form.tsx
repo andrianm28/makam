@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form";
 import { FieldError } from "@/components/makam/form-section";
 import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
-import type { OperatorSettingsEntry } from "@/domain/operator-settings";
 import { operatorSettingsFieldLabels } from "@/lib/operator-settings-labels";
 import { ServerResult, idleFormState } from "../../form-feedback";
 import { useResetAfterSubmit } from "../../form-reset";
@@ -17,10 +16,16 @@ const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /** The reason is this form's own field, not one of the Operator's values. */
-const fieldLabels = { ...operatorSettingsFieldLabels, reason: "Alasan perubahan (opsional)" };
+const fieldLabels = {
+  ...operatorSettingsFieldLabels,
+  rekeningBank: "Nama bank",
+  rekeningNomor: "Nomor rekening",
+  rekeningAtasNama: "Atas nama",
+  reason: "Alasan perubahan (opsional)",
+};
 
 /** `values`: what the form starts with, those in force or empty before the first entry. */
-export function PengaturanOperatorForm({ values }: { values: OperatorSettingsEntry }) {
+export function PengaturanOperatorForm({ values }: { values: Omit<PengaturanOperatorInput, "reason"> }) {
   const errorPrefix = useId();
   const [state, submit, pending] = useActionState(simpanPengaturanOperator, idleFormState);
   const {
@@ -110,6 +115,35 @@ export function PengaturanOperatorForm({ values }: { values: OperatorSettingsEnt
           <FieldError id={errorId("csReplyHours")} message={errors.csReplyHours?.message} />
         </label>
       </div>
+      <fieldset className="flex flex-col gap-3 rounded-lg border border-input p-3">
+        <legend className="px-1 text-sm font-medium">Rekening transfer (opsional)</legend>
+        <p className="text-sm text-muted-foreground">
+          Ditampilkan di Tagihan yang dibayar lewat transfer karena nominalnya di atas batas QRIS dan Virtual Account. Isi
+          ketiganya, atau kosongkan ketiganya.
+        </p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            {fieldLabels.rekeningBank}
+            <input {...field("rekeningBank")} maxLength={pengaturanOperatorLimits.rekeningBank} className={inputClass} />
+            <FieldError id={errorId("rekeningBank")} message={errors.rekeningBank?.message} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            {fieldLabels.rekeningNomor}
+            <input
+              {...field("rekeningNomor")}
+              inputMode="numeric"
+              maxLength={pengaturanOperatorLimits.rekeningNomor}
+              className={inputClass}
+            />
+            <FieldError id={errorId("rekeningNomor")} message={errors.rekeningNomor?.message} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium">
+            {fieldLabels.rekeningAtasNama}
+            <input {...field("rekeningAtasNama")} maxLength={pengaturanOperatorLimits.rekeningAtasNama} className={inputClass} />
+            <FieldError id={errorId("rekeningAtasNama")} message={errors.rekeningAtasNama?.message} />
+          </label>
+        </div>
+      </fieldset>
       <label className="flex flex-col gap-1 text-sm font-medium">
         {fieldLabels.reason}
         <input {...field("reason")} maxLength={pengaturanOperatorLimits.reason} className={inputClass} />

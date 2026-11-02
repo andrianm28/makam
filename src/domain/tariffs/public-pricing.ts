@@ -1,7 +1,7 @@
 /**
  * Every price a Lokasi Mitra's public page or Daftar Lokasi card shows,
  * selected under the v1 rules (spec, decision 2026-09-26): a Jenis Makam
- * whose Harga Hak Pakai all-in total exceeds the Rp 10.000.000 QRIS cap is
+ * whose Harga Hak Pakai all-in total exceeds the largest Tagihan (`BATAS_TAGIHAN`) is
  * hidden entirely (v1 takes no such order), each remaining price is the same
  * all-in total `quote()` gives for that line at the same instant, and a
  * Perpanjangan price only shows for a fixed-term Jenis Makam that has one.
@@ -39,7 +39,7 @@ export interface JenisMakamCard {
 }
 
 export interface LokasiPublicPricing {
-  /** Every Jenis Makam priced and within the QRIS cap: one over it is left out entirely. */
+  /** Every Jenis Makam priced and within the largest Tagihan (`BATAS_TAGIHAN`): one over it is left out entirely. */
   jenisMakam: JenisMakamCard[];
   biayaPemakaman: AllInPrice | null;
   biayaPemakamanTumpang: AllInPrice | null;

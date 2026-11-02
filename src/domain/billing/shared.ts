@@ -54,9 +54,9 @@ export function momentOf(column: unknown): StoredMoment {
   return storedMomentSchema.parse(column) as StoredMoment;
 }
 
-// The payment cap and its one test live in ./batas, which a client component may
+// The payment rules (ADR 0013) live in ./batas, which a client component may
 // import; they are the same rule, re-exported here where Billing keeps the rest.
-export { QRIS_PAYMENT_CAP, withinPaymentCap } from "./batas";
+export { BATAS_TAGIHAN, caraBayar, caraBayarKinds, QRIS_PAYMENT_CAP, withinPaymentCap, type CaraBayar } from "./batas";
 
 /**
  * The Operator's header values now in force, read before an issuing

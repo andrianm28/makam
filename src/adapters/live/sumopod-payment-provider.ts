@@ -28,6 +28,12 @@ export interface SumopodPaymentProviderOptions {
   webhookSecret: string;
   /** `SUMOPOD_SANDBOX_BASE_URL` or `SUMOPOD_LIVE_BASE_URL`, or a test's local stub. */
   baseUrl: string;
+  /**
+   * The largest amount SumoPod takes by Virtual Account for this project
+   * (`SUMOPOD_BATAS_VA`): 0 or unset means Virtual Account is off. SumoPod
+   * publishes no limit, so the owner sets it after checking the sandbox.
+   */
+  batasVirtualAccount?: number;
   /** Tests only: a `fetch`-compatible function pointed at a local stub instead of the real API. */
   fetchImpl?: typeof fetch;
 }
@@ -78,13 +84,14 @@ const EVENT_KIND: Record<"payment.completed" | "payment.failed" | "payment.expir
 };
 
 /**
- * The live PaymentProvider: SumoPod's Managed Payment API. QRIS only in v1
- * (no Virtual Account); no payout, refund or status-lookup endpoint exists in
+ * The live PaymentProvider: SumoPod's Managed Payment API. QRIS up to Bank
+ * Indonesia's cap, Virtual Account above it (ADR 0013); no payout, refund or status-lookup endpoint exists in
  * the public API, so the webhook is the only source of truth. SumoPod has no
  * public docs site — see ticket 61's 2026-09-26 research comment for every
  * fact this adapter relies on (endpoints, field names, the Svix scheme).
  */
 export class SumopodPaymentProvider implements PaymentProvider {
+  readonly batasVirtualAccount: number;
   readonly #apiKey: string;
   readonly #webhookSecret: string;
   readonly #baseUrl: string;
@@ -95,12 +102,16 @@ export class SumopodPaymentProvider implements PaymentProvider {
     this.#webhookSecret = options.webhookSecret;
     this.#baseUrl = options.baseUrl.replace(/\/+$/, "");
     this.#fetch = options.fetchImpl ?? fetch;
+    this.batasVirtualAccount = options.batasVirtualAccount ?? 0;
   }
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatedPayment> {
     if (!Number.isInteger(request.amountRupiah)) {
       // The old app rounded fractional amounts instead of refusing them (ticket 61's lessons); refuse instead.
       throw new Error("SumoPod requires a whole-rupiah amount");
+    }
+    if (request.metode === "virtual_account" && request.amountRupiah > this.batasVirtualAccount) {
+      throw new Error("Amount is above this project's Virtual Account limit");
     }
     const response = await this.#fetch(`${this.#baseUrl}/api/v1/payments`, {
       method: "POST",
@@ -110,8 +121,9 @@ export class SumopodPaymentProvider implements PaymentProvider {
         amount: request.amountRupiah,
         currency: "IDR",
         expires_in_hours: EXPIRES_IN_HOURS,
-        // v1 takes QRIS only (Bank Indonesia's Rp 10 juta cap; no Virtual Account, decided 2026-09-26).
-        payment_method_type_code: "QRIS",
+        // QRIS is named; a Virtual Account is left to SumoPod's hosted checkout, which offers the
+        // banks enabled on the project (their method codes live only in SumoPod's dashboard).
+        ...(request.metode === "qris" ? { payment_method_type_code: "QRIS" } : {}),
         ...(request.returnUrl ? { success_return_url: request.returnUrl, cancel_return_url: request.returnUrl } : {}),
       }),
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { base64urlBytes } from "./base64url";
+import { RUPIAH_MAX } from "./rupiah";
 
 /**
  * Where the app is running. It decides which adapters the composition root
@@ -199,6 +200,13 @@ const sumopodEnvShape = {
    * this at all for the switch to live keys.
    */
   SUMOPOD_BASE_URL: z.preprocess(emptyToUndefined, z.url({ protocol: /^https$/ }).optional()),
+  /**
+   * The largest Tagihan paid by Virtual Account, in whole rupiah (ADR 0013).
+   * SumoPod publishes no limit, so the owner sets it after checking the
+   * project's VA in the sandbox. Unset or 0: Virtual Account is off and every
+   * Tagihan above the QRIS cap is paid by manual transfer.
+   */
+  SUMOPOD_BATAS_VA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(0).max(RUPIAH_MAX).optional()),
 };
 
 const SUMOPOD_REQUIRED = ["SUMOPOD_API_KEY", "SUMOPOD_WEBHOOK_SECRET"] as const;
@@ -208,6 +216,8 @@ export interface SumopodSettings {
   apiKey: string;
   webhookSecret: string;
   baseUrl: string;
+  /** `SUMOPOD_BATAS_VA`; 0 when unset (Virtual Account off). */
+  batasVirtualAccount: number;
 }
 
 interface SumopodEnvFields {
@@ -215,6 +225,7 @@ interface SumopodEnvFields {
   SUMOPOD_API_KEY?: string;
   SUMOPOD_WEBHOOK_SECRET?: string;
   SUMOPOD_BASE_URL?: string;
+  SUMOPOD_BATAS_VA?: number;
 }
 
 function requireSumopodOutsideFakes(env: SumopodEnvFields, ctx: z.RefinementCtx) {
@@ -226,13 +237,14 @@ function requireSumopodOutsideFakes(env: SumopodEnvFields, ctx: z.RefinementCtx)
 
 /** Folds the SUMOPOD_* variables into one `sumopod` value; undefined unless the key and secret are both set. */
 function withSumopodSettings<E extends SumopodEnvFields>(env: E) {
-  const { SUMOPOD_API_KEY, SUMOPOD_WEBHOOK_SECRET, SUMOPOD_BASE_URL, ...rest } = env;
+  const { SUMOPOD_API_KEY, SUMOPOD_WEBHOOK_SECRET, SUMOPOD_BASE_URL, SUMOPOD_BATAS_VA, ...rest } = env;
   const sumopod: SumopodSettings | undefined =
     SUMOPOD_API_KEY && SUMOPOD_WEBHOOK_SECRET
       ? {
           apiKey: SUMOPOD_API_KEY,
           webhookSecret: SUMOPOD_WEBHOOK_SECRET,
           baseUrl: SUMOPOD_BASE_URL ?? (env.APP_ENV === "production" ? SUMOPOD_LIVE_BASE_URL : SUMOPOD_SANDBOX_BASE_URL),
+          batasVirtualAccount: SUMOPOD_BATAS_VA ?? 0,
         }
       : undefined;
   return { ...rest, sumopod };

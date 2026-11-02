@@ -13,9 +13,12 @@ export default async function PengaturanOperatorPage() {
   const actor = await staffMenuActor("admin_platform");
   if (!authorize(actor, "pengaturan_operator.lihat", pengaturanOperatorResource()).allowed) redirect("/staf");
   const current = await serverRuntime().operatorSettings.current();
-  const formValues = Object.fromEntries(
-    operatorSettingsFields.map((field) => [field, current?.[field] ?? ""]),
-  ) as OperatorSettingsEntry;
+  const formValues = {
+    ...(Object.fromEntries(operatorSettingsFields.map((field) => [field, current?.[field] ?? ""])) as OperatorSettingsEntry),
+    rekeningBank: current?.rekening?.bank ?? "",
+    rekeningNomor: current?.rekening?.nomor ?? "",
+    rekeningAtasNama: current?.rekening?.atasNama ?? "",
+  };
 
   return (
     <>
@@ -40,6 +43,12 @@ export default async function PengaturanOperatorPage() {
               <dd>{current.csWhatsApp}</dd>
               <dt className="text-muted-foreground">Jam balas CS</dt>
               <dd>{current.csReplyHours}</dd>
+              <dt className="text-muted-foreground">Rekening transfer</dt>
+              <dd>
+                {current.rekening
+                  ? `${current.rekening.bank} ${current.rekening.nomor} a.n. ${current.rekening.atasNama}`
+                  : "Belum diisi"}
+              </dd>
               <dt className="text-muted-foreground">Berlaku sejak</dt>
               <dd>{formatWib(current.inForceFrom)} WIB</dd>
             </dl>

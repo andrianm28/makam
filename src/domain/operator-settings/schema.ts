@@ -21,6 +21,13 @@ export const operatorSettingsVersion = pgTable(
     /** The CS number for wa.me links: canonical E.164 (+62). */
     csWhatsApp: text("cs_whatsapp").notNull(),
     csReplyHours: text("cs_reply_hours").notNull(),
+    /**
+     * The Operator's bank account a Tagihan above what the PaymentProvider takes
+     * online is transferred to (ADR 0013): all three set, or all null.
+     */
+    rekeningBank: text("rekening_bank"),
+    rekeningNomor: text("rekening_nomor"),
+    rekeningAtasNama: text("rekening_atas_nama"),
     /** The Admin Platform's Akun. Not a foreign key, like the Audit Log. */
     changedByAccountId: text("changed_by_account_id").notNull(),
   },

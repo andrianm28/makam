@@ -110,11 +110,19 @@ describe("the Saat Duka list of Lokasi Mitra × Jenis Makam", () => {
     expect(kartuAwal([], "lokasi-murah")).toBeNull();
   });
 
-  it("hides a Jenis Makam whose all-in total would pass the QRIS cap, because v1 takes no such order", async () => {
+  it("lists a Jenis Makam whose all-in total passes the QRIS cap: it is paid by Virtual Account or transfer (ADR 0013)", async () => {
     const setup = pemesananOnTestDatabase(db);
     await terverifikasiLokasi(setup, { name: "Makam Mewah", hargaHakPakai: 9_950_000 });
 
     // 9.950.000 + 2.000.000 + 150.000 is above Rp 10.000.000.
+    const [grup] = await setup.pemesanan.pilihanSaatDuka();
+    expect(grup.lokasi.name).toBe("Makam Mewah");
+  });
+
+  it("hides a Jenis Makam whose all-in total would pass the largest Tagihan", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    await terverifikasiLokasi(setup, { name: "Makam Mewah", hargaHakPakai: 100_000_000_000 });
+
     expect(await setup.pemesanan.pilihanSaatDuka()).toEqual([]);
   });
 
