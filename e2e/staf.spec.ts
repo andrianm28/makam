@@ -116,14 +116,16 @@ test("the pin map asks for its tiles with the site's origin as Referer, though e
     await route.fulfill({ response, headers: { ...response.headers(), "referrer-policy": "no-referrer" } });
   });
 
-  await page.goto("/staf/admin-platform/tugas-lapangan");
-  const map = page.getByRole("region", { name: "Peta pin Lokasi" });
-  await expect(map.locator("img.leaflet-tile").first()).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-  await expect.poll(() => referers.length).toBeGreaterThan(0);
-  const origin = new URL(page.url()).origin;
-  expect(referers.every((referer) => referer === `${origin}/`)).toBe(true);
-
-  await page.unrouteAll();
+  try {
+    await page.goto("/staf/admin-platform/tugas-lapangan");
+    const map = page.getByRole("region", { name: "Peta pin Lokasi" });
+    await expect(map.locator("img.leaflet-tile").first()).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+    await expect.poll(() => referers.length).toBeGreaterThan(0);
+    const origin = new URL(page.url()).origin;
+    expect(referers.every((referer) => referer === `${origin}/`)).toBe(true);
+  } finally {
+    await page.unrouteAll();
+  }
 });
 
 test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the Undangan Staf goes out by email", async ({
