@@ -223,8 +223,11 @@ export async function publicTpuDkiCities(deps: { db: Database }): Promise<string
  * Lokasi Mitra and of the DKI TPUs together, by name, each once. One list for
  * both kinds, so the filter offers what it can actually return.
  */
-export async function publicLokasiMakamCities(deps: { db: Database }): Promise<string[]> {
-  const [lokasiMitra, tpu] = await Promise.all([publicLokasiMitraCities(deps), publicTpuDkiCities(deps)]);
+export async function publicLokasiMakamCities(deps: { db: Database }, query: { kind?: LokasiMakamKind } = {}): Promise<string[]> {
+  const [lokasiMitra, tpu] = await Promise.all([
+    !query.kind || query.kind === "lokasi_mitra" ? publicLokasiMitraCities(deps) : Promise.resolve([]),
+    !query.kind || query.kind === "tpu" ? publicTpuDkiCities(deps) : Promise.resolve([]),
+  ]);
   return [...new Set([...lokasiMitra, ...tpu])].sort((a, b) => a.localeCompare(b, "id"));
 }
 

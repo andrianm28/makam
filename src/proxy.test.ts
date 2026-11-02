@@ -15,21 +15,33 @@ describe("Release gate in the proxy (ADR 0006)", () => {
 
   it("at Rilis 1 a public or Akun Saya page of a closed feature shows Segera hadir at the same URL", async () => {
     vi.stubEnv("RILIS_TERBUKA", "1");
-    for (const path of ["/wakaf-tanah", "/akun/wakaf", "/tpu/t1", "/pengurusan-tpu", "/perpanjangan/abc/berkas"]) {
+    for (const path of ["/wakaf-tanah", "/akun/wakaf", "/perpanjangan/abc/berkas"]) {
       const response = await at(path);
       expect(response?.headers.get("x-middleware-rewrite"), path).toContain("/segera-hadir");
     }
-    expect((await proxy(new NextRequest("http://localhost:3000/lokasi?jenis=tpu")))?.headers.get("x-middleware-rewrite")).toContain("/segera-hadir");
   });
 
-  it("Rilis 1 pages pass through at Rilis 1, and everything passes at Rilis 3", async () => {
+  it("a public page of DKI TPU, taken out of the product (ADR 0010), answers 404 at every release an environment opens", async () => {
+    for (const rilis of ["1", "3"]) {
+      vi.stubEnv("RILIS_TERBUKA", rilis);
+      for (const path of ["/tpu/t1", "/pengurusan-tpu", "/pesan-makam/saat-duka/tpu", "/layanan/tpu", "/pesan-makam/pengurusan-iptm"]) {
+        expect((await at(path))?.status, `${path} at ${rilis}`).toBe(404);
+      }
+      expect((await proxy(new NextRequest("http://localhost:3000/lokasi?jenis=tpu")))?.status).toBe(404);
+    }
+    vi.stubEnv("APP_ENV", "test");
+    vi.stubEnv("RILIS_TERBUKA", "4");
+    expect((await at("/tpu/t1"))?.status).not.toBe(404);
+  });
+
+  it("Rilis 1 pages pass through at Rilis 1, and everything not taken out passes at Rilis 3", async () => {
     vi.stubEnv("RILIS_TERBUKA", "1");
     for (const path of ["/", "/layanan", "/layanan/L-1", "/lokasi", "/perpanjangan/abc", "/staf/admin-platform/tagihan", "/pesan-makam/saat-duka"]) {
       expect((await at(path))?.headers.get("x-middleware-rewrite"), path).toBeNull();
       expect((await at(path))?.status, path).not.toBe(404);
     }
     vi.stubEnv("RILIS_TERBUKA", "3");
-    for (const path of ["/wakaf-tanah", "/staf/admin-platform/wakaf", "/tpu/t1", "/lokasi?jenis=tpu"]) {
+    for (const path of ["/wakaf-tanah", "/staf/admin-platform/wakaf", "/perpanjangan/abc/berkas", "/staf/admin-lokasi/abc/perpanjangan/p1"]) {
       expect((await at(path))?.headers.get("x-middleware-rewrite"), path).toBeNull();
       expect((await at(path))?.status, path).not.toBe(404);
     }

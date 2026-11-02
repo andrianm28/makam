@@ -7,11 +7,16 @@ import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
+import { rilisTerbuka } from "@/lib/rilis";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { nonaktifkanStafSchema, undangStafSchema } from "./schema";
 
 /** Admin Platform sends an Undangan Staf. */
 export async function undangStaf(_previous: FormState, formData: FormData): Promise<FormState> {
+  // Mitra Jasa is taken out of the product with the TPU (ADR 0010): no new Mitra Jasa while it is closed.
+  if (formData.get("role") === "mitra_jasa" && !rilisTerbuka("mitra_jasa")) {
+    return { status: "gagal", message: "Peran Mitra Jasa tidak dipakai lagi. Pilih peran lain." };
+  }
   const result = await guarded({
     fitur: "inti",
     action: "staf.undang",

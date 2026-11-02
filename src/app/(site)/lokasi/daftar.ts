@@ -29,16 +29,18 @@ export async function daftarLokasi(query: {
   jenis?: LokasiMakamKind;
   kota?: string;
   fasilitas?: LokasiFacility[];
+  /** False while DKI TPU is closed (taken out, ADR 0010): only Lokasi Mitra, and only their cities, are listed. */
+  tpuTerbuka: boolean;
 }): Promise<DaftarLokasi> {
   const { lokasi, tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
   const [cards, kota, hargaTpu] = await Promise.all([
     lokasi.publicLokasiMakamList({
-      kind: query.jenis,
+      kind: query.tpuTerbuka ? query.jenis : "lokasi_mitra",
       city: query.kota,
       facilities: query.fasilitas?.length ? query.fasilitas : undefined,
     }),
-    lokasi.publicLokasiMakamCities(),
+    lokasi.publicLokasiMakamCities(query.tpuTerbuka ? {} : { kind: "lokasi_mitra" }),
     // One read: every TPU card shows the same TPU price, so it is never per-card.
     tariffs.tpuPricing(now),
   ]);

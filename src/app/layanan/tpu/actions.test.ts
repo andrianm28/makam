@@ -12,7 +12,7 @@
  * The last block is the choice after a Layanan is put back to "Tidak dipesan" (ticket 118), through the same
  * functions the form calls.
  */
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { testServerRuntime } from "../../../../tests/support/server-runtime";
@@ -28,7 +28,10 @@ vi.mock("next/headers", () => import("../../../../tests/support/next-request"));
 const { db, close } = testDatabase();
 afterAll(close);
 const server = testServerRuntime();
+// DKI TPU and Mitra Jasa are taken out of the product (ADR 0010); 4 opens them again, in test only, so their code stays tested.
+afterEach(() => vi.unstubAllEnvs());
 beforeEach(async () => {
+  vi.stubEnv("RILIS_TERBUKA", "4");
   await resetDatabase();
   browser.reset();
 });

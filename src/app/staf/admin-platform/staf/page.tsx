@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FormSection } from "@/components/makam/form-section";
 import { PageHeader } from "@/components/makam/page-header";
+import { rilisAktif } from "@/lib/rilis";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { formatWib } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
@@ -15,7 +16,7 @@ export default async function StafAdminPage() {
   const actor = await staffMenuActor("admin_platform");
   const { identity } = serverRuntime();
   const [accounts, invites] = await Promise.all([identity.staffAccounts(), identity.openStaffInvites()]);
-  const roles = roleUndangan();
+  const roles = roleUndangan(rilisAktif());
 
   return (
     <>

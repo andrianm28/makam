@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { fiturUntukRute, permukaanRute, rilisTerbuka } from "@/lib/rilis";
+import { fiturDikeluarkan, fiturUntukRute, permukaanRute, rilisTerbuka } from "@/lib/rilis";
 
 /**
  * The release gate for routes (ADR 0006), before anything renders or any Server
  * Action runs (an action posts to the URL of the page that holds it): a closed
  * feature's staff page answers 404, and its public or Akun Saya page shows
- * "Segera hadir" at the same URL.
+ * "Segera hadir" at the same URL. A feature taken out of the product (ADR 0010)
+ * answers 404 on every surface: nothing of it is coming.
  */
 /**
  * The path as the router will see it: percent-decoded (to a fixed point, so a
@@ -32,7 +33,7 @@ export function proxy(request: NextRequest) {
   const { search } = request.nextUrl;
   const fitur = fiturUntukRute(pathname, search);
   if (!fitur || rilisTerbuka(fitur)) return NextResponse.next();
-  if (permukaanRute(pathname) === "staf") return new NextResponse(null, { status: 404 });
+  if (permukaanRute(pathname) === "staf" || fiturDikeluarkan(fitur)) return new NextResponse(null, { status: 404 });
   return NextResponse.rewrite(new URL("/segera-hadir", request.url));
 }
 

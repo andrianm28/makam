@@ -105,10 +105,10 @@ describe("seed-contoh-publik (development and test stacks only)", () => {
     const terencanaAktif = listed.filter((one) => one.terencanaAktif).map((one) => one.name).sort();
     expect(terencanaAktif).toEqual(["Pemakaman Wakaf Al-Ikhlas", "Taman Peristirahatan Hijau Asri"].sort());
 
-    // Every one's Kunjungan Verifikasi photo count matches the mock's own count exactly (Firdaus gets all four
-    // of its mock photos, the other four their two each).
+    // Every one's Kunjungan Verifikasi photo count matches the mock's own count exactly, less the photos showing
+    // headstones (owner, 2026-11-02): Firdaus gets three of its four mock photos, the other four their two each.
     const mockPhotoCount: Record<string, number> = {
-      "Taman Makam Firdaus": 4,
+      "Taman Makam Firdaus": 3,
       "Pemakaman Wakaf Al-Ikhlas": 2,
       "Makam Masjid Nurul Huda": 2,
       "Taman Peristirahatan Hijau Asri": 2,

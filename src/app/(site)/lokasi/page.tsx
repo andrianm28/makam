@@ -21,6 +21,7 @@ import { FilterChip } from "@/components/makam/filter-chip";
 import { lokasiFacilities, type LokasiFacility, type LokasiMakamKind } from "@/domain/lokasi";
 import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
+import { rilisTerbuka } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
 import { daftarLokasi, type DaftarLokasiBaris } from "./daftar";
 import { fasilitasHref, hasActiveFilter, jenisHref, kotaHref, lokasiHref, type LokasiFilters } from "./filters";
@@ -87,8 +88,11 @@ function filtersOf(parsed: z.infer<typeof searchParamsSchema> | undefined): Loka
  */
 export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lokasi">) {
   const parsed = searchParamsSchema.safeParse(await searchParams);
+  // DKI TPU is taken out of the product (ADR 0010): while it is closed the directory lists Lokasi Mitra only and has no Jenis filter.
+  const tpuTerbuka = rilisTerbuka("tpu");
   const filters = filtersOf(parsed.success ? parsed.data : undefined);
   const { baris, kota } = await daftarLokasi({
+    tpuTerbuka,
     jenis: filters.jenis,
     kota: filters.kota,
     fasilitas: filters.fasilitas.length ? filters.fasilitas : undefined,
@@ -97,16 +101,18 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
 
   const secondaryFilters = (
     <>
-      <div className="flex flex-col gap-2">
-        <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Jenis</span>
-        <div className="flex flex-wrap gap-2">
-          {jenisOptions.map((one) => (
-            <FilterChip key={one.value} href={jenisHref(filters, one.value)} selected={filters.jenis === one.value}>
-              {one.label}
-            </FilterChip>
-          ))}
+      {tpuTerbuka ? (
+        <div className="flex flex-col gap-2">
+          <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Jenis</span>
+          <div className="flex flex-wrap gap-2">
+            {jenisOptions.map((one) => (
+              <FilterChip key={one.value} href={jenisHref(filters, one.value)} selected={filters.jenis === one.value}>
+                {one.label}
+              </FilterChip>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : null}
       <div className="flex flex-col gap-2">
         <span className="text-caption font-semibold tracking-wide text-muted-foreground uppercase">Fasilitas</span>
         <div className="flex flex-wrap gap-2">
@@ -131,7 +137,8 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
       <h1 className="mt-3 text-page-title tracking-tight text-forest md:text-4xl">Daftar Lokasi Makam</h1>
       <p className="mt-2 max-w-2xl text-body-lg text-muted-foreground">
         Setiap Lokasi Mitra di sini sudah Terverifikasi Makam.co.id: dikunjungi langsung, perjanjian ditandatangani dan
-        tarifnya diperiksa. TPU DKI adalah kuburan resmi pemerintah daerah yang kami layani untuk pengurusan IPTM.
+        tarifnya diperiksa.
+        {tpuTerbuka ? " TPU DKI adalah kuburan resmi pemerintah daerah yang kami layani untuk pengurusan IPTM." : null}
       </p>
 
       {/* City: always up front */}

@@ -9,9 +9,10 @@ import { seedTagihan } from "./support/tagihan";
 /*
  * Staff access on a fresh local stack (docker compose -p makam-v1-dev up --build -d):
  * the e2e Admin Platform (seeded by the seed CLI, see e2e/support/admin-platform.ts)
- * logs in with a Kode Masuk alone (ADR 0008: no TOTP), invites a Petugas Lapangan (who is also a
- * Mitra Jasa), and the invitee logs in and switches roles. (Admin Lokasi are
- * invited from their Lokasi Mitra's page.)
+ * logs in with a Kode Masuk alone (ADR 0008: no TOTP), invites a Petugas Lapangan (Mitra Jasa is
+ * not offered: it is taken out of the product with the TPU, ADR 0010), and the invitee logs in.
+ * (Admin Lokasi are invited from their Lokasi Mitra's page; switching between two roles is
+ * covered by the staff shell's tests.)
  */
 
 test.describe.configure({ mode: "serial" });
@@ -20,7 +21,7 @@ const admin = e2eAdminPlatform;
 const invitee = coldEmail("staf");
 const inviteePhone = coldNumber();
 let adminPage: Page;
-/** The invitee's own browser, signed in as Petugas Lapangan and Mitra Jasa. */
+/** The invitee's own browser, signed in as Petugas Lapangan. */
 let inviteePage: Page;
 
 test.beforeAll(async ({ browser }: { browser: Browser }) => {
@@ -128,7 +129,7 @@ test("the pin map asks for its tiles with the site's origin as Referer, though e
   }
 });
 
-test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the Undangan Staf goes out by email", async ({
+test("Admin Platform invites a Petugas Lapangan, and is not offered Mitra Jasa; the Undangan Staf goes out by email", async ({
   request,
 }) => {
   const page = adminPage;
@@ -136,40 +137,30 @@ test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the Un
   await page.getByRole("navigation", { name: "Menu Admin Platform" }).getByRole("link", { name: "Staf" }).click();
   await expect(page).toHaveURL(/\/staf\/admin-platform\/staf$/);
 
-  for (const role of ["Petugas Lapangan", "Mitra Jasa"]) {
-    await page.getByLabel("Email").fill(invitee);
-    await page.getByLabel("Nomor telepon").fill(inviteePhone.typed);
-    await page.getByLabel("Peran").selectOption({ label: role });
-    await page.getByRole("button", { name: "Kirim undangan" }).click();
-    await expect(page.getByRole("status")).toContainText(`Undangan ${role} terkirim ke ${invitee}`);
-  }
+  await expect(page.getByLabel("Peran").locator("option")).toHaveText(["Admin Platform", "Petugas Lapangan"]);
+  await page.getByLabel("Email").fill(invitee);
+  await page.getByLabel("Nomor telepon").fill(inviteePhone.typed);
+  await page.getByLabel("Peran").selectOption({ label: "Petugas Lapangan" });
+  await page.getByRole("button", { name: "Kirim undangan" }).click();
+  await expect(page.getByRole("status")).toContainText(`Undangan Petugas Lapangan terkirim ke ${invitee}`);
 
   const invites = (await emailsTo(request, invitee)).filter((message) => message.subject.startsWith("Undangan Staf"));
-  expect(invites.map((message) => message.subject)).toEqual([
-    "Undangan Staf Makam.co.id: Petugas Lapangan",
-    "Undangan Staf Makam.co.id: Mitra Jasa",
-  ]);
+  expect(invites.map((message) => message.subject)).toEqual(["Undangan Staf Makam.co.id: Petugas Lapangan"]);
   await expect(page.getByTestId("undangan-terbuka")).toContainText(invitee);
 });
 
-test("the invitee logs in with a Kode Masuk, holds both roles, and switches between their menus", async ({ browser, request }) => {
+test("the invitee logs in with a Kode Masuk and lands on its one role's menu", async ({ browser, request }) => {
   const page = await (await browser.newContext()).newPage();
   inviteePage = page;
   await masuk(page, request, invitee);
 
-  // Neither field role has a Beranda: their bare home redirects to their first bottom
-  // navigation item (Tugas, Pekerjaan), which is also their sidebar menu's first page.
+  // A field role has no Beranda: its bare home redirects to its first bottom
+  // navigation item (Tugas), which is also its sidebar menu's first page.
   await expect(page).toHaveURL(/\/staf\/petugas-lapangan\/tugas$/);
   await expect(page.getByRole("heading", { name: "Tugas Lapangan" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toHaveCount(0);
-
-  await page.getByRole("button", { name: /Ganti peran/ }).click();
-  await expect(page.getByRole("menuitem")).toHaveText(["Petugas Lapangan", "Mitra Jasa"]);
-  await page.getByRole("menuitem", { name: "Mitra Jasa" }).click();
-  await expect(page).toHaveURL(/\/staf\/mitra-jasa\/pekerjaan$/);
-  await expect(page.getByRole("navigation", { name: "Menu Mitra Jasa" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Menu Petugas Lapangan" })).toHaveCount(0);
+  // One role: nothing to switch to.
+  await expect(page.getByRole("button", { name: /Ganti peran/ })).toHaveCount(0);
 
   // A role the Akun does not hold shows nothing of its menu.
   await page.goto("/staf/admin-platform");

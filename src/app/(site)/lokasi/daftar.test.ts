@@ -63,7 +63,7 @@ describe("the Daftar Lokasi Makam page's own cards", () => {
     await newTpuDki(setup, admin, "TPU Kober");
 
     pageReadsNow();
-    const { baris } = await daftarLokasi({});
+    const { baris } = await daftarLokasi({ tpuTerbuka: true });
 
     expect(baris.map((row) => row.card.name)).toEqual(["Makam Keluarga Sawah", "TPU Kober", "Ziarah Al-Amin"]);
     // The Lokasi Mitra after the TPU keeps its own all-in price (Harga Hak Pakai + Biaya Layanan Platform).
@@ -92,12 +92,12 @@ describe("the Daftar Lokasi Makam page's own cards", () => {
     });
 
     pageReadsNow();
-    const semua = await daftarLokasi({});
+    const semua = await daftarLokasi({ tpuTerbuka: true });
     expect(semua.kota).toEqual(["Kabupaten Bogor", "Kota Jakarta Timur"]);
-    expect((await daftarLokasi({ jenis: "tpu" })).baris.map((row) => row.card.name)).toEqual(["TPU Kober", "TPU Sawah Besar"]);
-    expect((await daftarLokasi({ jenis: "lokasi_mitra" })).baris.map((row) => row.card.name)).toEqual(["Makam Keluarga Sawah"]);
-    expect((await daftarLokasi({ kota: "Kabupaten Bogor" })).baris.map((row) => row.card.name)).toEqual(["TPU Sawah Besar"]);
-    expect((await daftarLokasi({ kota: "Kota Jakarta Timur" })).baris.map((row) => row.card.name)).toEqual([
+    expect((await daftarLokasi({ tpuTerbuka: true, jenis: "tpu" })).baris.map((row) => row.card.name)).toEqual(["TPU Kober", "TPU Sawah Besar"]);
+    expect((await daftarLokasi({ tpuTerbuka: true, jenis: "lokasi_mitra" })).baris.map((row) => row.card.name)).toEqual(["Makam Keluarga Sawah"]);
+    expect((await daftarLokasi({ tpuTerbuka: true, kota: "Kabupaten Bogor" })).baris.map((row) => row.card.name)).toEqual(["TPU Sawah Besar"]);
+    expect((await daftarLokasi({ tpuTerbuka: true, kota: "Kota Jakarta Timur" })).baris.map((row) => row.card.name)).toEqual([
       "Makam Keluarga Sawah",
       "TPU Kober",
     ]);
@@ -109,8 +109,29 @@ describe("the Daftar Lokasi Makam page's own cards", () => {
     await newTpuDki(setup, admin, "TPU Kober");
 
     pageReadsNow();
-    const { baris } = await daftarLokasi({});
+    const { baris } = await daftarLokasi({ tpuTerbuka: true });
 
     expect(baris).toMatchObject([{ card: { kind: "tpu", name: "TPU Kober" }, mulaiRp: null }]);
+  });
+
+  it("lists only Lokasi Mitra, and only their cities, while DKI TPU is taken out of the product (ADR 0010)", async () => {
+    const setup = publish;
+    const admin = await signInAsAdminPlatform(server);
+    await publishedLokasiMitra(setup, admin, "Makam Keluarga Sawah");
+    await setup.lokasi.createTpuDki(admin, {
+      name: "TPU Sawah Besar",
+      address: "Jl. Sawah Besar No. 3",
+      city: "Kabupaten Bogor",
+      pin: null,
+      dataSource: "Jakarta Open Data",
+      menerimaMakamBaru: true,
+    });
+
+    pageReadsNow();
+    const daftar = await daftarLokasi({ tpuTerbuka: false });
+    expect(daftar.baris.map((row) => row.card.name)).toEqual(["Makam Keluarga Sawah"]);
+    expect(daftar.kota).toEqual(["Kota Jakarta Timur"]);
+    // An old link to the TPU half still lists Lokasi Mitra only.
+    expect((await daftarLokasi({ tpuTerbuka: false, jenis: "tpu" })).baris.map((row) => row.card.name)).toEqual(["Makam Keluarga Sawah"]);
   });
 });

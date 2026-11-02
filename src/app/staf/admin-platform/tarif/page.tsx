@@ -4,6 +4,7 @@ import { GLOBAL_TARIFF_KEYS, type GlobalTariffKey } from "@/domain/tariffs";
 import { formatTanggal, formatWib, wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
+import { rilisTerbuka } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
 import { globalTariffLabels } from "./format";
 import { GlobalTariffForm } from "./tarif-forms";
@@ -21,8 +22,11 @@ export default async function TarifGlobalPage() {
   const { tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
   const today = wibDateOf(now);
+  // The Pengurusan fees and the Retribusi Pemda are DKI TPU amounts, hidden while TPU is taken out of the product (ADR 0010).
+  const tpuTerbuka = rilisTerbuka("tpu");
+  const keys = GLOBAL_TARIFF_KEYS.filter((key) => tpuTerbuka || key === "biaya_layanan_platform");
   const books = await Promise.all(
-    GLOBAL_TARIFF_KEYS.map(async (key) => ({
+    keys.map(async (key) => ({
       key,
       inForce: await tariffs.globalTariff(key, now),
       history: await tariffs.globalTariffHistory(key),

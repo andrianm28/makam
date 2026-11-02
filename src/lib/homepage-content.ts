@@ -6,15 +6,17 @@
  *
  * The tile row is honest about the release. Perpanjang Makam and Layanan Makam
  * open the Makam keluarga hub with that action preselected (spec, Public site and
- * routing decisions), which is where each of them is arranged; Urus di TPU DKI and
- * Wakaf Tanah arrive in later releases, so their tiles name what the service is,
+ * routing decisions), which is where each of them is arranged; Wakaf Tanah arrives
+ * in a later release, so its tile names what the service is,
  * say "Segera hadir." and offer the CS — never a link to a page that is not there,
- * and never a date (docs/design-system.md, voice and tone).
+ * and never a date (docs/design-system.md, voice and tone). Urus di TPU DKI is
+ * taken out of the product (ADR 0010) and not shown. No tile photo shows a
+ * headstone (owner, 2026-11-02).
  */
 import type { LucideIcon } from "lucide-react";
 import { BadgeCheckIcon, HandHeartIcon, ReceiptTextIcon } from "lucide-react";
 import { tileKeHub } from "@/lib/makam-keluarga-content";
-import { terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
+import { dikeluarkanDi, terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
 
 export interface HomepageTile {
   label: string;
@@ -70,7 +72,7 @@ export const homepageHero: HomepageHero = {
 /** The tile row's heading and line (public-site prototype). */
 export const homepageTilesIntro = {
   heading: "Untuk makam keluarga",
-  line: "Setelah pemakaman, kami tetap menemani: merawat, memperpanjang dan mengurus.",
+  line: "Setelah pemakaman, kami tetap menemani: merawat dan memperpanjang.",
 };
 
 export const homepageTiles: HomepageTile[] = [
@@ -81,14 +83,14 @@ export const homepageTiles: HomepageTile[] = [
     href: tileKeHub.perpanjang,
     summary: "Perpanjang masa Hak Pakai makam keluarga sebelum berakhir.",
     image: "/content/beranda-tile-perpanjang.jpg",
-    imageAlt: "Area makam yang teduh dengan rumput terawat dan pohon besar.",
+    imageAlt: "Jalan setapak teduh di bawah pepohonan, diapit bunga dan dinding batu.",
   },
   {
     label: "Layanan Makam",
     href: tileKeHub.layanan,
     summary: "Bunga, nisan, pembersihan dan perawatan makam, dengan foto bukti.",
     image: "/content/beranda-tile-layanan.jpg",
-    imageAlt: "Rangkaian bunga putih di atas makam.",
+    imageAlt: "Jalan setapak berbatu di taman tropis yang hijau dan terawat.",
   },
   {
     label: "Urus di TPU DKI",
@@ -106,9 +108,12 @@ export const homepageTiles: HomepageTile[] = [
   },
 ];
 
-/** The tiles as the release `rilis` shows them: a tile whose feature is open links to its page, the rest say "Segera hadir" (ADR 0006). */
+/**
+ * The tiles as the release `rilis` shows them: a tile whose feature is open links to its page, the rest say "Segera hadir"
+ * (ADR 0006), and a tile whose feature is taken out of the product is not shown at all (ADR 0010).
+ */
 export function homepageTilesUntuk(rilis: Rilis): HomepageTile[] {
-  return homepageTiles.map((tile) => {
+  return homepageTiles.filter((tile) => !(tile.hrefBilaTerbuka && dikeluarkanDi(tile.hrefBilaTerbuka.fitur, rilis))).map((tile) => {
     const { hrefBilaTerbuka, ...rest } = tile;
     return hrefBilaTerbuka && terbukaDi(hrefBilaTerbuka.fitur, rilis) ? { ...rest, href: hrefBilaTerbuka.href } : rest;
   });
@@ -124,8 +129,8 @@ export interface HomepageTrustColumn {
 
 /**
  * Dibantu · Jelas · Aman. Each line is something the platform really does in this
- * release, and the Dibantu line says nothing about TPU paperwork, which only
- * arrives in a later release (spec, release plan). Cara Kami Bekerja explains
+ * release, and the Dibantu line says nothing about TPU paperwork, which is not
+ * part of the product (ADR 0010). Cara Kami Bekerja explains
  * all three, linked once under the strip.
  */
 export const homepageTrust: HomepageTrustColumn[] = [

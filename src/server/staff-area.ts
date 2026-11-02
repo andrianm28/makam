@@ -2,7 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { authorize, stafMenuResource, staffRoles, type Actor, type Role, type StaffRole } from "@/domain/identity";
 import type { LokasiMitraSummary } from "@/domain/lokasi";
-import { rilisAktif, type Rilis } from "@/lib/rilis";
+import { rilisAktif, rilisTerbuka, type Rilis } from "@/lib/rilis";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { staffRoleHome } from "@/lib/staff-area-path";
 import { staffPalette, type PaletteGroup } from "@/lib/staff-navigation";
@@ -10,9 +10,12 @@ import type { StaffAlertEntry } from "@/domain/notifications";
 import { serverRuntime } from "./runtime";
 import { currentActor } from "./session";
 
-/** The staff roles an actor holds, in the fixed order. */
+/**
+ * The staff roles an actor holds, in the fixed order. Mitra Jasa counts only while it is open: it is taken out of
+ * the product with the TPU (ADR 0010), so an Akun holding it gets no menu, home or role switcher entry for it.
+ */
 export function heldStaffRoles(roles: Role[]): StaffRole[] {
-  return staffRoles.filter((role) => roles.includes(role));
+  return staffRoles.filter((role) => roles.includes(role) && (role !== "mitra_jasa" || rilisTerbuka("mitra_jasa")));
 }
 
 /** Where a signed-in actor lands: the first staff menu, or Akun Saya. */

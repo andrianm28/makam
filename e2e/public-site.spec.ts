@@ -61,6 +61,8 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
   // arranged at the Makam keluarga hub, so those two tiles open it with the action chosen.
   await expect(page.getByRole("heading", { name: "Perpanjang Makam" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Wakaf Tanah" })).toBeVisible();
+  // DKI TPU is taken out of the product (ADR 0010): no tile for it, not even "Segera hadir".
+  await expect(page.getByRole("heading", { name: "Urus di TPU DKI" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Perpanjang Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=perpanjang");
   await expect(page.getByRole("link", { name: "Layanan Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
   await expect(page.getByRole("heading", { name: "Dibantu, jelas, aman" })).toBeVisible();
@@ -74,11 +76,11 @@ test("the Makam keluarga hub answers 'Di mana makamnya?', with the branch it was
   await expect(page.getByText("Anda membuka")).toBeVisible();
   await expect(page.getByRole("button", { name: "Cari makam" })).toBeVisible();
 
-  // An empty form asks for what is missing instead of answering as a miss, and the TPU
-  // branch is on the same page for a grave that is not at a Lokasi Mitra.
+  // An empty form asks for what is missing instead of answering as a miss; there is no TPU
+  // branch, since DKI TPU is taken out of the product (ADR 0010).
   await page.getByRole("button", { name: "Cari makam" }).click();
   await expect(page.getByText("Lengkapi dulu Lokasi Mitra")).toBeVisible();
-  await expect(page.getByRole("link", { name: "Panduan Pengurusan di TPU DKI" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Panduan Pengurusan di TPU DKI" })).toHaveCount(0);
 });
 
 test("the top bar lists the whole menu, and only opens the pages that exist", async ({ page }) => {

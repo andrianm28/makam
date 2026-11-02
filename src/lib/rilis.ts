@@ -1,5 +1,5 @@
 import { readRilisEnv } from "./env";
-import { terbukaDi, type Fitur, type Rilis } from "./rilis-peta";
+import { dikeluarkanDi, terbukaDi, type Fitur, type Rilis } from "./rilis-peta";
 
 export { fiturUntukRute, fiturUntukTick, permukaanRute, type Fitur, type Rilis } from "./rilis-peta";
 
@@ -11,4 +11,9 @@ export function rilisAktif(source: Record<string, string | undefined> = process.
 /** Whether `fitur` is open in this environment: the one question every gate asks. */
 export function rilisTerbuka(fitur: Fitur, source: Record<string, string | undefined> = process.env): boolean {
   return terbukaDi(fitur, rilisAktif(source));
+}
+
+/** Whether `fitur` is taken out of the product (ADR 0010) in this environment: hidden, and its pages answer 404. */
+export function fiturDikeluarkan(fitur: Fitur, source: Record<string, string | undefined> = process.env): boolean {
+  return dikeluarkanDi(fitur, rilisAktif(source));
 }

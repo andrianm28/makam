@@ -4,6 +4,7 @@
  * its own and the list it offers always contains the one it starts on.
  */
 import { staffRoles, type StaffRole } from "@/domain/identity";
+import { dikeluarkanDi, type Rilis } from "@/lib/rilis-peta";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
 
 export interface RoleOption {
@@ -11,10 +12,14 @@ export interface RoleOption {
   label: string;
 }
 
-/** The roles the Staf page offers: Admin Lokasi is invited from its own Lokasi Mitra page. */
-export function roleUndangan(): RoleOption[] {
+/**
+ * The roles the Staf page offers at release `rilis`: Admin Lokasi is invited from its own Lokasi Mitra page, and
+ * Mitra Jasa is not offered while it is taken out of the product (ADR 0010).
+ */
+export function roleUndangan(rilis: Rilis): RoleOption[] {
   return staffRoles
     .filter((role) => role !== "admin_lokasi")
+    .filter((role) => !(role === "mitra_jasa" && dikeluarkanDi("mitra_jasa", rilis)))
     .map((role) => ({ value: role, label: staffRoleLabels[role] }));
 }
 

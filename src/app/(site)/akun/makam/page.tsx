@@ -30,7 +30,8 @@ export default async function AkunMakamPage() {
   const { inventory, lokasi, pemesanan, pengurusan, perpanjangan } = serverRuntime();
   // Pengembalian, Ganti Pemegang Hak and the Calon Penghuni label open with Rilis 2 (ADR 0006).
   const permintaanTerbuka = rilisTerbuka("perpanjangan_lanjutan");
-  const makamTpu = await pengurusan.makamTpuSaya({ accountId: actor.accountId });
+  // DKI TPU is taken out of the product (ADR 0010): no Makam TPU card, whose actions all lead to TPU pages, while it is closed.
+  const makamTpu = rilisTerbuka("tpu") ? await pengurusan.makamTpuSaya({ accountId: actor.accountId }) : [];
 
   const [unit, cards] = await Promise.all([inventory.makamKeluargaSaya({ email: actor.email }), lokasi.publicLokasiMitraList()]);
   const namaLokasi = new Map(cards.map((card) => [card.id, card.name]));
@@ -77,7 +78,7 @@ export default async function AkunMakamPage() {
       <EmptyState
         icon={LandPlot}
         title="Belum ada makam yang tercatat"
-        description="Setiap Hak Pakai atau Makam TPU dengan email ini sebagai Pemegang Hak akan muncul di sini, walau dipesan orang lain."
+        description={rilisTerbuka("tpu") ? "Setiap Hak Pakai atau Makam TPU dengan email ini sebagai Pemegang Hak akan muncul di sini, walau dipesan orang lain." : "Setiap Hak Pakai dengan email ini sebagai Pemegang Hak akan muncul di sini, walau dipesan orang lain."}
         action={
           <Link href="/makam-keluarga" className="font-medium text-brand underline underline-offset-4">
             Cari makam keluarga

@@ -46,17 +46,18 @@ export default async function MakamKeluargaPage({ searchParams }: PageProps<"/ma
   const hub = await tampilanHub(await searchParams, { ip: await clientIp(), email: actor?.email ?? null });
   const settings = await serverRuntime().operatorSettings.current();
   const contact = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
+  const tpuTerbuka = rilisTerbuka("tpu");
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-(--page-gutter) py-10 md:py-14">
       <header className="flex flex-col gap-3">
         <h1 className="font-serif text-title-1 font-semibold tracking-tight text-balance">Makam Keluarga</h1>
         <p className="text-body-lg text-muted-foreground">
-          Satu tempat untuk mencari di mana makam keluarga Anda berada, lalu memperpanjang, merawat atau mengurus berkasnya.
+          {tpuTerbuka ? "Satu tempat untuk mencari di mana makam keluarga Anda berada, lalu memperpanjang, merawat atau mengurus berkasnya." : "Satu tempat untuk mencari di mana makam keluarga Anda berada, lalu memperpanjang atau merawatnya."}
         </p>
       </header>
 
-      {hub.aksiTerpilih ? <PilihanBertahan aksi={kartuUntuk(hub.aksiTerpilih)} /> : null}
+      {hub.aksiTerpilih && (tpuTerbuka || hub.aksiTerpilih !== "pengurusan") ? <PilihanBertahan aksi={kartuUntuk(hub.aksiTerpilih)} /> : null}
 
       {actor && hub.tabSaya.length > 0 ? <MakamSaya tab={hub.tabSaya} /> : null}
 
@@ -65,7 +66,7 @@ export default async function MakamKeluargaPage({ searchParams }: PageProps<"/ma
           Di mana makamnya?
         </h2>
         <p className="text-body text-muted-foreground">
-          Untuk petak di Lokasi Mitra. Kalau makamnya di TPU DKI, panduan pengurusannya ada di bawah.
+          {tpuTerbuka ? "Untuk petak di Lokasi Mitra. Kalau makamnya di TPU DKI, panduan pengurusannya ada di bawah." : "Untuk petak di Lokasi Mitra."}
         </p>
         <FormCari hub={hub} />
       </section>
@@ -76,6 +77,8 @@ export default async function MakamKeluargaPage({ searchParams }: PageProps<"/ma
         <MakamDitemukan key={`${satu.lokasiId}-${satu.kavlingId ?? satu.petak[0]?.petakId}`} satu={satu} aksiTerpilih={hub.aksiTerpilih} contact={contact} />
       ))}
 
+      {/* DKI TPU is taken out of the product (ADR 0010): the section shows only where TPU is open. */}
+      {tpuTerbuka ? (
       <section aria-labelledby="tpu-heading" className="flex flex-col gap-3 border-t border-border pt-8">
         <h2 id="tpu-heading" className="text-title-2 font-semibold">
           Kalau makamnya di TPU DKI
@@ -97,13 +100,14 @@ export default async function MakamKeluargaPage({ searchParams }: PageProps<"/ma
         </ul>
         <CsLink contact={contact} className="text-body" label="Tanya CS soal makam di TPU" />
       </section>
+      ) : null}
 
       <section aria-labelledby="aksi-heading" className="flex flex-col gap-3 border-t border-border pt-8">
         <h2 id="aksi-heading" className="text-title-2 font-semibold">
           Setelah tahu di mana makamnya
         </h2>
         <ul className="grid gap-4 sm:grid-cols-2">
-          {hub.kartuAksi.map((kartu) => (
+          {hub.kartuAksi.filter((kartu) => tpuTerbuka || kartu.aksi !== "pengurusan").map((kartu) => (
             <li key={kartu.aksi}>
               <KartuAksi kartu={kartu} dipilih={kartu.aksi === hub.aksiTerpilih} contact={contact} />
             </li>

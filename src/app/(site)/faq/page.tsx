@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import { ContentPage, ContentPageFooter } from "@/components/site/content-page";
 import { faqQuestions } from "@/lib/content-pages";
+import { rilisAktif } from "@/lib/rilis";
 import { slug } from "@/lib/slug";
 import { serverRuntime } from "@/server/runtime";
 
 export const metadata: Metadata = {
   title: "FAQ — Makam.co.id",
-  description: "Pesan Makam atau Hak Pakai, apa yang dibayar dan kapan, pembatalan, perpanjangan, TPU, dokumen, dan data keluarga.",
+  description: "Pesan Makam atau Hak Pakai, apa yang dibayar dan kapan, pembatalan, perpanjangan, dokumen, dan data keluarga.",
 };
 
 /**
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
  */
 export default async function FaqPage() {
   const settings = await serverRuntime().operatorSettings.current();
-  const questions = faqQuestions(settings?.legalName ?? null);
+  const questions = faqQuestions(settings?.legalName ?? null, rilisAktif());
 
   return (
     <ContentPage title="FAQ" lead="Pertanyaan yang paling sering masuk ke CS kami.">

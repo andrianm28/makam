@@ -15,7 +15,7 @@
  * never written here.
  */
 
-import { terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
+import { dikeluarkanDi, terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
 
 /** One titled block of a content page. */
 export interface ContentSection {
@@ -35,11 +35,15 @@ export interface FaqEntry {
  * from Pengaturan Operator; before an Admin Platform has entered one the page
  * says nothing about who runs it rather than guessing.
  */
-export function tentangKamiParagrafs(legalName: string | null): string[] {
+export function tentangKamiParagrafs(legalName: string | null, rilis: Rilis = 1): string[] {
+  // While DKI TPU is taken out of the product (ADR 0010) the page names the partner cemeteries only.
+  const mitra = dikeluarkanDi("tpu", rilis)
+    ? "Kami bekerja sama dengan pengelola Lokasi Mitra yang mengelola makamnya sendiri. Hak atas tanah dan atas setiap Petak Makam tetap di tangan mereka."
+    : "Kami bekerja sama dengan pengelola Lokasi Mitra yang mengelola makamnya sendiri, dan dengan Tempat Pemakaman Umum yang dikelola pemerintah daerah. Hak atas tanah dan atas setiap Petak Makam tetap di tangan mereka.";
   return [
     "Makam.co.id adalah layanan pemakaman: satu tempat untuk memesan makam, mengurus berkas yang menyertainya, dan melihat status pesanan sampai selesai.",
     ...(legalName ? [`Makam.co.id dikelola oleh ${legalName}.`] : []),
-    "Makam.co.id tidak memiliki dan tidak memegang tanah makam. Kami bekerja sama dengan pengelola Lokasi Mitra yang mengelola makamnya sendiri, dan dengan Tempat Pemakaman Umum yang dikelola pemerintah daerah. Hak atas tanah dan atas setiap Petak Makam tetap di tangan mereka.",
+    `Makam.co.id tidak memiliki dan tidak memegang tanah makam. ${mitra}`,
     "Yang kami lakukan adalah memperjelas langkahnya: harga yang tertera di halaman, batas waktunya, dan siapa yang harus dihubungi berikutnya.",
     "Untuk pertanyaan yang belum terjawab di sini, CS kami bisa dihubungi lewat WhatsApp, dan caranya ada di Hubungi Kami.",
   ];
@@ -124,9 +128,15 @@ export function kebijakanPrivasiSections(legalName: string | null): ContentSecti
  *
  * The third claim speaks of the TPU guide, so it follows the release: while TPU
  * is closed the guide is not a page and the answer names the CS instead; once
- * TPU is open it points at "Pengurusan di TPU DKI" (ADR 0006).
+ * TPU is open it points at "Pengurusan di TPU DKI" (ADR 0006). While TPU is
+ * taken out of the product (ADR 0010) the claim is not made at all.
  */
 export function caraKamiBekerjaSectionsUntuk(rilis: Rilis): ContentSection[] {
+  const sections = caraKamiBekerjaSemua(rilis);
+  return dikeluarkanDi("tpu", rilis) ? sections.filter((section) => section.label !== "Izin TPU gratis") : sections;
+}
+
+function caraKamiBekerjaSemua(rilis: Rilis): ContentSection[] {
   const panduanTpu = terbukaDi("tpu", rilis)
     ? "Langkah mengurusnya sendiri kami tuliskan di halaman Pengurusan di TPU DKI. Untuk langkah yang tepat di daerah Anda, tanya CS lewat WhatsApp."
     : "Panduan lengkap tentang pengurusan di TPU DKI belum kami terbitkan di makam.co.id, jadi untuk langkah yang tepat di daerah Anda, tanya CS lewat WhatsApp.";
@@ -168,9 +178,17 @@ export const caraKamiBekerjaSections: ContentSection[] = caraKamiBekerjaSections
  *
  * The answer on what is paid, and to whom, names the Operator's legal name —
  * read from Pengaturan Operator and passed in, so it can never disagree with the
- * footer, the documents and Hubungi Kami.
+ * footer, the documents and Hubungi Kami. The TPU question is left out while
+ * DKI TPU is taken out of the product (ADR 0010).
  */
-export function faqQuestions(legalName: string | null): FaqEntry[] {
+export function faqQuestions(legalName: string | null, rilis: Rilis = 1): FaqEntry[] {
+  const semua = faqSemua(legalName);
+  return dikeluarkanDi("tpu", rilis) ? semua.filter((entry) => entry.question !== FAQ_TPU) : semua;
+}
+
+const FAQ_TPU = "Siapa yang boleh dimakamkan di TPU?";
+
+function faqSemua(legalName: string | null): FaqEntry[] {
   const penerimaDana = legalName ? `${legalName} sebagai pengelola makam.co.id` : "pengelola makam.co.id";
   return [
     {
@@ -193,7 +211,7 @@ export function faqQuestions(legalName: string | null): FaqEntry[] {
         "Perpanjangan memperpanjang Hak Pakai atas Petak Makam atau Kavling Keluarga yang akan berakhir. Pengajuan bisa dibuat sebelum masa Hak Pakai habis, dan masih diterima selama masa tenggang setelahnya. Yang berhak mengajukan adalah Pemegang Hak, bukan Pemesan, dan pengajuannya diperiksa oleh Lokasi Mitra. Halaman untuk mengajukan dan memantau Perpanjangan belum ada di makam.co.id; sementara ini tanya CS lewat WhatsApp, dan kami akan mengarahkan Anda ke Lokasi Mitra tempat Hak Pakai itu berada.",
     },
     {
-      question: "Siapa yang boleh dimakamkan di TPU?",
+      question: FAQ_TPU,
       answer:
         "Petak makam dan izinnya di Tempat Pemakaman Umum milik pemerintah daerah, dan yang tercatat pada izin itulah Pemegang Hak di sana. Karena itu, di TPU makam.co.id hanya mengurus Pengurusan: mengatur pemakaman dengan TPU lalu mengajukan izinnya, atau hanya mengajukan izin bagi yang sudah dimakamkan sendiri. Izin itu sendiri yang menyebut Pemegang Hak, dan pergantiannya mengikuti aturan pemerintah daerah. Satu yang perlu diluruskan: izin di TPU bukan Hak Pakai, dan tidak berlaku di Lokasi Mitra.",
     },

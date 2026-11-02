@@ -12,9 +12,20 @@
  * tick is under `lokasi_ditangguhkan`. Ticket 84 (the Pintu Masuk cell) has no route or tick of its own: it is a kind
  * of cell in the Denah editor, whose pages are Rilis 1, so nothing here closes it. A page or tick the map does
  * not cover fails the guard test (`rilis-guard.test.ts`) until it is added.
+ *
+ * DKI TPU and Mitra Jasa are taken out of the product (ADR 0010, owner decision
+ * 2026-11-02: the product serves private cemeteries only). They sit at
+ * `RILIS_DIKELUARKAN`, a level no staging or production environment ever opens,
+ * so their code stays (expand only) while every route, menu item, tile, action and
+ * tick of theirs is closed; unlike a feature waiting for its release, a taken-out
+ * feature is hidden rather than "Segera hadir", and its public pages answer 404.
  */
 
-export type Rilis = 1 | 2 | 3;
+/** 4 is `RILIS_DIKELUARKAN`: only development and test may open it, to keep the taken-out code tested. */
+export type Rilis = 1 | 2 | 3 | 4;
+
+/** The level of a feature taken out of the product (ADR 0010): above every release an environment opens. */
+export const RILIS_DIKELUARKAN = 4;
 
 export const fiturRilis = {
   /** Everything the first release carries (ADR 0005 and ADR 0006 included). */
@@ -23,10 +34,10 @@ export const fiturRilis = {
   perpanjangan_lanjutan: 2,
   /** Ditangguhkan / Berhenti of a Lokasi Mitra (59). */
   lokasi_ditangguhkan: 2,
-  /** DKI TPU: catalog, Saat Duka at a TPU, filing and Surat Kuasa, the TPU Layanan order (43-48, 56). */
-  tpu: 3,
-  /** Mitra Jasa, the TPU jobs they do and the Keluhan TPU (55, 57). */
-  mitra_jasa: 3,
+  /** DKI TPU: catalog, Saat Duka at a TPU, filing and Surat Kuasa, the TPU Layanan order (43-48, 56). Taken out (ADR 0010). */
+  tpu: RILIS_DIKELUARKAN,
+  /** Mitra Jasa, the TPU jobs they do and the Keluhan TPU (55, 57). Taken out with the TPU (ADR 0010). */
+  mitra_jasa: RILIS_DIKELUARKAN,
   /** Wakaf Tanah (58). */
   wakaf: 3,
 } as const satisfies Record<string, Rilis>;
@@ -36,6 +47,11 @@ export type Fitur = keyof typeof fiturRilis;
 /** Whether a feature is open when `rilis` is the number the environment carries. */
 export function terbukaDi(fitur: Fitur, rilis: Rilis): boolean {
   return fiturRilis[fitur] <= rilis;
+}
+
+/** Whether `fitur` is taken out of the product (ADR 0010) and closed at `rilis`: hidden everywhere, never "Segera hadir". */
+export function dikeluarkanDi(fitur: Fitur, rilis: Rilis): boolean {
+  return fiturRilis[fitur] === RILIS_DIKELUARKAN && !terbukaDi(fitur, rilis);
 }
 
 /**

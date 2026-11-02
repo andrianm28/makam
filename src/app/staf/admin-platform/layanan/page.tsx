@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/makam/page-header";
 import { authorize, layananKatalogResource } from "@/domain/identity";
 import { buktiOf, jenisLayananValues, proofOf, type LayananTerbaca, type PaketLayanan } from "@/domain/layanan";
 import { frekuensiLabels, jenisLayananLabels, proofLabels } from "@/lib/layanan-labels";
+import { rilisTerbuka } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
 import { wibDateOf } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
@@ -67,6 +68,7 @@ export default async function LayananPage() {
   const { layanan, tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
   const today = wibDateOf(now);
+  const tpuTerbuka = rilisTerbuka("tpu");
 
   const [katalog, paket] = await Promise.all([layanan.katalog(), layanan.paket()]);
   const pilihan = pilihanOf(katalog);
@@ -81,7 +83,11 @@ export default async function LayananPage() {
     <>
       <PageHeader
         title="Katalog Layanan"
-        description="Satu daftar global untuk semua Lokasi Mitra dan TPU DKI. Harga sebuah Pilihan bukan milik katalog: setiap Lokasi Mitra punya tarifnya sendiri, TPU DKI punya satu harga yang sama di semua TPU, dan tarif Mitra.Jpa tidak pernah dilihat keluarga. Semuanya versi baru dengan tanggal berlaku, tidak pernah ditulis ulang."
+        description={
+          tpuTerbuka
+            ? "Satu daftar global untuk semua Lokasi Mitra dan TPU DKI. Harga sebuah Pilihan bukan milik katalog: setiap Lokasi Mitra punya tarifnya sendiri, TPU DKI punya satu harga yang sama di semua TPU, dan tarif Mitra Jasa tidak pernah dilihat keluarga. Semuanya versi baru dengan tanggal berlaku, tidak pernah ditulis ulang."
+            : "Satu daftar global untuk semua Lokasi Mitra. Harga sebuah Pilihan bukan milik katalog: setiap Lokasi Mitra punya tarifnya sendiri, sebagai versi baru dengan tanggal berlaku yang tidak pernah ditulis ulang."
+        }
       />
 
       <FormSection title="Tambah Layanan">
@@ -123,6 +129,7 @@ function LayananCard({
   hargaDki: Map<string, { amount: number } | null>;
   tarifMitraJasa: Map<string, { amount: number } | null>;
 }) {
+  const tpuTerbuka = rilisTerbuka("tpu");
   return (
     <section aria-labelledby={`layanan-${layanan.id}`}>
       <Card>
@@ -164,11 +171,16 @@ function LayananCard({
             <div key={varian.id} className="flex flex-col gap-2 rounded-lg border border-border p-3">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <p className="font-medium">{varian.name}</p>
+                {tpuTerbuka ? (
                 <p className="text-small text-muted-foreground">
                   Harga TPU DKI {hargaDki.get(varian.id) ? formatRupiah(hargaDki.get(varian.id)!.amount) : "belum ada"} · Tarif Mitra Jasa{" "}
                   {tarifMitraJasa.get(varian.id) ? formatRupiah(tarifMitraJasa.get(varian.id)!.amount) : "belum ada"}
                 </p>
+                ) : null}
               </div>
+              {/* The DKI price, the Mitra Jasa rate and the TPU mark are DKI TPU work, hidden while it is taken out (ADR 0010). */}
+              {tpuTerbuka ? (
+                <>
               <p className="text-small">{varian.bolehDiTpu ? "Boleh di TPU DKI." : "Belum ditandai boleh di TPU DKI."}</p>
 
               <details>
@@ -186,6 +198,8 @@ function LayananCard({
               </details>
 
               <TandaiBolehDiTpuForm variantId={varian.id} boleh={varian.bolehDiTpu} />
+                </>
+              ) : null}
               <HapusVarianForm variantId={varian.id} name={`${layanan.name} — ${varian.name}`} />
             </div>
           ))}

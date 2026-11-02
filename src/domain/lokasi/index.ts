@@ -149,6 +149,7 @@ import {
   publicVisitPhotoUrls,
   type AturanGantiPemegangHak,
   type LokasiMakamCard,
+  type LokasiMakamKind,
   type LokasiMakamQuery,
   type PengelolaKontak,
   type PublicLokasiMitra,
@@ -482,7 +483,8 @@ export interface Lokasi {
    */
   publicLokasiMakamList(query?: LokasiMakamQuery): Promise<LokasiMakamCard[]>;
   /** Every city either kind is in, for the directory's city filter (no actor). */
-  publicLokasiMakamCities(): Promise<string[]>;
+  /** Every city a listed Lokasi Makam is in, of one kind or both (the default). */
+  publicLokasiMakamCities(query?: { kind?: LokasiMakamKind }): Promise<string[]>;
   /** Signed URLs to a Terverifikasi Lokasi Mitra's Kunjungan Verifikasi visit photos (no actor, for its Lokasi page). */
   publicVisitPhotoUrls(lokasiId: string): Promise<string[]>;
 }
@@ -552,7 +554,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     publicTpuDki: (tpuId) => publicTpuDki(deps, tpuId),
     publicTpuDkiList: (query) => publicTpuDkiList(deps, query),
     publicLokasiMakamList: (query) => publicLokasiMakamList(deps, query),
-    publicLokasiMakamCities: () => publicLokasiMakamCities(deps),
+    publicLokasiMakamCities: (query) => publicLokasiMakamCities(deps, query),
     publicVisitPhotoUrls: (lokasiId) => publicVisitPhotoUrls(deps, lokasiId),
   };
 }

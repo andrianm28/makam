@@ -75,7 +75,7 @@ A Lokasi Mitra whose partnership has ended, from an effective date set by Admin 
 _Avoid_: Berakhir (reserved for a Hak Pakai), putus kontrak
 
 **TPU**:
-A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it and only offers Pengurusan and Layanan there.
+A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it and only offered Pengurusan and Layanan there. Taken out of the product (ADR 0010): the platform serves Lokasi Mitra only, and every TPU term below (Makam TPU, IPTM, Pengurusan, Perpanjangan TPU, Mitra Jasa and their kin) describes code kept but closed in every environment.
 _Avoid_: Makam umum, using TPU for any cemetery
 
 **Makam TPU**:
@@ -173,7 +173,7 @@ The Operator's field staff who do the work that needs someone on site: in-person
 _Avoid_: Kurir, staf lapangan
 
 **Mitra Jasa**:
-An individual service provider outside the Operator, paid per job, who fulfils Layanan at TPU. Each covers a set of DKI TPUs and a set of Layanan, and is Aktif, Ditangguhkan (no new jobs, reversible) or Berhenti (ended for good).
+An individual service provider outside the Operator, paid per job, who fulfils Layanan at TPU. Each covers a set of DKI TPUs and a set of Layanan, and is Aktif, Ditangguhkan (no new jobs, reversible) or Berhenti (ended for good). Taken out of the product with the TPU (ADR 0010): not offered as a role, and an Akun holding it gets no menu for it.
 _Avoid_: Vendor, tukang (as the role name), Mitra (alone)
 
 **Wakif**:

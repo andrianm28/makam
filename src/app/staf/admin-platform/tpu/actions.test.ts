@@ -1,4 +1,4 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { browser } from "../../../../../tests/support/next-request";
 import { resetDatabase, testDatabase } from "../../../../../tests/support/database";
 import { testServerRuntime } from "../../../../../tests/support/server-runtime";
@@ -12,7 +12,10 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const { close } = testDatabase();
 afterAll(close);
 const server = testServerRuntime();
+// DKI TPU and Mitra Jasa are taken out of the product (ADR 0010); 4 opens them again, in test only, so their code stays tested.
+afterEach(() => vi.unstubAllEnvs());
 beforeEach(async () => {
+  vi.stubEnv("RILIS_TERBUKA", "4");
   await resetDatabase();
   browser.reset();
 });

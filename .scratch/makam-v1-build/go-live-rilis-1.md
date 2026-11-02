@@ -188,6 +188,8 @@ Procedure: runbook, "Hari switch", every step in its order; the lines below are 
 
 ## G5: production at level 3 (D10 to D11)
 
+ADR 0010 (2026-11-02): DKI TPU and Mitra Jasa are taken out, so G5 no longer waits for the DKI Layanan prices, the Biaya Pengurusan, the Retribusi Pemda, Mitra Jasa accounts or the Surat Kuasa check; the Rilis 3 Data Contoh's TPU rows stay closed.
+
 Procedure: runbook, "Which release is open", after "Promoting to production" and "Hari switch" for P3.
 
 - [ ] **P3: C is promoted and deployed at a quiet hour**, with the staff told first.
@@ -199,7 +201,7 @@ Procedure: runbook, "Which release is open", after "Promoting to production" and
 - [ ] **`RILIS_TERBUKA=3` is in `prod.env` and web and worker are recreated.**
   Check: `grep '^RILIS_TERBUKA=3$' prod.env`, then `up -d --force-recreate web worker`.
   Evidence:
-- [ ] **The worker started at 3 and skips nothing**: a `started (RILIS_TERBUKA=3)` line and 0 lines with `skipped`.
+- [ ] **The worker started at 3 and skips only what ADR 0010 took out**: a `started (RILIS_TERBUKA=3)` line and exactly 5 lines with `skipped` (the 3 `pengurusan.*` and 2 Mitra Jasa ticks).
   Evidence:
 - [ ] **`/api/health` reports `rilisTerbuka` 3, and `makam-preflight --env prod --rilis 3` exits 0.**
   Evidence:

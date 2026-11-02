@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { fiturUntukRute, fiturUntukTick, terbukaDi } from "./rilis-peta";
-import { rilisAktif, rilisTerbuka } from "./rilis";
+import { dikeluarkanDi, fiturUntukRute, fiturUntukTick, terbukaDi } from "./rilis-peta";
+import { fiturDikeluarkan, rilisAktif, rilisTerbuka } from "./rilis";
 
 describe("Rilis terbuka (ADR 0006)", () => {
   it("production opens Rilis 1 unless the host says otherwise, staging and development open everything", () => {
@@ -38,8 +38,21 @@ describe("Rilis terbuka (ADR 0006)", () => {
     expect(rilisTerbuka("inti", production)).toBe(true);
     expect(rilisTerbuka("perpanjangan_lanjutan", { ...production, RILIS_TERBUKA: "2" })).toBe(true);
     expect(rilisTerbuka("tpu", { ...production, RILIS_TERBUKA: "2" })).toBe(false);
-    expect(rilisTerbuka("tpu", { APP_ENV: "staging" })).toBe(true);
+    expect(rilisTerbuka("wakaf", { APP_ENV: "staging" })).toBe(true);
     expect(terbukaDi("wakaf", 3)).toBe(true);
+  });
+
+  it("DKI TPU and Mitra Jasa are taken out (ADR 0010): closed at every release an environment opens, opened only by 4 in development and test", () => {
+    for (const source of [{ APP_ENV: "production" }, { APP_ENV: "production", RILIS_TERBUKA: "3" }, { APP_ENV: "staging" }, { APP_ENV: "development" }, { APP_ENV: "test" }]) {
+      expect(rilisTerbuka("tpu", source)).toBe(false);
+      expect(rilisTerbuka("mitra_jasa", source)).toBe(false);
+      expect(fiturDikeluarkan("tpu", source)).toBe(true);
+    }
+    expect(fiturDikeluarkan("wakaf", { APP_ENV: "production" })).toBe(false);
+    expect(() => rilisAktif({ APP_ENV: "staging", RILIS_TERBUKA: "4" })).toThrow(/RILIS_TERBUKA/);
+    expect(rilisTerbuka("tpu", { APP_ENV: "test", RILIS_TERBUKA: "4" })).toBe(true);
+    expect(fiturDikeluarkan("tpu", { APP_ENV: "development", RILIS_TERBUKA: "4" })).toBe(false);
+    expect(dikeluarkanDi("mitra_jasa", 3)).toBe(true);
   });
 
   it("each Rilis 2 and Rilis 3 route belongs to its feature; Layanan at a Lokasi Mitra stays in Rilis 1", () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ContentPage, ContentPageFooter, ContentParagraphs } from "@/components/site/content-page";
 import { tentangKamiParagrafs } from "@/lib/content-pages";
+import { rilisAktif } from "@/lib/rilis";
 import { serverRuntime } from "@/server/runtime";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export default async function TentangKamiPage() {
 
   return (
     <ContentPage title="Tentang Kami" lead="Layanan pemakaman yang memisahkan hal yang jelas dari hal yang belum.">
-      <ContentParagraphs paragraphs={tentangKamiParagrafs(settings?.legalName ?? null)} />
+      <ContentParagraphs paragraphs={tentangKamiParagrafs(settings?.legalName ?? null, rilisAktif())} />
       <ContentPageFooter current="Tentang Kami" />
     </ContentPage>
   );

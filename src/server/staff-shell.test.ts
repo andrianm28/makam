@@ -12,6 +12,7 @@ const { close } = testDatabase();
 afterAll(close);
 const server = testServerRuntime();
 beforeEach(async () => {
+  vi.unstubAllEnvs();
   await resetDatabase();
   browser.reset();
 });
@@ -35,7 +36,7 @@ async function newLokasiMitra(name: string) {
 }
 
 describe("the staff shell", () => {
-  it("an Akun holding Petugas Lapangan and Mitra Jasa can switch between exactly those two roles", async () => {
+  it("an Akun holding Petugas Lapangan and Mitra Jasa can switch between exactly those two roles where Mitra Jasa is open, and sees only Petugas Lapangan while it is taken out", async () => {
     const admin = await signInAsAdminPlatform(server);
     for (const role of ["petugas_lapangan", "mitra_jasa"] as const) {
       const invited = await server.runtime().identity.inviteStaff(admin, { email: "staf@contoh.id", phoneNumber: "082222222222", role });
@@ -43,6 +44,11 @@ describe("the staff shell", () => {
     }
     await signIn("staf@contoh.id");
 
+    // Mitra Jasa is taken out of the product (ADR 0010): the Akun keeps the role, but the shell offers only Petugas Lapangan.
+    expect((await staffShell())?.roles).toEqual([{ role: "petugas_lapangan", label: "Petugas Lapangan", href: "/staf/petugas-lapangan" }]);
+    expect(Object.keys((await staffShell())!.palette)).toEqual(["petugas_lapangan"]);
+
+    vi.stubEnv("RILIS_TERBUKA", "4");
     expect((await staffShell())?.roles).toEqual([
       { role: "petugas_lapangan", label: "Petugas Lapangan", href: "/staf/petugas-lapangan" },
       { role: "mitra_jasa", label: "Mitra Jasa", href: "/staf/mitra-jasa" },
@@ -241,7 +247,7 @@ describe("the command palette (role visibility on the server)", () => {
     expect(hrefs(shell!.palette).filter((href) => href.includes(other.lokasiMitra.id) || href.startsWith("/staf/admin-platform"))).toEqual([]);
   });
 
-  it("an Admin Platform's palette opens its built pages and each Lokasi Mitra by name, never a page that is not built yet", async () => {
+  it("an Admin Platform's palette opens its built pages and each Lokasi Mitra by name, never a page that is not built yet nor one taken out of the product (ADR 0010)", async () => {
     const { lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
 
     const shell = await staffShell();
@@ -252,7 +258,6 @@ describe("the command palette (role visibility on the server)", () => {
         items: [
           { label: "Beranda", href: "/staf/admin-platform" },
           { label: "Antrean", href: "/staf/admin-platform/antrean" },
-          { label: "Pekerjaan TPU", href: "/staf/admin-platform/pekerjaan-tpu" },
           { label: "Tagihan", href: "/staf/admin-platform/tagihan" },
           { label: "Wakaf Tanah", href: "/staf/admin-platform/wakaf" },
         ],
@@ -268,7 +273,6 @@ describe("the command palette (role visibility on the server)", () => {
         label: "Lokasi dan harga",
         items: [
           { label: "Lokasi Mitra", href: "/staf/admin-platform/lokasi" },
-          { label: "TPU DKI", href: "/staf/admin-platform/tpu" },
           { label: "Tarif global", href: "/staf/admin-platform/tarif" },
           { label: "Katalog Layanan", href: "/staf/admin-platform/layanan" },
           { label: "Hari Libur Nasional", href: "/staf/admin-platform/hari-libur" },
@@ -278,7 +282,6 @@ describe("the command palette (role visibility on the server)", () => {
         label: "Orang",
         items: [
           { label: "Staf", href: "/staf/admin-platform/staf" },
-          { label: "Mitra Jasa", href: "/staf/admin-platform/mitra-jasa" },
           { label: "Pemulihan Akun", href: "/staf/admin-platform/pemulihan-akun" },
           { label: "Tugas Lapangan", href: "/staf/admin-platform/tugas-lapangan" },
         ],
@@ -297,7 +300,9 @@ describe("the command palette (role visibility on the server)", () => {
     ]);
   });
 
-  it("an Akun holding Petugas Lapangan and Mitra Jasa gets exactly those two roles' pages", async () => {
+  it("an Akun holding Petugas Lapangan and Mitra Jasa gets exactly those two roles' pages where Mitra Jasa is open", async () => {
+    // Mitra Jasa is taken out of the product (ADR 0010); 4 opens it again, in test only.
+    vi.stubEnv("RILIS_TERBUKA", "4");
     const admin = await signInAsAdminPlatform(server);
     for (const role of ["petugas_lapangan", "mitra_jasa"] as const) {
       const invited = await server.runtime().identity.inviteStaff(admin, { phoneNumber: "082222222222", email: "staf@contoh.id", role });

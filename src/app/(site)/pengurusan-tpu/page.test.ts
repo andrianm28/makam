@@ -96,8 +96,10 @@ describe("Pengurusan di TPU DKI, the DKI Layanan price list", () => {
     expect(kartu).not.toContain("harga contoh");
   });
 
-  it("leads the family from the prices to the order of a Layanan at a DKI TPU", async () => {
+  it("leads the family from the prices to the order of a Layanan at a DKI TPU, where DKI TPU is open", async () => {
     await siapTpu(layananOnTestDatabase(db));
+    // DKI TPU is taken out of the product (ADR 0010); 4 opens it again, in test only.
+    vi.stubEnv("RILIS_TERBUKA", "4");
 
     const { html, teks } = await halaman();
 
