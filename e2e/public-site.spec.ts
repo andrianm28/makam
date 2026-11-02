@@ -103,7 +103,7 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
   await expect(menu.getByRole("link", { name: "Semua Layanan Kedukaan" })).toHaveAttribute("href", "/layanan-kedukaan");
   // An item whose release is open is a link to its page.
   if (!belumHadir.includes("Program Wakaf Tanah Pemakaman")) {
-    await expect(menu.getByRole("link", { name: /^Wakaf Tanah Pemakaman/ })).toHaveAttribute("href", "/wakaf-tanah");
+    await expect(menu.getByRole("link", { name: /^Program Wakaf Tanah Pemakaman/ })).toHaveAttribute("href", "/wakaf-tanah");
   }
 });
 
