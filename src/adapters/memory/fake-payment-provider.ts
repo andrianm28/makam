@@ -40,16 +40,25 @@ export class FakePaymentProvider implements PaymentProvider {
   readonly created: RecordedPayment[] = [];
   /** When set, `createPayment` throws it instead of creating a payment (a test's failing provider). */
   failWith?: Error;
+  /** Virtual Account up to Rp 1 miliar by default, so development shows all three ways to pay; a test may lower it. */
+  batasVirtualAccount: number;
   readonly #clock: Clock;
   readonly #secret: string;
 
-  constructor(options: { clock: Clock; webhookSecret?: string }) {
+  constructor(options: { clock: Clock; webhookSecret?: string; batasVirtualAccount?: number }) {
     this.#clock = options.clock;
     this.#secret = options.webhookSecret ?? FAKE_PAYMENT_WEBHOOK_SECRET;
+    this.batasVirtualAccount = options.batasVirtualAccount ?? 1_000_000_000;
   }
 
   async createPayment(request: CreatePaymentRequest): Promise<CreatedPayment> {
     if (this.failWith) throw this.failWith;
+    if (request.metode === "virtual_account" && request.amountRupiah > this.batasVirtualAccount) {
+      throw new Error("FakePaymentProvider: above the Virtual Account limit");
+    }
+    if (request.metode === "qris" && request.amountRupiah > 10_000_000) {
+      throw new Error("FakePaymentProvider: QRIS above Bank Indonesia's cap");
+    }
     const providerPaymentId = `fakepay_${randomUUID()}`;
     const payment: CreatedPayment = {
       providerPaymentId,

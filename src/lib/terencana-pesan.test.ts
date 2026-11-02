@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { pesanKirim, pesanPeriksa } from "./terencana-pesan";
 /**
  * Every refusal the Pemesanan module can answer has words of its own: a family never
- * sees a reason key, and the fallback ("Periksa lagi pilihan petak Anda.") is only for
+ * sees a reason key, and the fallback ("Periksa lagi tipe kavling yang Anda pilih.") is only for
  * the refusals that name no plot.
  */
 const TANPA_PETAK = new Set(["tanpa_unit", "input_tidak_valid", "lokasi_tidak_ada", "harga_tidak_tersedia", "akun_tidak_cocok", "telepon_tidak_valid", "telepon_pemegang_hak_tidak_valid"]);
@@ -13,7 +13,7 @@ const penolakan = [
   { reason: "unit_campur" },
   { reason: "unit_ganda", nomor: "A-12" },
   { reason: "tanpa_unit" },
-  { reason: "melebihi_batas_qris", total: 10_150_000 },
+  { reason: "melebihi_batas_tagihan", total: 10_150_000 },
   { reason: "unit_tidak_ditemukan" },
   { reason: "lokasi_tidak_ada" },
   { reason: "harga_tidak_tersedia" },
@@ -26,12 +26,12 @@ const penolakan = [
 describe("the words for a refused Terencana selection", () => {
   it("names the plot, the limit and the next step", () => {
     expect(pesanKirim({ ok: false, reason: "sudah_dipesan", nomor: "A-12", sisa: [] })).toBe(
-      "Maaf, A-12 baru saja dipesan keluarga lain. Pilihan petak Anda yang lain tetap tersimpan.",
+      "Maaf, A-12 baru saja dipesan keluarga lain. Silakan pilih tipe kavling lagi; kami carikan kavling lain dari tipe yang sama.",
     );
     expect(pesanKirim({ ok: false, reason: "unit_tidak_bisa_dipilih", nomor: "A-12", status: "terisi", sisa: [] })).toBe(
-      "A-12 sudah terisi, jadi tidak bisa dipilih. Pilih petak lain di denah.",
+      "A-12 sudah terisi, jadi tidak bisa dipilih. Silakan pilih tipe kavling lagi.",
     );
-    expect(pesanKirim({ ok: false, reason: "melebihi_batas_qris", total: 10_150_000 })).toContain("Rp 10.150.000 melewati batas pembayaran Rp 10.000.000 lewat QRIS");
+    expect(pesanKirim({ ok: false, reason: "melebihi_batas_tagihan", total: 100_000_000_001 })).toContain("Rp 100.000.000.001 melewati batas satu Tagihan Rp 100.000.000.000");
   });
 
   it("says the same thing at Lanjut as at Kirim", () => {
@@ -44,7 +44,7 @@ describe("the words for a refused Terencana selection", () => {
       const pesan = pesanKirim(satu as Parameters<typeof pesanKirim>[0]);
       expect(pesan.length).toBeGreaterThan(20);
       expect(pesan).toMatch(/[a-z]/i);
-      if (!TANPA_PETAK.has(satu.reason)) expect(pesan).not.toBe("Periksa lagi pilihan petak Anda.");
+      if (!TANPA_PETAK.has(satu.reason)) expect(pesan).not.toBe("Periksa lagi tipe kavling yang Anda pilih.");
     }
   });
 });

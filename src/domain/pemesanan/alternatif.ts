@@ -16,7 +16,7 @@
  * 1. **The total is `quote()`'s, at the moment it is shown and again at the
  *    moment it is accepted.** Nothing is frozen on the order, so a family can
  *    never accept a number that has quietly stopped being the price; a price
- *    that has become unpriceable (or has passed the QRIS cap) refuses the
+ *    that has become unpriceable (or has passed `BATAS_TAGIHAN` (the largest Tagihan)) refuses the
  *    acceptance with a reason rather than confirming at a total nobody agreed to.
  * 2. **Accepting recomputes `konfirmasiDueAt` from the acceptance.** Carrying the
  *    first deadline over would promise a confirmation by a moment already past,
@@ -63,7 +63,7 @@ export type TawarkanAlternatifResult =
   | { ok: false; reason: "alternatif_kosong" }
   /** No Jenis Makam of that id at that Lokasi Mitra, so it cannot be offered. */
   | { ok: false; reason: "jenis_makam_tidak_ditemukan" }
-  /** The offered Jenis Makam cannot be priced now, or its all-in total is past the QRIS cap. */
+  /** The offered Jenis Makam cannot be priced now, or its all-in total is past `BATAS_TAGIHAN` (the largest Tagihan). */
   | { ok: false; reason: "harga_tidak_tersedia" };
 
 export type JawabAlternatifResult =
@@ -73,7 +73,7 @@ export type JawabAlternatifResult =
   | { ok: false; reason: "pesanan_sudah_ditutup" }
   /** No offer is on the table: nothing to accept and nothing to refuse. */
   | { ok: false; reason: "tidak_ada_alternatif" }
-  /** The offer can no longer be priced (or has passed the QRIS cap): nobody may accept a number nobody quoted. */
+  /** The offer can no longer be priced (or has passed `BATAS_TAGIHAN` (the largest Tagihan)): nobody may accept a number nobody quoted. */
   | { ok: false; reason: "harga_tidak_tersedia" };
 
 /**

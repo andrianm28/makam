@@ -92,8 +92,7 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
     expect(hasil.output).toContain("Mode dry-run: tidak ada yang ditulis.");
     expect(hasil.output).toContain("Lokasi: 3 dibaca, 3 akan diimpor, 1 ditolak.");
     expect(hasil.output).toContain("Jenis Makam: 5 dibaca, 4 akan diimpor.");
-    expect(hasil.output).toContain("Di luar cap QRIS Rp 10.000.000, tetap diimpor tapi tidak ditampilkan (1):");
-    expect(hasil.output).toContain("TPU-BT-01-DLX: Rp 12.750.000");
+    expect(hasil.output).toContain("Di luar batas Tagihan Rp 100.000.000.000, tetap diimpor tapi tidak ditampilkan (0):");
     expect(hasil.output).toContain("Pertanyaan untuk owner (5):");
     expect(hasil.output).toContain('Aplikasi lama menyimpan status terbit "draft"');
     expect(hasil.output).toContain('Data contoh di aplikasi lama (2 Lokasi): TPU-BT-01 (alamat diawali "Jl. Contoh")');
@@ -134,7 +133,7 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
     expect(await katalog.lokasi("TPU-BT-01")).toMatchObject({ lokasiId: lokasi.id, sudahTerikat: true });
   });
 
-  it("keeps a Jenis Makam over the QRIS cap, and the public pricing leaves it out", async () => {
+  it("imports a Jenis Makam over the QRIS cap, and the public pricing lists it (ADR 0013)", async () => {
     const { lokasiMitra, tariffs, admin } = await modul();
     // The platform fee a quote adds on a Lokasi Mitra order; without it nothing can be quoted at all.
     await tariffs.setGlobalTariff(admin, { key: "biaya_layanan_platform", amount: 25_000, effectiveOn: "2026-10-01", reason: null });
@@ -145,7 +144,7 @@ describe("npm run import:katalog-lama -- --sumber <ekspor.json>", () => {
     const publik = await tariffs.asStaff(admin).lokasiPricing(lokasi.id, wib("2026-10-01 09:00"));
 
     expect(seenuh.jenisMakam.map((jenis) => jenis.name)).toContain("Makam Deluxe");
-    expect(publik.jenisMakam.map((kartu) => kartu.jenisMakam.name)).toEqual(["Makam Standar"]);
+    expect(publik.jenisMakam.map((kartu) => kartu.jenisMakam.name).sort()).toEqual(["Makam Deluxe", "Makam Standar"]);
   });
 
   it("refuses a price the old app had already put in force, and counts it as a question for the owner", async () => {

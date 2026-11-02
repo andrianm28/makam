@@ -12,9 +12,9 @@ import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-import { pengaturanOperatorSchema } from "./schema";
+import { pengaturanOperatorSchema, rekeningFormFields } from "./schema";
 
-const fields = [...operatorSettingsFields, "reason"] as const;
+const fields = [...operatorSettingsFields, ...rekeningFormFields, "reason"] as const;
 
 /**
  * Admin Platform saves Pengaturan Operator: a new version in force from now,
@@ -31,7 +31,11 @@ export async function simpanPengaturanOperator(
     resource: () => pengaturanOperatorResource(),
     schema: pengaturanOperatorSchema,
     input: Object.fromEntries(fields.map((name) => [name, formData.get(name) ?? ""])),
-    run: (actor, data) => serverRuntime().operatorSettings.change(actor, data),
+    run: (actor, { rekeningBank, rekeningNomor, rekeningAtasNama, ...data }) =>
+      serverRuntime().operatorSettings.change(actor, {
+        ...data,
+        rekening: { bank: rekeningBank, nomor: rekeningNomor, atasNama: rekeningAtasNama },
+      }),
   });
   if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
   const changed = result.value;
@@ -44,6 +48,10 @@ function refusal(refused: Extract<ChangeOperatorSettingsResult, { ok: false }>):
   switch (refused.reason) {
     case "isian_wajib":
       return `${operatorSettingsFieldLabels[refused.field]} wajib diisi.`;
+    case "rekening_tidak_lengkap":
+      return "Rekening transfer: isi nama bank, nomor rekening dan atas nama sekaligus, atau kosongkan ketiganya.";
+    case "nomor_rekening_tidak_valid":
+      return "Nomor rekening hanya boleh berisi angka (spasi atau tanda hubung boleh).";
     case "email_tidak_valid":
       return "Email Operator tidak valid.";
     case "nomor_tidak_valid":

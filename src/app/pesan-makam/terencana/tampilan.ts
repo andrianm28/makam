@@ -21,7 +21,7 @@ export interface LokasiView {
   terverifikasi: string;
   /** "Rp 2.650.000" (the card's own "mulai" caption sits above it), or null while nothing here is priced. */
   mulai: string | null;
-  /** "5 petak atau kavling bisa dipilih", or "Belum ada petak yang tersedia". */
+  /** "5 petak atau kavling bisa dipilih", or "Belum ada kavling yang tersedia". */
   tersedia: string;
   /** Up to three facilities, by their key (for the icon) and label. */
   fasilitas: { key: LokasiFacility; label: string }[];
@@ -39,7 +39,7 @@ export function lokasiView(kartu: KartuTerencana, foto: string | null): LokasiVi
     mulai: kartu.mulaiDari === null ? null : formatRupiah(kartu.mulaiDari),
     tersedia:
       kartu.tersedia > 0
-        ? `${kartu.tersedia} petak atau kavling bisa dipilih`
+        ? `${kartu.tersedia} kavling tersedia`
         : "Belum ada petak yang tersedia",
     fasilitas: (kartu.lokasi.facilities as LokasiFacility[]).slice(0, 3).map((facility) => ({ key: facility, label: lokasiFacilities[facility] })),
     foto,

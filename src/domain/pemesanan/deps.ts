@@ -41,7 +41,7 @@ export interface TerencanaQuery {
   /** Every one of these must be checked. */
   facilities?: LokasiFacility[];
   /** Only Lokasi Mitra whose cheapest buyable Hak Pakai all-in total falls in this band (all of them within the payment cap). */
-  harga?: "hingga_3_juta" | "3_sampai_6_juta" | "di_atas_6_juta";
+  harga?: "hingga_3_juta" | "3_sampai_6_juta" | "di_atas_6_juta" | "di_atas_10_juta";
 }
 
 /**

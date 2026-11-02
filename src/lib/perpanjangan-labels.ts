@@ -41,7 +41,7 @@ export type AlasanPerpanjangan =
   | "bukan_pemegang_hak"
   | "terms_melebihi_batas"
   | "tagihan_terbuka"
-  | "melebihi_batas_qris"
+  | "melebihi_batas_tagihan"
   | "layanan_tidak_tersedia"
   | "teks_kosong"
   | "target_kosong"
@@ -54,7 +54,7 @@ export function alasanPerpanjanganText(alasan: AlasanPerpanjangan): string {
       return "Isian belum lengkap. Periksa lagi lalu coba kembali.";
     case "harga_tidak_tersedia":
     case "tagihan_tidak_terbit":
-    case "melebihi_batas_qris":
+    case "melebihi_batas_tagihan":
       return "Perpanjangan ini belum bisa dipesan lewat situs. Silakan hubungi CS.";
     case "kontak_pemegang_hak_kosong":
       return "Data Pemegang Hak belum lengkap. Silakan hubungi Admin Lokasi.";

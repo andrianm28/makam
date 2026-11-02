@@ -89,7 +89,7 @@ export type AlasanTolakPesanan =
   | "lead_time_melewati"
   /** A Layanan that asks for a text field, left empty. */
   | "teks_kosong"
-  /** The all-in price could not be computed, or is past a limit (the QRIS cap). */
+  /** The all-in price could not be computed, or is past `BATAS_TAGIHAN`, the largest Tagihan. */
   | "harga_tidak_tersedia"
   /** A Tagihan could not be issued: nothing at all is written. */
   | "tagihan_tidak_terbit"

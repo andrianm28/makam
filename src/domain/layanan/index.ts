@@ -570,7 +570,7 @@ export interface Layanan {
    * What one order of these variants costs, all in, at this instant: the items at
    * that place's price plus the one Biaya Layanan Platform a Tagihan at a Lokasi
    * Mitra carries. Null where a variant is not offered there, has no price in
-   * force, or the total is past the QRIS cap.
+   * force, or the total is past `BATAS_TAGIHAN` (the largest Tagihan).
    */
   hargaPesananLayanan(lokasiId: string, layananVariantIds: readonly string[]): Promise<HargaPesananLayanan | null>;
   /**
@@ -684,7 +684,7 @@ export interface Layanan {
    * may add. No actor: it is the public price list.
    */
   penawaranTpuUntukPesanan(options?: { hariH?: boolean }): Promise<LayananUntukPesanan[]>;
-  /** What these variants cost at a TPU, all in; null where one is not offered or the total passes the QRIS cap. */
+  /** What these variants cost at a TPU, all in; null where one is not offered or the total passes `BATAS_TAGIHAN` (the largest Tagihan). */
   hargaPesananTpu(layananVariantIds: readonly string[]): Promise<{ total: number; parts: { label: string; amount: number }[] } | null>;
   /**
    * Places an order Layanan at a DKI TPU by describing the grave (TPU, blok/nomor,

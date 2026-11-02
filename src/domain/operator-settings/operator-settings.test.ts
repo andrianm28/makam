@@ -47,6 +47,7 @@ describe("Pengaturan Operator", () => {
       email: "halo@makam.co.id",
       csWhatsApp: "+6281122223333",
       csReplyHours: "dibalas mulai pukul 06:00",
+      rekening: null,
       inForceFrom: wib("2026-10-02 10:00"),
     };
     expect(changed).toEqual({ ok: true, settings: expected });
@@ -116,6 +117,7 @@ describe("Pengaturan Operator", () => {
       email: "halo@makam.co.id",
       csWhatsApp: "+6281122223333",
       csReplyHours: "dibalas mulai pukul 06:00",
+      rekening: null,
     };
     expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toEqual([
       expect.objectContaining({
@@ -187,6 +189,53 @@ describe("Pengaturan Operator", () => {
     expect(await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID })).toMatchObject([
       { reason: null },
     ]);
+  });
+
+  it("keeps the Operator's bank account for a Tagihan paid by transfer (ADR 0013): none until entered, trimmed", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+
+    expect(await setup.operatorSettings.change(actor, { ...pengaturan, reason: null })).toMatchObject({ ok: true, settings: { rekening: null } });
+    const saved = await setup.operatorSettings.change(actor, {
+      ...pengaturan,
+      rekening: { bank: " Bank Central Asia (BCA) ", nomor: "123-456 7890", atasNama: "PT Jaya Korpora Prima " },
+      reason: null,
+    });
+
+    expect(saved).toMatchObject({ ok: true });
+    expect((await setup.operatorSettings.current())?.rekening).toEqual({
+      bank: "Bank Central Asia (BCA)",
+      nomor: "123-456 7890",
+      atasNama: "PT Jaya Korpora Prima",
+    });
+  });
+
+  it("a change of the bank account is recorded in the Audit Log with the account before and after", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+    const lama = { bank: "BCA", nomor: "1234567890", atasNama: "PT Jaya Korpora Prima" };
+    const baru = { bank: "Bank Mandiri", nomor: "0987654321", atasNama: "PT Jaya Korpora Prima" };
+    await setup.operatorSettings.change(actor, { ...pengaturan, rekening: lama, reason: null });
+    await setup.operatorSettings.change(actor, { ...pengaturan, rekening: baru, reason: "Rekening baru" });
+
+    const entri = await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID });
+    expect(entri.at(-1)).toMatchObject({ before: { rekening: lama }, after: { rekening: baru }, reason: "Rekening baru" });
+  });
+
+  it("refuses a bank account with only some parts filled in, or an account number that is not digits", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+
+    expect(
+      await setup.operatorSettings.change(actor, { ...pengaturan, rekening: { bank: "BCA", nomor: "", atasNama: "PT Jaya Korpora Prima" }, reason: null }),
+    ).toEqual({ ok: false, reason: "rekening_tidak_lengkap" });
+    expect(
+      await setup.operatorSettings.change(actor, { ...pengaturan, rekening: { bank: "BCA", nomor: "12AB5678", atasNama: "PT Jaya Korpora Prima" }, reason: null }),
+    ).toEqual({ ok: false, reason: "nomor_rekening_tidak_valid" });
+    expect(
+      await setup.operatorSettings.change(actor, { ...pengaturan, rekening: { bank: " ", nomor: "", atasNama: "" }, reason: null }),
+    ).toMatchObject({ ok: true, settings: { rekening: null } });
+    expect(await setup.operatorSettings.current()).toMatchObject({ rekening: null });
   });
 
   it("only Admin Platform may change it: a Pemesan is refused and nothing is kept or audited", async () => {

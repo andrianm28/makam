@@ -36,7 +36,7 @@ import { createTariffs, type Tariffs } from "@/domain/tariffs";
 import { appEnvironments, readRuntimeEnv, usesInMemoryFakes } from "@/lib/env";
 import { formatRupiah } from "@/lib/rupiah";
 import { wibDateOf } from "@/lib/time/jakarta";
-import { QRIS_PAYMENT_CAP } from "@/domain/billing";
+import { BATAS_TAGIHAN } from "@/domain/billing";
 import type { Clock } from "@/ports/clock";
 import { cliFailure } from "./cli-failure";
 import { bacaEkspor, KATALOG_LAMA_FORMAT } from "./katalog-lama/ekspor";
@@ -354,7 +354,7 @@ function laporan(input: {
     `Sumber: ${input.sumber} (format ${KATALOG_LAMA_FORMAT}${input.dieksporPada ? `, diekspor ${input.dieksporPada}` : ""})`,
     `Lokasi: ${rencana.ringkasan.lokasiDibaca} dibaca, ${rencana.ringkasan.lokasiDiimpor} akan diimpor, ${ditolak.length} ditolak.`,
     `Jenis Makam: ${rencana.ringkasan.jenisMakamDibaca} dibaca, ${rencana.ringkasan.jenisMakamDiimpor} akan diimpor.`,
-    `Di luar cap QRIS ${formatRupiah(QRIS_PAYMENT_CAP)}, tetap diimpor tapi tidak ditampilkan (${diLuarCap.length}):`,
+    `Di luar batas Tagihan ${formatRupiah(BATAS_TAGIHAN)}, tetap diimpor tapi tidak ditampilkan (${diLuarCap.length}):`,
     ...diLuarCap.map((jenis) => `  - ${jenis.kode}: ${formatRupiah(jenis.allIn)}`),
   ];
   if (rencana.dataContoh.length > 0) {

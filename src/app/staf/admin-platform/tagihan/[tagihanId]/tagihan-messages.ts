@@ -48,8 +48,8 @@ export function hargaKhususMessage(reason: string): string {
       return "Bagian Lokasi Mitra tidak bisa dicatat sekarang. Coba lagi, atau hubungi tim teknis.";
     case "jumlah_terlalu_besar":
       return "Jumlah ini terlalu besar.";
-    case "melebihi_batas_qris":
-      return "Total Tagihan baru akan melebihi batas Rp 10.000.000.";
+    case "melebihi_batas_tagihan":
+      return "Total Tagihan baru akan melebihi batas satu Tagihan (Rp 100.000.000.000).";
     case "pengaturan_operator_belum_diisi":
       return "Pengaturan Operator belum diisi.";
     case "tidak_berwenang":

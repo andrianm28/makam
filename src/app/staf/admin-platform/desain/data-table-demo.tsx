@@ -10,7 +10,7 @@ interface ContohBaris {
 
 const contoh: ContohBaris[] = [
   { nama: "Makam Wakaf Al-Ikhlas", status: "terverifikasi" },
-  { nama: "TPU Keluarga Sentosa", status: "belum_tayang" },
+  { nama: "Pemakaman Keluarga Sentosa", status: "belum_tayang" },
   { nama: "Taman Damai Abadi", status: "ditangguhkan" },
 ];
 

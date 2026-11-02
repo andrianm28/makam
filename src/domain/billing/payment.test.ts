@@ -1,7 +1,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { Rupiah } from "@/lib/rupiah";
 import { wib } from "@/lib/time/jakarta";
-import { billingWithOperatorSettings, insertOverCapTagihanForTest, setTagihanStatusForTest, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
+import { billingWithOperatorSettings, setTagihanStatusForTest, TEST_PUBLIC_ORIGIN } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import { schedulerContext } from "../../../tests/support/scheduler";
 import { scheduledTicks } from "@/domain/scheduler";
@@ -98,11 +98,37 @@ describe("Bayar", () => {
     expect(setup.payments.created).toEqual([]);
   });
 
-  it("a Tagihan above the QRIS cap (Rp 10.000.000) can't be paid through Bayar", async () => {
-    const setup = await billingWithOperatorSettings(db);
-    const overCap = await insertOverCapTagihanForTest(db, 10_000_001, setup.clock.now());
+  const kavling = (amount: number): IssueTagihanInput => ({
+    ...terencana,
+    lines: [{ kind: "harga_hak_pakai", label: "Harga Hak Pakai – Kavling Keluarga", amount: rp(amount), provider: LOKASI }],
+  });
 
-    expect(await setup.billing.bayar(overCap.link)).toEqual({ ok: false, reason: "melebihi_batas_qris" });
+  it("a Tagihan of exactly Rp 10.000.000 (the QRIS cap) is paid by QRIS", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    const tagihan = await issued(setup, kavling(10_000_000));
+
+    expect(setup.billing.caraBayar(tagihan.total)).toBe("qris");
+    expect(await setup.billing.bayar(tagihan.link)).toMatchObject({ ok: true });
+    expect(setup.payments.created).toMatchObject([{ metode: "qris", amountRupiah: 10_000_000 }]);
+  });
+
+  it("a Tagihan above the QRIS cap is paid by Virtual Account up to the PaymentProvider's VA limit", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    setup.payments.batasVirtualAccount = 500_000_000;
+    const tagihan = await issued(setup, kavling(109_700_000));
+
+    expect(setup.billing.caraBayar(tagihan.total)).toBe("virtual_account");
+    expect(await setup.billing.bayar(tagihan.link)).toMatchObject({ ok: true });
+    expect(setup.payments.created).toMatchObject([{ metode: "virtual_account", amountRupiah: 109_700_000 }]);
+  });
+
+  it("a Tagihan above the VA limit (or above the QRIS cap while VA is off) is paid by manual transfer, not Bayar", async () => {
+    const setup = await billingWithOperatorSettings(db);
+    setup.payments.batasVirtualAccount = 0;
+    const tagihan = await issued(setup, kavling(10_000_001));
+
+    expect(setup.billing.caraBayar(tagihan.total)).toBe("transfer_manual");
+    expect(await setup.billing.bayar(tagihan.link)).toEqual({ ok: false, reason: "transfer_manual" });
     expect(setup.payments.created).toEqual([]);
   });
 
@@ -407,7 +433,7 @@ describe("the payment webhook", () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);
     // Created at the provider directly, never through Bayar.
-    const foreign = await setup.payments.createPayment({ reference: tagihan.nomorTagihan, amountRupiah: tagihan.total, description: "?" });
+    const foreign = await setup.payments.createPayment({ metode: "qris", reference: tagihan.nomorTagihan, amountRupiah: tagihan.total, description: "?" });
 
     const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(foreign.providerPaymentId, "paid"));
 

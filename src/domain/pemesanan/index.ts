@@ -133,6 +133,7 @@ import {
   type PilihanTerencana,
   type PlaceTerencanaResult,
 } from "./terencana";
+import { tipeKavlingTerencana, type TipeKavlingTerencana } from "./tipe-kavling";
 
 import {
   ajukanPembatalanTerencana,
@@ -333,12 +334,13 @@ export type {
   TotalTerencana,
   UnitTerencana,
 } from "./terencana";
+export type { TipeKavling, TipeKavlingTerencana } from "./tipe-kavling";
 
 export interface Pemesanan {
   /**
    * The Saat Duka "Pilih makam" list: every Terverifikasi Lokasi Mitra that
    * still has a Jenis Makam with cleared Tersedia units, each priced all-in
-   * and within the QRIS cap, cheapest first, filtered by kota, and narrowed to
+   * and within `BATAS_TAGIHAN` (the largest Tagihan), cheapest first, filtered by kota, and narrowed to
    * the one card "Data & kirim" prices again. No actor.
    */
   pilihanSaatDuka(query?: PilihanSaatDukaQuery): Promise<GrupSaatDuka[]>;
@@ -465,6 +467,8 @@ export interface Pemesanan {
   pilihanTerencana(query?: TerencanaQuery): Promise<KartuTerencana[]>;
   /** Every city with at least one of them, for that step's city filter. */
   kotaTerencana(): Promise<string[]>;
+  /** Pilih Tipe Kavling: every tipe a Terencana Lokasi Mitra sells, each with what is left and the unit an order would take. */
+  tipeKavlingTerencana(lokasiId: string): Promise<TipeKavlingTerencana | null>;
   /**
    * The Terencana wizard's step 2, "Petak": the Denah of one of them, with the chosen
    * plots (if any) priced at this instant by `quote()`, the "Nanti" line and the Syarat
@@ -632,6 +636,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     pilihanTerencana: (query) => pilihanTerencana(deps, query),
     kotaTerencana: () => kotaTerencana(deps),
     denahTerencana: (lokasiId, pilihan) => denahTerencana(deps, lokasiId, pilihan),
+    tipeKavlingTerencana: (lokasiId) => tipeKavlingTerencana(deps, lokasiId),
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),

@@ -6,14 +6,20 @@
  *   independent of the link's expiry.
  * - Verifies (Svix signature) and parses webhooks. Billing processes them
  *   idempotently by `eventId`.
+ * - Takes QRIS up to Bank Indonesia's Rp 10.000.000 cap and, above it, a
+ *   Virtual Account up to `batasVirtualAccount` (ADR 0013).
  * - No payout or refund methods in v1.
  */
+
+/** The channel a payment is created for: Billing picks it from the Tagihan's total (`caraBayar`). */
+export type MetodePembayaran = "qris" | "virtual_account";
 export interface CreatePaymentRequest {
   /** Our reference for the payment, e.g. the Tagihan number. */
   reference: string;
   /** Whole rupiah. */
   amountRupiah: number;
   description: string;
+  metode: MetodePembayaran;
   payer?: { name?: string; phone?: string; email?: string };
   /** Where the provider sends the payer back to after paying. */
   returnUrl?: string;
@@ -59,6 +65,12 @@ export class InvalidWebhookError extends Error {
 }
 
 export interface PaymentProvider {
+  /**
+   * The largest amount this provider takes by Virtual Account, in whole
+   * rupiah. 0 (or anything at most the QRIS cap) means Virtual Account is off,
+   * so a Tagihan above the QRIS cap is paid by manual transfer instead.
+   */
+  readonly batasVirtualAccount: number;
   createPayment(request: CreatePaymentRequest): Promise<CreatedPayment>;
   /**
    * Throws InvalidWebhookError when the signature or payload does not check

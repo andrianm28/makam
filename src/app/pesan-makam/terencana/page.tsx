@@ -21,13 +21,14 @@ import { FilterChip } from "@/components/makam/filter-chip";
 import { buttonVariants } from "@/components/ui/button";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import { HARGA_BANDS, type PilihanDitolak, type PilihanTerencana, type TerencanaQuery, type UnitTerencana } from "@/domain/pemesanan";
-import { pesanBatasPembayaran, pesanPeriksa } from "@/lib/terencana-pesan";
+import { pesanPeriksa } from "@/lib/terencana-pesan";
+import { tenureLabel } from "@/lib/pemesanan-labels";
+import { formatRupiah } from "@/lib/rupiah";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { opsiLayananView } from "@/components/layanan/opsi-view";
 import { targetPalingDini } from "@/domain/layanan";
 import { DataKirim } from "./data-kirim";
-import { DenahPicker } from "./denah-picker";
 import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
 import { pilihanDariParams, terencanaPath } from "./tautan";
 import { denahView, lokasiView, terkirimView, type LokasiView } from "./tampilan";
@@ -80,7 +81,7 @@ export default async function TerencanaPage({ searchParams }: PageProps<"/pesan-
   if (lokasiId && langkah === "data" && (pilihan.petak.length > 0 || pilihan.kavling)) {
     return <DataKirimScreen lokasiId={lokasiId} pilihan={pilihan} />;
   }
-  if (lokasiId) return <PilihPetakScreen lokasiId={lokasiId} pilihan={pilihan} filter={{ kota, harga, fasilitas }} pesan={pesanKembali} />;
+  if (lokasiId) return <PilihTipeKavlingScreen lokasiId={lokasiId} filter={{ kota, harga, fasilitas }} pesan={pesanKembali} />;
   return <PilihLokasiScreen filter={{ kota, harga, fasilitas }} />;
 }
 
@@ -138,7 +139,7 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
       <div>
         <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih lokasi</h1>
         <p className="mt-1 max-w-2xl text-body-lg text-muted-foreground">
-          Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih sendiri petaknya di denah.
+          Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih tipe kavlingnya.
         </p>
       </div>
       <div className="flex flex-col gap-3">
@@ -239,7 +240,7 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
         <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
           <span className="text-small text-foreground">{kartu.tersedia}</span>
           <span className="inline-flex items-center gap-1 text-body font-semibold text-primary">
-            Pilih petak <ArrowRight className="size-4" aria-hidden />
+            Pilih tipe kavling <ArrowRight className="size-4" aria-hidden />
           </span>
         </div>
       </div>
@@ -247,37 +248,64 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
   );
 }
 
-/** Step 2: the Denah, priced at this instant. */
-async function PilihPetakScreen({ lokasiId, pilihan, filter, pesan }: { lokasiId: string; pilihan: PilihanTerencana; filter: Filter; pesan: string | null }) {
+/**
+ * Step 2: Pilih Tipe Kavling (owner, 2026-11-02). The Denah is not shown: the family picks a tipe kavling with its
+ * size, capacity, Masa Hak Pakai and all-in price, and the order takes the next pickable unit of that tipe.
+ */
+async function PilihTipeKavlingScreen({ lokasiId, filter, pesan }: { lokasiId: string; filter: Filter; pesan: string | null }) {
   const { pemesanan } = serverRuntime();
-  // The read takes the URL's numbers and answers with the units it resolved and their price, so a
-  // pick the Denah no longer knows (renumbered away, or a link from before) is simply not shown chosen.
-  const [denah, actor] = await Promise.all([pemesanan.denahTerencana(lokasiId, pilihan), currentActor()]);
-  if (!denah) notFound();
-  const tampilan = denahView(denah);
-  const unitOf = denah.unit.map(({ jenis, id, nomor }) => ({ jenis, id, nomor }));
+  const hasil = await pemesanan.tipeKavlingTerencana(lokasiId);
+  if (!hasil) notFound();
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-40">
+    <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
       <Progress langkah={2} total={3} backHref={terencanaPath(filter)} backLabel="Pilih lokasi" />
       <div>
-        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih petak</h1>
+        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih tipe kavling</h1>
         <p className="mt-1 text-body-lg text-muted-foreground">
-          {tampilan.lokasi.name}, {tampilan.lokasi.city}.{" "}
-          <Link href={`/lokasi/${tampilan.lokasi.id}`} className="font-medium text-primary underline underline-offset-2">
+          {hasil.lokasi.name}, {hasil.lokasi.city}.{" "}
+          <Link href={`/lokasi/${hasil.lokasi.id}`} className="font-medium text-primary underline underline-offset-2">
             Lihat lokasi
           </Link>
         </p>
       </div>
-      <DenahPicker
-        denah={tampilan}
-        petak={denah.unit.filter((satu) => satu.jenis === "petak").map((satu) => satu.nomor)}
-        kavling={denah.unit.find((satu) => satu.jenis === "kavling")?.nomor ?? null}
-        unitOf={unitOf}
-        sudahMasuk={actor !== null}
-        pesanKembali={pesan}
-        pesanBatas={denah.total.dalamBatas ? null : pesanBatasPembayaran(denah.total.total)}
-      />
+      {pesan ? (
+        <p role="status" className="rounded-xl bg-warning-soft px-4 py-3 text-body font-medium text-warning-soft-foreground">
+          {pesan}
+        </p>
+      ) : null}
+      {hasil.tipe.length === 0 ? (
+        <p className="text-body text-muted-foreground">Belum ada tipe kavling yang bisa dipesan di lokasi ini.</p>
+      ) : (
+        <ul className="grid gap-4 md:grid-cols-2">
+          {hasil.tipe.map((tipe) => (
+            <li key={tipe.jenisMakamId} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
+              <div>
+                <h2 className="text-title-2 text-foreground">{tipe.name}</h2>
+                {tipe.description ? <p className="text-body text-muted-foreground">{tipe.description}</p> : null}
+                <p className="text-small text-muted-foreground">Masa Hak Pakai {tenureLabel(tipe.tenure).toLowerCase()}</p>
+              </div>
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-display tabular-nums text-foreground">{formatRupiah(tipe.hargaAllIn)}</p>
+                  <p className="text-caption text-muted-foreground">sudah all-in · {tipe.tersedia > 0 ? `${tipe.tersedia} tersedia` : "habis"}</p>
+                </div>
+                {tipe.berikut ? (
+                  <Link
+                    href={terencanaPath({ langkah: "data", lokasiId, ...tipe.berikut })}
+                    className={buttonVariants({ size: "lg" })}
+                    aria-label={`Pilih ${tipe.name}`}
+                  >
+                    Pilih <ArrowRight className="size-4" aria-hidden />
+                  </Link>
+                ) : (
+                  <span className="text-small font-medium text-muted-foreground">Habis</span>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }
@@ -315,11 +343,12 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
   const petakNomor = denah.unit.filter((satu) => satu.jenis === "petak").map((satu) => satu.nomor);
   const kavlingNomor = denah.unit.find((satu) => satu.jenis === "kavling")?.nomor ?? null;
   const kavlingTerpilih = kavlingNomor ? kavlingByNomor(tampilan, kavlingNomor) : null;
-  const ringkasan = ringkasanPilihan(tampilan, petakNomor, kavlingTerpilih);
+  // Pilih Tipe Kavling: the family chose a tipe, so the summary names it, with the unit the order takes.
+  const ringkasan = denah.unit.length === 1 ? `${denah.unit[0].jenisMakamName} · ${denah.unit[0].nomor}` : ringkasanPilihan(tampilan, petakNomor, kavlingTerpilih);
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-40">
-      <Progress langkah={3} total={3} backHref={terencanaPath({ langkah: "petak", lokasiId, ...pilihan })} backLabel="Pilih petak" />
+      <Progress langkah={3} total={3} backHref={terencanaPath({ langkah: "petak", lokasiId })} backLabel="Pilih tipe kavling" />
       <div>
         <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
         <p className="mt-1 text-body-lg text-muted-foreground">Data untuk mencatat Hak Pakai. Tidak ada yang dibayar saat mengirim.</p>

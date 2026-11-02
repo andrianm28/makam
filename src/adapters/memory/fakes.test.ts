@@ -17,6 +17,7 @@ describe("fake PaymentProvider", () => {
     const payments = new FakePaymentProvider({ clock: clock() });
 
     const payment = await payments.createPayment({
+      metode: "qris",
       reference: "TAG-2026-000001",
       amountRupiah: 7_500_000,
       description: "Tagihan Pemesanan Saat Duka",
@@ -33,6 +34,7 @@ describe("fake PaymentProvider", () => {
   it("emits a Svix-signed 'paid' webhook that the provider verifies and parses", async () => {
     const payments = new FakePaymentProvider({ clock: clock() });
     const payment = await payments.createPayment({
+      metode: "qris",
       reference: "TAG-2026-000001",
       amountRupiah: 7_500_000,
       description: "Tagihan",
@@ -60,6 +62,7 @@ describe("fake PaymentProvider", () => {
   it("rejects a webhook whose body was tampered with", async () => {
     const payments = new FakePaymentProvider({ clock: clock() });
     const payment = await payments.createPayment({
+      metode: "qris",
       reference: "TAG-1",
       amountRupiah: 100_000,
       description: "Tagihan",
@@ -77,7 +80,7 @@ describe("fake PaymentProvider", () => {
       clock: clock(),
       webhookSecret: "whsec_" + Buffer.from("another-secret-another-secret!!").toString("base64"),
     });
-    const payment = await theirs.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" });
+    const payment = await theirs.createPayment({ metode: "qris", reference: "TAG-1", amountRupiah: 1, description: "x" });
 
     await expect(
       ours.parseWebhook(theirs.webhookFor(payment.providerPaymentId, "paid")),

@@ -552,7 +552,7 @@ export interface Notifications {
   /** Someone wrote in a job's thread: the Pemesan is sent a link to read and reply, never the text or a photo (ticket 52). */
   layananPesanBaru(input: LayananPesanBaruInput, within?: Database): Promise<PesanLayananResult>;
   /**
-   * A Paket Layanan cycle whose Tagihan would pass the Rilis 1 QRIS cap, so the
+   * A Paket Layanan cycle whose Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan), so the
    * Paket was paused (ticket 54): the Pemesan hears why, queued on the
    * transaction that set the pause. `within` is the tick's own transaction.
    */

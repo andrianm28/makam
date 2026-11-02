@@ -1,5 +1,5 @@
 import type { PilihanDitolak, PlaceTerencanaResult } from "@/domain/pemesanan";
-import { QRIS_PAYMENT_CAP } from "@/domain/billing";
+import { BATAS_TAGIHAN } from "@/domain/billing";
 import { formatRupiah } from "@/lib/rupiah";
 import { identityMessage, type IdentityRefusal } from "@/components/kode-masuk/state";
 
@@ -20,23 +20,23 @@ type Ditolak = Extract<PlaceTerencanaResult, { ok: false }> | PilihanDitolak;
 export function pesanKirim(hasil: Ditolak): string {
   switch (hasil.reason) {
     case "sudah_dipesan":
-      return `Maaf, ${nomor(hasil)} baru saja dipesan keluarga lain. Pilihan petak Anda yang lain tetap tersimpan.`;
+      return `Maaf, ${nomor(hasil)} baru saja dipesan keluarga lain. Silakan pilih tipe kavling lagi; kami carikan kavling lain dari tipe yang sama.`;
     case "unit_tidak_bisa_dipilih":
-      return `${statusSentence(nomor(hasil), status(hasil))} Pilih petak lain di denah.`;
+      return `${statusSentence(nomor(hasil), status(hasil))} Silakan pilih tipe kavling lagi.`;
     case "unit_campur":
       return "Kavling Keluarga dipilih utuh sebagai satu unit, jadi tidak bisa digabung dengan petak lain. Pilih kavling saja atau petak saja.";
     case "unit_ganda":
       return `${nomor(hasil)} tercatat dua kali dalam pilihan Anda. Pilih ulang petaknya.`;
     case "tanpa_unit":
-      return "Belum ada petak yang dipilih. Ketuk petak yang Tersedia di denah.";
-    case "melebihi_batas_qris":
+      return "Belum ada tipe kavling yang dipilih. Pilih salah satu tipe kavling.";
+    case "melebihi_batas_tagihan":
       return pesanBatasPembayaran(hasil.total);
     case "unit_tidak_ditemukan":
-      return "Petak yang Anda pilih tidak ada lagi di denah ini. Kembali ke denah untuk memilih ulang.";
+      return "Kavling yang disiapkan untuk Anda tidak ada lagi. Silakan pilih tipe kavling lagi.";
     case "lokasi_tidak_ada":
       return "Lokasi ini sedang tidak menerima pemesanan terencana. Pilih lokasi lain.";
     case "harga_tidak_tersedia":
-      return "Harga petak ini belum tersedia. Pilih petak lain atau hubungi CS kami.";
+      return "Harga tipe kavling ini belum tersedia. Pilih tipe lain atau hubungi CS kami.";
     case "telepon_pemegang_hak_tidak_valid":
       return "Nomor telepon Pemegang Hak tidak valid. Contoh: 0812 3456 7890.";
     case "akun_tidak_cocok":
@@ -52,7 +52,7 @@ export function pesanKirim(hasil: Ditolak): string {
     case "teks_kosong":
       return "Salah satu layanan meminta tulisan (misalnya nama). Isi dulu tulisannya.";
     default:
-      return "Periksa lagi pilihan petak Anda.";
+      return "Periksa lagi tipe kavling yang Anda pilih.";
   }
 }
 
@@ -69,7 +69,7 @@ export function pesanPeriksa(hasil: PilihanDitolak): string {
  * gives, so a family reads one thing about one limit.
  */
 export function pesanBatasPembayaran(total: number): string {
-  return `Total pilihan ini ${formatRupiah(total)} melewati batas pembayaran ${formatRupiah(QRIS_PAYMENT_CAP)} lewat QRIS. Kurangi jumlah petak yang dipilih.`;
+  return `Total pilihan ini ${formatRupiah(total)} melewati batas satu Tagihan ${formatRupiah(BATAS_TAGIHAN)}. Kurangi jumlah petak yang dipilih.`;
 }
 
 /** The words for a guard refusal, in identity's own voice. */

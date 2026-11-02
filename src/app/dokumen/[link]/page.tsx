@@ -16,6 +16,9 @@ import {
   type Tagihan,
   type TagihanLine,
 } from "@/domain/billing";
+import { CsLink } from "@/components/site/cs-link";
+import type { CsContact } from "@/components/kode-masuk/state";
+import type { RekeningOperator } from "@/domain/operator-settings";
 import type { DokumenBuktiPencairan } from "@/domain/payouts";
 import type { DokumenBuktiPengembalianDana } from "@/domain/refunds";
 import { addresseeText, buktiPemesananHak, buktiPemesananMasa, lineProviderText, paymentMethodText, tagihanStatusText } from "@/lib/billing-labels";
@@ -122,7 +125,28 @@ export default async function DokumenPage({ params, searchParams }: PageProps<"/
   );
 }
 
-function TagihanView({
+/**
+ * How this Tagihan is paid (ADR 0013): QRIS or Virtual Account through Bayar,
+ * or, above what the PaymentProvider takes online, a transfer to the
+ * Operator's account in Pengaturan Operator (null until it is entered).
+ */
+type BayarDengan =
+  | { cara: "qris" | "virtual_account" }
+  | { cara: "transfer_manual"; rekening: RekeningOperator | null; cs: CsContact | null };
+
+async function caraBayarOf(total: number): Promise<BayarDengan> {
+  const runtime = serverRuntime();
+  const cara = runtime.billing.caraBayar(total);
+  if (cara !== "transfer_manual") return { cara };
+  const operator = await runtime.operatorSettings.current();
+  return {
+    cara,
+    rekening: operator?.rekening ?? null,
+    cs: operator ? { whatsApp: operator.csWhatsApp, replyHours: operator.csReplyHours } : null,
+  };
+}
+
+async function TagihanView({
   link,
   tagihan,
   notPayableBecause,
@@ -135,6 +159,7 @@ function TagihanView({
   buktiLink: string | null;
   bayarGagal: boolean;
 }) {
+  const bayarDengan = notPayableBecause === null ? await caraBayarOf(tagihan.total) : null;
   return (
     <>
       <DocumentTop header={tagihan.header} title="Tagihan" number={tagihan.nomorTagihan} status={tagihanStatusText(tagihan.status)} />
@@ -175,8 +200,12 @@ function TagihanView({
           Pembayaran sedang tidak bisa dimulai, coba lagi.
         </p>
       ) : null}
-      {notPayableBecause === null ? (
-        <BayarForm link={link} total={tagihan.total} trial={paymentsAreTrial()} />
+      {bayarDengan ? (
+        bayarDengan.cara === "transfer_manual" ? (
+          <TransferManual nomorTagihan={tagihan.nomorTagihan} total={tagihan.total} rekening={bayarDengan.rekening} cs={bayarDengan.cs} />
+        ) : (
+          <BayarForm link={link} total={tagihan.total} cara={bayarDengan.cara} trial={paymentsAreTrial()} />
+        )
       ) : null}
       {buktiLink ? (
         <div className="print:hidden">
@@ -231,8 +260,8 @@ function BuktiPengembalianDanaView({ bukti }: { bukti: DokumenBuktiPengembalianD
   );
 }
 
-/** Bayar: on to the payment page (QRIS). Never printed. */
-function BayarForm({ link, total, trial }: { link: string; total: number; trial: boolean }) {
+/** Bayar: on to the payment page (QRIS, or Virtual Account above the QRIS cap). Never printed. */
+function BayarForm({ link, total, cara, trial }: { link: string; total: number; cara: "qris" | "virtual_account"; trial: boolean }) {
   return (
     <form action={bayarTagihan} className="flex flex-col gap-2 print:hidden sm:items-start">
       <input type="hidden" name="link" value={link} />
@@ -241,10 +270,62 @@ function BayarForm({ link, total, trial }: { link: string; total: number; trial:
       </Button>
       <TrialPaymentNotice trial={trial} />
       <p className="text-xs text-muted-foreground">
-        Bayar dengan QRIS. Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas
-        setelah pembayaran kami terima; muat ulang halaman ini sebentar lagi.
+        {cara === "qris"
+          ? "Bayar dengan QRIS."
+          : "Bayar dengan Virtual Account: pilih bank Anda di halaman pembayaran (nominal di atas batas QRIS Rp 10.000.000)."}{" "}
+        Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas setelah pembayaran kami terima; muat ulang
+        halaman ini sebentar lagi.
       </p>
     </form>
+  );
+}
+
+/**
+ * Above what the PaymentProvider takes online (ADR 0013): a transfer to the
+ * Operator's own account, checked and recorded as Lunas by Admin Platform.
+ * Printed too, so the PDF carries the account.
+ */
+function TransferManual({
+  nomorTagihan,
+  total,
+  rekening,
+  cs,
+}: {
+  nomorTagihan: string;
+  total: number;
+  rekening: RekeningOperator | null;
+  cs: CsContact | null;
+}) {
+  const tanyaCs = <CsLink contact={cs} label="Tanya CS" pesan={`Tagihan ${nomorTagihan}`} className="print:hidden" />;
+  if (!rekening) {
+    return (
+      <div data-testid="transfer-manual" className="flex flex-col gap-2 rounded-lg border border-dashed px-4 py-3">
+        <p>Nominal Tagihan ini dibayar lewat transfer bank. Hubungi CS kami untuk nomor rekening tujuan.</p>
+        {tanyaCs}
+      </div>
+    );
+  }
+  return (
+    <div data-testid="transfer-manual" className="flex flex-col gap-2 rounded-lg border px-4 py-3">
+      <p className="font-medium">Bayar lewat transfer bank</p>
+      <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-[max-content_1fr]">
+        <dt className="text-muted-foreground">Bank</dt>
+        <dd>{rekening.bank}</dd>
+        <dt className="text-muted-foreground">Nomor rekening</dt>
+        <dd className="font-medium tabular-nums">{rekening.nomor}</dd>
+        <dt className="text-muted-foreground">Atas nama</dt>
+        <dd>{rekening.atasNama}</dd>
+        <dt className="text-muted-foreground">Jumlah</dt>
+        <dd className="font-medium">{formatRupiah(total)}</dd>
+        <dt className="text-muted-foreground">Berita transfer</dt>
+        <dd>{nomorTagihan}</dd>
+      </dl>
+      <p className="text-xs text-muted-foreground">
+        Transfer tepat sejumlah di atas dan tulis Nomor Tagihan sebagai berita transfer. Kami mencocokkan transfer Anda lalu
+        mengubah status Tagihan ini menjadi Lunas dan menerbitkan Bukti Pembayaran.
+      </p>
+      {tanyaCs}
+    </div>
   );
 }
 

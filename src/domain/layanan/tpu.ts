@@ -107,7 +107,7 @@ export async function penawaranTpuUntukPesanan(deps: LayananDeps, at: Date, opti
     .filter((grup) => grup.varian.length > 0);
 }
 
-/** The all-in price of exactly these variants at a TPU, or null when one is not offered or the total passes the QRIS cap. */
+/** The all-in price of exactly these variants at a TPU, or null when one is not offered or the total passes `BATAS_TAGIHAN` (the largest Tagihan). */
 export async function hargaPesananTpu(
   deps: LayananDeps,
   layananVariantIds: readonly string[],
@@ -140,7 +140,7 @@ export type AlasanTolakPesananTpu =
   | "lead_time_melewati"
   /** A Layanan that asks for a text field, left empty. */
   | "teks_kosong"
-  /** The all-in price could not be computed, or is past the QRIS cap. */
+  /** The all-in price could not be computed, or is past `BATAS_TAGIHAN` (the largest Tagihan). */
   | "harga_tidak_tersedia"
   | "tagihan_tidak_terbit"
   /** The email is not an Akun's Email Terverifikasi, or the Akun is not that email's. */

@@ -383,7 +383,7 @@ The Operator's own act of passing a collected Retribusi Pemda on to the Pemerint
 _Avoid_: Retribusi Daerah, pajak daerah, setoran pajak
 
 **Tagihan**:
-The Operator's request to pay a fixed set of lines by a due date, one per payment moment (a checkout, a Perpanjangan, a burial under an existing Hak Pakai, a standalone Layanan order, a Paket Layanan cycle); never changed once issued, only cancelled and replaced. Most are paid before anything happens and simply lapse when unpaid; only those for a burial that has already happened (a Saat Duka order, a burial under an existing Hak Pakai) are chased after their due date.
+The Operator's request to pay a fixed set of lines by a due date, one per payment moment (a checkout, a Perpanjangan, a burial under an existing Hak Pakai, a standalone Layanan order, a Paket Layanan cycle); never changed once issued, only cancelled and replaced. Most are paid before anything happens and simply lapse when unpaid; only those for a burial that has already happened (a Saat Duka order, a burial under an existing Hak Pakai) are chased after their due date. How it is paid follows its total (ADR 0013): QRIS up to Rp 10.000.000, Virtual Account above it up to the provider's limit, and above that a transfer to the Operator's account, recorded by Admin Platform.
 _Avoid_: Invoice, faktur, nota
 
 **Status Tagihan**:
@@ -469,7 +469,7 @@ One record in the Audit Log: which Akun did it, under which role, when, to what,
 _Avoid_: Log (alone), histori
 
 **Pengaturan Operator**:
-The Operator's own reference values that no other screen owns, kept by Admin Platform: its legal name, registered address and contact, and the CS WhatsApp number with its reply hours. Each change takes effect from the moment it is made; an issued Tagihan or Bukti keeps the values in force when it was issued.
+The Operator's own reference values that no other screen owns, kept by Admin Platform: its legal name, registered address and contact, the CS WhatsApp number with its reply hours, and (optionally) the bank account a large Tagihan is transferred to. Each change takes effect from the moment it is made; an issued Tagihan or Bukti keeps the values in force when it was issued.
 _Avoid_: Konfigurasi, settings (alone), data perusahaan
 
 **Data Contoh**:
