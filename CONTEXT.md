@@ -316,6 +316,22 @@ _Avoid_: Redo, ulangi, revisi
 A Pemesan's optional 1–5 star rating, with comment, of one finished Pekerjaan Layanan; seen only by Admin Platform.
 _Avoid_: Review, ulasan, rating (as the term)
 
+**Paket Pemakaman**:
+One Lokasi Mitra's bundle of funeral services for one Almarhum, in a Tingkat Paket and a Tradisi, listing the Komponen Pemakaman it includes; bought only inside a Pemesanan Saat Duka at that Lokasi Mitra (at most one per order), priced as a Tarif, carried out by the Lokasi Mitra and counted as done when the Pemakaman is recorded (ADR 0010). Not a Layanan: it has no Pekerjaan Layanan and no photo proof.
+_Avoid_: Paket (alone), paket duka, paket layanan (that is Paket Layanan), funeral package
+
+**Tingkat Paket**:
+The tier of a Paket Pemakaman: Standar, Premium or VIP. A Lokasi Mitra offers at most one Paket Pemakaman per Tingkat Paket and Tradisi.
+_Avoid_: Kelas, level
+
+**Tradisi**:
+The faith a Paket Pemakaman is prepared for, which decides how the Almarhum is washed, dressed and laid to rest: Muslim or Nasrani (kremasi deferred, ADR 0010).
+_Avoid_: Agama (as the field name), religi
+
+**Komponen Pemakaman**:
+One kind of funeral service a Paket Pemakaman may include, from a closed list: penjemputan (ambulans), pemulasaraan (memandikan dan mengafani atau merias), perlengkapan jenazah (kain kafan atau peti), rangkaian bunga, konsumsi pelayat, rumah duka atau tenda, and pengurusan administrasi; each with the Lokasi Mitra's own one-line description.
+_Avoid_: Item, fitur
+
 ### Money
 
 **Harga Hak Pakai**:
