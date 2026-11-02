@@ -14,7 +14,7 @@ import { terbukaDi } from "../src/lib/rilis-peta";
  * stack nobody has filled in has none. `cs-link.test.ts` and `site-header.test.ts`
  * cover it instead.
  */
-const menuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Wakaf Tanah Pemakaman", "Daftar Lokasi"];
+const menuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi"];
 
 /**
  * The release the stack under test has open (ADR 0006). The stack takes it from
@@ -35,7 +35,7 @@ function rilisStack() {
  * The menu items whose page is not there in this release, so "Segera hadir": only the wakaf
  * programme, which opens with Rilis 3.
  */
-const belumHadir = terbukaDi("wakaf", rilisStack()) ? [] : ["Wakaf Tanah Pemakaman"];
+const belumHadir = terbukaDi("wakaf", rilisStack()) ? [] : ["Program Wakaf Tanah Pemakaman"];
 
 test("the Beranda leads with the urgent entry, and offers the planned one beside it", async ({ page }) => {
   await page.goto("/");
@@ -100,7 +100,7 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
   await expect(menu.getByRole("link", { name: "Mobil Jenazah" })).toHaveAttribute("href", "/layanan-kedukaan/mobil-jenazah");
   await expect(menu.getByRole("link", { name: "Semua Layanan Kedukaan" })).toHaveAttribute("href", "/layanan-kedukaan");
   // An item whose release is open is a link to its page.
-  if (!belumHadir.includes("Wakaf Tanah Pemakaman")) {
+  if (!belumHadir.includes("Program Wakaf Tanah Pemakaman")) {
     await expect(menu.getByRole("link", { name: /^Wakaf Tanah Pemakaman/ })).toHaveAttribute("href", "/wakaf-tanah");
   }
 });

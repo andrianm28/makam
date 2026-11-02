@@ -7,8 +7,8 @@ import { contentPageLinks, publicMenu, publicMenuLabels } from "./public-navigat
 const labels = (signedIn: boolean) => publicMenu({ signedIn }).map((item) => item.label);
 
 describe("the public site menu", () => {
-  it("lists the owner's four groups, Jasa Pemakaman, Layanan Kedukaan, Wakaf Tanah Pemakaman, Daftar Lokasi, then the account item", () => {
-    expect(labels(false)).toEqual(["Jasa Pemakaman", "Layanan Kedukaan", "Wakaf Tanah Pemakaman", "Daftar Lokasi", "Masuk"]);
+  it("lists the owner's four groups, Jasa Pemakaman, Layanan Kedukaan, Program Wakaf Tanah Pemakaman, Daftar Lokasi, then the account item", () => {
+    expect(labels(false)).toEqual(["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi", "Masuk"]);
   });
 
   it("offers Akun Saya instead of Masuk to a signed-in visitor", () => {
@@ -45,9 +45,9 @@ describe("the public site menu", () => {
 
   it("never links the wakaf programme before its release is open, and says so instead of a date", () => {
     const unbuilt = publicMenu({ signedIn: false, rilis: 1 }).filter((item) => !item.href);
-    expect(unbuilt.map((item) => item.label)).toEqual(["Wakaf Tanah Pemakaman"]);
+    expect(unbuilt.map((item) => item.label)).toEqual(["Program Wakaf Tanah Pemakaman"]);
     for (const item of unbuilt) expect(item.description).toBe("Segera hadir.");
-    expect(publicMenu({ signedIn: false, rilis: 3 }).find((item) => item.label === "Wakaf Tanah Pemakaman")?.href).toBe("/wakaf-tanah");
+    expect(publicMenu({ signedIn: false, rilis: 3 }).find((item) => item.label === "Program Wakaf Tanah Pemakaman")?.href).toBe("/wakaf-tanah");
     expect(JSON.stringify(publicMenu({ signedIn: false }))).not.toMatch(/\d{4}/);
   });
 });

@@ -27,9 +27,6 @@ async function terbukaDiTier(deps: Pick<AntreanRowDeps, "kedukaan">, tier: 1 | 2
   return semua.filter((satu) => urgensiKedukaan[satu.jenis].tier === tier);
 }
 
-/** The minutes a Tier 1 Permintaan was given for its first call, to recover when the row appeared. */
-const MENIT_TIER_1 = 30;
-
 export const permintaanKedukaanMendesakRowType: Tier1RowType = {
   key: "permintaan_kedukaan_mendesak",
   tier: 1,
@@ -37,8 +34,8 @@ export const permintaanKedukaanMendesakRowType: Tier1RowType = {
   async rows(deps: Tier1RowDeps): Promise<Tier1Row[]> {
     return (await terbukaDiTier(deps, 1)).map((satu) => ({
       ...baris(satu),
-      // The row appears when the family files; the deadline is 30 minutes after that.
-      sejak: new Date(satu.tenggatPada.getTime() - MENIT_TIER_1 * 60_000),
+      // The row appears when the family files.
+      sejak: satu.diajukanPada,
     }));
   },
 };

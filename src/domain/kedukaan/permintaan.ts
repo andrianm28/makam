@@ -5,6 +5,7 @@
  */
 import { randomInt, randomUUID } from "node:crypto";
 import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
+import { z } from "zod";
 import type { Database } from "@/db/client";
 import { kedukaanResource, normalisePhoneNumber, writeRefusal, type Actor, type WriteRefusal } from "@/domain/identity";
 import { addWorkingDays } from "@/domain/lokasi";
@@ -197,11 +198,12 @@ export async function semuaPermintaanKedukaan(deps: KedukaanDeps, by: Actor): Pr
   return denganRiwayat(deps.db, rows);
 }
 
+const idSah = (id: string) => z.uuid().safeParse(id).success;
+
 /** One Permintaan Kedukaan for Admin Platform, or null (also for anyone else). */
 export async function permintaanKedukaan(deps: KedukaanDeps, by: Actor, permintaanId: string): Promise<PermintaanKedukaan | null> {
   if (writeRefusal(by, "kedukaan.kelola", kedukaanResource())) return null;
-  const parsed = /^[0-9a-f-]{36}$/i.test(permintaanId);
-  if (!parsed) return null;
+  if (!idSah(permintaanId)) return null;
   const rows = await deps.db.select().from(kedukaanPermintaan).where(eq(kedukaanPermintaan.id, permintaanId));
   return (await denganRiwayat(deps.db, rows))[0] ?? null;
 }
@@ -215,7 +217,7 @@ export async function pindahStatusKedukaan(
 ): Promise<PindahStatusKedukaanResult> {
   const refusal = writeRefusal(by, "kedukaan.kelola", kedukaanResource());
   if (refusal) return refusal;
-  if (!/^[0-9a-f-]{36}$/i.test(permintaanId)) return { ok: false, reason: "tidak_ditemukan" };
+  if (!idSah(permintaanId)) return { ok: false, reason: "tidak_ditemukan" };
   const catatan = input.catatan?.trim().slice(0, 1000) || null;
   if (input.status === "dibatalkan" && !catatan) return { ok: false, reason: "alasan_wajib" };
   const now = deps.clock.now();
@@ -254,6 +256,7 @@ export interface PermintaanKedukaanTerbuka {
   jenis: JenisKedukaan;
   nama: string;
   kabKota: string;
+  diajukanPada: Date;
   tenggatPada: Date;
 }
 
@@ -266,6 +269,7 @@ export async function permintaanKedukaanTerbuka(deps: Pick<KedukaanDeps, "db">):
       jenis: kedukaanPermintaan.jenis,
       nama: kedukaanPermintaan.nama,
       kabKota: kedukaanPermintaan.kabKota,
+      diajukanPada: kedukaanPermintaan.diajukanPada,
       tenggatPada: kedukaanPermintaan.tenggatPada,
     })
     .from(kedukaanPermintaan)

@@ -29,7 +29,7 @@ const SEGERA = "Segera hadir.";
  * The four groups the owner set (dri, 2026-11-02; ADR 0010), in this order, before the account item:
  * Jasa Pemakaman, Layanan Kedukaan, the wakaf programme and Daftar Lokasi.
  */
-export const publicMenuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Wakaf Tanah Pemakaman", "Daftar Lokasi"] as const;
+export const publicMenuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi"] as const;
 
 const jasaPemakaman: PublicMenuItem = {
   label: "Jasa Pemakaman",
@@ -64,8 +64,8 @@ export function publicMenu(options: { signedIn: boolean; /** The release the env
     ? { label: "Akun Saya", href: "/akun", description: "Email, nomor telepon dan pesanan Anda." }
     : { label: "Masuk", href: "/masuk", description: "Masuk dengan Kode Masuk, tanpa daftar." };
   const wakaf: PublicMenuItem = terbukaDi("wakaf", options.rilis ?? 1)
-    ? { label: "Wakaf Tanah Pemakaman", href: "/wakaf-tanah", description: "Program wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir." }
-    : { label: "Wakaf Tanah Pemakaman", description: SEGERA };
+    ? { label: "Program Wakaf Tanah Pemakaman", href: "/wakaf-tanah", description: "Program wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir." }
+    : { label: "Program Wakaf Tanah Pemakaman", description: SEGERA };
   return [jasaPemakaman, layananKedukaan, wakaf, daftarLokasi, account];
 }
 

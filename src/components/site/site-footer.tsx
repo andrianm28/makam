@@ -17,7 +17,7 @@ export function SiteFooter({ legalName, contact, items = [] }: { legalName: stri
   const lainnya = menu.filter((item) => !item.children);
   return (
     <footer className="mt-auto bg-forest text-ivory">
-      <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(4,1fr)] md:px-8">
+      <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(5,1fr)] md:px-8">
         <div className="flex flex-col gap-3">
           <BrandLogo onBrand />
           <p className="max-w-sm text-small text-ivory/80">
@@ -34,21 +34,24 @@ export function SiteFooter({ legalName, contact, items = [] }: { legalName: stri
                 </Link>
               ) : null,
             )}
-            {lainnya.length > 0 && satu === grup.at(-1)
-              ? lainnya.map((item) =>
-                  item.href ? (
-                    <Link key={item.label} href={item.href} className="mt-2 font-semibold text-ivory hover:underline">
-                      {item.label}
-                    </Link>
-                  ) : (
-                    <span key={item.label} className="mt-2 font-semibold text-ivory/70">
-                      {item.label} · Segera hadir
-                    </span>
-                  ),
-                )
-              : null}
           </nav>
         ))}
+        {lainnya.length > 0 ? (
+          // The groups without sub-items (Program Wakaf, Daftar Lokasi) are their own headings, side by side in one column.
+          <nav aria-label="Program dan lokasi" className="flex flex-col gap-3 text-small">
+            {lainnya.map((item) =>
+              item.href ? (
+                <Link key={item.label} href={item.href} className="text-caption font-semibold tracking-wide text-ivory uppercase hover:underline">
+                  {item.label}
+                </Link>
+              ) : (
+                <span key={item.label} className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">
+                  {item.label} · Segera hadir
+                </span>
+              ),
+            )}
+          </nav>
+        ) : null}
         <nav aria-label="Halaman isi" className="flex flex-col gap-2 text-small">
           <span className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">Tentang</span>
           {contentPageLinks.map((page) => (
