@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 126 tickets (as of 2026-10-06): 116 resolved, 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 4 in-progress (65, 72, 87, 98).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 127 tickets (as of 2026-11-02): 116 resolved, 1 ready-for-agent (127), 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 4 in-progress (65, 72, 87, 98).
 
 > **Reading note (2026-10-29):** a `resolved` ticket is audited by its Comments (evidence and the two-axis review), not by its checkboxes: 88 of the 116 resolved tickets still show unchecked ACs. The guard `ticket-workflow.test.ts` enforces the review marker and index match only.
 
@@ -433,3 +433,4 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [124](124-konten-harga-layanan-tpu-wakaf-dirujuk.md) | Content: the TPU Layanan price list, Wakaf's Dirujuk status, and a kind-aware notice on filing-only IPTM orders | resolved | — |
 | [125](125-bukti-ahli-waris-tumpang.md) | Tumpang at a Lokasi Mitra: the heirship proof can be uploaded | resolved | — |
 | [126](126-trivy-perl-base.md) | Runtime image: fixable CRITICAL in Debian's perl-base fails the main CI's Trivy gate | resolved | — |
+| [127](127-retensi-berkas-keluarga.md) | Family files are deleted two years after the order is finished | ready-for-agent | — |
