@@ -8,6 +8,10 @@ const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" 
  * Mitra, and a further burial under an existing Hak Pakai. Only Saat Duka is
  * built (this ticket); the others arrive with theirs.
  */
+/** The Almarhum's sex as the Saat Duka form asks it (dri, 2026-11-02). */
+export const jenisKelaminValues = ["laki_laki", "perempuan"] as const;
+export type JenisKelamin = (typeof jenisKelaminValues)[number];
+
 export const pemesananKinds = ["saat_duka", "terencana", "tumpang"] as const;
 export type PemesananKind = (typeof pemesananKinds)[number];
 
@@ -95,6 +99,10 @@ export const pemesananMakam = pgTable(
     /** The phone number as typed, a contact only: never verified, never a login. */
     phoneNumber: text("phone_number"),
     almarhumName: text("almarhum_name").notNull(),
+    /** The Almarhum's sex, which the Lokasi Mitra prepares the burial by (dri, 2026-11-02); null on orders placed before it was asked. */
+    almarhumJenisKelamin: text("almarhum_jenis_kelamin", { enum: jenisKelaminValues }),
+    /** Where the body lies now (rumah duka, hospital, home), as typed; null when the family left it empty or before it was asked. */
+    alamatRumahDuka: text("alamat_rumah_duka"),
     tanggalWafat: date("tanggal_wafat", { mode: "string" }).notNull(),
     /** The burial the family plans, if it has one; the Lokasi agrees the day at confirmation. */
     rencanaPemakamanAt: at("rencana_pemakaman_at"),

@@ -286,6 +286,11 @@ export function PoliciesForm({
           name="hargaTampil"
           checked={flags.hargaTampil !== false}
         />
+        <Checkbox
+          label="Pemakaman Saat Duka sudah paket lengkap (Layanan Tambahan tidak ditawarkan di formulir pemesanan)"
+          name="paketLengkap"
+          checked={flags.paketLengkap === true}
+        />
       </fieldset>
       <Submit pending={pending}>Simpan kebijakan</Submit>
       <Feedback state={state} />

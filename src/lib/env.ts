@@ -18,7 +18,7 @@ export function usesInMemoryFakes(appEnv: AppEnvironment): boolean {
 const emptyToUndefined = (value: unknown) => (value === "" ? undefined : value);
 
 /**
- * The release this environment has opened (`RILIS_TERBUKA`, 1 to 3; 4 only in development and test, ADR 0010). Unset, development,
+ * The release this environment has opened (`RILIS_TERBUKA`, 1 to 3; 4 only in development and test, ADR 0012). Unset, development,
  * test and staging open everything and every other value of APP_ENV (production,
  * missing, unknown) opens Rilis 1, so a missing setting can never open more on
  * production than the release plan allows.
@@ -29,10 +29,10 @@ const rilisEnvSchema = z
     APP_ENV: z.preprocess(emptyToUndefined, z.string().optional()),
     RILIS_TERBUKA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(4).optional()),
   })
-  // 4 opens the features taken out of the product (ADR 0010), which only development and test may do, to keep their code tested.
+  // 4 opens the features taken out of the product (ADR 0012), which only development and test may do, to keep their code tested.
   .refine(({ APP_ENV, RILIS_TERBUKA }) => RILIS_TERBUKA !== 4 || APP_ENV === "development" || APP_ENV === "test", {
     path: ["RILIS_TERBUKA"],
-    message: "RILIS_TERBUKA=4 opens what ADR 0010 took out; development and test only",
+    message: "RILIS_TERBUKA=4 opens what ADR 0012 took out; development and test only",
   })
   .transform(({ APP_ENV, RILIS_TERBUKA }): 1 | 2 | 3 | 4 => {
     if (RILIS_TERBUKA !== undefined) return RILIS_TERBUKA as 1 | 2 | 3 | 4;
@@ -242,7 +242,7 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
   ...smtpEnvShape,
   ...sumopodEnvShape,
   DATABASE_URL: z.url({ protocol: /^postgres(ql)?$/ }),
-  /** The release this environment has opened, 1 to 3 (ADR 0006), or 4 in development and test only (ADR 0010); validated here so a bad value stops the process at start. */
+  /** The release this environment has opened, 1 to 3 (ADR 0006), or 4 in development and test only (ADR 0012); validated here so a bad value stops the process at start. */
   RILIS_TERBUKA: z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).max(4).optional()),
   /** Where the Drizzle migrations live (the image sets /app/drizzle); default ./drizzle. */
   MIGRATIONS_DIR: z.preprocess(emptyToUndefined, z.string().optional()),
@@ -293,7 +293,7 @@ const runtimeEnvSchema = sentryEnvSchema.extend({
       ctx.addIssue({ code: "custom", path: ["DEV_FILES_ROOT"], message: `DEV_FILES_ROOT is for development only, not ${env.APP_ENV}` });
     }
     if (env.RILIS_TERBUKA === 4 && !usesInMemoryFakes(env.APP_ENV)) {
-      ctx.addIssue({ code: "custom", path: ["RILIS_TERBUKA"], message: `RILIS_TERBUKA=4 opens what ADR 0010 took out; development and test only, not ${env.APP_ENV}` });
+      ctx.addIssue({ code: "custom", path: ["RILIS_TERBUKA"], message: `RILIS_TERBUKA=4 opens what ADR 0012 took out; development and test only, not ${env.APP_ENV}` });
     }
     if (usesInMemoryFakes(env.APP_ENV)) return;
     for (const key of liveRequired) {

@@ -25,7 +25,7 @@ vi.mock("next/headers", () => import("../../../../tests/support/next-request"));
 const { close } = testDatabase();
 afterAll(close);
 const server = testServerRuntime();
-// DKI TPU and Mitra Jasa are taken out of the product (ADR 0010); 4 opens them again, in test only, so their code stays tested.
+// DKI TPU and Mitra Jasa are taken out of the product (ADR 0012); 4 opens them again, in test only, so their code stays tested.
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(async () => {
   vi.stubEnv("RILIS_TERBUKA", "4");
@@ -40,6 +40,8 @@ function draft(overrides: Partial<DraftSaatDuka> = {}): Record<string, unknown> 
     email: "pemesan@contoh.id",
     phoneNumber: "081234567890",
     almarhumName: "Siti Aminah",
+    jenisKelaminAlmarhum: "perempuan",
+    alamatRumahDuka: "",
     tanggalWafat: "2026-09-30",
     rencanaPemakamanAt: "",
     keinginanPenempatan: "",

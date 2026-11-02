@@ -42,7 +42,7 @@ const { db, close } = testDatabase();
 afterAll(close);
 // The page reads through the `web` runtime, so it is built on this run's database; the orders are made on the same one.
 const server = testServerRuntime();
-// DKI TPU and Mitra Jasa are taken out of the product (ADR 0010); 4 opens them again, in test only, so their code stays tested.
+// DKI TPU and Mitra Jasa are taken out of the product (ADR 0012); 4 opens them again, in test only, so their code stays tested.
 afterEach(() => vi.unstubAllEnvs());
 beforeEach(async () => {
   vi.stubEnv("RILIS_TERBUKA", "4");

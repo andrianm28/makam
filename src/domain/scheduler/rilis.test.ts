@@ -25,7 +25,7 @@ describe("Scheduled ticks by release (ADR 0006)", () => {
     await expect(tick!.tick({} as never, wib("2026-10-02 10:00"))).rejects.toThrow();
   });
 
-  it("the IPTM expiry reminder tick (TPU work, taken out by ADR 0010) sends nothing at any release an environment opens, and runs only at 4", async () => {
+  it("the IPTM expiry reminder tick (TPU work, taken out by ADR 0012) sends nothing at any release an environment opens, and runs only at 4", async () => {
     for (const rilis of [1, 2, 3] as const) {
       const closed = ticksForRelease(scheduledTicks, rilis).find((t) => t.name === "pengurusan.pengingat_iptm");
       expect(closed).toBeDefined();

@@ -88,7 +88,7 @@ function filtersOf(parsed: z.infer<typeof searchParamsSchema> | undefined): Loka
  */
 export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lokasi">) {
   const parsed = searchParamsSchema.safeParse(await searchParams);
-  // DKI TPU is taken out of the product (ADR 0010): while it is closed the directory lists Lokasi Mitra only and has no Jenis filter.
+  // DKI TPU is taken out of the product (ADR 0012): while it is closed the directory lists Lokasi Mitra only and has no Jenis filter.
   const tpuTerbuka = rilisTerbuka("tpu");
   const filters = filtersOf(parsed.success ? parsed.data : undefined);
   const { baris, kota } = await daftarLokasi({

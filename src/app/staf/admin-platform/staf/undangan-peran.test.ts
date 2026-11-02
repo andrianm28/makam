@@ -11,7 +11,7 @@ describe("the Peran field of an Undangan Staf", () => {
     ]);
   });
 
-  it("does not offer Mitra Jasa while it is taken out of the product with the TPU (ADR 0010)", () => {
+  it("does not offer Mitra Jasa while it is taken out of the product with the TPU (ADR 0012)", () => {
     for (const rilis of [1, 2, 3] as const) {
       expect(roleUndangan(rilis).map((role) => role.value)).toEqual(["admin_platform", "petugas_lapangan"]);
     }

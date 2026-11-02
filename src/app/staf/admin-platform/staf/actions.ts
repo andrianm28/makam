@@ -13,7 +13,7 @@ import { nonaktifkanStafSchema, undangStafSchema } from "./schema";
 
 /** Admin Platform sends an Undangan Staf. */
 export async function undangStaf(_previous: FormState, formData: FormData): Promise<FormState> {
-  // Mitra Jasa is taken out of the product with the TPU (ADR 0010): no new Mitra Jasa while it is closed.
+  // Mitra Jasa is taken out of the product with the TPU (ADR 0012): no new Mitra Jasa while it is closed.
   if (formData.get("role") === "mitra_jasa" && !rilisTerbuka("mitra_jasa")) {
     return { status: "gagal", message: "Peran Mitra Jasa tidak dipakai lagi. Pilih peran lain." };
   }

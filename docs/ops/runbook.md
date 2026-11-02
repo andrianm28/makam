@@ -1043,7 +1043,7 @@ registered but do nothing (the worker logs `skipped` once per tick at start).
 The features and their releases are in `src/lib/rilis-peta.ts` (`fiturRilis`):
 Rilis 2 is the Perpanjangan continued (berkas, Permohonan, the Hak Pakai
 reminders and expiry) and Lokasi Ditangguhkan / Berhenti; Rilis 3 is Wakaf Tanah.
-DKI TPU and Mitra Jasa are taken out of the product (ADR 0010): they sit at 4,
+DKI TPU and Mitra Jasa are taken out of the product (ADR 0012): they sit at 4,
 which no staging or production host opens, so they stay closed at 3 too, and
 their public pages answer 404 instead of "Segera hadir". A value outside 1 to 3
 stops the process at start (4 is accepted only in development and test).
@@ -1063,7 +1063,7 @@ sed -i 's/^RILIS_TERBUKA=.*/RILIS_TERBUKA=3/' prod.env
 grep -c '^RILIS_TERBUKA=3$' prod.env          # 1; 0 means the file had no such line, so add one
 $P up -d --force-recreate web worker          # web and worker read the env file only when they start
 $P logs worker | grep 'started (RILIS_TERBUKA='    # the newest line shows the new number
-$P logs worker | grep -c ' skipped'                # 5 at 3: the TPU and Mitra Jasa ticks taken out by ADR 0010
+$P logs worker | grep -c ' skipped'                # 5 at 3: the TPU and Mitra Jasa ticks taken out by ADR 0012
 curl -s http://127.0.0.1:3100/api/health | jq '{ok, release, rilisTerbuka}'    # rilisTerbuka is 3
 /opt/makam-v1/bin/makam-preflight --env prod --rilis 3 --email-to <your address>   # exit 0, no FAIL
 ```

@@ -14,7 +14,7 @@ import { terbukaDi } from "../src/lib/rilis-peta";
  * stack nobody has filled in has none. `cs-link.test.ts` and `site-header.test.ts`
  * cover it instead.
  */
-const menuLabels = ["Pesan Makam", "Makam Keluarga", "Layanan", "Wakaf Tanah", "Daftar Lokasi"];
+const menuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi"];
 
 /**
  * The release the stack under test has open (ADR 0006). The stack takes it from
@@ -32,11 +32,10 @@ function rilisStack() {
 }
 
 /**
- * The menu items whose page is not there in this release, so "Segera hadir": only Wakaf
- * Tanah, which opens with Rilis 3. Layanan (Layanan Makam, Rilis 1) opens the Makam
- * Keluarga hub with the action chosen, like Makam Keluarga itself.
+ * The menu items whose page is not there in this release, so "Segera hadir": only the wakaf
+ * programme, which opens with Rilis 3.
  */
-const belumHadir = terbukaDi("wakaf", rilisStack()) ? [] : ["Wakaf Tanah"];
+const belumHadir = terbukaDi("wakaf", rilisStack()) ? [] : ["Program Wakaf Tanah Pemakaman"];
 
 test("the Beranda leads with the urgent entry, and offers the planned one beside it", async ({ page }) => {
   await page.goto("/");
@@ -61,7 +60,7 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
   // arranged at the Makam keluarga hub, so those two tiles open it with the action chosen.
   await expect(page.getByRole("heading", { name: "Perpanjang Makam" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Wakaf Tanah" })).toBeVisible();
-  // DKI TPU is taken out of the product (ADR 0010): no tile for it, not even "Segera hadir".
+  // DKI TPU is taken out of the product (ADR 0012): no tile for it, not even "Segera hadir".
   await expect(page.getByRole("heading", { name: "Urus di TPU DKI" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Perpanjang Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=perpanjang");
   await expect(page.getByRole("link", { name: "Layanan Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
@@ -77,7 +76,7 @@ test("the Makam keluarga hub answers 'Di mana makamnya?', with the branch it was
   await expect(page.getByRole("button", { name: "Cari makam" })).toBeVisible();
 
   // An empty form asks for what is missing instead of answering as a miss; there is no TPU
-  // branch, since DKI TPU is taken out of the product (ADR 0010).
+  // branch, since DKI TPU is taken out of the product (ADR 0012).
   await page.getByRole("button", { name: "Cari makam" }).click();
   await expect(page.getByText("Lengkapi dulu Lokasi Mitra")).toBeVisible();
   await expect(page.getByRole("link", { name: "Panduan Pengurusan di TPU DKI" })).toHaveCount(0);
@@ -98,10 +97,13 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
     await expect(menu.getByRole("link", { name: new RegExp(`^${label}`) })).toHaveCount(0);
   }
   await expect(menu.getByText("Segera", { exact: true })).toHaveCount(belumHadir.length);
-  await expect(menu.getByRole("link", { name: /^Layanan/ })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
+  // A group opens its pages: Layanan Kedukaan lists the six and links its own page.
+  await menu.getByText("Layanan Kedukaan", { exact: true }).click();
+  await expect(menu.getByRole("link", { name: "Mobil Jenazah" })).toHaveAttribute("href", "/layanan-kedukaan/mobil-jenazah");
+  await expect(menu.getByRole("link", { name: "Semua Layanan Kedukaan" })).toHaveAttribute("href", "/layanan-kedukaan");
   // An item whose release is open is a link to its page.
-  if (!belumHadir.includes("Wakaf Tanah")) {
-    await expect(menu.getByRole("link", { name: /^Wakaf Tanah/ })).toHaveAttribute("href", "/wakaf-tanah");
+  if (!belumHadir.includes("Program Wakaf Tanah Pemakaman")) {
+    await expect(menu.getByRole("link", { name: /^Wakaf Tanah Pemakaman/ })).toHaveAttribute("href", "/wakaf-tanah");
   }
 });
 

@@ -178,7 +178,7 @@ function LayananCard({
                 </p>
                 ) : null}
               </div>
-              {/* The DKI price, the Mitra Jasa rate and the TPU mark are DKI TPU work, hidden while it is taken out (ADR 0010). */}
+              {/* The DKI price, the Mitra Jasa rate and the TPU mark are DKI TPU work, hidden while it is taken out (ADR 0012). */}
               {tpuTerbuka ? (
                 <>
               <p className="text-small">{varian.bolehDiTpu ? "Boleh di TPU DKI." : "Belum ditandai boleh di TPU DKI."}</p>

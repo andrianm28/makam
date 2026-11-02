@@ -10,7 +10,7 @@
  * in a later release, so its tile names what the service is,
  * say "Segera hadir." and offer the CS — never a link to a page that is not there,
  * and never a date (docs/design-system.md, voice and tone). Urus di TPU DKI is
- * taken out of the product (ADR 0010) and not shown. No tile photo shows a
+ * taken out of the product (ADR 0012) and not shown. No tile photo shows a
  * headstone (owner, 2026-11-02).
  */
 import type { LucideIcon } from "lucide-react";
@@ -110,7 +110,7 @@ export const homepageTiles: HomepageTile[] = [
 
 /**
  * The tiles as the release `rilis` shows them: a tile whose feature is open links to its page, the rest say "Segera hadir"
- * (ADR 0006), and a tile whose feature is taken out of the product is not shown at all (ADR 0010).
+ * (ADR 0006), and a tile whose feature is taken out of the product is not shown at all (ADR 0012).
  */
 export function homepageTilesUntuk(rilis: Rilis): HomepageTile[] {
   return homepageTiles.filter((tile) => !(tile.hrefBilaTerbuka && dikeluarkanDi(tile.hrefBilaTerbuka.fitur, rilis))).map((tile) => {
@@ -130,7 +130,7 @@ export interface HomepageTrustColumn {
 /**
  * Dibantu · Jelas · Aman. Each line is something the platform really does in this
  * release, and the Dibantu line says nothing about TPU paperwork, which is not
- * part of the product (ADR 0010). Cara Kami Bekerja explains
+ * part of the product (ADR 0012). Cara Kami Bekerja explains
  * all three, linked once under the strip.
  */
 export const homepageTrust: HomepageTrustColumn[] = [

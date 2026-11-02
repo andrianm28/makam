@@ -16,7 +16,7 @@ export const metadata: Metadata = {
  * written here: the price, the fees and the Operator's details are read from
  * their own modules, on the pages that show them. The third claim speaks of the
  * TPU guide, so it follows the release the environment has open, and is left
- * out while TPU is taken out of the product (ADR 0010).
+ * out while TPU is taken out of the product (ADR 0012).
  */
 export default function CaraKamiBekerjaPage() {
   return (

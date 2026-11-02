@@ -37,7 +37,7 @@ const server = testServerRuntime();
 beforeEach(async () => {
   await resetDatabase();
   browser.reset();
-  // DKI TPU is taken out of the product (ADR 0010): only release 4, open in test alone, still shows its orders in Akun Saya.
+  // DKI TPU is taken out of the product (ADR 0012): only release 4, open in test alone, still shows its orders in Akun Saya.
   vi.stubEnv("RILIS_TERBUKA", "4");
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -106,7 +106,7 @@ describe("Akun Saya reaches the hari-H Layanan of a Saat Duka TPU order in every
     expect(html).toContain(`href="/layanan/${nomor}"`);
   });
 
-  it("are not in the Pesanan tab while DKI TPU is taken out of the product (ADR 0010)", async () => {
+  it("are not in the Pesanan tab while DKI TPU is taken out of the product (ADR 0012)", async () => {
     const s = await siapTpuBertarif(db);
     const { nomor } = await pesananDikonfirmasi(s, { dibayar: false });
     vi.stubEnv("RILIS_TERBUKA", "3");

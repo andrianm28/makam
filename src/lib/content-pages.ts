@@ -36,7 +36,7 @@ export interface FaqEntry {
  * says nothing about who runs it rather than guessing.
  */
 export function tentangKamiParagrafs(legalName: string | null, rilis: Rilis = 1): string[] {
-  // While DKI TPU is taken out of the product (ADR 0010) the page names the partner cemeteries only.
+  // While DKI TPU is taken out of the product (ADR 0012) the page names the partner cemeteries only.
   const mitra = dikeluarkanDi("tpu", rilis)
     ? "Kami bekerja sama dengan pengelola Lokasi Mitra yang mengelola makamnya sendiri. Hak atas tanah dan atas setiap Petak Makam tetap di tangan mereka."
     : "Kami bekerja sama dengan pengelola Lokasi Mitra yang mengelola makamnya sendiri, dan dengan Tempat Pemakaman Umum yang dikelola pemerintah daerah. Hak atas tanah dan atas setiap Petak Makam tetap di tangan mereka.";
@@ -129,7 +129,7 @@ export function kebijakanPrivasiSections(legalName: string | null): ContentSecti
  * The third claim speaks of the TPU guide, so it follows the release: while TPU
  * is closed the guide is not a page and the answer names the CS instead; once
  * TPU is open it points at "Pengurusan di TPU DKI" (ADR 0006). While TPU is
- * taken out of the product (ADR 0010) the claim is not made at all.
+ * taken out of the product (ADR 0012) the claim is not made at all.
  */
 export function caraKamiBekerjaSectionsUntuk(rilis: Rilis): ContentSection[] {
   const sections = caraKamiBekerjaSemua(rilis);
@@ -179,7 +179,7 @@ export const caraKamiBekerjaSections: ContentSection[] = caraKamiBekerjaSections
  * The answer on what is paid, and to whom, names the Operator's legal name —
  * read from Pengaturan Operator and passed in, so it can never disagree with the
  * footer, the documents and Hubungi Kami. The TPU question is left out while
- * DKI TPU is taken out of the product (ADR 0010).
+ * DKI TPU is taken out of the product (ADR 0012).
  */
 export function faqQuestions(legalName: string | null, rilis: Rilis = 1): FaqEntry[] {
   const semua = faqSemua(legalName);

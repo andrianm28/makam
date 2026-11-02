@@ -12,7 +12,7 @@ import { currentActor } from "./session";
 
 /**
  * The staff roles an actor holds, in the fixed order. Mitra Jasa counts only while it is open: it is taken out of
- * the product with the TPU (ADR 0010), so an Akun holding it gets no menu, home or role switcher entry for it.
+ * the product with the TPU (ADR 0012), so an Akun holding it gets no menu, home or role switcher entry for it.
  */
 export function heldStaffRoles(roles: Role[]): StaffRole[] {
   return staffRoles.filter((role) => roles.includes(role) && (role !== "mitra_jasa" || rilisTerbuka("mitra_jasa")));

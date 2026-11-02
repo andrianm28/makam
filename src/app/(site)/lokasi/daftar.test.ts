@@ -114,7 +114,7 @@ describe("the Daftar Lokasi Makam page's own cards", () => {
     expect(baris).toMatchObject([{ card: { kind: "tpu", name: "TPU Kober" }, mulaiRp: null }]);
   });
 
-  it("lists only Lokasi Mitra, and only their cities, while DKI TPU is taken out of the product (ADR 0010)", async () => {
+  it("lists only Lokasi Mitra, and only their cities, while DKI TPU is taken out of the product (ADR 0012)", async () => {
     const setup = publish;
     const admin = await signInAsAdminPlatform(server);
     await publishedLokasiMitra(setup, admin, "Makam Keluarga Sawah");

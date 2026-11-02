@@ -1,6 +1,6 @@
 # Harga Tampil: two ways to order at a Lokasi Mitra
 
-Owner decision, 2026-11-02 (relayed by dri: "tps yang boleh tampil harga didepan tetap di platform, tps yang tidak boleh tampil harga didepan akan diteruskan di whatsapp dan admin akan input manual ke platform"). Builds on ADR 0010 (Lokasi Mitra only).
+Owner decision, 2026-11-02 (relayed by dri: "tps yang boleh tampil harga didepan tetap di platform, tps yang tidak boleh tampil harga didepan akan diteruskan di whatsapp dan admin akan input manual ke platform"). Builds on ADR 0012 (Lokasi Mitra only).
 
 ## Decision
 

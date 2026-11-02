@@ -13,7 +13,7 @@ export function rilisTerbuka(fitur: Fitur, source: Record<string, string | undef
   return terbukaDi(fitur, rilisAktif(source));
 }
 
-/** Whether `fitur` is taken out of the product (ADR 0010) in this environment: hidden, and its pages answer 404. */
+/** Whether `fitur` is taken out of the product (ADR 0012) in this environment: hidden, and its pages answer 404. */
 export function fiturDikeluarkan(fitur: Fitur, source: Record<string, string | undefined> = process.env): boolean {
   return dikeluarkanDi(fitur, rilisAktif(source));
 }

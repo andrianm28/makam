@@ -10,7 +10,7 @@ import { seedTagihan } from "./support/tagihan";
  * Staff access on a fresh local stack (docker compose -p makam-v1-dev up --build -d):
  * the e2e Admin Platform (seeded by the seed CLI, see e2e/support/admin-platform.ts)
  * logs in with a Kode Masuk alone (ADR 0008: no TOTP), invites a Petugas Lapangan (Mitra Jasa is
- * not offered: it is taken out of the product with the TPU, ADR 0010), and the invitee logs in.
+ * not offered: it is taken out of the product with the TPU, ADR 0012), and the invitee logs in.
  * (Admin Lokasi are invited from their Lokasi Mitra's page; switching between two roles is
  * covered by the staff shell's tests.)
  */

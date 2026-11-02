@@ -21,7 +21,7 @@ describe("Release gate in the proxy (ADR 0006)", () => {
     }
   });
 
-  it("a public page of DKI TPU, taken out of the product (ADR 0010), answers 404 at every release an environment opens", async () => {
+  it("a public page of DKI TPU, taken out of the product (ADR 0012), answers 404 at every release an environment opens", async () => {
     for (const rilis of ["1", "3"]) {
       vi.stubEnv("RILIS_TERBUKA", rilis);
       for (const path of ["/tpu/t1", "/pengurusan-tpu", "/pesan-makam/saat-duka/tpu", "/layanan/tpu", "/pesan-makam/pengurusan-iptm"]) {

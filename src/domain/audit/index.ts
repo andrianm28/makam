@@ -348,7 +348,9 @@ export type AuditAction =
   /** Admin Platform moves a Pengajuan Wakaf to a new status, matches its Nazhir or writes a note (ticket 58). */
   | "wakaf.pindah_status"
   | "wakaf.cocokkan_nazhir"
-  | "wakaf.catatan";
+  | "wakaf.catatan"
+  /** Admin Platform moves a Permintaan Kedukaan on: Dihubungi, Selesai, or Dibatalkan with a reason (ADR 0010). */
+  | "kedukaan.pindah_status";
 
 /**
  * What the Admin Lokasi view of a Lokasi's Audit Log leaves out (spec, Audit

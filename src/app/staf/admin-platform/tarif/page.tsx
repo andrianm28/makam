@@ -22,7 +22,7 @@ export default async function TarifGlobalPage() {
   const { tariffs, adapters } = serverRuntime();
   const now = adapters.clock.now();
   const today = wibDateOf(now);
-  // The Pengurusan fees and the Retribusi Pemda are DKI TPU amounts, hidden while TPU is taken out of the product (ADR 0010).
+  // The Pengurusan fees and the Retribusi Pemda are DKI TPU amounts, hidden while TPU is taken out of the product (ADR 0012).
   const tpuTerbuka = rilisTerbuka("tpu");
   const keys = GLOBAL_TARIFF_KEYS.filter((key) => tpuTerbuka || key === "biaya_layanan_platform");
   const books = await Promise.all(

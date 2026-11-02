@@ -21,7 +21,7 @@ export interface PesananSaya {
  */
 export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: PesananSaya; perluTindakan: PerluTindakanItem[] }> => {
   const { pemesanan, pengurusan, billing, perpanjangan } = serverRuntime();
-  // DKI TPU is taken out of the product (ADR 0010): its orders and berkas are not shown in Akun Saya.
+  // DKI TPU is taken out of the product (ADR 0012): its orders and berkas are not shown in Akun Saya.
   const tpuTerbuka = rilisTerbuka("tpu");
   const [daftarPemesanan, daftarTerencana, daftarPengurusan, daftarPermohonan, berkasTpu, daftarPermintaan, konsenMenunggu] = await Promise.all([
     pemesanan.pesananSaya({ accountId }),

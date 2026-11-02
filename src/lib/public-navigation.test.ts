@@ -1,51 +1,54 @@
 import { describe, expect, it } from "vitest";
 import { pageExists } from "../../tests/support/page-exists";
+import { kontenDariSlug } from "./kedukaan-konten";
 import { contentPageLinks, publicMenu, publicMenuLabels } from "./public-navigation";
 
 /** A menu as its reader sees it: the labels in order. */
 const labels = (signedIn: boolean) => publicMenu({ signedIn }).map((item) => item.label);
 
 describe("the public site menu", () => {
-  it("lists Pesan Makam, Makam Keluarga, Layanan, Wakaf Tanah, Daftar Lokasi, then the account item", () => {
-    expect(labels(false)).toEqual([
-      "Pesan Makam",
-      "Makam Keluarga",
-      "Layanan",
-      "Wakaf Tanah",
-      "Daftar Lokasi",
-      "Masuk",
-    ]);
+  it("lists the owner's four groups, Jasa Pemakaman, Layanan Kedukaan, Program Wakaf Tanah Pemakaman, Daftar Lokasi, then the account item", () => {
+    expect(labels(false)).toEqual(["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi", "Masuk"]);
   });
 
   it("offers Akun Saya instead of Masuk to a signed-in visitor", () => {
     expect(labels(true)).toEqual([...publicMenuLabels, "Akun Saya"]);
   });
 
-  it("leads every visitor to the Saat Duka entry and to the Lokasi directory", () => {
+  it("puts Pesan Sekarang, Konsultasi Rencana Pemakaman and Makam Keluarga under Jasa Pemakaman", () => {
+    const jasa = publicMenu({ signedIn: false }).find((item) => item.label === "Jasa Pemakaman");
+    expect(jasa?.children?.map((child) => [child.label, child.href])).toEqual([
+      ["Pesan Sekarang", "/pesan-makam/saat-duka"],
+      ["Konsultasi Rencana Pemakaman", "/konsultasi-rencana-pemakaman"],
+      ["Makam Keluarga", "/makam-keluarga"],
+    ]);
+  });
+
+  it("lists the six Layanan Kedukaan under their group, which opens its own page", () => {
+    const kedukaan = publicMenu({ signedIn: false }).find((item) => item.label === "Layanan Kedukaan");
+    expect(kedukaan?.href).toBe("/layanan-kedukaan");
+    expect(kedukaan?.children?.map((child) => child.label)).toEqual([
+      "Rumah Duka",
+      "Mobil Jenazah",
+      "Jasa Cargo Jenazah",
+      "Jasa Repatriasi Jenazah",
+      "Peti Jenazah",
+      "Bunga Duka Cita",
+    ]);
+  });
+
+  it("leads every visitor to the Lokasi directory and to Masuk", () => {
     const menu = publicMenu({ signedIn: false });
-    expect(menu.find((item) => item.label === "Pesan Makam")?.href).toBe("/pesan-makam/saat-duka");
     expect(menu.find((item) => item.label === "Daftar Lokasi")?.href).toBe("/lokasi");
     expect(menu.find((item) => item.label === "Masuk")?.href).toBe("/masuk");
   });
 
-  it("never links an item whose page is not built yet, and says so instead of a date", () => {
-    // The Makam keluarga hub is built, so that item opens it; Layanan and Wakaf Tanah
-    // ship in later releases. A dead link is worse than an honest "Segera hadir", so
-    // those items carry no href at all and never a release date (the brand's guardrails).
-    const unbuilt = publicMenu({ signedIn: false }).filter((item) => !item.href);
-    expect(unbuilt.map((item) => item.label)).toEqual(["Wakaf Tanah"]);
+  it("never links the wakaf programme before its release is open, and says so instead of a date", () => {
+    const unbuilt = publicMenu({ signedIn: false, rilis: 1 }).filter((item) => !item.href);
+    expect(unbuilt.map((item) => item.label)).toEqual(["Program Wakaf Tanah Pemakaman"]);
     for (const item of unbuilt) expect(item.description).toBe("Segera hadir.");
-    expect(publicMenu({ signedIn: false }).map((item) => item.description).join(" ")).not.toMatch(/\d{4}/);
-  });
-
-  it("links Layanan to the hub with the Layanan Makam action chosen at Rilis 1, the same place the Beranda tile opens", () => {
-    for (const rilis of [1, 2, 3] as const) {
-      expect(publicMenu({ signedIn: false, rilis }).find((item) => item.label === "Layanan")?.href).toBe("/makam-keluarga?aksi=layanan");
-    }
-  });
-
-  it("opens the Makam keluarga hub for the item that owns it", () => {
-    expect(publicMenu({ signedIn: false }).find((item) => item.label === "Makam Keluarga")?.href).toBe("/makam-keluarga");
+    expect(publicMenu({ signedIn: false, rilis: 3 }).find((item) => item.label === "Program Wakaf Tanah Pemakaman")?.href).toBe("/wakaf-tanah");
+    expect(JSON.stringify(publicMenu({ signedIn: false }))).not.toMatch(/\d{4}/);
   });
 });
 
@@ -76,16 +79,23 @@ describe("the content pages", () => {
  */
 const routeMenungguTiket = new Set(["/pesan-makam/terencana"]);
 
+/** A Layanan Kedukaan's page: the one dynamic route, open only for the six it knows. */
+function halamanKedukaan(href: string): boolean {
+  const slug = /^\/layanan-kedukaan\/([^/]+)$/.exec(href)?.[1];
+  return slug !== undefined && kontenDariSlug(slug) !== null && pageExists("/layanan-kedukaan/[jenis]");
+}
+
 describe("the menu's links", () => {
   it("every one opens a page that exists, or the one route a pending ticket adds", () => {
     const links = [
       ...publicMenu({ signedIn: false }),
       ...publicMenu({ signedIn: true }),
     ]
+      .flatMap((item) => [item, ...(item.children ?? [])])
       .map((item) => item.href?.split("?")[0])
       .filter((href): href is string => href !== undefined);
     for (const href of links) {
-      expect(pageExists(href) || routeMenungguTiket.has(href), href).toBe(true);
+      expect(pageExists(href) || routeMenungguTiket.has(href) || halamanKedukaan(href), href).toBe(true);
     }
   });
 });

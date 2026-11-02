@@ -101,6 +101,8 @@ export default async function PesananLokasiPage({ params }: PageProps<"/staf/adm
         </CardHeader>
         <CardContent>
           <dl className="flex flex-col gap-2 text-body">
+            {order.almarhum.jenisKelamin ? <Baris label="Jenis kelamin mendiang" value={order.almarhum.jenisKelamin === "laki_laki" ? "Laki-laki" : "Perempuan"} /> : null}
+            {order.almarhum.alamatRumahDuka ? <Baris label="Alamat rumah duka" value={order.almarhum.alamatRumahDuka} /> : null}
             <Baris label="Pemesan" value={order.pemesan.name} />
             {order.pemesan.phoneNumber ? <Baris label="Telepon Pemesan" value={order.pemesan.phoneNumber} /> : null}
             {order.pemesan.email ? <Baris label="Email Pemesan" value={order.pemesan.email} /> : null}

@@ -41,6 +41,11 @@ export const lokasiFlagsSchema = z.object({
    * 2026-11-02). A Lokasi Mitra saved before the flag existed has none, which reads as on.
    */
   hargaTampil: z.boolean().default(true),
+  /**
+   * Its Saat Duka burial is already a complete package, so the wizard offers no Layanan Tambahan there (dri, 2026-11-02).
+   * Absent on a Lokasi saved before the flag existed, which reads as off.
+   */
+  paketLengkap: z.boolean().optional(),
 });
 export type LokasiFlags = z.infer<typeof lokasiFlagsSchema>;
 /** The flags as a caller sends them: Harga Tampil may be left out, and then it is on. */
@@ -68,4 +73,5 @@ export const DEFAULT_FLAGS: LokasiFlags = {
   tumpangOnReleasedPlots: false,
   saleTransfersAllowed: false,
   hargaTampil: true,
+  paketLengkap: false,
 };

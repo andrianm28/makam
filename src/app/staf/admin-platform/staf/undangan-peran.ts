@@ -14,7 +14,7 @@ export interface RoleOption {
 
 /**
  * The roles the Staf page offers at release `rilis`: Admin Lokasi is invited from its own Lokasi Mitra page, and
- * Mitra Jasa is not offered while it is taken out of the product (ADR 0010).
+ * Mitra Jasa is not offered while it is taken out of the product (ADR 0012).
  */
 export function roleUndangan(rilis: Rilis): RoleOption[] {
   return staffRoles

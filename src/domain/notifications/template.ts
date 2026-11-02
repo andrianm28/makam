@@ -763,6 +763,36 @@ export function wakafStatusEmail(input: WakafStatusEmailInput): { subject: strin
   };
 }
 
+export interface KedukaanStatusEmailInput {
+  nomor: string;
+  /** What was asked for, as the family read it on the page (e.g. "Mobil Jenazah"). */
+  labelJenis: string;
+  labelStatus: string;
+  /** Why it was cancelled, or Admin Platform's note to the family with this change. */
+  catatan: string | null;
+}
+
+/** A Permintaan Kedukaan filed or moved on (ADR 0010): one email per change. */
+export function kedukaanStatusEmail(input: KedukaanStatusEmailInput): { subject: string; body: string } {
+  return {
+    subject: `Permintaan ${input.labelJenis} ${input.nomor}: ${input.labelStatus}`,
+    body: [
+      "Yth. Bapak/Ibu,",
+      "",
+      `Status permintaan ${input.labelJenis} ${input.nomor} sekarang: ${input.labelStatus}.`,
+      input.labelStatus === "Diajukan" ? "Tim kami akan segera menghubungi Anda di nomor telepon yang Anda berikan." : null,
+      input.catatan ? `Catatan dari kami: ${input.catatan}` : null,
+      "",
+      "Lihat perkembangannya di makam.co.id: Akun Saya.",
+      "",
+      "Hormat kami,",
+      "Tim makam.co.id",
+    ]
+      .filter((baris): baris is string => baris !== null)
+      .join("\n"),
+  };
+}
+
 export interface IptmTerbitEmailInput {
   nomor: string;
   tpu: { name: string };

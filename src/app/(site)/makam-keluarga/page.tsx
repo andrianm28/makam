@@ -77,7 +77,7 @@ export default async function MakamKeluargaPage({ searchParams }: PageProps<"/ma
         <MakamDitemukan key={`${satu.lokasiId}-${satu.kavlingId ?? satu.petak[0]?.petakId}`} satu={satu} aksiTerpilih={hub.aksiTerpilih} contact={contact} />
       ))}
 
-      {/* DKI TPU is taken out of the product (ADR 0010): the section shows only where TPU is open. */}
+      {/* DKI TPU is taken out of the product (ADR 0012): the section shows only where TPU is open. */}
       {tpuTerbuka ? (
       <section aria-labelledby="tpu-heading" className="flex flex-col gap-3 border-t border-border pt-8">
         <h2 id="tpu-heading" className="text-title-2 font-semibold">

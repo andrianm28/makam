@@ -34,9 +34,18 @@ describe("the public site navigation", () => {
     expect(labelsInOrder(drawer, labels)).toEqual(labels);
   });
 
-  it("is a list, so the count of its items is announced", () => {
+  it("is a list, so the count of its items is announced, and each group's pages are a list of their own", () => {
+    const markup = renderToStaticMarkup(createElement(PublicNavList, { items, pathname: "/", variant: "drawer" }));
+    const anak = items.reduce((jumlah, item) => jumlah + (item.children?.length ?? 0), 0);
+    expect((markup.match(/<li/g) ?? []).length).toBe(items.length + anak);
+  });
+
+  it("opens a group in the top bar as a disclosure with its pages and a link to the group's own page", () => {
     const markup = renderToStaticMarkup(createElement(PublicNavList, { items, pathname: "/", variant: "bar" }));
-    expect((markup.match(/<li/g) ?? []).length).toBe(items.length);
+    expect(markup).toMatch(/<details[^>]*>\s*<summary[^>]*>.*Layanan Kedukaan/);
+    expect(markup).toContain('href="/layanan-kedukaan/mobil-jenazah"');
+    expect(markup).toContain('href="/layanan-kedukaan"');
+    expect(markup).toContain('href="/konsultasi-rencana-pemakaman"');
   });
 
   it("marks the page being read as the current one", () => {

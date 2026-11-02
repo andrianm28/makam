@@ -30,7 +30,7 @@ export default async function AkunMakamPage() {
   const { inventory, lokasi, pemesanan, pengurusan, perpanjangan } = serverRuntime();
   // Pengembalian, Ganti Pemegang Hak and the Calon Penghuni label open with Rilis 2 (ADR 0006).
   const permintaanTerbuka = rilisTerbuka("perpanjangan_lanjutan");
-  // DKI TPU is taken out of the product (ADR 0010): no Makam TPU card, whose actions all lead to TPU pages, while it is closed.
+  // DKI TPU is taken out of the product (ADR 0012): no Makam TPU card, whose actions all lead to TPU pages, while it is closed.
   const makamTpu = rilisTerbuka("tpu") ? await pengurusan.makamTpuSaya({ accountId: actor.accountId }) : [];
 
   const [unit, cards] = await Promise.all([inventory.makamKeluargaSaya({ email: actor.email }), lokasi.publicLokasiMitraList()]);

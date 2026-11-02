@@ -10,5 +10,7 @@ import type { PublicMenuItem } from "@/lib/public-navigation";
  * pathname the router already knows.
  */
 export function SiteNav({ items, variant }: { items: readonly PublicMenuItem[]; variant: "bar" | "drawer" }) {
-  return <PublicNavList items={items} pathname={usePathname() ?? "/"} variant={variant} />;
+  const pathname = usePathname() ?? "/";
+  // Keyed by the page, so an open dropdown closes once its link has been followed.
+  return <PublicNavList key={pathname} items={items} pathname={pathname} variant={variant} />;
 }

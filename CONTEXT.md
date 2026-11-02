@@ -79,7 +79,7 @@ A Lokasi Mitra whose partnership has ended, from an effective date set by Admin 
 _Avoid_: Berakhir (reserved for a Hak Pakai), putus kontrak
 
 **TPU**:
-A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it and only offered Pengurusan and Layanan there. Taken out of the product (ADR 0010): the platform serves Lokasi Mitra only, and every TPU term below (Makam TPU, IPTM, Pengurusan, Perpanjangan TPU, Mitra Jasa and their kin) describes code kept but closed in every environment.
+A Lokasi Makam owned and run by a Pemda; the platform holds no inventory for it and only offered Pengurusan and Layanan there. Taken out of the product (ADR 0012): the platform serves Lokasi Mitra only, and every TPU term below (Makam TPU, IPTM, Pengurusan, Perpanjangan TPU, Mitra Jasa and their kin) describes code kept but closed in every environment.
 _Avoid_: Makam umum, using TPU for any cemetery
 
 **Makam TPU**:
@@ -149,8 +149,12 @@ Admin Platform moving an Akun to a new Email Terverifikasi after checking the ho
 _Avoid_: Pindah Nomor (retired with WhatsApp), reset akun, Ganti Pemegang Hak
 
 **Almarhum**:
-The deceased person who is (or will be) buried in a Petak Makam.
-_Avoid_: Jenazah (as the record), mendiang
+The deceased person who is (or will be) buried in a Petak Makam. The Saat Duka form shows the family "Data Mendiang" and "Nama mendiang", and asks the mendiang's sex and the address of the rumah duka (owner, 2026-11-02); the record and the code keep Almarhum.
+_Avoid_: Jenazah (as the record)
+
+**Paket Lengkap**:
+A Lokasi Mitra flag set by Admin Platform: its Saat Duka burial is already a complete package, so the wizard offers no Layanan Tambahan there and an order there takes none (owner, 2026-11-02). Elsewhere the hari-H Layanan are offered as "Layanan Tambahan", opt-in.
+_Avoid_: Paket (alone)
 
 **Calon Penghuni**:
 The living person a Pemegang Hak names as intended for an unused Petak Makam, usually through a Pemesanan Terencana; a label the Pemegang Hak may change at any time, not a limit on who may be buried there. Becomes the Almarhum once buried.
@@ -177,7 +181,7 @@ The Operator's field staff who do the work that needs someone on site: in-person
 _Avoid_: Kurir, staf lapangan
 
 **Mitra Jasa**:
-An individual service provider outside the Operator, paid per job, who fulfils Layanan at TPU. Each covers a set of DKI TPUs and a set of Layanan, and is Aktif, Ditangguhkan (no new jobs, reversible) or Berhenti (ended for good). Taken out of the product with the TPU (ADR 0010): not offered as a role, and an Akun holding it gets no menu for it.
+An individual service provider outside the Operator, paid per job, who fulfils Layanan at TPU. Each covers a set of DKI TPUs and a set of Layanan, and is Aktif, Ditangguhkan (no new jobs, reversible) or Berhenti (ended for good). Taken out of the product with the TPU (ADR 0012): not offered as a role, and an Akun holding it gets no menu for it.
 _Avoid_: Vendor, tukang (as the role name), Mitra (alone)
 
 **Wakif**:
@@ -319,6 +323,18 @@ _Avoid_: Redo, ulangi, revisi
 **Penilaian**:
 A Pemesan's optional 1–5 star rating, with comment, of one finished Pekerjaan Layanan; seen only by Admin Platform.
 _Avoid_: Review, ulasan, rating (as the term)
+
+**Layanan Kedukaan**:
+A funeral service the Operator arranges for a family around a death, outside the grave itself, from a closed list: Rumah Duka, Mobil Jenazah, Jasa Cargo Jenazah, Jasa Repatriasi Jenazah, Peti Jenazah, Bunga Duka Cita. Asked for through a Permintaan Kedukaan and priced in the Operator's contact, never paid online in this release (ADR 0010). Not a Layanan: it is not done at a Petak Makam and has no Pekerjaan Layanan.
+_Avoid_: Layanan (alone), paket duka, jasa duka
+
+**Konsultasi Rencana Pemakaman**:
+A call the Operator gives a family planning a burial ahead (where, which Jenis Makam, what it costs, wakaf), asked for through a Permintaan Kedukaan; the planning counterpart of Pesan Sekarang.
+_Avoid_: Konsultasi (alone), konseling
+
+**Permintaan Kedukaan**:
+A family's request for one Layanan Kedukaan or a Konsultasi Rencana Pemakaman, filed after a Kode Masuk with a Nomor Permintaan, contacted by Admin Platform through the Antrean, and Diajukan, Dihubungi, Selesai or Dibatalkan.
+_Avoid_: Order, pesanan (that is a Pemesanan), tiket, lead
 
 ### Money
 

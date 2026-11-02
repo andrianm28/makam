@@ -29,7 +29,7 @@ export async function daftarLokasi(query: {
   jenis?: LokasiMakamKind;
   kota?: string;
   fasilitas?: LokasiFacility[];
-  /** False while DKI TPU is closed (taken out, ADR 0010): only Lokasi Mitra, and only their cities, are listed. */
+  /** False while DKI TPU is closed (taken out, ADR 0012): only Lokasi Mitra, and only their cities, are listed. */
   tpuTerbuka: boolean;
 }): Promise<DaftarLokasi> {
   const { lokasi, tariffs, adapters } = serverRuntime();

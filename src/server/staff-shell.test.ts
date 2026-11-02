@@ -44,7 +44,7 @@ describe("the staff shell", () => {
     }
     await signIn("staf@contoh.id");
 
-    // Mitra Jasa is taken out of the product (ADR 0010): the Akun keeps the role, but the shell offers only Petugas Lapangan.
+    // Mitra Jasa is taken out of the product (ADR 0012): the Akun keeps the role, but the shell offers only Petugas Lapangan.
     expect((await staffShell())?.roles).toEqual([{ role: "petugas_lapangan", label: "Petugas Lapangan", href: "/staf/petugas-lapangan" }]);
     expect(Object.keys((await staffShell())!.palette)).toEqual(["petugas_lapangan"]);
 
@@ -247,7 +247,7 @@ describe("the command palette (role visibility on the server)", () => {
     expect(hrefs(shell!.palette).filter((href) => href.includes(other.lokasiMitra.id) || href.startsWith("/staf/admin-platform"))).toEqual([]);
   });
 
-  it("an Admin Platform's palette opens its built pages and each Lokasi Mitra by name, never a page that is not built yet nor one taken out of the product (ADR 0010)", async () => {
+  it("an Admin Platform's palette opens its built pages and each Lokasi Mitra by name, never a page that is not built yet nor one taken out of the product (ADR 0012)", async () => {
     const { lokasiId } = await newLokasiMitra("Makam Wakaf Al-Ikhlas");
 
     const shell = await staffShell();
@@ -301,7 +301,7 @@ describe("the command palette (role visibility on the server)", () => {
   });
 
   it("an Akun holding Petugas Lapangan and Mitra Jasa gets exactly those two roles' pages where Mitra Jasa is open", async () => {
-    // Mitra Jasa is taken out of the product (ADR 0010); 4 opens it again, in test only.
+    // Mitra Jasa is taken out of the product (ADR 0012); 4 opens it again, in test only.
     vi.stubEnv("RILIS_TERBUKA", "4");
     const admin = await signInAsAdminPlatform(server);
     for (const role of ["petugas_lapangan", "mitra_jasa"] as const) {

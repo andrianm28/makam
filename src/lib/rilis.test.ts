@@ -42,7 +42,7 @@ describe("Rilis terbuka (ADR 0006)", () => {
     expect(terbukaDi("wakaf", 3)).toBe(true);
   });
 
-  it("DKI TPU and Mitra Jasa are taken out (ADR 0010): closed at every release an environment opens, opened only by 4 in development and test", () => {
+  it("DKI TPU and Mitra Jasa are taken out (ADR 0012): closed at every release an environment opens, opened only by 4 in development and test", () => {
     for (const source of [{ APP_ENV: "production" }, { APP_ENV: "production", RILIS_TERBUKA: "3" }, { APP_ENV: "staging" }, { APP_ENV: "development" }, { APP_ENV: "test" }]) {
       expect(rilisTerbuka("tpu", source)).toBe(false);
       expect(rilisTerbuka("mitra_jasa", source)).toBe(false);

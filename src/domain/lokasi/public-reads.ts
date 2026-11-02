@@ -43,6 +43,8 @@ export interface PublicLokasiMitra {
   terencanaAktif: boolean;
   /** Harga Tampil: false means no amount on the site and no self-serve order; families go through the CS on WhatsApp. */
   hargaTampil: boolean;
+  /** Its Saat Duka burial is a complete package: no Layanan Tambahan is offered (dri, 2026-11-02). */
+  paketLengkap: boolean;
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
   /** Null until its Admin Lokasi saves one (never invented). */
   jamOperasional: Row["jamOperasional"] | null;
@@ -70,6 +72,7 @@ function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
     },
     terencanaAktif: row.flags.pemesananTerencanaAktif,
     hargaTampil: hargaTampilOf(row),
+    paketLengkap: row.flags.paketLengkap === true,
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     jamOperasional: row.jamOperasional,
   };

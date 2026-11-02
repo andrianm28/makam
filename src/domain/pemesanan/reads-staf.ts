@@ -10,7 +10,7 @@
 import { and, count, desc, eq, inArray, isNotNull, lte } from "drizzle-orm";
 import { authorize, lokasiMitraResource, type Actor } from "@/domain/identity";
 import { alasanOrder } from "./alasan-tolak";
-import { pemesananBerkas, pemesananMakam, type PemegangHak, type PemesananStatus } from "./schema";
+import { pemesananBerkas, pemesananMakam, type JenisKelamin, type PemegangHak, type PemesananStatus } from "./schema";
 import type { PemesananDeps } from "./deps";
 import { tumpangUntukStaf, type TumpangUntukStaf } from "./tumpang";
 
@@ -32,7 +32,8 @@ export interface OrderStaf {
   jenisMakam: { id: string; name: string } | null;
   /** The family, by name: the Pemesan, their contact and the Almarhum they write about. */
   pemesan: { name: string; phoneNumber: string | null; email: string | null };
-  almarhum: { name: string; tanggalWafat: string };
+  /** `jenisKelamin` and `alamatRumahDuka` are null on an order placed before the form asked them, or when left empty. */
+  almarhum: { name: string; tanggalWafat: string; jenisKelamin: JenisKelamin | null; alamatRumahDuka: string | null };
   pemegangHak: PemegangHak;
   rencanaPemakamanAt: Date | null;
   /** What the Lokasi agreed; null until the order is Dikonfirmasi. */
@@ -259,7 +260,7 @@ async function toOrderStaf(deps: PemesananDeps, row: Row): Promise<OrderStaf> {
     lokasi: { id: row.lokasiId, name: row.lokasiName },
     jenisMakam: row.jenisMakamId && row.jenisMakamName ? { id: row.jenisMakamId, name: row.jenisMakamName } : null,
     pemesan: { name: row.pemesanName, phoneNumber: row.phoneNumber, email: row.email },
-    almarhum: { name: row.almarhumName, tanggalWafat: row.tanggalWafat },
+    almarhum: { name: row.almarhumName, tanggalWafat: row.tanggalWafat, jenisKelamin: row.almarhumJenisKelamin, alamatRumahDuka: row.alamatRumahDuka },
     pemegangHak: row.pemegangHak,
     rencanaPemakamanAt: row.rencanaPemakamanAt,
     pemakamanAt: row.pemakamanAt,

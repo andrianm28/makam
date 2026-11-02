@@ -13,7 +13,7 @@
  * of cell in the Denah editor, whose pages are Rilis 1, so nothing here closes it. A page or tick the map does
  * not cover fails the guard test (`rilis-guard.test.ts`) until it is added.
  *
- * DKI TPU and Mitra Jasa are taken out of the product (ADR 0010, owner decision
+ * DKI TPU and Mitra Jasa are taken out of the product (ADR 0012, owner decision
  * 2026-11-02: the product serves private cemeteries only). They sit at
  * `RILIS_DIKELUARKAN`, a level no staging or production environment ever opens,
  * so their code stays (expand only) while every route, menu item, tile, action and
@@ -24,7 +24,7 @@
 /** 4 is `RILIS_DIKELUARKAN`: only development and test may open it, to keep the taken-out code tested. */
 export type Rilis = 1 | 2 | 3 | 4;
 
-/** The level of a feature taken out of the product (ADR 0010): above every release an environment opens. */
+/** The level of a feature taken out of the product (ADR 0012): above every release an environment opens. */
 export const RILIS_DIKELUARKAN = 4 as const satisfies Rilis;
 
 export const fiturRilis = {
@@ -34,9 +34,9 @@ export const fiturRilis = {
   perpanjangan_lanjutan: 2,
   /** Ditangguhkan / Berhenti of a Lokasi Mitra (59). */
   lokasi_ditangguhkan: 2,
-  /** DKI TPU: catalog, Saat Duka at a TPU, filing and Surat Kuasa, the TPU Layanan order (43-48, 56). Taken out (ADR 0010). */
+  /** DKI TPU: catalog, Saat Duka at a TPU, filing and Surat Kuasa, the TPU Layanan order (43-48, 56). Taken out (ADR 0012). */
   tpu: RILIS_DIKELUARKAN,
-  /** Mitra Jasa, the TPU jobs they do and the Keluhan TPU (55, 57). Taken out with the TPU (ADR 0010). */
+  /** Mitra Jasa, the TPU jobs they do and the Keluhan TPU (55, 57). Taken out with the TPU (ADR 0012). */
   mitra_jasa: RILIS_DIKELUARKAN,
   /** Wakaf Tanah (58). */
   wakaf: 3,
@@ -49,7 +49,7 @@ export function terbukaDi(fitur: Fitur, rilis: Rilis): boolean {
   return fiturRilis[fitur] <= rilis;
 }
 
-/** Whether `fitur` is taken out of the product (ADR 0010) and closed at `rilis`: hidden everywhere, never "Segera hadir". */
+/** Whether `fitur` is taken out of the product (ADR 0012) and closed at `rilis`: hidden everywhere, never "Segera hadir". */
 export function dikeluarkanDi(fitur: Fitur, rilis: Rilis): boolean {
   return fiturRilis[fitur] === RILIS_DIKELUARKAN && !terbukaDi(fitur, rilis);
 }
@@ -90,6 +90,8 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ["/pesanan/**", "inti"],
   ["/segera-hadir", "inti"],
   ["/kebijakan-privasi", "inti"],
+  ["/konsultasi-rencana-pemakaman", "inti"],
+  ["/layanan-kedukaan/**", "inti"],
   ["/tentang-kami", "inti"],
   ["/tpu/**", "tpu"],
   ["/wakaf-tanah/**", "wakaf"],
@@ -110,6 +112,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
     "antrean",
     "desain",
     "hari-libur",
+    "kedukaan",
     "keluhan",
     "laporan",
     "layanan",
@@ -129,7 +132,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ].map((area) => [`/staf/admin-platform/${area}/**`, "inti"] as const),
   ["/staf/admin-platform/tpu/**", "tpu"],
   ["/staf/admin-platform/pengurusan/**", "tpu"],
-  // Retribusi Pemda is a TPU fee (CONTEXT.md): its deposit page goes with DKI TPU (ADR 0010).
+  // Retribusi Pemda is a TPU fee (CONTEXT.md): its deposit page goes with DKI TPU (ADR 0012).
   ["/staf/admin-platform/setor-retribusi/**", "tpu"],
   ["/staf/admin-platform/pekerjaan-tpu/**", "mitra_jasa"],
   ["/staf/admin-platform/keluhan-tpu/**", "mitra_jasa"],

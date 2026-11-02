@@ -3,7 +3,7 @@ import { BrandLogo } from "@/components/makam/brand-logo";
 import { CsLink } from "@/components/site/cs-link";
 import type { CsContact } from "@/components/kode-masuk/state";
 import { formatTelepon } from "@/lib/format-telepon";
-import { contentPageLinks } from "@/lib/public-navigation";
+import { contentPageLinks, isAccountItem, type PublicMenuItem } from "@/lib/public-navigation";
 
 /**
  * The public site's footer, as settled on the public-site prototype: the logo
@@ -11,16 +11,47 @@ import { contentPageLinks } from "@/lib/public-navigation";
  * and who runs makam.co.id on a line of its own. The legal name and the CS come
  * from Pengaturan Operator; while it holds neither, the footer claims neither.
  */
-export function SiteFooter({ legalName, contact }: { legalName: string | null; contact: CsContact | null }) {
+export function SiteFooter({ legalName, contact, items = [] }: { legalName: string | null; contact: CsContact | null; /** The site menu: its groups get a column each, the rest one more. */ items?: readonly PublicMenuItem[] }) {
+  const menu = items.filter((item) => !isAccountItem(item));
+  const grup = menu.filter((item) => item.children);
+  const lainnya = menu.filter((item) => !item.children);
   return (
     <footer className="mt-auto bg-forest text-ivory">
-      <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 md:grid-cols-[1.4fr_1fr_1fr] md:px-8">
+      <div className="mx-auto grid max-w-(--page-max-width) gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-[1.4fr_repeat(5,1fr)] md:px-8">
         <div className="flex flex-col gap-3">
           <BrandLogo onBrand />
           <p className="max-w-sm text-small text-ivory/80">
             Menemani keluarga, menjaga kenangan. Kami bekerja sama dengan Lokasi Mitra yang sudah terverifikasi.
           </p>
         </div>
+        {grup.map((satu) => (
+          <nav key={satu.label} aria-label={satu.label} className="flex flex-col gap-2 text-small">
+            <span className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">{satu.label}</span>
+            {satu.children!.map((anak) =>
+              anak.href ? (
+                <Link key={anak.label} href={anak.href} className="text-ivory hover:underline">
+                  {anak.label}
+                </Link>
+              ) : null,
+            )}
+          </nav>
+        ))}
+        {lainnya.length > 0 ? (
+          // The groups without sub-items (Program Wakaf, Daftar Lokasi) are their own headings, side by side in one column.
+          <nav aria-label="Program dan lokasi" className="flex flex-col gap-3 text-small">
+            {lainnya.map((item) =>
+              item.href ? (
+                <Link key={item.label} href={item.href} className="text-caption font-semibold tracking-wide text-ivory uppercase hover:underline">
+                  {item.label}
+                </Link>
+              ) : (
+                <span key={item.label} className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">
+                  {item.label} · Segera hadir
+                </span>
+              ),
+            )}
+          </nav>
+        ) : null}
         <nav aria-label="Halaman isi" className="flex flex-col gap-2 text-small">
           <span className="text-caption font-semibold tracking-wide text-ivory/70 uppercase">Tentang</span>
           {contentPageLinks.map((page) => (

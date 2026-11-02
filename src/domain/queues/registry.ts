@@ -28,6 +28,7 @@ import { pembatalanRefundRowType } from "./tier3-pembatalan-refund-row";
 import { pengajuanWakafRowType } from "./tier3-pengajuan-wakaf-row";
 import { keluhanRowType } from "./tier1-keluhan-row";
 import { keluhanTpuRowType } from "./tier1-keluhan-tpu-row";
+import { konsultasiRencanaPemakamanRowType, permintaanKedukaanMendesakRowType, permintaanKedukaanRowType } from "./permintaan-kedukaan-rows";
 
 /**
  * Every row type the Antrean shows (spec, Work Queues): adding one means
@@ -59,6 +60,7 @@ export const tier1RowTypes: Tier1RowType[] = [
   keluhanRowType,
   keluhanTpuRowType,
   pekerjaanTpuTanpaMitraRowType,
+  permintaanKedukaanMendesakRowType,
 ];
 
 export const antreanRowTypes: AntreanRowType[] = [
@@ -75,6 +77,8 @@ export const antreanRowTypes: AntreanRowType[] = [
   konfirmasiTerencanaTerlambatRowType,
   pembatalanRefundRowType,
   pengajuanWakafRowType,
+  konsultasiRencanaPemakamanRowType,
+  permintaanKedukaanRowType,
   tagihanLewatJatuhTempoRowType,
   teleponPemesanRowType,
   layananTerlambatRowType,

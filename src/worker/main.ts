@@ -16,6 +16,7 @@ import { createInventory } from "@/domain/inventory";
 import { pernahMenyebutPetakAtauKavling } from "@/domain/pemesanan";
 import { konfirmasiTpuTerbuka } from "@/domain/pengurusan";
 import { createQueuesTicks } from "@/domain/queues";
+import { permintaanKedukaanTerbuka } from "@/domain/kedukaan";
 import { createLokasi } from "@/domain/lokasi";
 import { createOperatorSettings } from "@/domain/operator-settings";
 import { createTariffs } from "@/domain/tariffs";
@@ -183,6 +184,8 @@ async function main() {
         pemesanan,
         pengurusan: { konfirmasiTpuTerbuka: () => konfirmasiTpuTerbuka({ db: database.db }) },
         layanan,
+        // The urgent Permintaan Kedukaan (ADR 0010) are Tier 1 rows too.
+        kedukaan: { terbuka: () => permintaanKedukaanTerbuka({ db: database.db }) },
       }),
     }),
     clock: adapters.clock,

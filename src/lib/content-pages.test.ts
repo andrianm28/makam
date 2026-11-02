@@ -29,7 +29,7 @@ describe("Tentang Kami", () => {
     expect(text).not.toMatch(/Tempat Pemakaman Umum|TPU/);
   });
 
-  it("names the Tempat Pemakaman Umum only where DKI TPU, taken out of the product (ADR 0010), is opened again", () => {
+  it("names the Tempat Pemakaman Umum only where DKI TPU, taken out of the product (ADR 0012), is opened again", () => {
     for (const rilis of [1, 2, 3] as const) expect(tentangKamiParagrafs("PT Jaya Korpora Prima", rilis).join(" ")).not.toMatch(/Tempat Pemakaman Umum/);
     expect(tentangKamiParagrafs("PT Jaya Korpora Prima", 4).join(" ")).toMatch(/Tempat Pemakaman Umum/);
   });
@@ -49,7 +49,7 @@ describe("Tentang Kami", () => {
 });
 
 describe("Cara Kami Bekerja", () => {
-  it("is the trust claims, one section each, without the TPU permit while DKI TPU is taken out of the product (ADR 0010)", () => {
+  it("is the trust claims, one section each, without the TPU permit while DKI TPU is taken out of the product (ADR 0012)", () => {
     expect(caraKamiBekerjaSections.map((section) => section.label)).toEqual(["Kunjungan Verifikasi", "Harga di halaman sama dengan Tagihan"]);
     for (const rilis of [1, 2, 3] as const) expect(caraKamiBekerjaSectionsUntuk(rilis)).toEqual(caraKamiBekerjaSections);
     expect(caraKamiBekerjaSectionsUntuk(4).map((section) => section.label)).toEqual([
@@ -102,7 +102,7 @@ describe("Cara Kami Bekerja", () => {
 describe("FAQ", () => {
   const faq = faqQuestions("PT Jaya Korpora Prima");
 
-  it("answers the six questions the release asks for, in that order, with no TPU question while DKI TPU is taken out (ADR 0010)", () => {
+  it("answers the six questions the release asks for, in that order, with no TPU question while DKI TPU is taken out (ADR 0012)", () => {
     expect(faq.map((entry) => entry.question)).toEqual([
       "Pesan Makam atau Hak Pakai?",
       "Apa yang dibayar, dan kapan?",
@@ -140,7 +140,7 @@ describe("FAQ", () => {
 });
 
 describe("Cara Kami Bekerja, Izin TPU gratis, by release", () => {
-  it("points at the Pengurusan di TPU DKI page where DKI TPU is open (development and test only, ADR 0010)", () => {
+  it("points at the Pengurusan di TPU DKI page where DKI TPU is open (development and test only, ADR 0012)", () => {
     const izin = caraKamiBekerjaSectionsUntuk(4)[2].paragraphs.join(" ");
     expect(izin).toMatch(/halaman Pengurusan di TPU DKI/);
     expect(izin).not.toMatch(/belum kami terbitkan/);

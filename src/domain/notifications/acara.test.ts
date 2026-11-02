@@ -75,6 +75,7 @@ describe("Tabel acara: every domain event decides recipient, channel, template a
       "lokasi_berhenti",
       // A Pengajuan Wakaf's status change (ticket 58): transactional.
       "wakaf_status",
+      "kedukaan_status",
       "tumpang_minta_persetujuan",
       "tumpang_ditolak",
     ]);

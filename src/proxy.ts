@@ -5,7 +5,7 @@ import { fiturDikeluarkan, fiturUntukRute, permukaanRute, rilisTerbuka } from "@
  * The release gate for routes (ADR 0006), before anything renders or any Server
  * Action runs (an action posts to the URL of the page that holds it): a closed
  * feature's staff page answers 404, and its public or Akun Saya page shows
- * "Segera hadir" at the same URL. A feature taken out of the product (ADR 0010)
+ * "Segera hadir" at the same URL. A feature taken out of the product (ADR 0012)
  * answers 404 on every surface: nothing of it is coming.
  */
 /**
