@@ -82,7 +82,7 @@ describe("Billing under concurrency (UAT penuh, worst case)", () => {
   it("two reissues of the same Tagihan at once: one replaces it, the other is refused", async () => {
     const setup = await billingWithOperatorSettings(db);
     const original = await issued(setup);
-    const lines = original.lines.map((line) => ({ ...line }));
+    const { lines } = terencana();
 
     const results = await Promise.all([
       setup.billing.reissueTagihan(original.id, { lines }),
