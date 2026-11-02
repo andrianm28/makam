@@ -133,3 +133,7 @@ Hasil run thread ini (2 Nov 2026, 06:20 sampai 06:45 UTC):
 | S3 | terburuk | Header keamanan dasar | U UP-A4 | 🐞 F1 |
 | S4 | terburuk | Runner UAT menolak produksi (kata dan jawaban health) | D `tests/uat/lingkungan.test.ts` | ✅ D |
 | S5 | terburuk | Sentry tanpa badan permintaan, nomor telepon, berkas | D `observability/scrub` | ✅ D |
+
+## Comments
+
+**Review dua sumbu (2 Nov 2026, opus, pada 5e7055a).** Standards: 0 blocking, 5 should-fix, 4 nit. Spec: 0 blocking, 2 should-fix, 2 nit. Diperbaiki di commit berikutnya: filter JMAP `after` tanpa `.000Z` (RFC 8620); pengisi kode hanya memberi email terbaru dan mengingat id email yang sudah diberi di `$UAT_OUT/kode/pengisi-dipakai.json` lintas restart; outbox memakai id pesan dan menjelaskan kenapa `sejak` tidak dipakai; cabang Lunas di balapan batal-vs-webhook kini memeriksa `batal` gagal; UP-A1 menerima redirect di dalam stream hanya untuk halaman ber-`loading.tsx` dan tanpa `<h1>`; judul dan asersi test dirapikan. Belum (tercatat sebagai 🕳 di atas, tindak lanjut): P13, P14, W7, M20, M21, R10, A9, L13; dan run staging penuh (blok perintah agent server) yang menunggu F2.

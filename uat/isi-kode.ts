@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { isiKodeSekali, kredensialJmapSchema, sumberJmap, sumberOutbox, type SumberKode } from "./support/pengisi-kode";
+import { bacaDipakai, isiKodeSekali, kredensialJmapSchema, sumberJmap, sumberOutbox, type SumberKode } from "./support/pengisi-kode";
 import { PERSONA, type NamaPersona } from "./support/persona";
 
 /*
@@ -44,7 +44,7 @@ const emailUntuk = (persona: string) => {
 
 const catat = (pesan: string) => console.log(`[UAT kode] ${pesan}`);
 const s = sumber();
-const dipakai = new Set<string>();
+const dipakai = bacaDipakai(join(out, "kode"));
 const batas = Date.now() + Number(process.env.UAT_KODE_ISI_MENIT ?? 240) * 60_000;
 catat(`mengawasi ${join(out, "kode")} (sumber ${jenis})`);
 while (Date.now() < batas) {
