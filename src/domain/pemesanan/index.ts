@@ -133,6 +133,7 @@ import {
   type PilihanTerencana,
   type PlaceTerencanaResult,
 } from "./terencana";
+import { tipeKavlingTerencana, type TipeKavlingTerencana } from "./tipe-kavling";
 
 import {
   ajukanPembatalanTerencana,
@@ -333,6 +334,7 @@ export type {
   TotalTerencana,
   UnitTerencana,
 } from "./terencana";
+export type { TipeKavling, TipeKavlingTerencana } from "./tipe-kavling";
 
 export interface Pemesanan {
   /**
@@ -470,6 +472,8 @@ export interface Pemesanan {
    * plots (if any) priced at this instant by `quote()`, the "Nanti" line and the Syarat
    * to be shown before Kirim.
    */
+  /** Pilih Tipe Kavling: every tipe a Terencana Lokasi Mitra sells, each with what is left and the unit an order would take. */
+  tipeKavlingTerencana(lokasiId: string): Promise<TipeKavlingTerencana | null>;
   denahTerencana(lokasiId: string, pilihan?: PilihanTerencana): Promise<DenahTerencana | null>;
   /**
    * Whether a chosen selection can still be ordered, read now: the several-Petak or
@@ -632,6 +636,7 @@ export function createPemesanan(deps: PemesananDeps): Pemesanan {
     pilihanTerencana: (query) => pilihanTerencana(deps, query),
     kotaTerencana: () => kotaTerencana(deps),
     denahTerencana: (lokasiId, pilihan) => denahTerencana(deps, lokasiId, pilihan),
+    tipeKavlingTerencana: (lokasiId) => tipeKavlingTerencana(deps, lokasiId),
     periksaPilihanTerencana: (input) => periksaPilihanTerencana(deps, input),
     placeTerencana: (input) => placeTerencana(deps, input),
     terencanaOf: (nomor, pemesan) => terencanaOf(deps, pemesan, nomor),
