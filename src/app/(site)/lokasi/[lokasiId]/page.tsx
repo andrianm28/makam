@@ -151,15 +151,15 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   const ctaHarga = (
     <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-xs">
       {hargaTampil ? (
-      <div>
-        <p className="text-caption text-muted-foreground">mulai</p>
-        {pricing.mulaiDari !== null ? (
-          <p className="text-display tabular-nums text-foreground">{formatRupiah(pricing.mulaiDari)}</p>
-        ) : (
-          <p className="text-title-2 text-muted-foreground">Harga belum tersedia</p>
-        )}
-        <p className="text-small text-muted-foreground">Harga Hak Pakai termurah di sini, sudah all-in</p>
-      </div>
+        <div>
+          <p className="text-caption text-muted-foreground">mulai</p>
+          {pricing.mulaiDari !== null ? (
+            <p className="text-display tabular-nums text-foreground">{formatRupiah(pricing.mulaiDari)}</p>
+          ) : (
+            <p className="text-title-2 text-muted-foreground">Harga belum tersedia</p>
+          )}
+          <p className="text-small text-muted-foreground">Harga Hak Pakai termurah di sini, sudah all-in</p>
+        </div>
       ) : (
         <div>
           <p className="text-title-2 text-foreground">Harga tampil saat memesan</p>
