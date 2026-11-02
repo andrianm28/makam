@@ -69,6 +69,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ["/faq", "inti"],
   ["/health", "inti"],
   ["/hubungi-kami", "inti"],
+  ["/info-makam-swasta", "inti"],
   ["/layanan/**", "inti"],
   ["/layanan/tpu/**", "tpu"],
   ["/lokasi/**", "inti"],

@@ -138,7 +138,12 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
       <p className="mt-2 max-w-2xl text-body-lg text-muted-foreground">
         Setiap Lokasi Mitra di sini sudah Terverifikasi Makam.co.id: dikunjungi langsung, perjanjian ditandatangani dan
         tarifnya diperiksa.
-        {tpuTerbuka ? " TPU DKI adalah kuburan resmi pemerintah daerah yang kami layani untuk pengurusan IPTM." : null}
+        {tpuTerbuka ? " TPU DKI adalah kuburan resmi pemerintah daerah yang kami layani untuk pengurusan IPTM." : null}{" "}
+        Pemakaman swasta yang belum bermitra ada di{" "}
+        <Link href="/info-makam-swasta" className="font-medium text-brand underline underline-offset-4">
+          Info Makam Swasta
+        </Link>
+        .
       </p>
 
       {/* City: always up front */}
