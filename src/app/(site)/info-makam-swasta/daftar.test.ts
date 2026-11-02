@@ -16,7 +16,7 @@ describe("Info Makam Swasta: public information on private cemeteries that are n
   it("never claims a location is a verified partner or shows a price", () => {
     for (const lokasi of DAFTAR_INFO_MAKAM_SWASTA) {
       const teks = JSON.stringify(lokasi);
-      expect(teks).not.toMatch(/terverifikasi|Rp\s?\d/i);
+      expect(teks).not.toMatch(/terverifikasi|bermitra|harga|pesan sekarang|bersertifikat|Rp\s?\d/i);
     }
   });
 

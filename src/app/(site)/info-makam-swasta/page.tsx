@@ -8,7 +8,7 @@ import { DAFTAR_INFO_MAKAM_SWASTA, pesanKonsultasi } from "./daftar";
 
 export const metadata: Metadata = {
   title: "Info Makam Swasta — Makam.co.id",
-  description: "Informasi publik tentang pemakaman swasta yang belum bermitra dengan Makam.co.id. Konsultasi gratis lewat CS.",
+  description: "Informasi publik tentang pemakaman swasta yang belum bermitra dengan Makam.co.id.",
 };
 
 /**
@@ -24,13 +24,13 @@ export default async function InfoMakamSwastaPage() {
   return (
     <ContentPage
       title="Info Makam Swasta"
-      lead="Pemakaman swasta yang sedang kami ajak bermitra. Informasinya dari sumber publik, dan CS kami bisa membantu Anda bertanya."
+      lead="Informasi dari sumber publik tentang beberapa pemakaman swasta. CS kami bisa membantu Anda bertanya."
     >
       <div role="note" className="rounded-xl border border-border bg-muted p-4 text-body">
         <p className="font-semibold">Belum bermitra dengan Makam.co.id</p>
         <p className="mt-1 text-muted-foreground">
-          Lokasi di halaman ini belum Terverifikasi dan belum bisa dipesan atau dibayar lewat Makam.co.id. Data bisa
-          berubah; pastikan langsung ke pengelolanya. Lokasi yang sudah bisa dipesan ada di{" "}
+          Lokasi di halaman ini belum kami verifikasi dan tidak bisa dipesan atau dibayar lewat Makam.co.id. Keterangan
+          fasilitas berasal dari pengelola atau berita, bisa berubah; pastikan langsung ke pengelolanya. Lokasi yang sudah bisa dipesan ada di{" "}
           <Link href="/lokasi" className="font-medium text-brand underline underline-offset-4">
             Daftar Lokasi
           </Link>
@@ -52,10 +52,20 @@ export default async function InfoMakamSwastaPage() {
               <Baris label="Pengelola" isi={lokasi.pengelola} />
               <Baris label="Untuk" isi={lokasi.segmen} />
               {lokasi.luas ? <Baris label="Luas" isi={lokasi.luas} /> : null}
-              {lokasi.fasilitas ? <Baris label="Fasilitas" isi={lokasi.fasilitas} /> : null}
+              {lokasi.fasilitas ? <Baris label="Fasilitas (menurut sumber)" isi={lokasi.fasilitas} /> : null}
             </dl>
             <p className="text-small text-muted-foreground">Sumber: {lokasi.sumber.join("; ")}</p>
-            <CsLink contact={contact} label="Konsultasi via CS" pesan={pesanKonsultasi(lokasi.nama)} />
+            {contact ? (
+              <CsLink contact={contact} label="Konsultasi via CS" pesan={pesanKonsultasi(lokasi.nama)} />
+            ) : (
+              <p className="text-body text-muted-foreground">
+                Untuk konsultasi, lihat{" "}
+                <Link href="/hubungi-kami" className="font-medium text-brand underline underline-offset-4">
+                  Hubungi Kami
+                </Link>
+                .
+              </p>
+            )}
           </CardContent>
         </Card>
       ))}

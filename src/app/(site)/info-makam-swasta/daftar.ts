@@ -29,7 +29,7 @@ export const DAFTAR_INFO_MAKAM_SWASTA: readonly InfoMakamSwasta[] = [
     pengelola: "PT Permata Bumi Kencana",
     segmen: "Tionghoa dan non-Muslim (Buddha, Katolik, Kristen), konsep Feng Shui",
     luas: "50 ha, perbukitan",
-    fasilitas: "Paviliun serbaguna 200 orang, danau dan ruang terbuka hijau, keamanan 24 jam, tanah bersertifikat, layanan duka 24 jam bersama Rumah Duka Sentosa.",
+    fasilitas: "Paviliun serbaguna 200 orang, danau dan ruang terbuka hijau, keamanan 24 jam, layanan duka 24 jam bersama Rumah Duka Sentosa.",
     sumber: ["Booklet dan materi penjualan Graha Sentosa (Maret 2026)"],
   },
   {
@@ -106,7 +106,7 @@ export const DAFTAR_INFO_MAKAM_SWASTA: readonly InfoMakamSwasta[] = [
     slug: "baqi-bogor-timur",
     nama: "BAQI Memorial Park Bogor Timur",
     kota: "Kota Bogor",
-    alamat: "Bogor Timur (alamat jalan belum kami terima)",
+    alamat: "Bogor Timur",
     pengelola: "BAQI Memorial Park",
     segmen: "Khusus Muslim",
     fasilitas: "Musala, aula, taman dan jalur pejalan kaki, layanan 24 jam.",
@@ -119,7 +119,7 @@ export const DAFTAR_INFO_MAKAM_SWASTA: readonly InfoMakamSwasta[] = [
     alamat: "Jl. Raya Cirebon-Kuningan KM 8,9, Desa Patapan, Kec. Beber",
     pengelola: "Mount Carmel",
     segmen: "Cluster Madinah (Muslim) dan Cluster Mount Carmel (non-Muslim)",
-    fasilitas: "Satu gerbang, keamanan 24 jam, taman, parkir luas, tanah bersertifikat, dekat exit tol Ciperna.",
+    fasilitas: "Satu gerbang, keamanan 24 jam, taman, parkir luas, dekat exit tol Ciperna.",
     sumber: ["mountcarmelcirebon.com"],
   },
 ];
