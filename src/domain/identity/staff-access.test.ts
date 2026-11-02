@@ -364,6 +364,10 @@ describe("staff sessions", () => {
     const baru = await actorOf(setup.identity, cookies);
 
     expect(login.session.expiresAt).toEqual(wib("2026-10-01 21:00"));
+    setup.clock.set(wib("2026-10-01 20:59"));
+    expect(await setup.identity.actorFromCookies(cookies)).not.toBeNull();
+    setup.clock.set(wib("2026-10-01 21:00"));
+    expect(await setup.identity.actorFromCookies(cookies)).toBeNull();
     expect(authorize(baru, "staf.menu", stafMenuResource("admin_platform"))).toEqual({ allowed: true });
     expect(authorize(baru, "tarif.ubah", tarifGlobalResource())).toEqual({ allowed: true });
     expect(

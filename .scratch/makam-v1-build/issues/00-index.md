@@ -1,4 +1,4 @@
-Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 129 tickets (as of 2026-11-02): 116 resolved, 2 ready-for-agent (127, 129), 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 5 in-progress (65, 72, 87, 98, 128).
+Spec: [../../makam-v1/spec.md](../../makam-v1/spec.md). 129 tickets (as of 2026-11-02): 117 resolved, 2 ready-for-agent (127, 129), 4 ready-for-human (02, 03, 04, 06), 2 wontfix (05, 62), 4 in-progress (65, 72, 87, 98).
 
 > **Reading note (2026-10-29):** a `resolved` ticket is audited by its Comments (evidence and the two-axis review), not by its checkboxes: 88 of the 116 resolved tickets still show unchecked ACs. The guard `ticket-workflow.test.ts` enforces the review marker and index match only.
 
@@ -189,7 +189,7 @@ Decided by the user and written into the spec and the tickets named.
 3. **Working days**: Admin Platform = Monday–Friday minus national holidays from a list Admin Platform maintains; Admin Lokasi = the Lokasi's Jam Operasional open days minus dated closures; "4 daytime hours" = 4 hours within 06:00–18:00 WIB. Tickets 11, 31, 32, 38, 39, 41, 47, 51.
 4. **Hari-H Layanan at a DKI TPU Saat Duka**: allowed, done by a Mitra Jasa, pay-after on the TPU Saat Duka Tagihan, Dijadwalkan at confirmation; Mitra Jasa Pencairan doesn't wait for the family's payment; the Operator bears a Tidak Tertagih loss. Tickets 56 (now also blocked by 45), 57; notes in 44, 53.
 5. **Layanan at a Perpanjangan checkout**: optional "Tambah Layanan" step before payment, same Tagihan, earliest-due rule. Ticket 53 (now also blocked by 40); note in 40.
-6. **Multi-role sessions**: an account holding Admin Platform gets 12 h with TOTP for the whole account. Ticket 09.
+6. **Multi-role sessions**: an account holding Admin Platform gets 12 h with TOTP for the whole account. Ticket 09. (TOTP superseded by ADR 0008 / ticket 128, 2026-11-02.)
 7. **Non-zero Retribusi Pemda**: Tier 3 "Setor Retribusi" row due 2 working days after Lunas, closed by recording the payment with a setoran proof; no row for Rp 0; structure only in v1. Ticket 45; note in 43.
 8. **TPU nisan variants**: Admin Platform marks Batu Nisan variants "boleh di TPU DKI" by hand; only those are offered at a TPU. Ticket 49.
 9. **"mulai Rp X" on a DKI TPU card** = burial Biaya Pengurusan + Retribusi Pemda. Ticket 43.
@@ -232,7 +232,7 @@ Decided by the user and written into CONTEXT.md (Kode Masuk, Email Terverifikasi
 
 1. **Email login** for any Akun with an **Email Terverifikasi** (Pemesan and every staff role), as an equal alternative to the WhatsApp OTP, chosen at any time from "Masuk dengan email". New Akun are still created only through the WhatsApp OTP, and the WhatsApp number (+62) is still the key. Ticket 67 (notes in 08, 22, 27).
 2. **Code**: 6 digits by email, same rules as the WhatsApp OTP (10 min, 5th wrong burns, resend 60 s, 5 per rolling hour, lockout after 10 wrong in 60 min), counted per email and per IP; sent directly, not through Notifications. Ticket 67 (note in 20).
-3. **Staff** may log in by email; Admin Platform still passes TOTP; sessions unchanged (12 h / 30 days / 90 days). Ticket 67 (note in 09).
+3. **Staff** may log in by email; Admin Platform still passes TOTP; sessions unchanged (12 h / 30 days / 90 days). Ticket 67 (note in 09). (TOTP superseded by ADR 0008 / ticket 128, 2026-11-02.)
 4. **Email goes through the SumoPod SMTP relay** (`smtp.sumopod.com`, 465, SMTPS) from the `EmailSender` adapter. SES is dropped from v1, and the self-hosted Stalwart is for human mailboxes only. AWS is S3 only. Tickets:
    - 03 is S3 only;
    - 04 has the human email checklist (Custom Domain, DKIM / SPF / sumo-verification, DMARC, SMTP credentials);
@@ -434,5 +434,5 @@ The user wants v1 live ASAP as a beta for UAT **on makam.co.id**, with everythin
 | [125](125-bukti-ahli-waris-tumpang.md) | Tumpang at a Lokasi Mitra: the heirship proof can be uploaded | resolved | — |
 | [126](126-trivy-perl-base.md) | Runtime image: fixable CRITICAL in Debian's perl-base fails the main CI's Trivy gate | resolved | — |
 | [127](127-retensi-berkas-keluarga.md) | Family files are deleted two years after the order is finished | ready-for-agent | — |
-| [128](128-admin-platform-tanpa-totp.md) | Admin Platform tanpa TOTP: the Kode Masuk is the only login factor (ADR 0008) | in-progress | — |
+| [128](128-admin-platform-tanpa-totp.md) | Admin Platform tanpa TOTP: the Kode Masuk is the only login factor (ADR 0008) | resolved | — |
 | [129](129-contract-identity-totp.md) | Contract step of ADR 0008: drop identity_totp, the session's TOTP columns and TOTP_ENCRYPTION_KEY | ready-for-agent | 128 released |

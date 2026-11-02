@@ -1,6 +1,6 @@
 # Admin Platform tanpa TOTP: the Kode Masuk is the only login factor
 
-Status: in-progress
+Status: resolved
 Blocked by: —
 Spec: ADR 0008 (amends spec user story 168, Identity & Access > Kode Masuk, Roles, Sessions; ADR 0004)
 
@@ -25,3 +25,5 @@ Owner decision 2026-11-02: remove the whole TOTP system. Every role, Admin Platf
 ## Comments
 
 Built 2026-11-02 on branch `claude/project-thread-tb33wr`; waits for the two-axis review and the merge thread. The contract step is ticket 129, in the next release.
+
+- 2026-11-02 — Two-axis review (opus, Standards and Spec): no blocker. Fixed at merge: a test that an Admin Platform session is rejected at 12 h (the deleted `totp.test.ts` was the only one), and the two decision-log lines in `00-index.md` that still said TOTP. Left as follow-ups: (1) `deactivateStaff` no longer deletes the `identity_totp` row, so after deactivate and re-invite on this release a rollback would ask for the old authenticator code (the contract step, ticket 129, removes the table); (2) Tarif is only checked through `authorize(...tarif.ubah)` in the identity test, not through `setGlobalTariff` with history and audit read back (tariff tests cover that path). Unblocks UAT G4 and ticket 129.
