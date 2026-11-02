@@ -97,6 +97,35 @@ test("Admin Platform opens a Tagihan from the search list; the detail renders an
   await expect(page.getByRole("heading", { name: "Halaman tidak ditemukan" })).toBeVisible();
 });
 
+test("the pin map asks for its tiles with the site's origin as Referer, though every page sends no-referrer", async () => {
+  const page = adminPage;
+  // OpenStreetMap answers a tile request without a Referer with a "403 Access blocked" image.
+  const referers: (string | null)[] = [];
+  const blankTile = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+    "base64",
+  );
+  await page.route("https://tile.openstreetmap.org/**", async (route) => {
+    referers.push(await route.request().headerValue("referer"));
+    await route.fulfill({ contentType: "image/png", body: blankTile });
+  });
+
+  // nginx sends Referrer-Policy: no-referrer on every page in staging and production; the local stack does not.
+  await page.route("**/staf/admin-platform/tugas-lapangan", async (route) => {
+    const response = await route.fetch();
+    await route.fulfill({ response, headers: { ...response.headers(), "referrer-policy": "no-referrer" } });
+  });
+
+  await page.goto("/staf/admin-platform/tugas-lapangan");
+  const map = page.getByRole("region", { name: "Peta pin Lokasi" });
+  await expect(map.locator("img.leaflet-tile").first()).toHaveAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+  await expect.poll(() => referers.length).toBeGreaterThan(0);
+  const origin = new URL(page.url()).origin;
+  expect(referers.every((referer) => referer === `${origin}/`)).toBe(true);
+
+  await page.unrouteAll();
+});
+
 test("Admin Platform invites a Petugas Lapangan who is also a Mitra Jasa; the Undangan Staf goes out by email", async ({
   request,
 }) => {

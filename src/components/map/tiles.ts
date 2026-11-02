@@ -9,12 +9,20 @@ export interface TileProvider {
   /** Shown in the map corner, as the provider's licence requires. */
   attribution: string;
   maxZoom: number;
+  /**
+   * The tiles' own referrer policy. The site sends `Referrer-Policy: no-referrer`
+   * (nginx and next.config.ts, so a Tagihan / Bukti link never leaks), but
+   * OpenStreetMap blocks tile requests without a Referer ("403 Access blocked").
+   * Only the tile images override it, and only to the site's origin.
+   */
+  referrerPolicy: Exclude<ReferrerPolicy, "">;
 }
 
 export const openStreetMapTiles: TileProvider = {
   url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   maxZoom: 19,
+  referrerPolicy: "strict-origin-when-cross-origin",
 };
 
 export const mapTiles: TileProvider = openStreetMapTiles;
