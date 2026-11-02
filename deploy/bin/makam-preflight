@@ -19,7 +19,8 @@
 #
 # The bracket names the ticket items a check proves (02 infrastructure, 03 S3,
 # 04 SumoPod, 72 deploys, 64 and 108 the production backup timers, 107 the open
-# release, 109 Data Contoh). Exit 0 when nothing FAILed, 1 otherwise, 64 on usage.
+# release, 109 Data Contoh, G6 the gate before real orders). Exit 0 when nothing
+# FAILed, 1 otherwise, 64 on usage.
 #
 # Read-only, except for objects it names itself and removes again: the S3 probe
 # object, the GitHub probe Deployment and the Dump its own backup writes. One
@@ -722,6 +723,78 @@ check_production_timers() {
   fi
 }
 
+# G6, the gate before real orders (.scratch/makam-v1-build/rilis-go-live-status.md
+# section 4; runbook, "Going live"): an off-host copy of the backups that is fresh,
+# the Kebijakan Privasi served by the running stack, and the incident procedure on
+# this host. While payments are a trial (SUMOPOD_BASE_URL names SumoPod's sandbox
+# host, as for Data Contoh) a missing one is a SKIP that says what to do before the
+# live keys; once payments are live it is a FAIL.
+g6_missing() {
+  if payments_are_trial; then
+    skip "G6" "$1" "$2 (required before live payments; payments are still a trial)"
+  else
+    fail "G6" "$1" "$2"
+  fi
+}
+
+# makam-backup-offsite writes the UTC time of its last complete copy (every file
+# sent and its size checked on the far side) to $DIR/offsite-last-success. That
+# time must be younger than MAKAM_PREFLIGHT_OFFSITE_MAX_HOURS (36: the nightly
+# timer, with room for one late run).
+check_offsite_copy() {
+  local stamp="$DIR/offsite-last-success" max_hours=${MAKAM_PREFLIGHT_OFFSITE_MAX_HOURS:-36} at at_s now_s age_h
+  if [ ! -s "$stamp" ]; then
+    g6_missing "off-host copy" "no off-host copy has completed yet ($stamp is missing): create $DIR/offsite.env and $DIR/rclone.conf, run deploy/install-host.sh again, then $MAKAM_ROOT/bin/makam-backup-offsite --env $ENV_NAME (runbook, \"Off-host backup\")"
+    return 0
+  fi
+  at=$(head -n 1 "$stamp" | tr -d '[:space:]')
+  if ! at_s=$(date -u -d "$at" +%s 2> /dev/null); then
+    g6_missing "off-host copy" "$stamp does not hold a time ($at): run $MAKAM_ROOT/bin/makam-backup-offsite --env $ENV_NAME, which rewrites it (runbook, \"Off-host backup\")"
+    return 0
+  fi
+  now_s=$(date -u +%s)
+  age_h=$(((now_s - at_s) / 3600))
+  if [ "$((now_s - at_s))" -le "$((max_hours * 3600))" ]; then
+    pass "G6" "off-host copy" "the latest off-host copy completed at $at, ${age_h} h ago (limit ${max_hours} h)"
+  else
+    g6_missing "off-host copy" "the latest off-host copy completed at $at, ${age_h} h ago, more than ${max_hours} h: check makam-$ENV_NAME-offsite-backup.timer and journalctl -t makam-offsite-backup (runbook, \"Off-host backup\")"
+  fi
+}
+
+# The Kebijakan Privasi the Bayar page and the footer link to, asked of the running
+# stack the way check_rilis asks /api/health: HTTP 200 or it is not served.
+check_privacy_page() {
+  local port url code
+  if [ ! -r "$ENV_FILE" ]; then
+    skip "G6" "privacy page" "needs the env file (above)"
+    return 0
+  fi
+  port=$(setting MAKAM_WEB_PORT)
+  url="http://127.0.0.1:${port:-3100}/kebijakan-privasi"
+  code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$url" 2> /dev/null) || code="no answer"
+  if [ "$code" = 200 ]; then
+    pass "G6" "privacy page" "$url answers HTTP 200"
+  elif [ "$code" = "no answer" ] || [ "$code" = 000 ]; then
+    skip "G6" "privacy page" "nothing answers on $url, so the Kebijakan Privasi is not checked: start the stack and run the preflight again"
+  else
+    g6_missing "privacy page" "$url answers HTTP $code, not 200: deploy a release that has /kebijakan-privasi (main since 2026-10-30)"
+  fi
+}
+
+# The incident procedure must be readable on this host when GitHub is not:
+# deploy/install-host.sh copies the runbook to $MAKAM_ROOT/docs/runbook.md, and the
+# copy must hold the procedure's two sections.
+check_incident_procedure() {
+  local file="$MAKAM_ROOT/docs/runbook.md"
+  if [ ! -r "$file" ]; then
+    g6_missing "incident procedure" "$file is missing: run deploy/install-host.sh again from a checkout of main, which installs it"
+  elif ! grep -qx '## Incidents (production)' "$file" || ! grep -qx '### Personal data leak (UU PDP)' "$file"; then
+    g6_missing "incident procedure" "$file has no \"Incidents (production)\" or \"Personal data leak (UU PDP)\" section: run deploy/install-host.sh again from a checkout of main"
+  else
+    pass "G6" "incident procedure" "$file holds \"Incidents (production)\" and \"Personal data leak (UU PDP)\""
+  fi
+}
+
 # What no script on this host can prove.
 check_manual_steps() {
   skip "02" "uptime monitor" "manual: an external monitor outside the VPS must watch https://makam.co.id/api/health with an alert contact (runbook, \"Uptime alarm\"); record which service in ticket 02"
@@ -747,6 +820,9 @@ check_s3
 check_backup_key
 check_backup_and_restore
 check_production_timers
+check_offsite_copy
+check_privacy_page
+check_incident_procedure
 check_manual_steps
 
 echo

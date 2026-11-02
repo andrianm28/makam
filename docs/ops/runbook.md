@@ -2419,8 +2419,10 @@ staff's own use of the beta, not families.
 When the owner decides to take real orders (the live SumoPod account, ticket 04, and
 the real values, ticket 06). The order matters: the preflight's "data contoh" line
 fails when the sandbox is left while any Data Contoh is still active. The family
-reminder for overdue pay-after TPU Tagihan (ticket 46, gap 5) was deferred for the
-beta and is built before any live payment.
+reminder for overdue pay-after TPU Tagihan (ticket 46, gap 5), deferred for the
+beta, is built: the worker's `pengurusan.chasing_tpu` tick queues the H+3/7/14/30
+reminders once a TPU burial is recorded. The preflight's three G6 lines (off-host
+copy, privacy page, incident procedure) FAIL once the sandbox is left.
 
 1. **Real values in.** Pengaturan Operator is real since the switch. Enter the real
    Biaya Layanan Platform, the Lokasi tariffs and Layanan prices (and the 22 DKI
@@ -2507,6 +2509,7 @@ What it checks, and what runs it:
 | data contoh | `[109] data contoh` (Data Contoh, ticket 109): SKIP while `SUMOPOD_BASE_URL` names the sandbox host, read the way the app reads it (the host of the URL, after the quotes and padding Compose removes; a path or capital letters do not matter) and SKIP "needs the env file" when it cannot be read; otherwise it asks the running stack's `http://127.0.0.1:<MAKAM_WEB_PORT>/api/browser-config`: FAIL when `contohAktif` is `true` (remove it with `data-contoh cabut --tulis --izinkan-production`), PASS when `false`, and a SKIP, never a PASS, when it cannot tell (nothing answers, the registry could not be read, an image from before ticket 109): at go-live this line has to read PASS, a SKIP there proves nothing | 109 |
 | production on the sandbox | one SKIP line, "production on the sandbox", when `SUMOPOD_BASE_URL` is SumoPod's sandbox host: payments are a trial until the live keys are installed and the override removed | 04, 101 |
 | data contoh | ticket 109: SKIP while `SUMOPOD_BASE_URL` is the sandbox host; FAIL when any Data Contoh is still active and it is not, so the live keys cannot be installed over example data ("Going live") | 109 |
+| G6: off-host copy, privacy page, incident procedure | the time in `/opt/makam-v1/prod/offsite-last-success` (written by `makam-backup-offsite`) younger than 36 h (`MAKAM_PREFLIGHT_OFFSITE_MAX_HOURS`); `http://127.0.0.1:<MAKAM_WEB_PORT>/kebijakan-privasi` answers 200 (SKIP when nothing answers); `/opt/makam-v1/docs/runbook.md` (copied by `deploy/install-host.sh`) holds "Incidents (production)" and "Personal data leak (UU PDP)". A missing one is a SKIP while `SUMOPOD_BASE_URL` names the sandbox host and a FAIL once payments are live | G6 |
 | uptime monitor, nginx switch | SKIP with the instruction | 02, 72 |
 
 Before the first production deploy the lines that need the running stack FAIL or

@@ -231,9 +231,9 @@ Procedure: runbook, "Which release is open", after "Promoting to production" and
 
 Each is picked up before the first real order, and none blocks G3 or G5:
 
-- The family reminder for overdue pay-after TPU Tagihan (ticket 46, gap 5): built before live payments.
+- The family reminder for overdue pay-after TPU Tagihan (ticket 46, gap 5): built before live payments (done 2026-11-02, the `pengurusan.chasing_tpu` tick).
 - TPU Perpanjangan for an IPTM outside the platform (story 80).
 - Ticket 46's gaps 1, 2 and 4, ticket 47, ticket 56's gap 7, the Tier 4 deadline of ticket 55 and the open question of ticket 53: staff handle them by hand during the beta.
 - The Setor Retribusi task form, needed only when Retribusi is more than Rp 0.
-- The test that a Mitra Jasa cannot reach a Hak Pakai: required before a real Mitra Jasa.
+- The test that a Mitra Jasa cannot reach a Hak Pakai: required before a real Mitra Jasa (done 2026-11-02, `src/app/staf/mitra-jasa/akses-hak-pakai.test.ts`).
 - The family email for decisions 39 and 41, the platform Audit Log page, the viewer for manual payment proofs and the Jadwal Petugas page.

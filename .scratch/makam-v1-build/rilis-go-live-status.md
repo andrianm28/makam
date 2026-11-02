@@ -45,8 +45,8 @@ Audit A-3 menemukan tidak ada gerbang ini. Beta berjalan di sandbox SumoPod dan 
 - [ ] **Prosedur insiden** disetujui dan dilatih sekali (lihat draf di bawah).
   Evidence: disetujui pemilik 2026-10-30 (kartu opsi "Setujui, latihan 31 Okt"); prosedur di `docs/ops/runbook.md` "Incidents (production)". Latihan: "Rehearsal (once before real orders, G6)" di bagian yang sama, dijadwalkan 2026-10-31, belum dijalankan.
 - [ ] **Preflight memeriksa G6**: `makam-preflight` mendapat baris untuk salinan luar (umur salinan terbaru), halaman privasi (HTTP 200), dan berkas prosedur insiden.
-  Evidence:
-- [ ] **Pembayaran nyata (tiket 04)**: KYC SumoPod selesai, lalu runbook "Going live" langkah 1 sampai 5 (nilai nyata, `cabut`, bersihkan pesanan beta, kunci live, preflight). Pengingat keluarga untuk Tagihan TPU bayar-setelah (tiket 46 gap 5) dibangun lebih dulu. Webhook SumoPod tetap satu proyek: jalankan semua kasus bayar di staging sebelum kunci live dipasang.
+  Evidence: dibangun 2026-11-02 (baris `[G6] off-host copy`, `[G6] privacy page`, `[G6] incident procedure`; `install-host.sh` menyalin runbook ke `/opt/makam-v1/docs/runbook.md`). Butir ini dicentang setelah preflight di host menampilkan ketiganya PASS.
+- [ ] **Pembayaran nyata (tiket 04)**: KYC SumoPod selesai, lalu runbook "Going live" langkah 1 sampai 5 (nilai nyata, `cabut`, bersihkan pesanan beta, kunci live, preflight). Pengingat keluarga untuk Tagihan TPU bayar-setelah (tiket 46 gap 5) dibangun lebih dulu (selesai 2026-11-02, tick `pengurusan.chasing_tpu`). Webhook SumoPod tetap satu proyek: jalankan semua kasus bayar di staging sebelum kunci live dipasang.
   Evidence:
 
 ## 5. Draf prosedur insiden (sudah masuk `docs/ops/runbook.md`, disetujui 2026-10-30)

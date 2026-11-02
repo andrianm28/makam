@@ -73,6 +73,11 @@ function install(bin: string, name: string, body: string): void {
   chmodSync(file, 0o755);
 }
 
+/** A UTC time as makam-backup-offsite writes it: 2026-11-02T03:45:12Z. */
+function utcStamp(ms: number): string {
+  return `${new Date(ms).toISOString().slice(0, 19)}Z`;
+}
+
 function world(options: { envFile?: string | null; envMode?: number } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "makam-preflight-"));
   const bin = path.join(root, "bin");
@@ -83,6 +88,10 @@ function world(options: { envFile?: string | null; envMode?: number } = {}) {
     chmodSync(path.join(root, "prod", "prod.env"), options.envMode ?? 0o600);
   }
   writeFileSync(path.join(root, "prod", "backup-passphrase"), "fake-backup-passphrase\n", { mode: 0o600 });
+  // G6: a fresh off-host copy (makam-backup-offsite's stamp, an hour old) and the runbook copy install-host.sh puts on the host.
+  writeFileSync(path.join(root, "prod", "offsite-last-success"), `${utcStamp(Date.now() - 3600_000)}\n`);
+  mkdirSync(path.join(root, "docs"));
+  copyFileSync(path.join(repo, "docs/ops/runbook.md"), path.join(root, "docs", "runbook.md"));
   mkdirSync(path.join(root, "tmp"));
   writeFileSync(path.join(root, "log"), "");
   return { root, bin };
@@ -201,6 +210,10 @@ function healthy(w: ReturnType<typeof world>) {
       '    code=${FAKE_CONFIG_CODE:-200}',
       '    if [ "${FAKE_CONTOH:-false}" = absent ]; then body="{\\"sentryDsn\\":\\"\\",\\"paymentTrial\\":false}"',
       '    else body="{\\"sentryDsn\\":\\"\\",\\"paymentTrial\\":false,\\"contohAktif\\":${FAKE_CONTOH:-false}}"; fi ;;',
+      // The running stack's Kebijakan Privasi (G6): its HTTP status, or nothing answering.
+      '  */kebijakan-privasi)',
+      '    [ "${FAKE_PRIVACY_DOWN:-0}" != 1 ] || { printf 000; exit 7; }',
+      '    code=${FAKE_PRIVACY_CODE:-200} ;;',
       "  *api.github.com*)",
       '    case "$method $url" in',
       `      "POST "*/deployments) ${INTERRUPT_AT("gh-create")}`,
@@ -1049,6 +1062,64 @@ describe("makam-preflight", () => {
         expect(result.lines, JSON.stringify(extra)).toContainEqual(expect.stringMatching(/^SKIP .*\[109\].*data contoh: .*data-contoh\.mjs status/));
         expect(result.lines.filter((one) => /\[109\]/.test(one) && !one.startsWith("SKIP"))).toEqual([]);
       }
+    });
+  });
+  describe("G6, the gate before real orders: off-host copy, privacy page, incident procedure", () => {
+    const SANDBOX = `${ENV_FILE}SUMOPOD_BASE_URL=https://api-pay-sandbox.sumopod.com\n`;
+    const g6 = (result: ReturnType<typeof preflight>) => result.lines.filter((line) => /\[G6\]/.test(line));
+
+    it("passes all three on a ready host", () => {
+      const result = preflight(healthy(world()));
+      expect(g6(result)).toEqual([
+        expect.stringMatching(/^PASS \[G6\] off-host copy: the latest off-host copy completed at .*, 1 h ago \(limit 36 h\)/),
+        expect.stringMatching(/^PASS \[G6\] privacy page: http:\/\/127\.0\.0\.1:3100\/kebijakan-privasi answers HTTP 200/),
+        expect.stringMatching(/^PASS \[G6\] incident procedure: .*docs\/runbook\.md holds/),
+      ]);
+    });
+
+    it("fails a missing or stale off-host copy once payments are live, and only SKIPs it while they are a trial", () => {
+      const missing = healthy(world());
+      rmSync(path.join(missing.root, "prod", "offsite-last-success"));
+      const live = preflight(missing);
+      expect(live.code).toBe(1);
+      expect(live.lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] off-host copy: no off-host copy has completed yet.*makam-backup-offsite --env prod/));
+
+      const trial = healthy(world({ envFile: SANDBOX }));
+      rmSync(path.join(trial.root, "prod", "offsite-last-success"));
+      expect(preflight(trial).lines).toContainEqual(expect.stringMatching(/^SKIP \[G6\] off-host copy: .*required before live payments/));
+
+      const stale = healthy(world());
+      writeFileSync(path.join(stale.root, "prod", "offsite-last-success"), `${utcStamp(Date.now() - 40 * 3600_000)}\n`);
+      expect(preflight(stale).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] off-host copy: .*40 h ago, more than 36 h/));
+      expect(preflight(stale, [], { MAKAM_PREFLIGHT_OFFSITE_MAX_HOURS: "48" }).lines).toContainEqual(expect.stringMatching(/^PASS \[G6\] off-host copy: .*40 h ago \(limit 48 h\)/));
+
+      const garbled = healthy(world());
+      writeFileSync(path.join(garbled.root, "prod", "offsite-last-success"), "kemarin\n");
+      expect(preflight(garbled).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] off-host copy: .*does not hold a time/));
+    });
+
+    it("fails a privacy page that does not answer 200, and SKIPs it when nothing answers", () => {
+      expect(preflight(healthy(world()), [], { FAKE_PRIVACY_CODE: "404" }).lines).toContainEqual(
+        expect.stringMatching(/^FAIL \[G6\] privacy page: .*answers HTTP 404, not 200/),
+      );
+      expect(preflight(healthy(world()), [], { FAKE_PRIVACY_DOWN: "1" }).lines).toContainEqual(expect.stringMatching(/^SKIP \[G6\] privacy page: nothing answers/));
+    });
+
+    it("fails when the runbook copy is missing from the host or lacks the incident sections", () => {
+      const missing = healthy(world());
+      rmSync(path.join(missing.root, "docs", "runbook.md"));
+      expect(preflight(missing).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] incident procedure: .*runbook\.md is missing.*install-host\.sh/));
+
+      const old = healthy(world());
+      writeFileSync(path.join(old.root, "docs", "runbook.md"), "# Runbook\n\n## Rotating secrets\n");
+      expect(preflight(old).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] incident procedure: .*no "Incidents \(production\)"/));
+    });
+
+    it("reads sections the runbook really has, and install-host.sh puts the runbook where it looks", () => {
+      const runbook = readFileSync(path.join(repo, "docs/ops/runbook.md"), "utf8").split("\n");
+      expect(runbook).toContain("## Incidents (production)");
+      expect(runbook).toContain("### Personal data leak (UU PDP)");
+      expect(readFileSync(path.join(repo, "deploy/install-host.sh"), "utf8")).toContain('install -m 0644 "$REPO/docs/ops/runbook.md" "$ROOT/docs/runbook.md"');
     });
   });
 });
