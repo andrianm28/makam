@@ -111,7 +111,7 @@ export interface LayananNotifikasi {
    */
   pekerjaanTpuDitugaskan(tx: Database, hasil: PekerjaanTpuDitugaskan): Promise<void>;
   /**
-   * A Paket Layanan cycle whose Tagihan would pass the largest Tagihan (`BATAS_TAGIHAN`), so the
+   * A Paket Layanan cycle whose Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan), so the
    * Paket was paused (ticket 54): the Pemesan is told in the transaction that set
    * the pause, so the pause and its Peringatan commit together.
    */
@@ -173,7 +173,7 @@ export interface PesananLayananTerbit {
   tagihan: { id: string; nomorTagihan: string; total: number; dueAt: Date; link: string };
 }
 
-/** A Paket Layanan cycle whose Tagihan would pass the largest Tagihan (`BATAS_TAGIHAN`), as its Pemesan is told about it. */
+/** A Paket Layanan cycle whose Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan), as its Pemesan is told about it. */
 export interface PaketSiklusDijeda {
   /** The subscription's own Nomor Pemesanan, so the message lands on its order page. */
   nomor: string;

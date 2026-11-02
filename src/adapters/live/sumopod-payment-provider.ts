@@ -20,6 +20,8 @@ export const SUMOPOD_LIVE_BASE_URL = "https://api-pay.sumopod.com";
 /** SumoPod allows at most 24h and defaults to it; kept explicit rather than relying on the default. */
 const EXPIRES_IN_HOURS = 24;
 const REQUEST_TIMEOUT_MS = 15_000;
+/** Bank Indonesia's cap on one QRIS transaction (the domain's `QRIS_PAYMENT_CAP`; adapters never import the domain). */
+const QRIS_MAX_RUPIAH = 10_000_000;
 
 export interface SumopodPaymentProviderOptions {
   /** The project's X-Api-Key. */
@@ -109,6 +111,9 @@ export class SumopodPaymentProvider implements PaymentProvider {
     if (!Number.isInteger(request.amountRupiah)) {
       // The old app rounded fractional amounts instead of refusing them (ticket 61's lessons); refuse instead.
       throw new Error("SumoPod requires a whole-rupiah amount");
+    }
+    if (request.metode === "qris" && request.amountRupiah > QRIS_MAX_RUPIAH) {
+      throw new Error("Amount is above Bank Indonesia's QRIS cap");
     }
     if (request.metode === "virtual_account" && request.amountRupiah > this.batasVirtualAccount) {
       throw new Error("Amount is above this project's Virtual Account limit");

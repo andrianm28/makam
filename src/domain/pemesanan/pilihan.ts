@@ -142,7 +142,7 @@ const belumDiisi: WorkingTimeResult = { ok: false, reason: "jam_operasional_belu
  * The all-in total of one Saat Duka card, priced the way its Tagihan will be
  * (Harga Hak Pakai + Biaya Pemakaman + one Biaya Layanan Platform, exactly what
  * `quote()` adds to a Lokasi Mitra order), or null when it cannot be priced
- * now or is above the largest Tagihan (`BATAS_TAGIHAN`): a card that shows no total is no card.
+ * now or is above `BATAS_TAGIHAN` (the largest Tagihan): a card that shows no total is no card.
  */
 export async function saatDukaHarga(
   deps: Pick<PemesananDeps, "tariffs">,

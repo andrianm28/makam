@@ -67,7 +67,7 @@ export type KonfirmasiTerencanaResult =
   | { ok: false; reason: "pesanan_sudah_ditutup" }
   /** A chosen Jenis Makam can no longer be priced. */
   | { ok: false; reason: "harga_tidak_tersedia" }
-  /** The total is past the largest Tagihan (`BATAS_TAGIHAN`). */
+  /** The total is past `BATAS_TAGIHAN` (the largest Tagihan). */
   | { ok: false; reason: "melebihi_batas_tagihan"; total: number }
   /** The Lokasi Mitra is not there any more, so its hold policy cannot be read. */
   | { ok: false; reason: "lokasi_tidak_terbuka" }

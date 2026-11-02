@@ -4,7 +4,7 @@
  * order, picking exact plots on their Denah, and placing the order — which holds
  * the plots, snapshots the Syarat and takes a Nomor Pemesanan, all in one
  * transaction. The prices are always `quote()`'s, and a selection v1 may not take
- * (above the largest Tagihan (`BATAS_TAGIHAN`)) is refused here, not only in the picker.
+ * (above `BATAS_TAGIHAN` (the largest Tagihan)) is refused here, not only in the picker.
  */
 import { and, asc, desc, eq } from "drizzle-orm";
 import { refusable } from "@/db/unit-of-work";
@@ -46,10 +46,10 @@ export interface KartuTerencana {
 
 /**
  * The price bands of the Lokasi step, named after what a family recognises, and all
- * of them **inside** the largest Tagihan (`BATAS_TAGIHAN`; above the largest Tagihan (`BATAS_TAGIHAN`) a
+ * of them **inside** `BATAS_TAGIHAN` (the largest Tagihan; above the QRIS cap a
  * Tagihan is paid by Virtual Account or transfer, ADR 0013): a
  * filtered card then always leads to an order that can be paid, and a Lokasi Mitra
- * whose cheapest plot is above the cap is in no band at all (its own price is hidden,
+ * whose cheapest plot is above that limit is in no band at all (its own price is hidden,
  * like on the Lokasi page, because the wizard would refuse every order there).
  */
 export const HARGA_BANDS = [
@@ -138,7 +138,7 @@ export interface TotalTerencana {
   /** One line per chosen unit, then the one Biaya Layanan Platform of the whole Tagihan. */
   lines: BarisTotal[];
   total: number;
-  /** Whether this selection may be taken: its total is within the largest Tagihan (`BATAS_TAGIHAN`). */
+  /** Whether this selection may be taken: its total is within `BATAS_TAGIHAN` (the largest Tagihan). */
   dalamBatas: boolean;
 }
 
@@ -328,7 +328,7 @@ export type PlaceTerencanaResult =
   /** One chosen unit is not a pickable Petak Makam or Kavling Keluarga any more; the order is rolled back whole. */
   | { ok: false; reason: "sudah_dipesan"; nomor: string }
   | { ok: false; reason: "unit_tidak_bisa_dipilih"; nomor: string; status: string }
-  /** v1 takes no order whose Tagihan would pass the largest Tagihan (`BATAS_TAGIHAN`). */
+  /** No order is taken whose Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan). */
   | { ok: false; reason: "melebihi_batas_tagihan"; total: number }
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** Layanan for the empty plot go with one Petak Makam only (not several plots, not a Kavling Keluarga). */

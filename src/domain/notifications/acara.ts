@@ -299,7 +299,7 @@ export const TABEL_ACARA: Record<
   },
   /**
    * A Paket Layanan cycle whose Tagihan Billing refused because its total passes
-   * the largest Tagihan (`BATAS_TAGIHAN`) (ticket 54): the Paket is paused and the Pemesan hears
+   * `BATAS_TAGIHAN` (the largest Tagihan) (ticket 54): the Paket is paused and the Pemesan hears
    * it, because only they can decide what to do next. About a Lokasi Mitra's own
    * work, so a send that keeps failing calls that Lokasi's Admin Lokasi.
    */

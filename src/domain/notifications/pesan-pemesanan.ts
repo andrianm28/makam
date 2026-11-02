@@ -638,7 +638,7 @@ export async function layananPesanBaru(deps: PesanKeluargaDeps, input: LayananPe
   return { ok: true };
 }
 
-/** What the Layanan module announces when a Paket Layanan cycle's Tagihan would pass the largest Tagihan (`BATAS_TAGIHAN`) and the Paket is paused. */
+/** What the Layanan module announces when a Paket Layanan cycle's Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan) and the Paket is paused. */
 export const paketSiklusDijedaSchema = z.object({
   nomor: z.string().trim().min(1).max(50),
   /** The Pemesan's proven email: every subscription has one, so this message is never address-less. */

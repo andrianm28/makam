@@ -141,6 +141,15 @@ describe("SumoPod PaymentProvider: createPayment (local stub, never the real san
     expect(service.requests).toEqual([]);
   });
 
+  it("refuses a QRIS payment above Bank Indonesia's Rp 10.000.000 cap without calling SumoPod", async () => {
+    respondCreated(service);
+
+    await expect(
+      adapterFor(service).createPayment({ metode: "qris", reference: "TGH-1", amountRupiah: 10_000_001, description: "x" }),
+    ).rejects.toThrow(/QRIS cap/);
+    expect(service.requests).toEqual([]);
+  });
+
   it("gives every created payment a different order_id, even for the same Tagihan (re-created after expiry)", async () => {
     respondCreated(service);
     const adapter = adapterFor(service);

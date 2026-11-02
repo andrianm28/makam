@@ -106,12 +106,12 @@ describe("the import plan for the old app's catalog", () => {
     expect(rencana.lokasi.every((satu) => satu.biayaPemakaman === null || satu.biayaPemakaman.biayaPemakaman !== 3_000_000)).toBe(true);
   });
 
-  it("keeps a Jenis Makam whose all-in total passes the Rp 10 juta QRIS cap, and reports it as not listed", () => {
+  it("lists a Jenis Makam whose all-in total passes the Rp 10 juta QRIS cap (ADR 0013): only the largest Tagihan leaves one out", () => {
     const rencana = susunRencana(ekspor(), hariIni);
 
     const deluxe = rencana.jenisMakam.find((jenis) => jenis.kode === "TPU-BT-01-DLX");
-    expect(deluxe).toMatchObject({ allIn: 12_750_000, diLuarCap: true });
-    expect(rencana.ringkasan.jenisMakamDiLuarCap).toBe(1);
+    expect(deluxe).toMatchObject({ allIn: 12_750_000, diLuarCap: false });
+    expect(rencana.ringkasan.jenisMakamDiLuarCap).toBe(0);
     expect(rencana.lokasi[0].jenisMakam.map((jenis) => jenis.kode)).toEqual(["TPU-BT-01-STD", "TPU-BT-01-DLX"]);
   });
 
@@ -274,7 +274,7 @@ describe("the import plan for the old app's catalog", () => {
       lokasiDiimpor: 3,
       jenisMakamDibaca: 5,
       jenisMakamDiimpor: 4,
-      jenisMakamDiLuarCap: 1,
+      jenisMakamDiLuarCap: 0,
       dataContoh: 2,
       ditolak: 1,
     });

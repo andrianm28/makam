@@ -5,6 +5,7 @@ import { testServerRuntime } from "../../../../../tests/support/server-runtime";
 import { simpanPengaturanOperator } from "./actions";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => import("../../../../../tests/support/next-request"));
 
 const { close } = testDatabase();
@@ -64,6 +65,35 @@ describe("Simpan Pengaturan Operator (Server Action)", () => {
     expect(await simpanPengaturanOperator({ status: "idle" }, form(kosong))).toEqual({
       status: "gagal",
       message: "Jam balas CS wajib diisi.",
+    });
+  });
+
+  it("saves the bank account a large Tagihan is transferred to, and says when only part of it is filled in", async () => {
+    await signInAsAdminPlatform();
+    const isian = {
+      legalName: "PT Jaya Korpora Prima",
+      address: "Jl. Contoh No. 1, Jakarta Selatan 12345",
+      phone: "(021) 555-0101",
+      email: "halo@makam.co.id",
+      csWhatsApp: "08115550101",
+      csReplyHours: "dibalas mulai pukul 06:00",
+      rekeningBank: "Bank Central Asia (BCA)",
+      rekeningNomor: "",
+      rekeningAtasNama: "PT Jaya Korpora Prima",
+      reason: "Rekening transfer",
+    };
+
+    expect(await simpanPengaturanOperator({ status: "idle" }, form(isian))).toEqual({
+      status: "gagal",
+      message: expect.stringContaining("Rekening transfer"),
+    });
+    expect(await simpanPengaturanOperator({ status: "idle" }, form({ ...isian, rekeningNomor: "1234567890" }))).toMatchObject({
+      status: "berhasil",
+    });
+    expect((await server.runtime().operatorSettings.current())?.rekening).toEqual({
+      bank: "Bank Central Asia (BCA)",
+      nomor: "1234567890",
+      atasNama: "PT Jaya Korpora Prima",
     });
   });
 });

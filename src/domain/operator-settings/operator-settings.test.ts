@@ -210,6 +210,18 @@ describe("Pengaturan Operator", () => {
     });
   });
 
+  it("a change of the bank account is recorded in the Audit Log with the account before and after", async () => {
+    const setup = operatorSettingsOnTestDatabase();
+    const { actor } = await signedInAdminPlatform(setup);
+    const lama = { bank: "BCA", nomor: "1234567890", atasNama: "PT Jaya Korpora Prima" };
+    const baru = { bank: "Bank Mandiri", nomor: "0987654321", atasNama: "PT Jaya Korpora Prima" };
+    await setup.operatorSettings.change(actor, { ...pengaturan, rekening: lama, reason: null });
+    await setup.operatorSettings.change(actor, { ...pengaturan, rekening: baru, reason: "Rekening baru" });
+
+    const entri = await setup.audit.entriesAbout({ kind: "pengaturan_operator", id: OPERATOR_SETTINGS_ENTITY_ID });
+    expect(entri.at(-1)).toMatchObject({ before: { rekening: lama }, after: { rekening: baru }, reason: "Rekening baru" });
+  });
+
   it("refuses a bank account with only some parts filled in, or an account number that is not digits", async () => {
     const setup = operatorSettingsOnTestDatabase();
     const { actor } = await signedInAdminPlatform(setup);

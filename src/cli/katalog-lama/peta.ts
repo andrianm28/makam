@@ -21,7 +21,7 @@
  *   never charged at) is not a Harga Hak Pakai: the Jenis Makam is refused and
  *   asked about, never given somebody else's number. The same goes for a
  *   cemetery-level estimate, which is reported and never entered at all;
- * - a Jenis Makam whose all-in total passes the largest Tagihan (`BATAS_TAGIHAN`) is
+ * - a Jenis Makam whose all-in total passes `BATAS_TAGIHAN` (the largest Tagihan) is
  *   imported but never listed (spec, decision 2026-09-26; the Tariffs module
  *   leaves it out of the public pricing on its own);
  * - a row the source itself marked as example data is flagged on the plan, and
@@ -101,7 +101,7 @@ export interface RencanaJenisMakam {
   effectiveOn: string;
   /** What v1 can quote for a burial in this Jenis Makam: the Hak Pakai plus the Lokasi's Biaya Pemakaman. */
   allIn: number;
-  /** Above the largest Tagihan (`BATAS_TAGIHAN`): imported, never listed. */
+  /** Above `BATAS_TAGIHAN` (the largest Tagihan): imported, never listed. */
   diLuarCap: boolean;
 }
 

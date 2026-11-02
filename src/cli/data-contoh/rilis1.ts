@@ -7,7 +7,7 @@
  *
  * Every price is a multiple of Rp 1.000.000 or smaller and round, and every
  * Hak Pakai stays at or under Rp 9.000.000 so that, with the contoh Biaya Layanan
- * Platform, its all-in total stays within the largest Tagihan (`BATAS_TAGIHAN`) and the Jenis
+ * Platform, its all-in total stays within `BATAS_TAGIHAN` (the largest Tagihan) and the Jenis
  * Makam shows on the public Lokasi page (one over the cap is left out of it).
  */
 import type { JenisLayanan } from "@/domain/layanan";

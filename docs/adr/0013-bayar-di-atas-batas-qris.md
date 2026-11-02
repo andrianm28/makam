@@ -23,5 +23,8 @@ Private cemeteries (ADR 0012) sell plots from about Rp 30 juta up to billions (G
 
 ## Consequences
 
+- **The bank account is read live, not copied onto the Tagihan.** A change in Pengaturan Operator shows at once on every open Tagihan paid by transfer (and its PDF). Accepted so a corrected account reaches families still to pay; every change is an audited Admin Platform write (before and after in the Audit Log).
+- **A live provider link is reused as it was created.** Lowering `SUMOPOD_BATAS_VA` does not withdraw a Virtual Account link already handed out; it expires within 24 hours, and its amount is the Tagihan's, so the webhook settles it as usual.
+
 - A Paket Layanan cycle above Rp 10.000.000 is now issued instead of paused; the pause (ticket 54) remains only for a total Billing still refuses, which in practice no tariff reaches.
 - Card payments and e-wallets above the QRIS cap are not offered: the hosted checkout may still show them, and SumoPod then refuses what its channel cannot take; the family can pick a VA bank on the same page.

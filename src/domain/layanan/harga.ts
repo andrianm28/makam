@@ -133,7 +133,7 @@ function quoteLineFor(varian: VarianDenganLayanan, di: Tempat): QuoteLine {
 
 /**
  * Prices each variant at the place and keeps only the ones it can price: no price
- * in force means not offered, never a free one, and a total above the largest Tagihan (`BATAS_TAGIHAN`) is
+ * in force means not offered, never a free one, and a total above `BATAS_TAGIHAN` (the largest Tagihan) is
  * left out of the listing, as on every other listing.
  *
  * One variant is quoted on its own, not with the rest: each is a separate order,
@@ -286,7 +286,7 @@ export async function offeringsUntukOrder(deps: LayananDeps, lokasiId: string, a
  * What one order of these variants costs, all in: the items at that place's price
  * plus the one Biaya Layanan Platform a Tagihan at a Lokasi Mitra carries. Null
  * when a variant is not offered there, has no price in force, or the total is
- * past the largest Tagihan (`BATAS_TAGIHAN`) — a price that cannot be quoted is not a price.
+ * past `BATAS_TAGIHAN` (the largest Tagihan) — a price that cannot be quoted is not a price.
  */
 export async function hargaPesananLayanan(
   deps: LayananDeps,

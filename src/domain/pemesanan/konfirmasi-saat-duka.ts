@@ -50,7 +50,7 @@ export type KonfirmasiSaatDukaResult =
   | { ok: false; reason: "petak_tidak_ditemukan" | "petak_belum_tersedia" | "jenis_makam_beda" }
   /** Neither the Pemesan nor the Pemegang Hak left a number the Tagihan can be addressed to. */
   | { ok: false; reason: "kontak_pemesan_kosong" }
-  /** The order's Jenis Makam can no longer be priced (or the total is above the largest Tagihan (`BATAS_TAGIHAN`)). */
+  /** The order's Jenis Makam can no longer be priced (or the total is above `BATAS_TAGIHAN` (the largest Tagihan)). */
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** The Lokasi Mitra is not there any more, so its payment window cannot be read. */
   | { ok: false; reason: "lokasi_tidak_terbuka" }

@@ -56,7 +56,7 @@ export interface TariffReads {
   quote(lines: readonly QuoteLine[], at: Date): Promise<QuoteResult>;
   /**
    * Every price the public Lokasi page or a Daftar Lokasi card shows, under
-   * the v1 selection rules (a Jenis Makam over the largest Tagihan (`BATAS_TAGIHAN`) left out
+   * the v1 selection rules (a Jenis Makam over `BATAS_TAGIHAN` (the largest Tagihan) left out
    * entirely, "mulai Rp X", whether a Perpanjangan price shows): each an
    * all-in total from `quote()` at `at`.
    */

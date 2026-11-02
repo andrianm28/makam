@@ -117,9 +117,9 @@ describe("a Paket Layanan cycle", () => {
     expect(await setup.layanan.paketSiklusTick(wib("2027-01-01 09:00"))).toEqual({ diterbitkan: 0 });
   });
 
-  it("pauses the Paket and queues one Peringatan when the cycle would exceed the largest Tagihan", async () => {
-    // Two Layanan at Rp 60.000.000.000 each make one cycle's Tagihan pass the
-    // largest Tagihan (Rp 100.000.000.000), so Billing refuses to issue it.
+  it("issues a cycle whose Tagihan passes the QRIS cap: it is paid by Virtual Account or transfer (ADR 0013)", async () => {
+    // Two Layanan at Rp 6.000.000 each make one cycle's Tagihan pass the
+    // Rp 10.000.000 QRIS cap, which no longer stops it (it paused the Paket until ADR 0013).
     const setup = layananOnTestDatabase(db, { notifikasiNyata: true });
     const admin = await siapkanOperatorLayanan(setup);
     const lokasi = await lokasiDenganLayanan(setup, { amount: 6_000_000 });

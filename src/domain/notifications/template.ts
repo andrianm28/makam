@@ -646,7 +646,7 @@ export interface PaketSiklusDijedaEmailInput {
 
 /**
  * A Paket Layanan cycle whose Tagihan Billing refused because its total would
- * pass the largest Tagihan (`BATAS_TAGIHAN`; ticket 54 paused on the largest Tagihan (`BATAS_TAGIHAN`) until ADR 0013). The Paket is paused automatically and
+ * pass `BATAS_TAGIHAN`, the largest Tagihan (ticket 54 paused on the Rp 10 juta QRIS cap until ADR 0013). The Paket is paused automatically and
  * no charge was made; the family is told and asked to contact us so it can
  * continue once a payment route that fits exists.
  */

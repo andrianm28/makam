@@ -184,7 +184,7 @@ export async function penawaranLayananPerpanjangan(deps: PerpanjanganDeps, hakPa
 export type TawaranResult =
   | { ok: true; endDate: string; opsi: OpsiMasa[] }
   | { ok: false; reason: "tidak_boleh"; catatan: CatatanPerpanjangan }
-  /** Nothing can be priced (no Perpanjangan price entered) or even one term passes the largest Tagihan (`BATAS_TAGIHAN`): the family is pointed to CS. */
+  /** Nothing can be priced (no Perpanjangan price entered) or even one term passes `BATAS_TAGIHAN` (the largest Tagihan): the family is pointed to CS. */
   | { ok: false; reason: "harga_tidak_tersedia" };
 
 /** Every choice of 1..K terms with its all-in price (Perpanjangan price x terms plus Biaya Layanan Platform, from `quote()`), within the payment cap. */
@@ -241,7 +241,7 @@ export type AjukanResult =
   | { ok: false; reason: "terms_melebihi_batas"; maxTerms: number }
   /** An earlier Perpanjangan of this Hak Pakai still waits for its money; its Tagihan is never changed, only paid or lapsed. */
   | { ok: false; reason: "tagihan_terbuka"; tagihanTerbuka: TagihanTerbuka }
-  /** The Tagihan would pass the largest Tagihan (`BATAS_TAGIHAN`): v1 takes no such order, the family is pointed to CS. */
+  /** The Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan): the family is pointed to CS. */
   | { ok: false; reason: "melebihi_batas_tagihan" };
 
 /**
