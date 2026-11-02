@@ -49,7 +49,7 @@ describe("pg-boss wiring (smoke)", () => {
         identity: { adminLokasiOf: async () => [], accountOnRecord: async () => null },
         // The Layanan module's payment effect re-run reads a grave's Hak Pakai; the smoke test pays nothing.
         inventory: { hakPakaiOfUnit: async () => null, kedaluwarsaTick: async () => ({ kedaluwarsa: 0 }), hakPakaiMenjelangAkhir: async () => [], hakPakaiUntukPerpanjangan: async () => null },
-        billing: { tagihanBerlaku: async () => null, payAfterAnchored: async () => [] },
+        billing: { tagihanBerlaku: async () => null, payAfterAnchoredTerbuka: async () => [] },
         perpanjanganUrl: (hakPakaiId) => `https://makam.test/perpanjangan/${hakPakaiId}`,
         perpanjanganTpuUrl: (makamTpuId) => `https://makam.test/pesan-makam/perpanjang-iptm/${makamTpuId}`,
         notifikasi: {

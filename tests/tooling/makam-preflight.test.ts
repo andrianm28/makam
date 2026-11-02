@@ -1093,16 +1093,23 @@ describe("makam-preflight", () => {
       expect(preflight(stale).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] off-host copy: .*40 h ago, more than 36 h/));
       expect(preflight(stale, [], { MAKAM_PREFLIGHT_OFFSITE_MAX_HOURS: "48" }).lines).toContainEqual(expect.stringMatching(/^PASS \[G6\] off-host copy: .*40 h ago \(limit 48 h\)/));
 
+      const future = healthy(world());
+      writeFileSync(path.join(future.root, "prod", "offsite-last-success"), `${utcStamp(Date.now() + 48 * 3600_000)}\n`);
+      expect(preflight(future).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] off-host copy: .*in the future/));
+
       const garbled = healthy(world());
       writeFileSync(path.join(garbled.root, "prod", "offsite-last-success"), "kemarin\n");
       expect(preflight(garbled).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] off-host copy: .*does not hold a time/));
     });
 
-    it("fails a privacy page that does not answer 200, and SKIPs it when nothing answers", () => {
+    it("fails a privacy page that does not answer 200 or does not answer at all, and only SKIPs it while payments are a trial", () => {
       expect(preflight(healthy(world()), [], { FAKE_PRIVACY_CODE: "404" }).lines).toContainEqual(
         expect.stringMatching(/^FAIL \[G6\] privacy page: .*answers HTTP 404, not 200/),
       );
-      expect(preflight(healthy(world()), [], { FAKE_PRIVACY_DOWN: "1" }).lines).toContainEqual(expect.stringMatching(/^SKIP \[G6\] privacy page: nothing answers/));
+      expect(preflight(healthy(world()), [], { FAKE_PRIVACY_DOWN: "1" }).lines).toContainEqual(expect.stringMatching(/^FAIL \[G6\] privacy page: nothing answers/));
+      expect(preflight(healthy(world({ envFile: SANDBOX })), [], { FAKE_PRIVACY_DOWN: "1" }).lines).toContainEqual(
+        expect.stringMatching(/^SKIP \[G6\] privacy page: nothing answers.*required before live payments/),
+      );
     });
 
     it("fails when the runbook copy is missing from the host or lacks the incident sections", () => {

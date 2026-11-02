@@ -35,6 +35,10 @@ const { akhiriHakPakaiAction, catatPembongkaranAction, ubahKontakPemegangHakActi
 const { default: HakPakaiLokasiPage } = await import("../admin-lokasi/[lokasiId]/hak-pakai/[hakPakaiId]/page");
 const { default: PetakPage } = await import("../admin-lokasi/[lokasiId]/petak/[petakId]/page");
 const { default: TagihanLewatJatuhTempoLokasiPage } = await import("../admin-lokasi/[lokasiId]/tagihan-lewat-jatuh-tempo/page");
+const { default: PerpanjanganLokasiPage } = await import("../admin-lokasi/[lokasiId]/perpanjangan/[id]/page");
+const { default: PermintaanLokasiPage } = await import("../admin-lokasi/[lokasiId]/permintaan/[id]/page");
+const { default: PesananLokasiPage } = await import("../admin-lokasi/[lokasiId]/pesanan/[nomor]/page");
+const { default: PengurusanTpuPage } = await import("../admin-platform/pengurusan/[nomor]/page");
 const { default: PermintaanHakPakaiPage } = await import("../../(site)/permintaan-hak-pakai/[hakPakaiId]/page");
 const { default: AkunMakamPage } = await import("../../(site)/akun/makam/page");
 
@@ -165,6 +169,11 @@ describe("a Mitra Jasa never reaches a Hak Pakai", () => {
       await buka(async () => PetakPage({ params: Promise.resolve({ lokasiId, petakId }) } as never)),
       await buka(async () => TagihanLewatJatuhTempoLokasiPage({ params: Promise.resolve({ lokasiId }), searchParams: Promise.resolve({}) } as never)),
       await buka(async () => PermintaanHakPakaiPage({ params: Promise.resolve({ hakPakaiId }) } as never)),
+      // Where a Hak Pakai's holder also shows: a Perpanjangan or Permintaan to check, an order on the plot, a TPU order.
+      await buka(async () => PerpanjanganLokasiPage({ params: Promise.resolve({ lokasiId, id: hakPakaiId }) } as never)),
+      await buka(async () => PermintaanLokasiPage({ params: Promise.resolve({ lokasiId, id: hakPakaiId }) } as never)),
+      await buka(async () => PesananLokasiPage({ params: Promise.resolve({ lokasiId, nomor: "MKM-2026-000001" }) } as never)),
+      await buka(async () => PengurusanTpuPage({ params: Promise.resolve({ nomor: "MKM-2026-000001" }) } as never)),
     ];
     for (const html of halaman) {
       expect(html).toMatch(/^ditolak: (notFound|redirect \/staf)/);

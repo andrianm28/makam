@@ -20,7 +20,7 @@ import { refusable } from "@/db/unit-of-work";
 import type { Rupiah } from "@/lib/rupiah";
 import { DAY_MS } from "@/lib/time/jakarta";
 import { tagihan, tagihanLine } from "./schema";
-import type { TagihanStatus } from "./tagihan";
+import { TAGIHAN_PERLU_DIBAYAR, type TagihanStatus } from "./tagihan";
 
 /** How long a pay-after Tagihan is chased before Admin Platform may give up on it (spec, Billing > Chasing). */
 export const TIDAK_TERTAGIH_HARI = 30;
@@ -111,6 +111,21 @@ export async function listPayAfterAnchored(db: Database): Promise<PayAfterAnchor
     .select(chasingSelection)
     .from(tagihan)
     .where(isNotNull(tagihan.lewatJatuhTempoAt))
+    .orderBy(asc(tagihan.lewatJatuhTempoAt), asc(tagihan.nomor));
+  return toAnchoredAll(db, rows);
+}
+
+/**
+ * Every pay-after Tagihan whose overdue anchor is known and that still needs the
+ * family's money (Belum Dibayar or Lewat Jatuh Tempo), oldest anchor first: the
+ * ones a module hands to Chasing's family reminders (the TPU orders' tick, ticket
+ * 46 gap 5). Bounded by what is owed now, not by every anchor ever set.
+ */
+export async function listPayAfterAnchoredTerbuka(db: Database): Promise<PayAfterAnchored[]> {
+  const rows = await db
+    .select(chasingSelection)
+    .from(tagihan)
+    .where(and(isNotNull(tagihan.lewatJatuhTempoAt), inArray(tagihan.status, [...TAGIHAN_PERLU_DIBAYAR])))
     .orderBy(asc(tagihan.lewatJatuhTempoAt), asc(tagihan.nomor));
   return toAnchoredAll(db, rows);
 }

@@ -37,6 +37,7 @@ import { lewatJatuhTempoPayAfterTagihan, setOverdueAnchor, type SetOverdueAnchor
 import {
   declareTidakTertagih,
   listPayAfterAnchored,
+  listPayAfterAnchoredTerbuka,
   listTagihanLewatJatuhTempo,
   type DeclareTidakTertagihResult,
   type PayAfterAnchored,
@@ -313,6 +314,12 @@ export interface Billing {
    */
   payAfterAnchored(): Promise<PayAfterAnchored[]>;
   /**
+   * Every pay-after Tagihan whose overdue anchor is known and that is still Belum
+   * Dibayar or Lewat Jatuh Tempo, oldest anchor first (ticket 46 gap 5): what the
+   * TPU orders' tick hands to Chasing's family reminders.
+   */
+  payAfterAnchoredTerbuka(): Promise<PayAfterAnchored[]>;
+  /**
    * Every Tagihan currently Lewat Jatuh Tempo or Tidak Tertagih, oldest
    * anchor first (ticket 29): the overdue list (Admin Platform's, and Admin
    * Lokasi's filtered to its own Lokasi), the Tier 3 Antrean row and the H+1
@@ -448,6 +455,7 @@ export function createBilling(deps: BillingDeps): Billing {
     nextNomorPemesanan: () => nextNomorPemesanan(deps.db, deps.clock.now()),
     setOverdueAnchor: (tagihanId, burialRecordedAt) => setOverdueAnchor(deps, tagihanId, burialRecordedAt),
     payAfterAnchored: () => listPayAfterAnchored(deps.db),
+    payAfterAnchoredTerbuka: () => listPayAfterAnchoredTerbuka(deps.db),
     tagihanLewatJatuhTempo: () => listTagihanLewatJatuhTempo(deps.db),
     laporan: (by, span) => laporanBilling(deps.db, by, span),
     declareTidakTertagih: (tagihanId) =>

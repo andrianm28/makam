@@ -325,6 +325,11 @@ export async function reissueTagihan(
       old.id,
     );
     if (!reissued.ok) return reissued;
+    // A pay-after Tagihan reissued after the burial keeps its overdue anchor: "a reissue never extends the time to pay",
+    // and the family is still chased from the recorded burial (the next lewat-jatuh-tempo tick marks the new one).
+    if (old.lewatJatuhTempoAt) {
+      await tx.update(tagihan).set({ lewatJatuhTempoAt: old.lewatJatuhTempoAt }).where(eq(tagihan.id, reissued.tagihan.id));
+    }
     await tx
       .update(tagihan)
       .set({ status: "dibatalkan", cancelledAt: now, cancelledReason: "diganti", replacedById: reissued.tagihan.id })

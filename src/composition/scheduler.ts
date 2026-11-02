@@ -28,7 +28,7 @@ export function composeSchedulerContext(deps: {
   identity: Pick<Identity, "adminLokasiOf" | "accountOnRecord">;
   inventory: Pick<Inventory, "hakPakaiOfUnit" | "kedaluwarsaTick" | "hakPakaiMenjelangAkhir" | "hakPakaiUntukPerpanjangan">;
   /** The Hak Pakai end reminders stop for an ordered Perpanjangan whose Tagihan is still alive (ticket 42). */
-  billing: Pick<Billing, "tagihanBerlaku" | "payAfterAnchored">;
+  billing: Pick<Billing, "tagihanBerlaku" | "payAfterAnchoredTerbuka">;
   /** A Hak Pakai's Perpanjangan page URL, the link in a reminder. */
   perpanjanganUrl: (hakPakaiId: string) => string;
   /** A Makam TPU's Perpanjangan IPTM page URL, the link in an IPTM expiry reminder (ticket 48). */

@@ -754,7 +754,10 @@ check_offsite_copy() {
   fi
   now_s=$(date -u +%s)
   age_h=$(((now_s - at_s) / 3600))
-  if [ "$((now_s - at_s))" -le "$((max_hours * 3600))" ]; then
+  # A time ahead of this host's clock proves nothing about how old the copy is.
+  if [ "$at_s" -gt "$((now_s + 300))" ]; then
+    g6_missing "off-host copy" "$stamp holds $at, which is in the future: check the host clock (timedatectl), then run $MAKAM_ROOT/bin/makam-backup-offsite --env $ENV_NAME (runbook, \"Off-host backup\")"
+  elif [ "$((now_s - at_s))" -le "$((max_hours * 3600))" ]; then
     pass "G6" "off-host copy" "the latest off-host copy completed at $at, ${age_h} h ago (limit ${max_hours} h)"
   else
     g6_missing "off-host copy" "the latest off-host copy completed at $at, ${age_h} h ago, more than ${max_hours} h: check makam-$ENV_NAME-offsite-backup.timer and journalctl -t makam-offsite-backup (runbook, \"Off-host backup\")"
@@ -762,7 +765,8 @@ check_offsite_copy() {
 }
 
 # The Kebijakan Privasi the Bayar page and the footer link to, asked of the running
-# stack the way check_rilis asks /api/health: HTTP 200 or it is not served.
+# stack the way check_rilis asks /api/health: HTTP 200 or it is not served, and a
+# stack that does not answer proves nothing (so it is not a PASS either).
 check_privacy_page() {
   local port url code
   if [ ! -r "$ENV_FILE" ]; then
@@ -775,7 +779,7 @@ check_privacy_page() {
   if [ "$code" = 200 ]; then
     pass "G6" "privacy page" "$url answers HTTP 200"
   elif [ "$code" = "no answer" ] || [ "$code" = 000 ]; then
-    skip "G6" "privacy page" "nothing answers on $url, so the Kebijakan Privasi is not checked: start the stack and run the preflight again"
+    g6_missing "privacy page" "nothing answers on $url, so the Kebijakan Privasi is not proved served: start the stack and run the preflight again"
   else
     g6_missing "privacy page" "$url answers HTTP $code, not 200: deploy a release that has /kebijakan-privasi (main since 2026-10-30)"
   fi

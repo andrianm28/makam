@@ -201,6 +201,7 @@ describe("an issued Tagihan is immutable", () => {
       // Chasing's own reads: every pay-after Tagihan with a known anchor, and
       // those currently Lewat Jatuh Tempo or Tidak Tertagih (ticket 29).
       "payAfterAnchored",
+      "payAfterAnchoredTerbuka",
       "pembayaranPerluDitinjau",
       // A read of the ids a Tagihan was issued under (a Harga Khusus chain), never a way to change one (ticket 93).
       "rantaiTagihan",

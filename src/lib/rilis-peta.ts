@@ -144,6 +144,7 @@ export const petaTick: Readonly<Record<string, Fitur>> = {
   // The filing-only Pengurusan IPTM (ticket 47) is Rilis 3 with the other DKI TPU work.
   "pengurusan.pembayaran_berkas": "tpu",
   "pengurusan.pengingat_iptm": "tpu",
+  "pengurusan.chasing_tpu": "tpu",
   "layanan.tandai_terlambat": "inti",
   "layanan.jadwalkan_tertunda": "inti",
   "layanan.tutup_jendela_keluhan": "inti",

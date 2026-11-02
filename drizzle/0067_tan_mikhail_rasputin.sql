@@ -1,0 +1,1 @@
+ALTER TABLE "pengurusan_tpu" ADD COLUMN "chasing_tagihan_id" text;

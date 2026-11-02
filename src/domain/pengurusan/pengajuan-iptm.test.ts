@@ -101,8 +101,8 @@ async function sampaiDiajukan(setup: PengajuanSetup, dasar: Dasar) {
 }
 
 /** The worker's Chasing hand-over for TPU orders, on the setup's own Billing and Notifications. */
-function chasingTpu(setup: PengajuanSetup, now: Date) {
-  return chasingTpuTick({ db, billing: setup.billing, notifikasi: setup.notifications }, now);
+function chasingTpu(setup: PengajuanSetup) {
+  return chasingTpuTick({ db, billing: setup.billing, notifikasi: setup.notifications });
 }
 
 const PENGINGAT = ["tagihan_pengingat_h14", "tagihan_pengingat_h3", "tagihan_pengingat_h30", "tagihan_pengingat_h7"];
@@ -135,11 +135,13 @@ describe("Chasing an overdue pay-after TPU Tagihan (ticket 46, gap 5)", () => {
     // H+3 of the anchor at 08:00 WIB is 2026-10-08 08:00; nothing goes out before it.
     setup.clock.set(wib("2026-10-08 07:59"));
     expect((await setup.notifications.kirimPesanJatuhTempo(setup.clock.now())).terkirim).toBe(0);
+    const sebelum = setup.email.sent.length;
     setup.clock.set(wib("2026-10-08 08:00"));
     expect((await setup.notifications.kirimPesanJatuhTempo(setup.clock.now())).terkirim).toBe(1);
-    const terkirim = setup.email.sent.filter((pesan) => pesan.to === "pemesan@contoh.id" && pesan.subject.includes("Tagihan"));
-    expect(terkirim.length).toBeGreaterThanOrEqual(1);
-    expect(terkirim.at(-1)!.text).toContain("Siti Aminah");
+    const baru = setup.email.sent.slice(sebelum);
+    expect(baru).toHaveLength(1);
+    expect(baru[0]).toMatchObject({ to: "pemesan@contoh.id" });
+    expect(baru[0]!.text).toContain("Siti Aminah");
   });
 
   it("running the tick again queues nothing new", async () => {
@@ -147,8 +149,8 @@ describe("Chasing an overdue pay-after TPU Tagihan (ticket 46, gap 5)", () => {
     const dasar = await pesananDikonfirmasi(setup);
     await dimakamkan(setup, dasar);
 
-    expect(await chasingTpu(setup, setup.clock.now())).toEqual({ dijadwalkan: 4, ditandai: 1 });
-    expect(await chasingTpu(setup, setup.clock.now())).toEqual({ dijadwalkan: 0, ditandai: 0 });
+    expect(await chasingTpu(setup)).toEqual({ diserahkan: 1, dijadwalkan: 4 });
+    expect(await chasingTpu(setup)).toEqual({ diserahkan: 0, dijadwalkan: 0 });
     expect(await pengingatOf(setup, dasar.tagihanId)).toEqual(PENGINGAT);
   });
 
@@ -156,7 +158,7 @@ describe("Chasing an overdue pay-after TPU Tagihan (ticket 46, gap 5)", () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananDikonfirmasi(setup);
     await dimakamkan(setup, dasar);
-    await chasingTpu(setup, setup.clock.now());
+    await chasingTpu(setup);
     const keKeluarga = () => setup.email.sent.filter((pesan) => pesan.to === "pemesan@contoh.id").length;
     const sebelum = keKeluarga();
 
@@ -175,8 +177,34 @@ describe("Chasing an overdue pay-after TPU Tagihan (ticket 46, gap 5)", () => {
     expect(lunas.ok).toBe(true);
     await dimakamkan(setup, dasar);
 
-    expect(await chasingTpu(setup, setup.clock.now())).toEqual({ dijadwalkan: 0, ditandai: 1 });
+    expect(await chasingTpu(setup)).toEqual({ diserahkan: 0, dijadwalkan: 0 });
     expect(await pengingatOf(setup, dasar.tagihanId)).toEqual([]);
+  });
+
+  it("a Harga Khusus after the burial moves the reminders to the Tagihan in force, on the same anchor", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    await dimakamkan(setup, dasar);
+    await chasingTpu(setup);
+
+    setup.clock.set(wib("2026-10-06 10:00")); // already Lewat Jatuh Tempo (from 2026-10-05 12:00)
+    const khusus = await setup.billing.tetapkanHargaKhusus(dasar.admin, { tagihanId: dasar.tagihanId, amount: 250_000, alasan: "Keringanan untuk keluarga" });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    const pengganti = khusus.tagihan;
+    // The anchor is the recorded burial's, not the reissue's: a reissue never extends the time to pay.
+    const jangkar = (await setup.billing.payAfterAnchoredTerbuka()).find((satu) => satu.id === pengganti.id);
+    expect(jangkar?.lewatJatuhTempoAt).toEqual(wib("2026-10-05 12:00"));
+
+    expect(await chasingTpu(setup)).toMatchObject({ diserahkan: 1 });
+    // H+3 is still ahead, so the replacement gets the whole schedule; the replaced one's reminders go with it.
+    expect(await pengingatOf(setup, pengganti.id)).toEqual(PENGINGAT);
+    setup.clock.set(wib("2026-10-08 08:00"));
+    const sebelum = setup.email.sent.length;
+    const hasil = await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(hasil.terkirim).toBe(1);
+    const baru = setup.email.sent.slice(sebelum);
+    expect(baru).toHaveLength(1);
+    expect(baru[0]!.text).toContain(pengganti.nomorTagihan);
   });
 });
 

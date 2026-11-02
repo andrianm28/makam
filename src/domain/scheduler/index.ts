@@ -86,7 +86,7 @@ export interface SchedulerContext {
  * which queues a pay-after TPU Tagihan's family reminders.
  */
 export interface PengurusanTickContext {
-  billing: Pick<Billing, "tagihanBerlaku" | "payAfterAnchored">;
+  billing: Pick<Billing, "tagihanBerlaku" | "payAfterAnchoredTerbuka">;
   notifikasi: Pick<Notifications, "jadwalkanChasing">;
 }
 
@@ -245,8 +245,8 @@ async function pembayaranBerkasPengurusanTick(ctx: SchedulerContext, now: Date):
 }
 
 /** The worker wrapper around the Pengurusan module's pay-after TPU Chasing hand-over (idempotent there, as every tick is). */
-async function chasingTpuPengurusanTick(ctx: SchedulerContext, now: Date): Promise<void> {
-  await chasingTpuTick({ db: ctx.db, billing: ctx.pengurusan.billing, notifikasi: ctx.pengurusan.notifikasi }, now);
+async function chasingTpuPengurusanTick(ctx: SchedulerContext): Promise<void> {
+  await chasingTpuTick({ db: ctx.db, billing: ctx.pengurusan.billing, notifikasi: ctx.pengurusan.notifikasi });
 }
 
 /** The worker wrapper around the Pemesanan module's Terencana payment-hold lapse (idempotent there, as every tick is). */

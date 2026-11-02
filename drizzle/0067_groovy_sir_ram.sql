@@ -1,1 +1,0 @@
-ALTER TABLE "pengurusan_tpu" ADD COLUMN "chasing_dijadwalkan_pada" timestamp with time zone;

@@ -1,5 +1,5 @@
 {
-  "id": "026341f2-64ad-47b2-a5bc-17000769bd80",
+  "id": "ed1a04ad-9698-4f88-a25c-2ebafec4607a",
   "prevId": "93cba600-e4f4-441c-8e1e-4c4dc3d20cf2",
   "version": "7",
   "dialect": "postgresql",
@@ -10944,9 +10944,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "chasing_dijadwalkan_pada": {
-          "name": "chasing_dijadwalkan_pada",
-          "type": "timestamp with time zone",
+        "chasing_tagihan_id": {
+          "name": "chasing_tagihan_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
