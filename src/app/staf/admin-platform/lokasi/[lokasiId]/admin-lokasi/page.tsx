@@ -45,7 +45,7 @@ export default async function LokasiMitraAdminLokasiPage({
               <ul className="flex flex-col gap-1">
                 {admins.openInvites.map((invite) => (
                   <li key={invite.id}>
-                    {invite.email} · {invite.phoneNumber} · berlaku sampai {formatWib(invite.expiresAt)}
+                    {invite.email} · {invite.phoneNumber ?? "–"} · berlaku sampai {formatWib(invite.expiresAt)}
                   </li>
                 ))}
               </ul>

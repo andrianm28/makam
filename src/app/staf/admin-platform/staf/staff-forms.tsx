@@ -22,7 +22,7 @@ const inputClass =
   "h-10 rounded-lg border border-input bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50";
 
 /**
- * Undangan Staf: the email it is addressed to, a phone number as contact, one
+ * Undangan Staf: the email it is addressed to, an optional phone number as contact, one
  * role. `roles` and `defaultRole` come from the page, which asks the domain
  * which roles it may hand out (`roleUndangan`, `roleUndanganAwal`), so the form
  * names no role of its own.
@@ -71,7 +71,7 @@ export function InviteForm({ roles, defaultRole }: { roles: RoleOption[]; defaul
         <FieldError id={describedBy("email")} message={errors.email?.message} />
       </label>
       <label className="flex flex-col gap-1 text-sm font-medium">
-        Nomor telepon
+        Nomor telepon (opsional)
         <input
           {...register("phoneNumber")}
           type="tel"

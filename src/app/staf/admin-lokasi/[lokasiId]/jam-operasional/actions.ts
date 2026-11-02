@@ -23,6 +23,7 @@ const refusalMessages: Record<Refused<SetJamOperasionalResult | PickKontakSiagaR
   jam_operasional_tidak_valid:
     "Periksa lagi Jam Operasional: jam buka harus sebelum jam tutup (JJ:MM), dan setiap tanggal tutup hanya sekali (satu tanggal per baris, mis. 2026-12-25 Natal).",
   bukan_admin_lokasi_di_sini: "Kontak Siaga harus salah satu Admin Lokasi di Lokasi ini.",
+  belum_ada_nomor: "Admin Lokasi ini belum punya nomor telepon, jadi belum bisa menjadi Kontak Siaga.",
 };
 
 /**

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { staffRoles } from "@/domain/identity";
 import { EMAIL_MAX } from "@/server/code-inputs";
-import { phoneNumberInput } from "@/server/phone-number-input";
+import { optionalPhoneNumberInput } from "@/server/phone-number-input";
 
 /**
  * The Staf shapes, shared by the Server Actions and the forms. (Moved out of
@@ -15,7 +15,8 @@ export const STAF_REASON_MAX = 500;
 export const undangStafSchema = z.object({
   // Empty is let through: the identity module refuses a missing email (email_wajib) with its own message.
   email: z.string().trim().max(EMAIL_MAX),
-  phoneNumber: phoneNumberInput,
+  // Optional for every role (ADR 0009); one that is typed is still checked by the identity module.
+  phoneNumber: optionalPhoneNumberInput,
   role: z.enum(staffRoles),
   reason: z.string().trim().max(STAF_REASON_MAX).optional(),
 });

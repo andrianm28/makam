@@ -47,7 +47,7 @@ The weekly hours and Tanggal Tutup of a Lokasi Mitra, inside which its Saat Duka
 _Avoid_: Jam kerja, jam buka (as the setting)
 
 **Kontak Siaga**:
-The Admin Lokasi a family can phone outside a Lokasi Mitra's Jam Operasional; always one of that Lokasi's Admin Lokasi.
+The Admin Lokasi a family can phone outside a Lokasi Mitra's Jam Operasional; always one of that Lokasi's Admin Lokasi, and one with a phone number (ADR 0009).
 _Avoid_: On-call, kontak darurat, penjaga (as the role)
 
 **Tanggal Tutup**:
@@ -133,7 +133,7 @@ An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas L
 _Avoid_: Admin user, akun admin
 
 **Undangan Staf**:
-Admin Platform's single-use, expiring offer of one staff role to an email (with a phone number as contact); the role is granted when the Akun whose Email Terverifikasi is that email next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again.
+Admin Platform's single-use, expiring offer of one staff role to an email (with an optional phone number as contact, ADR 0009); the role is granted when the Akun whose Email Terverifikasi is that email next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again.
 _Avoid_: Invite link, pendaftaran staf
 
 **Dinonaktifkan**:

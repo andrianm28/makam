@@ -82,7 +82,7 @@ export function JamOperasionalForm({ lokasiId, jamOperasional }: { lokasiId: str
   );
 }
 
-/** Picks the Kontak Siaga from this Lokasi's Admin Lokasi. */
+/** Picks the Kontak Siaga from this Lokasi's Admin Lokasi; one without a phone number is shown but cannot be picked (ADR 0009). */
 export function KontakSiagaForm({
   lokasiId,
   adminLokasi,
@@ -103,8 +103,8 @@ export function KontakSiagaForm({
             Pilih Admin Lokasi
           </option>
           {adminLokasi.map((account) => (
-            <option key={account.accountId} value={account.accountId}>
-              {account.phoneNumber ?? "Belum ada nomor telepon"}
+            <option key={account.accountId} value={account.accountId} disabled={account.phoneNumber === null}>
+              {account.phoneNumber ?? "Belum ada nomor, tidak bisa dipilih"}
               {account.email ? ` (${account.email})` : ""}
             </option>
           ))}

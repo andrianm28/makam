@@ -11,3 +11,6 @@ import { z } from "zod";
 export const PHONE_NUMBER_MAX = 32;
 
 export const phoneNumberInput = z.string().trim().min(1).max(PHONE_NUMBER_MAX);
+
+/** The same field where it may be left empty (Undangan Staf, ADR 0009): empty means no number. */
+export const optionalPhoneNumberInput = z.string().trim().max(PHONE_NUMBER_MAX);

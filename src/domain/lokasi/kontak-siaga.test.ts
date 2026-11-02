@@ -1,5 +1,6 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
+import { logIn } from "../../../tests/support/identity";
 import { lokasiOnTestDatabase, newLokasiMitra, signedInAdminLokasi, signedInAdminPlatform } from "../../../tests/support/lokasi";
 
 const { db, close } = testDatabase();
@@ -54,6 +55,25 @@ describe("the Kontak Siaga of a Lokasi Mitra", () => {
         reason: "bukan_admin_lokasi_di_sini",
       });
     }
+    expect(await setup.lokasi.kontakSiaga(first, lokasiMitra.id)).toMatchObject({ kontakSiaga: { accountId: first.accountId } });
+  });
+
+  it("Admin Lokasi tanpa nomor tidak bisa menjadi Kontak Siaga: the pick is refused and the Kontak Siaga stays as it was", async () => {
+    const { setup, admin, first, lokasiMitra } = await lokasiWithTwoAdminLokasi();
+    await setup.lokasi.pickKontakSiaga(first, lokasiMitra.id, { accountId: first.accountId });
+    const invited = await setup.lokasi.inviteAdminLokasi(admin, lokasiMitra.id, { email: "tanpa-nomor@contoh.id" });
+    expect(invited).toMatchObject({ ok: true, invite: { phoneNumber: null } });
+    const { cookies } = await logIn(setup, "tanpa-nomor@contoh.id");
+    const tanpaNomor = await setup.identity.actorFromCookies(cookies);
+    if (!tanpaNomor) throw new Error("not signed in");
+
+    expect(await setup.identity.adminLokasiOf(lokasiMitra.id)).toContainEqual(
+      expect.objectContaining({ accountId: tanpaNomor.accountId, phoneNumber: null }),
+    );
+    expect(await setup.lokasi.pickKontakSiaga(first, lokasiMitra.id, { accountId: tanpaNomor.accountId })).toEqual({
+      ok: false,
+      reason: "belum_ada_nomor",
+    });
     expect(await setup.lokasi.kontakSiaga(first, lokasiMitra.id)).toMatchObject({ kontakSiaga: { accountId: first.accountId } });
   });
 

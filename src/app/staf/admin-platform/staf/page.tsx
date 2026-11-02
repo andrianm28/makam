@@ -36,7 +36,7 @@ export default async function StafAdminPage() {
             <ul className="flex flex-col gap-1 text-sm">
               {invites.map((invite) => (
                 <li key={invite.id}>
-                  {invite.email} · {invite.phoneNumber} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
+                  {invite.email} · {invite.phoneNumber ?? "–"} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
                   {formatWib(invite.expiresAt)}
                 </li>
               ))}

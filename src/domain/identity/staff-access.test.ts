@@ -157,7 +157,7 @@ describe("Undangan Staf", () => {
   });
 
   it.each(["admin_platform", "admin_lokasi", "petugas_lapangan", "mitra_jasa"] as const)(
-    "an Undangan Staf for %s needs an email and a +62 phone number",
+    "an Undangan Staf for %s needs an email; nomor yang diisi tapi tidak valid tetap ditolak",
     async (role) => {
       const setup = identityOnTestDatabase(db);
       const { actor } = await signedInAdminPlatform(setup);
@@ -171,12 +171,51 @@ describe("Undangan Staf", () => {
         ok: false,
         reason: "email_tidak_valid",
       });
-      expect(await setup.identity.inviteStaff(actor, { email: INVITEE, phoneNumber: "", role })).toEqual({
+      expect(await setup.identity.inviteStaff(actor, { email: INVITEE, phoneNumber: "0812", role, lokasiId: LOKASI })).toEqual({
         ok: false,
         reason: "nomor_tidak_valid",
       });
+      expect(await setup.identity.inviteStaff(actor, { email: INVITEE, phoneNumber: "+14155550123", role, lokasiId: LOKASI })).toEqual({
+        ok: false,
+        reason: "nomor_bukan_indonesia",
+      });
       expect(setup.email.sent).toHaveLength(sends);
       expect(await setup.identity.openStaffInvites()).toEqual([]);
+    },
+  );
+
+  it("Admin Platform diundang tanpa nomor telepon: the invite is sent, and the Akun holds the role with no phone number", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { identity } = setup;
+    const { actor } = await signedInAdminPlatform(setup);
+
+    const invited = await identity.inviteStaff(actor, { email: "kedua@contoh.id", role: "admin_platform" });
+
+    expect(invited).toMatchObject({ ok: true, delivered: true, invite: { email: "kedua@contoh.id", phoneNumber: null, role: "admin_platform" } });
+    expect(await identity.openStaffInvites()).toEqual([expect.objectContaining({ email: "kedua@contoh.id", phoneNumber: null })]);
+    const { login, cookies } = await logIn(setup, "kedua@contoh.id");
+    expect(login).toMatchObject({ roles: ["pemesan", "admin_platform"] });
+    expect(await identity.actorFromCookies(cookies)).toMatchObject({ phoneNumber: null, roles: ["pemesan", "admin_platform"] });
+    expect(await identity.staffAccounts()).toContainEqual(
+      expect.objectContaining({ email: "kedua@contoh.id", phoneNumber: null, roles: ["admin_platform"] }),
+    );
+  });
+
+  it.each(["admin_lokasi", "petugas_lapangan", "mitra_jasa"] as const)(
+    "an Undangan Staf for %s may leave the phone number empty; an Akun's own number is kept",
+    async (role) => {
+      const setup = identityOnTestDatabase(db);
+      const { identity } = setup;
+      const { actor } = await signedInAdminPlatform(setup);
+      await logIn(setup, INVITEE, { phoneNumber: "081999999999" });
+
+      expect(await identity.inviteStaff(actor, { email: INVITEE, phoneNumber: "  ", role, lokasiId: LOKASI })).toMatchObject({
+        ok: true,
+        invite: { phoneNumber: null, role },
+      });
+      setup.clock.advance({ minutes: 1 });
+      const again = await logIn(setup, INVITEE);
+      expect(again.login).toMatchObject({ account: { phoneNumber: "+6281999999999" }, roles: ["pemesan", role] });
     },
   );
 

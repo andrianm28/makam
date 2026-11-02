@@ -67,7 +67,8 @@ export async function publishLokasiMitra(
       kunjunganVerifikasiSelesai: row.dikunjungiOn !== null,
       tariffsChecked: input.tariffsChecked,
       jamOperasionalDiisi: row.jamOperasional !== null,
-      kontakSiagaDipilih: kontakSiaga !== null,
+      // A Kontak Siaga a family can actually phone (ADR 0009).
+      kontakSiagaDipilih: kontakSiaga !== null && kontakSiaga.phoneNumber !== null,
     });
     if (!gate.ready) return { ok: false, reason: "gerbang_belum_terpenuhi", gate } as const;
 

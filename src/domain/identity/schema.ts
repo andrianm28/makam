@@ -105,8 +105,8 @@ export const identityAdminLokasi = pgTable(
 );
 
 /**
- * One Undangan Staf: a staff role offered to an email (with a phone number as
- * contact) by an Admin Platform. Single-use: the next Kode Masuk login of the
+ * One Undangan Staf: a staff role offered to an email (with an optional phone
+ * number as contact) by an Admin Platform. Single-use: the next Kode Masuk login of the
  * Akun whose Email Terverifikasi is that email, before `expiresAt`, accepts it
  * and grants the role.
  */
@@ -114,8 +114,8 @@ export const identityStaffInvite = pgTable(
   "identity_staff_invite",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    /** The invitee's phone number: a contact only. */
-    phoneNumber: text("phone_number").notNull(),
+    /** The invitee's phone number: a contact only; null when none was given (ADR 0009). */
+    phoneNumber: text("phone_number"),
     /** Who may accept it (lower-cased): the Akun whose Email Terverifikasi this is. */
     email: text("email").notNull(),
     role: text("role", { enum: staffRoles }).notNull(),

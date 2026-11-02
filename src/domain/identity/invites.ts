@@ -18,8 +18,8 @@ export interface StaffInvite {
   id: string;
   /** Who may accept it: the Akun whose Email Terverifikasi this is. */
   email: string;
-  /** The invitee's phone number, a contact only. */
-  phoneNumber: string;
+  /** The invitee's phone number, a contact only; null when none was given (ADR 0009). */
+  phoneNumber: string | null;
   role: StaffRole;
   /** The Lokasi Mitra of an Admin Lokasi invite; null for the other roles. */
   lokasiId: string | null;
@@ -57,8 +57,12 @@ export type InviteStaffResult =
 export interface InviteStaffInput {
   /** Who may accept it (required). */
   email: string;
-  /** The invitee's phone number, as a contact (required, +62). */
-  phoneNumber: string;
+  /**
+   * The invitee's phone number, as a contact (+62). Optional for every role
+   * (ADR 0009): absent or blank sends the invite without one; a number that
+   * is given is still normalised and refused when invalid.
+   */
+  phoneNumber?: string | null;
   role: StaffRole;
   /**
    * Required for an Admin Lokasi invite: the Lokasi Mitra it is for (the Lokasi
@@ -69,8 +73,8 @@ export interface InviteStaffInput {
 }
 
 /**
- * Admin Platform sends an Undangan Staf: a role for an email, with a phone
- * number as contact. The invite is recorded with its Entri Audit in one
+ * Admin Platform sends an Undangan Staf: a role for an email, with an optional
+ * phone number as contact. The invite is recorded with its Entri Audit in one
  * transaction, then sent to the email through EmailSender. The role is granted
  * when the Akun whose Email Terverifikasi is that email next logs in with a
  * Kode Masuk (which creates the Akun if needed).
@@ -82,9 +86,13 @@ export async function inviteStaff(deps: InviteDeps, by: Actor, input: InviteStaf
   if (input.email.trim() === "") return { ok: false, reason: "email_wajib" };
   const email = normaliseEmail(input.email);
   if (!email) return { ok: false, reason: "email_tidak_valid" };
-  const normalised = normalisePhoneNumber(input.phoneNumber);
-  if (!normalised.ok) return normalised;
-  const { phoneNumber } = normalised;
+  const typedPhoneNumber = input.phoneNumber?.trim() ?? "";
+  let phoneNumber: string | null = null;
+  if (typedPhoneNumber !== "") {
+    const normalised = normalisePhoneNumber(typedPhoneNumber);
+    if (!normalised.ok) return normalised;
+    phoneNumber = normalised.phoneNumber;
+  }
   const lokasiId = input.role === "admin_lokasi" ? input.lokasiId?.trim() || null : null;
   if (input.role === "admin_lokasi" && !lokasiId) return { ok: false, reason: "lokasi_wajib" };
 
@@ -180,7 +188,7 @@ export async function acceptOpenInvites(
 
     const heldBefore = (await rolesOf(tx, account.id)).filter((role): role is StaffRole => role !== "pemesan");
     let roles = heldBefore;
-    // An Akun with no phone number yet takes the invite's as its contact; one it gave itself is kept.
+    // An Akun with no phone number yet takes the invite's as its contact (when the invite has one); one it gave itself is kept.
     const [user] = await tx.select({ phoneNumber: identityUser.phoneNumber }).from(identityUser).where(eq(identityUser.id, account.id));
     let phoneNumber = user?.phoneNumber ?? null;
 
@@ -200,7 +208,7 @@ export async function acceptOpenInvites(
           .onConflictDoNothing();
       }
       const granted = staffRoles.filter((role) => role === invite.role || roles.includes(role));
-      const fillsPhoneNumber = phoneNumber === null;
+      const fillsPhoneNumber = phoneNumber === null && invite.phoneNumber !== null;
       await record({
         // The invitee's own login accepts the invite; the Admin Platform who sent it is on the staf.undang entry.
         actor: { accountId: account.id, role: "pemesan" },

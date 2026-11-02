@@ -21,7 +21,7 @@ import {
 import { hentikanLokasiMitra } from "@/composition/berhenti";
 import type { Fitur } from "@/lib/rilis";
 import { guarded } from "@/server/guard";
-import { phoneNumberInput } from "@/server/phone-number-input";
+import { optionalPhoneNumberInput } from "@/server/phone-number-input";
 import { phoneNumberRefusals } from "@/server/phone-number-messages";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
@@ -316,7 +316,8 @@ const inviteSchema = z.object({
   lokasiId,
   // Empty is let through: the identity module refuses a missing email (email_wajib) with its own message.
   email: z.string().trim().max(254),
-  phoneNumber: phoneNumberInput,
+  // Optional (ADR 0009); one that is typed is still checked by the identity module.
+  phoneNumber: optionalPhoneNumberInput,
   reason: z.string().trim().max(500),
 });
 

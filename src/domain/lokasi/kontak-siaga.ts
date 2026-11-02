@@ -51,11 +51,16 @@ export async function readKontakSiaga(deps: KontakSiagaDeps, by: Actor, lokasiId
   return { ok: true, kontakSiaga: await kontakSiagaOf(deps, lokasiId) };
 }
 
-export type PickKontakSiagaResult = WriteResult | { ok: false; reason: "bukan_admin_lokasi_di_sini" };
+export type PickKontakSiagaResult =
+  | WriteResult
+  | { ok: false; reason: "bukan_admin_lokasi_di_sini" }
+  /** The Admin Lokasi has no phone number: a family could not reach it (ADR 0009). */
+  | { ok: false; reason: "belum_ada_nomor" };
 
 /**
  * An Admin Lokasi (or Admin Platform) picks the Kontak Siaga: it must be one
- * of this Lokasi's Admin Lokasi; anyone else is refused. Audited on the Lokasi
+ * of this Lokasi's Admin Lokasi, and one with a phone number (ADR 0009);
+ * anyone else is refused. Audited on the Lokasi
  * with the Kontak Siaga before and after.
  */
 export async function pickKontakSiaga(
@@ -72,6 +77,7 @@ export async function pickKontakSiaga(
     async (row) => {
       const picked = (await deps.identity.adminLokasiOf(lokasiId)).find((account) => account.accountId === input.accountId);
       if (!picked) return { ok: false, reason: "bukan_admin_lokasi_di_sini" } as const;
+      if (picked.phoneNumber === null) return { ok: false, reason: "belum_ada_nomor" } as const;
       return {
         values: { kontakSiagaAccountId: picked.accountId, kontakSiagaPickedAt: deps.clock.now() },
         before: { kontakSiaga: await kontakSiagaOfRow(deps.identity, lokasiId, row) },

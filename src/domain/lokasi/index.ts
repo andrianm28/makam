@@ -307,7 +307,7 @@ export interface Lokasi {
   inviteAdminLokasi(
     by: Actor,
     lokasiId: string,
-    input: { email: string; phoneNumber: string; reason?: string | null },
+    input: { email: string; phoneNumber?: string | null; reason?: string | null },
   ): Promise<InviteAdminLokasiResult>;
   /** The Admin Lokasi of this Lokasi Mitra and the open invites to it. */
   adminLokasiOf(by: Actor, lokasiId: string): Promise<AdminLokasiOfResult>;

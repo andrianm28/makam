@@ -1,0 +1,1 @@
+ALTER TABLE "identity_staff_invite" ALTER COLUMN "phone_number" DROP NOT NULL;
