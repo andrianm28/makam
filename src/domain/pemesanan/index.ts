@@ -467,13 +467,13 @@ export interface Pemesanan {
   pilihanTerencana(query?: TerencanaQuery): Promise<KartuTerencana[]>;
   /** Every city with at least one of them, for that step's city filter. */
   kotaTerencana(): Promise<string[]>;
+  /** Pilih Tipe Kavling: every tipe a Terencana Lokasi Mitra sells, each with what is left and the unit an order would take. */
+  tipeKavlingTerencana(lokasiId: string): Promise<TipeKavlingTerencana | null>;
   /**
    * The Terencana wizard's step 2, "Petak": the Denah of one of them, with the chosen
    * plots (if any) priced at this instant by `quote()`, the "Nanti" line and the Syarat
    * to be shown before Kirim.
    */
-  /** Pilih Tipe Kavling: every tipe a Terencana Lokasi Mitra sells, each with what is left and the unit an order would take. */
-  tipeKavlingTerencana(lokasiId: string): Promise<TipeKavlingTerencana | null>;
   denahTerencana(lokasiId: string, pilihan?: PilihanTerencana): Promise<DenahTerencana | null>;
   /**
    * Whether a chosen selection can still be ordered, read now: the several-Petak or

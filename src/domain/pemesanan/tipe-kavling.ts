@@ -65,7 +65,8 @@ function unitBisaDipilih(denah: PublicDenah, jenisMakamId: string): PilihanTeren
       .sort((a, b) => a.row - b.row || a.col - b.col)
       .filter((cell) => cell.kind === "petak" && cell.nomorMakam && !cell.kavlingId && cell.jenisMakamId === jenisMakamId && cell.status === "bisa_dipilih")
       .map((cell): PilihanTerencana => ({ petak: [cell.nomorMakam!], kavling: null })),
-    ...blok.kavling
+    ...[...blok.kavling]
+      .sort((a, b) => a.nomorKavling.localeCompare(b.nomorKavling, "id", { numeric: true }))
       .filter((kavling) => kavling.jenisMakamId === jenisMakamId && kavling.status === "bisa_dipilih")
       .map((kavling): PilihanTerencana => ({ petak: [], kavling: kavling.nomorKavling })),
   ]);

@@ -139,7 +139,7 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
       <div>
         <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih lokasi</h1>
         <p className="mt-1 max-w-2xl text-body-lg text-muted-foreground">
-          Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih sendiri petaknya di denah.
+          Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih tipe kavlingnya.
         </p>
       </div>
       <div className="flex flex-col gap-3">
@@ -248,7 +248,6 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
   );
 }
 
-/** Step 2: the Denah, priced at this instant. */
 /**
  * Step 2: Pilih Tipe Kavling (owner, 2026-11-02). The Denah is not shown: the family picks a tipe kavling with its
  * size, capacity, Masa Hak Pakai and all-in price, and the order takes the next pickable unit of that tipe.

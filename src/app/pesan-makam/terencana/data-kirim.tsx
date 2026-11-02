@@ -228,7 +228,7 @@ export function DataKirim({
 
       {satuPetak && layananOpsi.length > 0 ? (
         <fieldset className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
-          <legend className="text-title-3 text-foreground">Layanan untuk petak ini (boleh dikosongkan)</legend>
+          <legend className="text-title-3 text-foreground">Layanan untuk kavling ini (boleh dikosongkan)</legend>
           <p className="text-small text-muted-foreground">
             Dikerjakan Mitra Jasa kami pada tanggal yang Anda pilih, ditagihkan pada Tagihan yang sama dengan Hak Pakai. Harga dipastikan saat Lokasi Mitra mengonfirmasi.
           </p>

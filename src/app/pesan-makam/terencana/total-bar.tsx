@@ -25,7 +25,7 @@ export function TotalBarTerencana({
   denah: DenahView;
   /** "2 Petak · Blok A: A-09, A-10", or "Belum ada petak dipilih". */
   ringkasanText: string;
-  /** Whether anything is chosen yet: false shows "Pilih petak di denah" instead of a total. */
+  /** Whether anything is chosen yet: false shows "Pilih tipe kavling" instead of a total. */
   ada: boolean;
   /** What the read said about a total past the payment cap; shown above the bar's own row. */
   pesanBatas?: string | null;
@@ -56,7 +56,7 @@ export function TotalBarTerencana({
               ))}
               {layananTambahan > 0 ? (
                 <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Layanan untuk petak ini</dt>
+                  <dt className="text-muted-foreground">Layanan untuk kavling ini</dt>
                   <dd className="whitespace-nowrap">{formatRupiah(layananTambahan)}</dd>
                 </div>
               ) : null}
@@ -84,7 +84,7 @@ export function TotalBarTerencana({
             <span className="min-w-0">
               <span className="line-clamp-2 block text-caption text-muted-foreground">{ringkasanText}</span>
               <span className="block text-title-2 tabular-nums text-foreground">
-                {ada ? formatRupiah(totalSemua) : "Pilih petak di denah"}
+                {ada ? formatRupiah(totalSemua) : "Pilih tipe kavling"}
               </span>
               {ada ? (
                 <span className="hidden text-caption text-muted-foreground sm:block">

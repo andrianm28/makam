@@ -48,6 +48,32 @@ describe("Pilih Tipe Kavling", () => {
     expect(tipe?.berikut?.petak).not.toEqual(["A-01"]);
   });
 
+  it("says a tipe is sold out, with no unit to take, once every unit of it is ordered", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin);
+    let tipe = (await setup.pemesanan.tipeKavlingTerencana(fixture.lokasiMitra.id))?.tipe[0];
+    for (let index = 0; tipe?.berikut && index < 10; index++) {
+      const { pemesan } = await pemesanDenganEmail(setup, `keluarga${index}@contoh.id`);
+      const nomor = tipe.berikut.kavling ?? tipe.berikut.petak[0]!;
+      const ids = await unitIds(setup, fixture, [nomor]);
+      const dipesan = await setup.pemesanan.placeTerencana({
+        pemesanName: "Rina Wulandari",
+        phoneNumber: "081234567890",
+        pemegangHak: { mode: "pemesan" },
+        calonPenghuni: { mode: "saya" },
+        pemesan,
+        lokasiId: fixture.lokasiMitra.id,
+        units: [tipe.berikut.kavling ? { kavlingId: ids[nomor]! } : { petakId: ids[nomor]! }],
+      });
+      expect(dipesan.ok).toBe(true);
+      setup.clock.advance({ minutes: 2 });
+      tipe = (await setup.pemesanan.tipeKavlingTerencana(fixture.lokasiMitra.id))?.tipe[0];
+    }
+
+    expect(tipe).toMatchObject({ tersedia: 0, berikut: null });
+  });
+
   it("is null for a Lokasi Mitra that takes no Terencana order", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
