@@ -91,6 +91,24 @@ export async function jadwalkanChasing(
   return { dijadwalkan };
 }
 
+/**
+ * A pay-after Tagihan replaced after the burial (a Harga Khusus reissue) keeps its overdue anchor, so its Chasing
+ * reminders move with it: the replaced one's are dropped as Dibatalkan when they come due, and the ones still ahead
+ * are queued for the replacement, to the address `tagihanTerbitPengganti` just recorded for it (spec, Billing >
+ * Chasing: they stop only at Lunas or Tidak Tertagih). Nothing for a Tagihan replaced before the burial.
+ */
+export async function jadwalkanChasingPengganti(
+  deps: { db: Database; clock: Clock },
+  input: Omit<JadwalkanChasingInput, "email" | "lewatJatuhTempoAt"> & { lewatJatuhTempoAt: Date | null | undefined },
+): Promise<{ dijadwalkan: number }> {
+  if (!input.lewatJatuhTempoAt) return { dijadwalkan: 0 };
+  const [kontak] = await deps.db
+    .select({ email: notificationsTagihanKontak.email })
+    .from(notificationsTagihanKontak)
+    .where(eq(notificationsTagihanKontak.tagihanId, input.tagihanId));
+  return jadwalkanChasing(deps, { ...input, email: kontak?.email ?? null, lewatJatuhTempoAt: input.lewatJatuhTempoAt });
+}
+
 type KindPeringatanLokasi = "staf_tagihan_lewat_jatuh_tempo" | "staf_tagihan_tidak_tertagih";
 const KIND_PERINGATAN_LOKASI: readonly KindPeringatanLokasi[] = ["staf_tagihan_lewat_jatuh_tempo", "staf_tagihan_tidak_tertagih"];
 

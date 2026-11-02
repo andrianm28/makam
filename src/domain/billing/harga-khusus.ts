@@ -83,6 +83,11 @@ export interface HargaKhususDeps extends EffectDeps {
       total: number;
       dueAt: Date;
       link: string;
+      /**
+       * The overdue anchor the replaced pay-after Tagihan carried (its recorded burial plus the window), which the
+       * replacement keeps: Chasing's family reminders move to the new Tagihan on it. Null before the burial.
+       */
+      lewatJatuhTempoAt: Date | null;
     },
   ) => Promise<{ ok: boolean }>;
 }
@@ -177,6 +182,7 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
         // Announced as soon as it exists, before a Rp 0 settlement's Bukti Pembayaran effect looks for the family's address.
         sebelumBukti: async (txBaru, baru) => {
           if (!deps.umumkanTagihanPengganti) return;
+          const [jangkar] = await txBaru.select({ at: tagihanTable.lewatJatuhTempoAt }).from(tagihanTable).where(eq(tagihanTable.id, old.id));
           const diumumkan = await deps.umumkanTagihanPengganti(txBaru, {
             tagihanLamaId: old.id,
             tagihanId: baru.id,
@@ -189,6 +195,7 @@ export async function tetapkanHargaKhusus(deps: HargaKhususDeps, by: Actor, inpu
             total: baru.total,
             dueAt: baru.dueAt,
             link: baru.link,
+            lewatJatuhTempoAt: jangkar?.at ?? null,
           });
           // The Harga Khusus is never blocked by its own announcement.
           if (!diumumkan.ok) deps.reportError?.(new Error("tetapkanHargaKhusus: announcement refused"), { tags: { module: "billing", template: "tagihan_terbit" } });

@@ -328,7 +328,10 @@ export async function reissueTagihan(
     // A pay-after Tagihan reissued after the burial keeps its overdue anchor: "a reissue never extends the time to pay",
     // and the family is still chased from the recorded burial (the next lewat-jatuh-tempo tick marks the new one).
     if (old.lewatJatuhTempoAt) {
-      await tx.update(tagihan).set({ lewatJatuhTempoAt: old.lewatJatuhTempoAt }).where(eq(tagihan.id, reissued.tagihan.id));
+      await tx
+        .update(tagihan)
+        .set({ lewatJatuhTempoAt: old.lewatJatuhTempoAt, ...(old.status === "lewat_jatuh_tempo" ? { status: "lewat_jatuh_tempo" as const } : {}) })
+        .where(and(eq(tagihan.id, reissued.tagihan.id), eq(tagihan.status, "belum_dibayar")));
     }
     await tx
       .update(tagihan)
@@ -336,7 +339,9 @@ export async function reissueTagihan(
       .where(eq(tagihan.id, old.id));
     const cancelled = await readTagihan(tx, old.id);
     if (!cancelled) throw new Error("cancelled Tagihan not found");
-    return { ok: true, tagihan: reissued.tagihan, cancelled };
+    // Read again: the carried overdue state above is part of what the caller is handed.
+    const pengganti = (await readTagihan(tx, reissued.tagihan.id)) ?? reissued.tagihan;
+    return { ok: true, tagihan: pengganti, cancelled };
   });
 }
 

@@ -182,6 +182,34 @@ describe("a Harga Khusus reissue announces its new Tagihan", () => {
     expect(setup.email.sent.filter((message) => message.to === fixture.pemesan.email && message.subject.includes("Bukti Pembayaran"))).toHaveLength(1);
   });
 
+  it("a Harga Khusus after the recorded burial moves Chasing's family reminders to the new Tagihan, on the same anchor", async () => {
+    const setup = pemesananOnTestDatabase(db, { notifications: true });
+    const { fixture, admin, tagihan } = await dikonfirmasi(setup);
+    const order = await setup.pemesanan.orderOf((await setup.billing.tagihan(tagihan.id))!.nomorPemesanan!, fixture.pemesan);
+    setup.clock.set(wib("2026-10-02 12:00"));
+    const dicatat = await setup.pemesanan.catatPemakaman(fixture.adminLokasi, { nomor: order!.nomor, tanggal: "2026-10-02" });
+    if (!dicatat.ok) throw new Error(`catatPemakaman refused: ${dicatat.reason}`);
+    const anchor = (await setup.billing.payAfterAnchored()).find((satu) => satu.id === tagihan.id)!.lewatJatuhTempoAt;
+
+    setup.clock.set(wib("2026-10-03 10:00"));
+    const khusus = await setup.billing.tetapkanHargaKhusus(admin, { tagihanId: tagihan.id, amount: 100_000, alasan: "Keringanan" });
+    if (!khusus.ok) throw new Error(`Harga Khusus refused: ${khusus.reason}`);
+    // The replacement keeps the anchor: a reissue never extends the time to pay.
+    expect((await setup.billing.payAfterAnchored()).find((satu) => satu.id === khusus.tagihan.id)?.lewatJatuhTempoAt).toEqual(anchor);
+    const pengingat = (await setup.notifications.pesanTagihan(khusus.tagihan.id)).map((pesan) => pesan.template).filter((t) => t.startsWith("tagihan_pengingat_h"));
+    expect(pengingat.sort()).toEqual(["tagihan_pengingat_h14", "tagihan_pengingat_h3", "tagihan_pengingat_h30", "tagihan_pengingat_h7"]);
+
+    // H+3 at 08:00 WIB: one reminder, for the Tagihan in force; the replaced one's is dropped.
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    const sebelum = setup.email.sent.length;
+    // The anchor's WIB date plus three days (UTC+7), at 08:00.
+    setup.clock.set(wib(`${new Date(anchor.getTime() + 3 * 24 * 3600_000 + 7 * 3600_000).toISOString().slice(0, 10)} 08:00`));
+    await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    const baru = setup.email.sent.slice(sebelum).filter((message) => message.to === fixture.pemesan.email);
+    expect(baru).toHaveLength(1);
+    expect(baru[0]!.text).toContain(khusus.tagihan.nomorTagihan);
+  });
+
   it("a Harga Khusus down to Rp 0 sends the Pemesan the Bukti Pembayaran by email, with no Telepon Pemesan row", async () => {
     const setup = pemesananOnTestDatabase(db, { notifications: true });
     const { fixture, admin, tagihan } = await dikonfirmasi(setup);

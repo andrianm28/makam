@@ -68,7 +68,7 @@ import {
   type KirimPeringatanStafOpsi,
   type PeringatanStafQueueResult,
 } from "./peringatan-staf";
-import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, type JadwalkanChasingInput } from "./chasing";
+import { antrekanPeringatanLokasi, chasingEskalasiTick, jadwalkanChasing, jadwalkanChasingPengganti, type JadwalkanChasingInput } from "./chasing";
 import {
   catatanTagihan,
   tambahCatatanTagihan,
@@ -428,10 +428,12 @@ export interface Notifications {
    * Announces the Tagihan that replaces another (Harga Khusus): the address is
    * the one recorded for `tagihanLamaId`, and the family gets the standalone
    * "Tagihan terbit" email, since a reissue sends no confirmation of its own.
-   * Same transaction rule as `tagihanTerbit`.
+   * Same transaction rule as `tagihanTerbit`. A pay-after Tagihan replaced after
+   * the burial (`lewatJatuhTempoAt` set) also gets the Chasing reminders still
+   * ahead of its anchor (ticket 46 gap 5 review).
    */
   tagihanTerbitPengganti(
-    input: Omit<TagihanTerbitInput, "email"> & { tagihanLamaId: string },
+    input: Omit<TagihanTerbitInput, "email"> & { tagihanLamaId: string; lewatJatuhTempoAt?: Date | null },
     within?: Database,
   ): Promise<TagihanTerbitResult>;
   /**
@@ -886,7 +888,21 @@ export function createNotifications(deps: NotificationsDeps): Notifications {
     },
 
     async tagihanTerbitPengganti(input, within) {
-      return tagihanTerbitPengganti(within ? { ...deps, db: within } : deps, input);
+      const d = within ? { ...deps, db: within } : deps;
+      const { lewatJatuhTempoAt, ...pengganti } = input;
+      const terbit = await tagihanTerbitPengganti(d, pengganti);
+      if (terbit.ok) {
+        await jadwalkanChasingPengganti(d, {
+          tagihanId: input.tagihanId,
+          nomorTagihan: input.nomorTagihan,
+          nomorPemesanan: input.nomorPemesanan,
+          perihal: input.perihal,
+          total: input.total,
+          link: input.link,
+          lewatJatuhTempoAt,
+        });
+      }
+      return terbit;
     },
 
     async pengembalianTerbit(input) {
