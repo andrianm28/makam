@@ -13,6 +13,7 @@ import {
   tidakTersediaSchema,
 } from "@/domain/layanan";
 import { guarded } from "@/server/guard";
+import { optionalPhoneNumberInput } from "@/server/phone-number-input";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
@@ -102,7 +103,8 @@ export async function buatMitraJasa(_previous: FormState, formData: FormData): P
     fitur: "mitra_jasa",
     action: "mitra_jasa.buat",
     resource: () => semuaMitraJasaResource(),
-    schema: z.object({ email: z.string().trim().min(1), nomorTelepon: z.string().trim().min(1), profil: profilMitraJasaSchema }),
+    // The phone number is optional (ADR 0009); one that is typed is still checked by the identity module.
+    schema: z.object({ email: z.string().trim().min(1), nomorTelepon: optionalPhoneNumberInput, profil: profilMitraJasaSchema }),
     input: {
       email,
       nomorTelepon,

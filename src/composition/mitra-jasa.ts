@@ -20,7 +20,7 @@ import type { BuatMitraJasaResult, Layanan } from "@/domain/layanan";
 export async function mulaiOnboardingMitraJasa(
   deps: { layanan: Pick<Layanan, "buatMitraJasa" | "semuaMitraJasa">; identity: Pick<Identity, "inviteStaff" | "openStaffInvites" | "staffAccounts"> },
   by: Actor,
-  input: { email: string; nomorTelepon: string; profil: { nik: string } & Record<string, unknown> },
+  input: { email: string; nomorTelepon?: string; profil: { nik: string } & Record<string, unknown> },
 ): Promise<BuatMitraJasaResult | Exclude<InviteStaffResult, { ok: true }>> {
   const dibuat = await deps.layanan.buatMitraJasa(by, input.email, input.profil);
   let hasil: BuatMitraJasaResult = dibuat;

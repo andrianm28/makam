@@ -45,7 +45,7 @@ export default async function LokasiMitraJamOperasionalPage({
         <CardContent className="flex flex-col gap-3">
           {siaga.kontakSiaga ? (
             <p className="text-body">
-              Kontak Siaga sekarang: <span className="font-medium">{siaga.kontakSiaga.phoneNumber}</span>
+              Kontak Siaga sekarang: <span className="font-medium">{siaga.kontakSiaga.phoneNumber ?? "belum ada nomor telepon"}</span>
             </p>
           ) : (
             <p role="alert" className="text-body text-destructive">

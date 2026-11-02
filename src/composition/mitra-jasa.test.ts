@@ -20,6 +20,16 @@ describe("onboarding a Mitra Jasa in one call", () => {
     expect((await setup.identity.openStaffInvites()).map((undangan) => [undangan.email, undangan.role])).toEqual([["baru@contoh.id", "mitra_jasa"]]);
   });
 
+  it("Mitra Jasa diundang tanpa nomor telepon: the record is created and the Undangan Staf has no number (ADR 0009)", async () => {
+    const setup = layananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+
+    const hasil = await mulaiOnboardingMitraJasa(setup, admin, { email: "baru@contoh.id", nomorTelepon: "", profil: newMitraJasaInput() });
+
+    expect(hasil).toMatchObject({ ok: true });
+    expect(await setup.identity.openStaffInvites()).toEqual([expect.objectContaining({ email: "baru@contoh.id", role: "mitra_jasa", phoneNumber: null })]);
+  });
+
   it("a retry after the invite was never sent sends it, instead of refusing sudah_ada", async () => {
     const setup = layananOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

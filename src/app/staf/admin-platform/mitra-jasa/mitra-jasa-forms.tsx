@@ -85,7 +85,7 @@ export function BuatMitraJasaForm() {
         <Input type="email" name="email" />
       </label>
       <label className={label}>
-        Nomor telepon (kontak)
+        Nomor telepon (opsional)
         <Input type="tel" name="nomorTelepon" inputMode="tel" placeholder="08xxxxxxxxxx" />
       </label>
       <label className={label}>

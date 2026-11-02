@@ -93,12 +93,14 @@ export function KontakSiagaForm({
   kontakSiaga: KontakSiaga | null;
 }) {
   const [state, action, pending] = useActionState(pilihKontakSiaga, idle);
+  // A saved Kontak Siaga that has no number (cannot be picked now) is not preselected: its option is disabled.
+  const saved = adminLokasi.find((account) => account.accountId === kontakSiaga?.accountId && account.phoneNumber !== null);
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="lokasiId" value={lokasiId} />
       <label className="flex flex-col gap-1 text-sm font-medium">
         Kontak Siaga
-        <select name="accountId" required defaultValue={kontakSiaga?.accountId ?? ""} className={inputClass}>
+        <select name="accountId" required defaultValue={saved?.accountId ?? ""} className={inputClass}>
           <option value="" disabled>
             Pilih Admin Lokasi
           </option>
