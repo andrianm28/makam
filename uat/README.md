@@ -28,6 +28,7 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 | `UAT_EMAIL_PEMESAN`, `_ADMIN_LOKASI`, `_ADMIN_PLATFORM`, `_PETUGAS_LAPANGAN`, `_MITRA_JASA` | the personas: the owner's Gmail plus-aliases |
 | `UAT_OUT` | this run's folder; default `/home/ubuntu/uat-runs/<WIB date>-<sha>` (`UAT_RUNS_DIR` changes the parent, `UAT_SHA` the sha) |
 | `UAT_SESI_DIR` | saved sessions and the Kode Masuk request history; default `/home/ubuntu/uat-runs/sesi` |
+| `UAT_JMAP_SESI_URL`, `UAT_JMAP_KREDENSIAL`, `UAT_KODE_ISI_MENIT` (240) | the code filler only (`npm run uat:kode -- --sumber jmap`, below): the JMAP session URL of the personas' mail server (Stalwart), a JSON file (chmod 600, never committed) of `{ "<email>": "<password>" }` or `{ "<email>": { "user", "password" } }`, and how long the filler runs |
 | `UAT_KODE_TIMEOUT_MENIT` (15), `UAT_KODE_TUNGGU_MAKS_MENIT` (10) | how long to wait for a code; the longest the runner itself waits for the hour's limit |
 | `UAT_LOKASI_TERENCANA`, `UAT_PETAK_TERENCANA`, `UAT_PETAK_TERENCANA_LAYANAN` (another free Petak, default A-02, for the Layanan at checkout walk), `UAT_LOKASI_SAAT_DUKA`, `UAT_JENIS_SAAT_DUKA`, `UAT_TELEPON`, `UAT_TPU` | staging data (defaults in `support/halaman.ts`) |
 | `UAT_LOKASI_DI_ATAS_BATAS`, `UAT_LOKASI_BERHENTI`, `UAT_HAK_PAKAI_TUMPANG`, `_TANPA_EMAIL`, `_MASA_TENGGANG`, `_BERHENTI`, `UAT_LAYANAN_BERHENTI` | optional data for the Rilis 2 and edge cases; a journey without its data is skipped and says so |
@@ -39,6 +40,13 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 ## The owner's codes
 
 When a journey needs a code the runner presses the send button and then waits, printing `[UAT] MENUNGGU kode-masuk untuk persona <nama>: tulis 6 angka ke <UAT_OUT>/kode/<nama>.txt` and leaving `<nama>.minta` (JSON: who, which kind). Whoever drives the run writes the six digits (the Kode Masuk from the mailbox) to that `.txt` file; the runner types them and deletes the file. A leftover file is removed before the send, so an old code is never typed.
+
+**The code filler** (`uat/isi-kode.ts`, `support/pengisi-kode.ts`) can stand in for that person. Run it beside the runner, with the same `UAT_OUT` and `UAT_EMAIL_*`:
+
+- `npm run uat:kode -- --sumber jmap` on the host: each persona has its own makam.co.id mailbox on Stalwart; the filler signs in to that account over JMAP (read only: subjects and receive times of mail since the request), takes the newest `Kode Masuk Makam.co.id: <6 angka>` and writes it to `<nama>.txt`.
+- `npm run uat:kode -- --sumber outbox` against a local development stack: it reads `/api/dev/email-outbox` (404 on staging and production; refused for any host but loopback).
+
+It never writes over a code already waiting and never gives the same code twice; a persona without an email in the environment is left to a person.
 
 ## Refusals before any journey
 
