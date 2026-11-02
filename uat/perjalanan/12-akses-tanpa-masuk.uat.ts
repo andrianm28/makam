@@ -14,11 +14,16 @@ import { expect, test } from "../support/uji";
 const akar = path.resolve(__dirname, "../..");
 const lokal = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])/.test(process.env.UAT_BASE_URL ?? "");
 
-/** Every staff page without a dynamic segment, read from the app's own routes so a new page is probed too. */
-function halamanStaf(dir = path.join(akar, "src/app/staf"), rute = "/staf"): string[] {
+/**
+ * Every staff page without a dynamic segment, read from the app's own routes so a new page is probed too, with
+ * whether it has its own loading.tsx (such a page streams its shell before the session check redirects).
+ */
+function halamanStaf(dir = path.join(akar, "src/app/staf"), rute = "/staf"): { rute: string; streaming: boolean }[] {
   return readdirSync(dir).flatMap((nama) => {
     const penuh = path.join(dir, nama);
-    if (!statSync(penuh).isDirectory()) return nama === "page.tsx" ? [rute] : [];
+    if (!statSync(penuh).isDirectory()) {
+      return nama === "page.tsx" ? [{ rute, streaming: readdirSync(dir).includes("loading.tsx") }] : [];
+    }
     if (nama.startsWith("[") || nama.startsWith("_")) return [];
     // A route group "(x)" adds no segment.
     return halamanStaf(penuh, nama.startsWith("(") ? rute : `${rute}/${nama}`);
@@ -27,11 +32,11 @@ function halamanStaf(dir = path.join(akar, "src/app/staf"), rute = "/staf"): str
 
 test.describe("UAT penuh: akses tanpa masuk dan batas keamanan", { tag: ["@uatpenuh", "@anonim"] }, () => {
   test("UP-A1 setiap halaman staf dan Akun mengarah ke Masuk bagi pengunjung tanpa sesi", async ({ request }) => {
-    const halaman = [...halamanStaf(), "/akun"];
+    const halaman = [...halamanStaf(), { rute: "/akun", streaming: false }];
     expect(halaman.length).toBeGreaterThan(20);
     await langkah(null, `${halaman.length} halaman: semuanya berakhir di /masuk (atau 404 rilis tertutup)`, async () => {
       const bocor: string[] = [];
-      for (const rute of halaman) {
+      for (const { rute, streaming } of halaman) {
         // Follow redirects inside the staff area (/staf/mitra-jasa → its first page) until one leaves it.
         let url = rute;
         let akhir = "terlalu banyak redirect";
@@ -43,9 +48,10 @@ test.describe("UAT penuh: akses tanpa masuk dan batas keamanan", { tag: ["@uatpe
             if (url === "/masuk") break;
             continue;
           }
-          // A page with a loading.tsx streams its shell (200) and redirects inside the stream; the page body never renders.
-          const isi = status === 200 ? await jawaban.text() : "";
-          if (status === 200 && isi.includes("NEXT_REDIRECT;replace;/masuk;")) url = "/masuk";
+          // A page with its own loading.tsx streams its shell (200) and redirects inside the stream; accepted only for
+          // such a page, and only when nothing but the staff shell came before the redirect (no page heading).
+          const isi = status === 200 && streaming ? await jawaban.text() : "";
+          if (isi.includes("NEXT_REDIRECT;replace;/masuk;") && !/<h1[\s>]/.test(isi)) url = "/masuk";
           else akhir = `${status}`;
           break;
         }

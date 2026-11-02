@@ -47,7 +47,9 @@ describe("a Pengembalian Dana under concurrency (UAT penuh, worst case)", () => 
       setup.refunds.setujuiPengembalian(admin, { permintaanId: permintaan.id }),
     ]);
 
-    expect(hasil.some((h) => h.ok)).toBe(true);
+    // The first approval wins; the second is either refused or answers the same approved request, never a second one.
+    expect(hasil[0].ok || hasil[1].ok).toBe(true);
+    for (const h of hasil) if (h.ok) expect(h.permintaan).toMatchObject({ id: permintaan.id, status: "disetujui" });
     expect(await setup.refunds.permintaan(permintaan.id)).toMatchObject({ status: "disetujui" });
     expect(await setup.refunds.pengembalianJatuhTempo()).toHaveLength(1);
   });
@@ -66,6 +68,7 @@ describe("a Pengembalian Dana under concurrency (UAT penuh, worst case)", () => 
 
     const nomor = new Set(hasil.flatMap((h) => (h.ok ? [h.bukti.nomor] : [])));
     expect(nomor).toEqual(new Set(["RFD/2026/000001"]));
+    // Reading the next number takes it (a gap in the series, harmless here): it proves no second RFD was issued.
     expect(await setup.billing.nextDocumentNumber("RFD")).toBe("RFD/2026/000002");
     expect(await setup.billing.tagihan(tagihanId)).toMatchObject({ status: "dikembalikan_penuh" });
     expect(await setup.refunds.pengembalianJatuhTempo()).toEqual([]);

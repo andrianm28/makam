@@ -16,7 +16,7 @@ Hasil run thread ini (2 Nov 2026, 06:20 sampai 06:45 UTC):
 
 | ID | Tingkat | Temuan | Tindak lanjut |
 |---|---|---|---|
-| F1 | sedang | Header `Content-Security-Policy` dasar (`frame-ancestors 'self'; base-uri 'self'; object-src 'none'`) dari `deploy/nginx/*.conf` (commit 34d24bf) tidak ada di jawaban `dev.makam.co.id` maupun `makam.co.id`. Header lain (nosniff, SAMEORIGIN, no-referrer, HSTS produksi) ada. `install-host.sh` tidak memasang berkas situs nginx, jadi situs di host masih versi lama. | Agent server membandingkan situs nginx host dengan repo (blok perintah, langkah 1), lalu dri memutuskan pemasangannya. |
+| F1 | sedang | Header `Content-Security-Policy` dasar (`frame-ancestors 'self'; base-uri 'self'; object-src 'none'`) dari `deploy/nginx/*.conf` (commit 34d24bf) tidak ada di jawaban `dev.makam.co.id` maupun `makam.co.id`. Header lain (nosniff, SAMEORIGIN, no-referrer, HSTS produksi) ada. `install-host.sh` tidak memasang berkas situs nginx, jadi situs di host masih versi lama. | dri (2 Nov 07:01 UTC) memilih "pasang setelah diff dicek": blok perintah langkah 1 membandingkan, langkah 1b menyisipkan hanya baris CSP (staging dulu, backup, `nginx -t`, reload). |
 | F2 | tinggi untuk UAT | Kunci SumoPod Sandbox baru di staging membuka checkout Pymnt tanpa tombol "Simulate Payment", sehingga semua perjalanan `@bayar` berhenti (laporan G4, P9.7). Jalur bayar tetap diuji di D (webhook bertanda tangan) dan E (`pembayaran.spec.ts`, penyedia palsu). | Keputusan kunci ada di thread go-live. `@bayar` di staging dijalankan setelah itu (blok perintah, langkah 4). |
 | F3 | rendah | `/staf/admin-platform/lokasi` menjawab 200 kepada pengunjung tanpa sesi. Halaman ini punya `loading.tsx`, jadi Next mengirim kerangka halaman lalu redirect ke /masuk di dalam stream. Isi halaman tidak ikut terkirim (diperiksa: tidak ada teks halaman, ada `NEXT_REDIRECT;replace;/masuk`). | Bukan kebocoran. Perjalanan UP-A1 menerima pola ini dan tetap gagal bila isi halaman terkirim. |
 
@@ -133,3 +133,7 @@ Hasil run thread ini (2 Nov 2026, 06:20 sampai 06:45 UTC):
 | S3 | terburuk | Header keamanan dasar | U UP-A4 | 🐞 F1 |
 | S4 | terburuk | Runner UAT menolak produksi (kata dan jawaban health) | D `tests/uat/lingkungan.test.ts` | ✅ D |
 | S5 | terburuk | Sentry tanpa badan permintaan, nomor telepon, berkas | D `observability/scrub` | ✅ D |
+
+## Comments
+
+**Review dua sumbu (2 Nov 2026, opus, pada 5e7055a).** Standards: 0 blocking, 5 should-fix, 4 nit. Spec: 0 blocking, 2 should-fix, 2 nit. Diperbaiki di commit berikutnya: filter JMAP `after` tanpa `.000Z` (RFC 8620); pengisi kode hanya memberi email terbaru dan mengingat id email yang sudah diberi di `$UAT_OUT/kode/pengisi-dipakai.json` lintas restart; outbox memakai id pesan dan menjelaskan kenapa `sejak` tidak dipakai; cabang Lunas di balapan batal-vs-webhook kini memeriksa `batal` gagal; UP-A1 menerima redirect di dalam stream hanya untuk halaman ber-`loading.tsx` dan tanpa `<h1>`; judul dan asersi test dirapikan. Belum (tercatat sebagai 🕳 di atas, tindak lanjut): P13, P14, W7, M20, M21, R10, A9, L13; dan run staging penuh (blok perintah agent server) yang menunggu F2.

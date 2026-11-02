@@ -62,7 +62,7 @@ describe("Billing under concurrency (UAT penuh, worst case)", () => {
     expect(second).toEqual({ ok: true, paymentUrl: url });
   });
 
-  it("two Admin Platform setting a Harga Khusus on the same Tagihan at once leave one reissue in force", async () => {
+  it("a Harga Khusus set twice at once on the same Tagihan (two tabs, a double tap) leaves one reissue in force", async () => {
     const setup = await billingWithOperatorSettings(db);
     const original = await issued(setup);
 
@@ -96,7 +96,7 @@ describe("Billing under concurrency (UAT penuh, worst case)", () => {
     expect(await setup.billing.rantaiTagihan(berlaku!.id)).toEqual([berlaku!.id, original.id]);
   });
 
-  it("the lapse tick and the Lewat Jatuh Tempo tick running together at the deadline leave a pay-first Tagihan Dibatalkan once", async () => {
+  it("the lapse tick and the Lewat Jatuh Tempo tick running together at the deadline leave a pay-first Tagihan Dibatalkan, never Lewat Jatuh Tempo", async () => {
     const setup = await billingWithOperatorSettings(db);
     const tagihan = await issued(setup);
 
@@ -143,6 +143,8 @@ describe("a payment for a Tagihan that was cancelled by hand (UAT penuh, worst c
     const ditinjau = await setup.billing.pembayaranPerluDitinjau();
     if (akhir?.status === "lunas") {
       expect(webhook).toMatchObject({ ok: true, outcome: "lunas" });
+      // The cancel lost the race and says so: it never reports ok over a Tagihan that stayed Lunas.
+      expect(batal).toMatchObject({ ok: false });
       expect(ditinjau).toHaveLength(0);
     } else {
       expect(akhir).toMatchObject({ status: "dibatalkan" });

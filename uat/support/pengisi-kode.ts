@@ -14,10 +14,16 @@ import { z } from "zod";
  * knows nothing about mailboxes.
  */
 
+/** A Kode Masuk read from a mailbox: the code and the id of the email it came in (to never give the same email twice). */
+export interface KodeDiterima {
+  kode: string;
+  id: string;
+}
+
 /** Where a Kode Masuk for an address is read from. */
 export interface SumberKode {
-  /** The code of the newest Kode Masuk email to `email` received at or after `sejak`, or null when none has arrived. */
-  kodeTerbaru(email: string, sejak: Date): Promise<string | null>;
+  /** The newest Kode Masuk email to `email` received at or after `sejak`, or null when none has arrived. */
+  kodeTerbaru(email: string, sejak: Date): Promise<KodeDiterima | null>;
 }
 
 /** The code in a Kode Masuk subject (`Kode Masuk Makam.co.id: 123456`, identity/email-templates.ts); other mail is null. */
@@ -28,6 +34,17 @@ export function kodeDariSubjek(subject: string): string | null {
 /** A send can land a moment before the runner stamps `sejak` (it presses the button first); the window opens this much earlier. */
 const KELONGGARAN_MS = 90_000;
 
+const BERKAS_DIPAKAI = "pengisi-dipakai.json";
+
+/** The email ids a filler already gave in this run folder (an earlier process included); empty for a new run. */
+export function bacaDipakai(dir: string): Set<string> {
+  try {
+    return new Set(z.array(z.string()).parse(JSON.parse(readFileSync(join(dir, BERKAS_DIPAKAI), "utf8"))));
+  } catch {
+    return new Set();
+  }
+}
+
 const mintaSchema = z.object({ persona: z.string().min(1), jenis: z.literal("kode-masuk"), sejak: z.iso.datetime() });
 
 export interface IsiKodeDeps {
@@ -36,7 +53,11 @@ export interface IsiKodeDeps {
   /** The persona's email, or null when the run has none for it. */
   emailUntuk: (persona: string) => string | null;
   sumber: SumberKode;
-  /** `persona:code` already written in this process: a code is given once, so a used one is never typed again. */
+  /**
+   * Ids of the emails whose code was already written (kept in `$UAT_OUT/kode/pengisi-dipakai.json` across restarts):
+   * only the newest email counts, and once it was given the filler waits for a newer one rather than fall back to an
+   * older code the server has already replaced.
+   */
   dipakai: Set<string>;
   catat?: (pesan: string) => void;
 }
@@ -60,19 +81,24 @@ export async function isiKodeSekali(deps: IsiKodeDeps): Promise<string[]> {
       continue;
     }
     const sejak = new Date(Date.parse(minta.sejak) - KELONGGARAN_MS);
-    const kode = await deps.sumber.kodeTerbaru(email, sejak);
-    if (!kode || deps.dipakai.has(`${minta.persona}:${kode}`)) continue;
-    writeFileSync(join(deps.dir, `${minta.persona}.txt`), `${kode}\n`, { mode: 0o600 });
-    deps.dipakai.add(`${minta.persona}:${kode}`);
+    const terbaru = await deps.sumber.kodeTerbaru(email, sejak);
+    if (!terbaru || deps.dipakai.has(terbaru.id)) continue;
+    writeFileSync(join(deps.dir, `${minta.persona}.txt`), `${terbaru.kode}\n`, { mode: 0o600 });
+    deps.dipakai.add(terbaru.id);
+    writeFileSync(join(deps.dir, BERKAS_DIPAKAI), JSON.stringify([...deps.dipakai]));
     deps.catat?.(`kode-masuk untuk persona ${minta.persona} ditulis`);
     terisi.push(minta.persona);
   }
   return terisi;
 }
 
-const outboxSchema = z.object({ messages: z.array(z.object({ subject: z.string() })) });
+const outboxSchema = z.object({ messages: z.array(z.object({ subject: z.string(), messageId: z.string() })) });
 
-/** The development stack's outbox (404 anywhere the live EmailSender is wired). */
+/**
+ * The development stack's outbox (404 anywhere the live EmailSender is wired). It keeps no receive time, so `sejak`
+ * is not applied: the fake sender records a send before the Server Action answers, so by the time the runner leaves
+ * its `.minta` the newest Kode Masuk is the one it asked for; an older one is never taken (only the newest counts).
+ */
 export function sumberOutbox(opsi: { baseUrl: string; fetch?: typeof fetch }): SumberKode {
   const ambil = opsi.fetch ?? fetch;
   return {
@@ -81,11 +107,8 @@ export function sumberOutbox(opsi: { baseUrl: string; fetch?: typeof fetch }): S
       const jawaban = await ambil(url);
       if (!jawaban.ok) throw new Error(`outbox menjawab ${jawaban.status}: hanya stack development yang punya outbox`);
       const { messages } = outboxSchema.parse(await jawaban.json());
-      for (const pesan of [...messages].reverse()) {
-        const kode = kodeDariSubjek(pesan.subject);
-        if (kode) return kode;
-      }
-      return null;
+      const terbaru = messages.filter((pesan) => kodeDariSubjek(pesan.subject)).at(-1);
+      return terbaru ? { kode: kodeDariSubjek(terbaru.subject)!, id: `outbox:${terbaru.messageId}` } : null;
     },
   };
 }
@@ -104,7 +127,7 @@ const jawabanSchema = z.object({
   methodResponses: z.array(z.tuple([z.string(), z.unknown(), z.string()])),
 });
 const daftarEmailSchema = z.object({
-  list: z.array(z.object({ subject: z.string().nullable(), receivedAt: z.string() })),
+  list: z.array(z.object({ id: z.string(), subject: z.string().nullable(), receivedAt: z.string() })),
 });
 
 /**
@@ -145,7 +168,8 @@ export function sumberJmap(opsi: { sesiUrl: string; kredensial: KredensialJmap; 
               "Email/query",
               {
                 accountId,
-                filter: { after: sejak.toISOString(), subject: "Kode Masuk" },
+                // RFC 8620 UTCDate: no fraction when it is zero (a strict server refuses ".000Z").
+                filter: { after: sejak.toISOString().replace(/\.000Z$/, "Z"), subject: "Kode Masuk" },
                 sort: [{ property: "receivedAt", isAscending: false }],
                 limit: 10,
               },
@@ -153,7 +177,7 @@ export function sumberJmap(opsi: { sesiUrl: string; kredensial: KredensialJmap; 
             ],
             [
               "Email/get",
-              { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["subject", "receivedAt"] },
+              { accountId, "#ids": { resultOf: "q", name: "Email/query", path: "/ids" }, properties: ["id", "subject", "receivedAt"] },
               "g",
             ],
           ],
@@ -163,15 +187,12 @@ export function sumberJmap(opsi: { sesiUrl: string; kredensial: KredensialJmap; 
       const { methodResponses } = jawabanSchema.parse(await jawaban.json());
       const get = methodResponses.find(([nama]) => nama === "Email/get");
       if (!get) throw new Error(`JMAP untuk ${email} tidak menjawab Email/get: ${JSON.stringify(methodResponses[0]?.[1] ?? null)}`);
+      // Only the newest Kode Masuk counts: the server accepts only the newest code, so an older one is never offered.
       const terbaru = daftarEmailSchema
         .parse(get[1])
-        .list.filter((m) => Date.parse(m.receivedAt) >= sejak.getTime())
-        .sort((a, b) => Date.parse(b.receivedAt) - Date.parse(a.receivedAt));
-      for (const m of terbaru) {
-        const kode = kodeDariSubjek(m.subject ?? "");
-        if (kode) return kode;
-      }
-      return null;
+        .list.filter((m) => Date.parse(m.receivedAt) >= sejak.getTime() && kodeDariSubjek(m.subject ?? ""))
+        .sort((a, b) => Date.parse(b.receivedAt) - Date.parse(a.receivedAt))[0];
+      return terbaru ? { kode: kodeDariSubjek(terbaru.subject ?? "")!, id: `jmap:${email}:${terbaru.id}` } : null;
     },
   };
 }
