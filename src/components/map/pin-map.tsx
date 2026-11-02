@@ -81,7 +81,11 @@ export function PinMap({
       if (cancelled || !container.current || handle.current) return;
       const start = latest.current;
       const map = L.map(container.current, { scrollWheelZoom: false }).setView(start ?? DEFAULT_MAP_CENTER, start ? 16 : 11);
-      L.tileLayer(tiles.url, { attribution: tiles.attribution, maxZoom: tiles.maxZoom }).addTo(map);
+      L.tileLayer(tiles.url, {
+        attribution: tiles.attribution,
+        maxZoom: tiles.maxZoom,
+        referrerPolicy: tiles.referrerPolicy,
+      }).addTo(map);
       if (editable) map.on("click", (event) => onChange.current?.({ lat: event.latlng.lat, lng: event.latlng.lng }));
       handle.current = { L, map, marker: null, editable, onChange };
       placeMarker(handle.current, start);
