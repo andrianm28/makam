@@ -46,7 +46,8 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   await page.getByLabel("Nama lengkap").fill("Budi Santoso");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Nomor telepon").fill(telepon.typed);
-  await page.getByLabel("Nama almarhum / almarhumah").fill("Siti Aminah");
+  await page.getByLabel("Nama mendiang").fill("Siti Aminah");
+  await page.getByRole("radio", { name: "Perempuan" }).click();
   await page.getByLabel("Tanggal wafat").fill("2026-09-30");
   await expect(page.getByRole("radio", { name: "Saya sendiri" })).toHaveAttribute("aria-checked", "true");
   await fromNewIp(page);

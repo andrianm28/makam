@@ -116,6 +116,8 @@ async function kirim(
     lokasiId: draft.lokasiId,
     jenisMakamId: draft.jenisMakamId,
     almarhumName: draft.almarhumName,
+    jenisKelaminAlmarhum: draft.jenisKelaminAlmarhum,
+    alamatRumahDuka: draft.alamatRumahDuka,
     tanggalWafat: draft.tanggalWafat,
     // The screen's own values: the module reads the plan as WIB and an empty field as none.
     rencanaPemakamanAt: draft.rencanaPemakamanAt,

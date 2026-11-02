@@ -336,7 +336,7 @@ describe("the policies and flags of a Lokasi Mitra", () => {
     });
   });
 
-  it("start with Pemesanan Terencana off, tumpang off, no tumpang on released plots, and sale transfers forbidden", async () => {
+  it("start with Pemesanan Terencana off, tumpang off, no tumpang on released plots, sale transfers forbidden, and no paket lengkap", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
 
@@ -347,6 +347,7 @@ describe("the policies and flags of a Lokasi Mitra", () => {
       tumpang: { allowed: false, minYears: 3, maxLayers: 2 },
       tumpangOnReleasedPlots: false,
       saleTransfersAllowed: false,
+      paketLengkap: false,
     });
   });
 

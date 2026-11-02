@@ -50,7 +50,10 @@ export interface DataKirimProps {
    * copy then says so instead of naming a span.
    */
   jumlahJamPembayaran: number | null;
-  /** The Layanan "bisa hari-H" this Lokasi Mitra offers for the burial day (story 23, ticket 53); empty when it offers none. */
+  /**
+   * The Layanan "bisa hari-H" this Lokasi Mitra offers for the burial day (story 23, ticket 53), shown as the opt-in Layanan
+   * Tambahan; empty when it offers none or its burial is already a complete package (dri, 2026-11-02).
+   */
   layananHariH?: OpsiLayananView[];
 }
 
@@ -65,7 +68,9 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
   // The rebook's data is already in `draft` (the page filled it from the declined
   // order), so the family types nothing twice: only the wish and the holder are
   // theirs to decide afresh.
-  const [isi, setisi] = useState<Isi>({ ...draft, keinginanPenempatan: "" });
+  const [isi, setisi] = useState<IsiAwal>({ ...draft, keinginanPenempatan: "", jenisKelaminAlmarhum: "", alamatRumahDuka: "" });
+  // Layanan Tambahan are opt-in (dri, 2026-11-02): nothing is chosen, or sent, until the family opens them.
+  const [tambahLayanan, setTambahLayanan] = useState(false);
   const [pemegangHak, setPemegangHak] = useState<DraftSaatDuka["pemegangHak"]>({ mode: "pemesan" });
   const [pilihanLayanan, setPilihanLayanan] = useState<PilihanPerLayanan>({});
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
@@ -74,7 +79,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
 
   const kirimPesananSekarang = () =>
     kirim(async () => {
-      const hasilKirim = await kirimPesanan(draftLengkap(isi, pemegangHak, itemDariPilihan(layananHariH, pilihanLayanan, "hari_h")));
+      const hasilKirim = await kirimPesanan(draftLengkap(isi, pemegangHak, (tambahLayanan ? itemDariPilihan(layananHariH, pilihanLayanan, "hari_h") : [])));
       setHasil(hasilKirim);
       // A signed-in Pemesan has no Kode Masuk step to carry the redirect, so the screen carries it.
       const tujuan = tujuanSetelahKirim(hasilKirim);
@@ -122,7 +127,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           the prototype's larger size on desktop too. Checked by measuring
           getComputedStyle at 1440px: 14px without it, 16px with it.
         */}
-        <Fieldset legend="Data Anda">
+        <Fieldset legend="Data Pemesan">
           <Field id="pemesan-nama" label="Nama lengkap" error={salah.pemesanName}>
             <Input
               id="pemesan-nama"
@@ -177,8 +182,8 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           </Field>
         </Fieldset>
 
-        <Fieldset legend="Almarhum">
-          <Field id="almarhum" label="Nama almarhum / almarhumah" error={salah.almarhumName}>
+        <Fieldset legend="Data Mendiang">
+          <Field id="almarhum" label="Nama mendiang" error={salah.almarhumName}>
             <Input
               id="almarhum"
               required
@@ -186,6 +191,40 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               onChange={(event) => setisi({ ...isi, almarhumName: event.target.value })}
               aria-invalid={salah.almarhumName ? true : undefined}
               className="h-12 text-body-lg md:text-body-lg"
+            />
+          </Field>
+          <div className="flex flex-col gap-2">
+            <span className="text-body font-semibold">Jenis kelamin</span>
+            <Pilihan
+              label="Jenis kelamin mendiang"
+              value={isi.jenisKelaminAlmarhum}
+              onChange={(nilai) => setisi({ ...isi, jenisKelaminAlmarhum: nilai as Isi["jenisKelaminAlmarhum"] })}
+              options={[
+                ["laki_laki", "Laki-laki"],
+                ["perempuan", "Perempuan"],
+              ]}
+            />
+            {salah.jenisKelaminAlmarhum ? (
+              <p className="text-small text-destructive" role="alert">
+                {salah.jenisKelaminAlmarhum}
+              </p>
+            ) : null}
+          </div>
+          <Field
+            id="rumah-duka"
+            label="Alamat rumah duka"
+            optional
+            error={salah.alamatRumahDuka}
+            hint="Tempat jenazah disemayamkan sekarang: rumah duka, rumah sakit, atau rumah keluarga."
+          >
+            <textarea
+              id="rumah-duka"
+              rows={2}
+              maxLength={500}
+              value={isi.alamatRumahDuka}
+              onChange={(event) => setisi({ ...isi, alamatRumahDuka: event.target.value })}
+              aria-invalid={salah.alamatRumahDuka ? true : undefined}
+              className="w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-body-lg outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
             />
           </Field>
           <Field id="wafat" label="Tanggal wafat" error={salah.tanggalWafat}>
@@ -290,10 +329,19 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
 
         {layananHariH.length > 0 ? (
           <Fieldset
-            legend="Layanan hari-H (boleh dikosongkan)"
-            note="Dikerjakan Mitra Jasa kami pada hari pemakaman, ditagihkan pada Tagihan yang sama. Harga dipastikan saat Lokasi Mitra mengonfirmasi."
+            legend="Layanan Tambahan"
+            note="Pilihan, bila diperlukan: dikerjakan pada hari pemakaman dan ditagihkan pada Tagihan yang sama. Harga dipastikan saat Lokasi Mitra mengonfirmasi."
           >
-            <PilihLayanan idAwalan="hari-h" opsi={layananHariH} nilai={pilihanLayanan} onChange={setPilihanLayanan} />
+            <label className="flex min-h-12 items-center gap-3 text-body-lg">
+              <input
+                type="checkbox"
+                checked={tambahLayanan}
+                onChange={(event) => setTambahLayanan(event.target.checked)}
+                className="size-5 accent-primary"
+              />
+              Saya ingin menambah layanan
+            </label>
+            {tambahLayanan ? <PilihLayanan idAwalan="hari-h" opsi={layananHariH} nilai={pilihanLayanan} onChange={setPilihanLayanan} /> : null}
           </Fieldset>
         ) : null}
 
@@ -306,7 +354,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
             </p>
             <KodeMasukForm
               requestAction={mintaKodeMasuk}
-              verifyAction={verifikasiDengan(draftLengkap(isi, pemegangHak, itemDariPilihan(layananHariH, pilihanLayanan, "hari_h")))}
+              verifyAction={verifikasiDengan(draftLengkap(isi, pemegangHak, (tambahLayanan ? itemDariPilihan(layananHariH, pilihanLayanan, "hari_h") : [])))}
               submitLabel="Kirim pesanan"
               defaultEmail={isi.email}
               csContact={csContact}
@@ -357,7 +405,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         ) : null}
       </div>
 
-      <StickyBar kartu={kartu} layanan={subtotalPilihan(layananHariH, pilihanLayanan)} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
+      <StickyBar kartu={kartu} layanan={tambahLayanan ? subtotalPilihan(layananHariH, pilihanLayanan) : 0} terbuka={rincianTerbuka} setTerbuka={setRincianTerbuka} />
     </div>
   );
 }
@@ -381,7 +429,7 @@ function StickyBar({ kartu, layanan, terbuka, setTerbuka }: { kartu: KartuView; 
             ))}
             {layanan > 0 ? (
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Layanan hari-H</dt>
+                <dt className="text-muted-foreground">Layanan tambahan</dt>
                 <dd className="whitespace-nowrap">{formatRupiah(layanan)}</dd>
               </div>
             ) : null}
@@ -424,12 +472,15 @@ function PesanGagal({ message }: { message: string }) {
 }
 
 /** The draft the Server Action receives, with the Pemegang Hak the screen chose. */
-function draftLengkap(isi: Isi, pemegangHak: DraftSaatDuka["pemegangHak"], layananHariH: DraftSaatDuka["layananHariH"]): DraftSaatDuka {
-  return { ...isi, pemegangHak, layananHariH };
+function draftLengkap(isi: IsiAwal, pemegangHak: DraftSaatDuka["pemegangHak"], layananHariH: DraftSaatDuka["layananHariH"]): DraftSaatDuka {
+  // An unpicked sex crosses as it is; the Server Action's schema refuses it under its field.
+  return { ...isi, pemegangHak, layananHariH } as DraftSaatDuka;
 }
 
 /** The fields "Data & kirim" holds, as the draft starts (the choice always begins at "Saya sendiri"). */
 type Isi = Omit<DraftSaatDuka, "pemegangHak" | "layananHariH">;
+/** The same, before the family has picked the mendiang's sex: empty until then, and refused by the draft schema if sent so. */
+type IsiAwal = Omit<Isi, "jenisKelaminAlmarhum"> & { jenisKelaminAlmarhum: Isi["jenisKelaminAlmarhum"] | "" };
 
 /**
  * The Kode Masuk step's own verify action: a correct code places the order with

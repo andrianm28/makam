@@ -37,6 +37,8 @@ function draft(overrides: Partial<DraftSaatDuka> = {}): Record<string, unknown> 
     email: "pemesan@contoh.id",
     phoneNumber: "081234567890",
     almarhumName: "Siti Aminah",
+    jenisKelaminAlmarhum: "perempuan",
+    alamatRumahDuka: "",
     tanggalWafat: "2026-09-30",
     rencanaPemakamanAt: "",
     keinginanPenempatan: "",

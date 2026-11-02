@@ -26,7 +26,11 @@ export const draftSchema = z.object({
   pemesanName: z.string().trim().min(1, "Tulis nama lengkap Anda.").max(200),
   email: z.email("Alamat email tidak valid. Contoh: nama@contoh.id."),
   phoneNumber: z.string().trim().min(1, "Tulis nomor telepon.").max(30),
-  almarhumName: z.string().trim().min(1, "Tulis nama almarhum / almarhumah.").max(200),
+  almarhumName: z.string().trim().min(1, "Tulis nama mendiang.").max(200),
+  /** The Almarhum's sex (dri, 2026-11-02); the same two values as the Pemesanan module's own list, kept literal here because this file is on a client's graph. */
+  jenisKelaminAlmarhum: z.enum(["laki_laki", "perempuan"], "Pilih jenis kelamin mendiang."),
+  /** Where the body lies now; may be empty. */
+  alamatRumahDuka: z.string().trim().max(500, "Alamat rumah duka paling banyak 500 huruf."),
   tanggalWafat: z.iso.date("Tanggal wafat belum benar."),
   /** The planned burial as a `datetime-local` input holds it (a local WIB time); empty when the family has none. */
   rencanaPemakamanAt: z.union([z.iso.datetime({ local: true, message: "Waktu pemakaman yang direncanakan belum benar." }), z.literal("")]),

@@ -8,7 +8,7 @@ import { refusable } from "@/db/unit-of-work";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
 import { foldKey } from "@/lib/fold-key";
 import { wib, wibDateOf } from "@/lib/time/jakarta";
-import { pemesananMakam, type PemegangHak } from "./schema";
+import { pemesananMakam, type JenisKelamin, type PemegangHak } from "./schema";
 import { JAM_KONFIRMASI_SAAT_DUKA, saatDukaHarga } from "./pilihan";
 import type { Pemesan, PemesananDeps } from "./deps";
 
@@ -27,6 +27,10 @@ export interface PlaceSaatDukaInput {
   lokasiId: string;
   jenisMakamId: string;
   almarhumName: string;
+  /** The Almarhum's sex (dri, 2026-11-02); the family's form always asks it. */
+  jenisKelaminAlmarhum?: JenisKelamin | null;
+  /** Where the body lies now (rumah duka, hospital, home), as typed; empty when the family does not know yet. */
+  alamatRumahDuka?: string;
   /** The date of death, a WIB calendar date (`YYYY-MM-DD`). */
   tanggalWafat: string;
   /**
@@ -98,7 +102,8 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
   // Checked now so the family is refused early; priced again at the confirmation, at the day the Tagihan is issued.
   const layananHariH = (input.layananHariH ?? []).map((satu) => ({ layananVariantId: satu.layananVariantId, teks: satu.teks?.trim() || null }));
   if (layananHariH.length > 0) {
-    if (!deps.layanan) return { ok: false, reason: "layanan_tidak_tersedia" };
+    // A Lokasi Mitra whose burial is already a complete package offers no Layanan Tambahan (dri, 2026-11-02).
+    if (!deps.layanan || lokasi.paketLengkap) return { ok: false, reason: "layanan_tidak_tersedia" };
     const siap = await deps.layanan.siapkanCheckout({
       lokasiId: input.lokasiId,
       mode: "hari_h",
@@ -134,6 +139,8 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
         email: akun.email,
         phoneNumber,
         almarhumName,
+        almarhumJenisKelamin: input.jenisKelaminAlmarhum ?? null,
+        alamatRumahDuka: teksAtauKosong(input.alamatRumahDuka ?? ""),
         tanggalWafat: input.tanggalWafat,
         rencanaPemakamanAt: rencana,
         keinginanPenempatan: teksAtauKosong(input.keinginanPenempatan),

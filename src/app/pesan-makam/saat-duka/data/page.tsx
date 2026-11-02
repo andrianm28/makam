@@ -45,7 +45,9 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
   // payment window, so the note below never names a span the order will not keep.
   const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(grup.lokasi.id);
   // Only the "bisa hari-H" Layanan the Lokasi offers (ticket 53); the module prices them again at the confirmation.
-  const hariH = await layanan.penawaranCheckout(grup.lokasi.id, "hari_h");
+  // A Lokasi whose burial is already a complete package offers none (dri, 2026-11-02; the module refuses them there too).
+  const profil = await lokasi.publicLokasiMitra(grup.lokasi.id);
+  const hariH = profil?.paketLengkap ? [] : await layanan.penawaranCheckout(grup.lokasi.id, "hari_h");
 
   return (
     <DataKirim

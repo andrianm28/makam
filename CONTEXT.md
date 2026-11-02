@@ -145,8 +145,12 @@ Admin Platform moving an Akun to a new Email Terverifikasi after checking the ho
 _Avoid_: Pindah Nomor (retired with WhatsApp), reset akun, Ganti Pemegang Hak
 
 **Almarhum**:
-The deceased person who is (or will be) buried in a Petak Makam.
-_Avoid_: Jenazah (as the record), mendiang
+The deceased person who is (or will be) buried in a Petak Makam. The Saat Duka form shows the family "Data Mendiang" and "Nama mendiang", and asks the mendiang's sex and the address of the rumah duka (owner, 2026-11-02); the record and the code keep Almarhum.
+_Avoid_: Jenazah (as the record)
+
+**Paket Lengkap**:
+A Lokasi Mitra flag set by Admin Platform: its Saat Duka burial is already a complete package, so the wizard offers no Layanan Tambahan there and an order there takes none (owner, 2026-11-02). Elsewhere the hari-H Layanan are offered as "Layanan Tambahan", opt-in.
+_Avoid_: Paket (alone)
 
 **Calon Penghuni**:
 The living person a Pemegang Hak names as intended for an unused Petak Makam, usually through a Pemesanan Terencana; a label the Pemegang Hak may change at any time, not a limit on who may be buried there. Becomes the Almarhum once buried.

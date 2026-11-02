@@ -35,6 +35,11 @@ export const lokasiFlagsSchema = z.object({
   tumpangOnReleasedPlots: z.boolean(),
   /** Ganti Pemegang Hak by sale. */
   saleTransfersAllowed: z.boolean(),
+  /**
+   * Its Saat Duka burial is already a complete package, so the wizard offers no Layanan Tambahan there (dri, 2026-11-02).
+   * Absent on a Lokasi saved before the flag existed, which reads as off.
+   */
+  paketLengkap: z.boolean().optional(),
 });
 export type LokasiFlags = z.infer<typeof lokasiFlagsSchema>;
 
@@ -59,4 +64,5 @@ export const DEFAULT_FLAGS: LokasiFlags = {
   tumpang: { allowed: false, minYears: 3, maxLayers: 2 },
   tumpangOnReleasedPlots: false,
   saleTransfersAllowed: false,
+  paketLengkap: false,
 };

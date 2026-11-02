@@ -281,6 +281,11 @@ export function PoliciesForm({
           name="saleTransfersAllowed"
           checked={flags.saleTransfersAllowed}
         />
+        <Checkbox
+          label="Pemakaman Saat Duka sudah paket lengkap (Layanan Tambahan tidak ditawarkan di formulir pemesanan)"
+          name="paketLengkap"
+          checked={flags.paketLengkap === true}
+        />
       </fieldset>
       <Submit pending={pending}>Simpan kebijakan</Submit>
       <Feedback state={state} />

@@ -44,6 +44,18 @@ Prices and online payment; Lokasi Mitra or vendor accounts fulfilling a Perminta
 - Messages through Notifications templates; Antrean row types registered in `src/domain/queues/registry.ts`.
 - Routes added to `peraturanRute` in `src/lib/rilis-peta.ts`.
 
+## Formulir Pesan Sekarang (dri, 2026-11-02)
+
+The Saat Duka form at a Lokasi Mitra ("Pesan Sekarang") changes with the menu:
+
+- "Data Anda" is "Data Pemesan".
+- "Almarhum" is "Data Mendiang" with "Nama mendiang", a required Jenis kelamin (Laki-laki / Perempuan) and an optional Alamat rumah duka (where the body lies now, ≤ 500 chars). Both reach the Admin Lokasi's order page. Orders placed before keep both empty.
+- "Layanan hari-H" is "Layanan Tambahan", opt-in: closed until the family ticks "Saya ingin menambah layanan"; nothing is sent while closed.
+- A Lokasi Mitra marked **Paket Lengkap** by Admin Platform (Kebijakan) shows no Layanan Tambahan, and `placeSaatDuka` refuses Layanan there (`layanan_tidak_tersedia`).
+- Expand-only migration: `pemesanan_makam.almarhum_jenis_kelamin`, `pemesanan_makam.alamat_rumah_duka` (nullable); the flag lives in the Lokasi's `flags` JSON and is absent (off) on older rows.
+
+Ticket: `issues/05-formulir-pesan-sekarang.md`.
+
 ## Tickets
 
 `issues/01-permintaan-kedukaan-domain.md`, `issues/02-halaman-dan-formulir.md`, `issues/03-antrean-dan-staf.md`, `issues/04-navigasi-empat-grup.md`.

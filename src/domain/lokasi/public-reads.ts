@@ -41,6 +41,8 @@ export interface PublicLokasiMitra {
   tumpang: { allowed: boolean; minYears: number; maxLayers: number; onReleasedPlots: boolean };
   /** Until true, the page hides the Terencana entry (spec, story 151). */
   terencanaAktif: boolean;
+  /** Its Saat Duka burial is a complete package: no Layanan Tambahan is offered (dri, 2026-11-02). */
+  paketLengkap: boolean;
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
   /** Null until its Admin Lokasi saves one (never invented). */
   jamOperasional: Row["jamOperasional"] | null;
@@ -67,6 +69,7 @@ function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
       onReleasedPlots: row.flags.tumpangOnReleasedPlots,
     },
     terencanaAktif: row.flags.pemesananTerencanaAktif,
+    paketLengkap: row.flags.paketLengkap === true,
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     jamOperasional: row.jamOperasional,
   };
