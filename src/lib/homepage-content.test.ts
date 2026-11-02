@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homepageHero, homepageTiles, homepageTrust, homepageTrustLink } from "./homepage-content";
+import { homepageCsBand, homepageHero, homepageTiles, homepageTilesUntuk, homepageTrust, homepageTrustLink } from "./homepage-content";
 
 /**
  * The Beranda's hero, tile row and trust strip (spec, Public site and routing

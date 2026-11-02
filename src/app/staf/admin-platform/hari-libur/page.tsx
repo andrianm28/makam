@@ -16,7 +16,7 @@ export default async function HariLiburPage() {
     <>
       <PageHeader
         title="Hari Libur Nasional"
-        description="Hari Kerja Admin Platform adalah Senin–Jumat, kecuali tanggal di daftar ini. Setiap tenggat “N Hari Kerja” (transfer refund, Pencairan, Setor Retribusi, dan lainnya) berakhir pukul 23:59 WIB pada Hari Kerja itu. Hari kerja Lokasi Mitra mengikuti Jam Operasional masing-masing, bukan daftar ini."
+        description="Hari Kerja Admin Platform adalah Senin–Jumat, kecuali tanggal di daftar ini. Setiap tenggat “N Hari Kerja” (transfer refund, Pencairan, dan lainnya) berakhir pukul 23:59 WIB pada Hari Kerja itu. Hari kerja Lokasi Mitra mengikuti Jam Operasional masing-masing, bukan daftar ini."
       />
 
       <FormSection title="Tambah hari libur">

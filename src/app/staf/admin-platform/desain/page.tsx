@@ -242,7 +242,7 @@ export default async function DesainPage() {
               current="a"
               lokasi={[
                 { value: "a", label: "Makam Wakaf Al-Ikhlas", href: "#" },
-                { value: "b", label: "TPU Keluarga Sentosa", href: "#" },
+                { value: "b", label: "Pemakaman Keluarga Sentosa", href: "#" },
               ]}
             />
           </CardContent>

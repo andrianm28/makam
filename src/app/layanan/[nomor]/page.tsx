@@ -9,6 +9,7 @@ import { documentPagePath } from "@/lib/document-links";
 import { formatRupiah } from "@/lib/rupiah";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
+import { rilisTerbuka } from "@/lib/rilis";
 import { currentActor } from "@/server/session";
 import { BatalkanPekerjaan } from "./batalkan";
 import { PekerjaanTpuDaftar } from "./pekerjaan-tpu";
@@ -40,6 +41,8 @@ export default async function OrderLayananPage({ params }: PageProps<"/layanan/[
   const nomor = (await params).nomor;
   const order = await serverRuntime().layanan.pesananLayananOf(nomor, { accountId: actor.accountId });
   // Not an order at a Lokasi Mitra: it may be an order at a DKI TPU, whose grave the family described (ticket 56).
+  // DKI TPU is taken out of the product (ADR 0012): no order at a TPU is shown while it is closed.
+  if (!order && !rilisTerbuka("tpu")) notFound();
   if (!order) return <PesananTpuPage nomor={nomor} accountId={actor.accountId} email={actor.email} />;
   const tagihan = await serverRuntime().billing.tagihan(order.tagihan?.id ?? "");
 
