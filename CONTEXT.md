@@ -316,21 +316,17 @@ _Avoid_: Redo, ulangi, revisi
 A Pemesan's optional 1–5 star rating, with comment, of one finished Pekerjaan Layanan; seen only by Admin Platform.
 _Avoid_: Review, ulasan, rating (as the term)
 
-**Paket Pemakaman**:
-One Lokasi Mitra's bundle of funeral services for one Almarhum, in a Tingkat Paket and a Tradisi, listing the Komponen Pemakaman it includes; bought only inside a Pemesanan Saat Duka at that Lokasi Mitra (at most one per order), priced as a Tarif, carried out by the Lokasi Mitra and counted as done when the Pemakaman is recorded (ADR 0010). Not a Layanan: it has no Pekerjaan Layanan and no photo proof.
-_Avoid_: Paket (alone), paket duka, paket layanan (that is Paket Layanan), funeral package
+**Layanan Kedukaan**:
+A funeral service the Operator arranges for a family around a death, outside the grave itself, from a closed list: Rumah Duka, Mobil Jenazah, Jasa Cargo Jenazah, Jasa Repatriasi Jenazah, Peti Jenazah, Bunga Duka Cita. Asked for through a Permintaan Kedukaan and priced in the Operator's contact, never paid online in this release (ADR 0010). Not a Layanan: it is not done at a Petak Makam and has no Pekerjaan Layanan.
+_Avoid_: Layanan (alone), paket duka, jasa duka
 
-**Tingkat Paket**:
-The tier of a Paket Pemakaman: Standar, Premium or VIP. A Lokasi Mitra offers at most one Paket Pemakaman per Tingkat Paket and Tradisi.
-_Avoid_: Kelas, level
+**Konsultasi Rencana Pemakaman**:
+A call the Operator gives a family planning a burial ahead (where, which Jenis Makam, what it costs, wakaf), asked for through a Permintaan Kedukaan; the planning counterpart of Pesan Sekarang.
+_Avoid_: Konsultasi (alone), konseling
 
-**Tradisi**:
-The faith a Paket Pemakaman is prepared for, which decides how the Almarhum is washed, dressed and laid to rest: Muslim or Nasrani (kremasi deferred, ADR 0010).
-_Avoid_: Agama (as the field name), religi
-
-**Komponen Pemakaman**:
-One kind of funeral service a Paket Pemakaman may include, from a closed list: penjemputan (ambulans), pemulasaraan (memandikan dan mengafani atau merias), perlengkapan jenazah (kain kafan atau peti), rangkaian bunga, konsumsi pelayat, rumah duka atau tenda, and pengurusan administrasi; each with the Lokasi Mitra's own one-line description.
-_Avoid_: Item, fitur
+**Permintaan Kedukaan**:
+A family's request for one Layanan Kedukaan or a Konsultasi Rencana Pemakaman, filed after a Kode Masuk with a Nomor Permintaan, contacted by Admin Platform through the Antrean, and Diajukan, Dihubungi, Selesai or Dibatalkan.
+_Avoid_: Order, pesanan (that is a Pemesanan), tiket, lead
 
 ### Money
 
