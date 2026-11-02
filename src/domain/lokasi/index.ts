@@ -483,7 +483,6 @@ export interface Lokasi {
    * Lokasi Mitra, by facilities (no actor).
    */
   publicLokasiMakamList(query?: LokasiMakamQuery): Promise<LokasiMakamCard[]>;
-  /** Every city either kind is in, for the directory's city filter (no actor). */
   /** Every city a listed Lokasi Makam is in, of one kind or both (the default). */
   publicLokasiMakamCities(query?: { kind?: LokasiMakamKind }): Promise<string[]>;
   /** Signed URLs to a Terverifikasi Lokasi Mitra's Kunjungan Verifikasi visit photos (no actor, for its Lokasi page). */

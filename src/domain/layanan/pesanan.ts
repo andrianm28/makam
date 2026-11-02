@@ -468,7 +468,8 @@ export async function cekHakPakai(deps: LayananDeps, lokasiId: string, petakId: 
   if (hak.status === "berakhir") return { ok: false, reason: "hak_pakai_berakhir" };
   if (hak.nomor === null) return { ok: false, reason: "grave_tidak_ditemukan" };
   const lokasi = await deps.lokasi.publicLokasiMitraTampil(lokasiId);
-  if (!lokasi) return { ok: false, reason: "lokasi_tidak_terbuka" };
+  // Harga Tampil off: the family orders through the CS on WhatsApp (ADR 0011).
+  if (!lokasi || !lokasi.hargaTampil) return { ok: false, reason: "lokasi_tidak_terbuka" };
   return { ok: true, hak, petak: { nomor: hak.nomor }, lokasi: { id: lokasiId, name: lokasi.name } };
 }
 

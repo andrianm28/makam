@@ -4,6 +4,7 @@ import type { PemesananOrder, PemesananTerencanaOrder } from "@/domain/pemesanan
 import type { PengurusanOrder } from "@/domain/pengurusan";
 import { documentPagePath } from "@/lib/document-links";
 import { perluTindakanDariBerkasTpu, perluTindakanDariKonsen, perluTindakanDariPermintaanHakPakai, perluTindakanDariPermohonan, perluTindakanDariPesanan, type PerluTindakanItem, type RingkasanTindakan } from "@/lib/perlu-tindakan";
+import { rilisTerbuka } from "@/lib/rilis";
 import { serverRuntime } from "@/server/runtime";
 
 export interface PesananSaya {
@@ -20,12 +21,14 @@ export interface PesananSaya {
  */
 export const dataAkunSaya = cache(async (accountId: string): Promise<{ pesanan: PesananSaya; perluTindakan: PerluTindakanItem[] }> => {
   const { pemesanan, pengurusan, billing, perpanjangan } = serverRuntime();
+  // DKI TPU is taken out of the product (ADR 0010): its orders and berkas are not shown in Akun Saya.
+  const tpuTerbuka = rilisTerbuka("tpu");
   const [daftarPemesanan, daftarTerencana, daftarPengurusan, daftarPermohonan, berkasTpu, daftarPermintaan, konsenMenunggu] = await Promise.all([
     pemesanan.pesananSaya({ accountId }),
     pemesanan.terencanaSaya({ accountId }),
-    pengurusan.pesananSaya({ accountId }),
+    tpuTerbuka ? pengurusan.pesananSaya({ accountId }) : Promise.resolve([]),
     perpanjangan.permohonanSaya({ accountId }),
-    pengurusan.perluTindakanBerkas({ accountId }),
+    tpuTerbuka ? pengurusan.perluTindakanBerkas({ accountId }) : Promise.resolve([]),
     pemesanan.permintaanHakPakaiPerluPerbaikan({ accountId }),
     pemesanan.konsenMenungguSaya({ accountId }),
   ]);

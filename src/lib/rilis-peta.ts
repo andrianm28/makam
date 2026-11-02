@@ -25,7 +25,7 @@
 export type Rilis = 1 | 2 | 3 | 4;
 
 /** The level of a feature taken out of the product (ADR 0010): above every release an environment opens. */
-export const RILIS_DIKELUARKAN = 4;
+export const RILIS_DIKELUARKAN = 4 as const satisfies Rilis;
 
 export const fiturRilis = {
   /** Everything the first release carries (ADR 0005 and ADR 0006 included). */
@@ -119,7 +119,6 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
     "pengaturan-operator",
     "pengembalian",
     "penilaian",
-    "setor-retribusi",
     "staf",
     "tagihan",
     "tagihan-lewat-jatuh-tempo",
@@ -130,6 +129,8 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
   ].map((area) => [`/staf/admin-platform/${area}/**`, "inti"] as const),
   ["/staf/admin-platform/tpu/**", "tpu"],
   ["/staf/admin-platform/pengurusan/**", "tpu"],
+  // Retribusi Pemda is a TPU fee (CONTEXT.md): its deposit page goes with DKI TPU (ADR 0010).
+  ["/staf/admin-platform/setor-retribusi/**", "tpu"],
   ["/staf/admin-platform/pekerjaan-tpu/**", "mitra_jasa"],
   ["/staf/admin-platform/keluhan-tpu/**", "mitra_jasa"],
   ["/staf/admin-platform/mitra-jasa/**", "mitra_jasa"],

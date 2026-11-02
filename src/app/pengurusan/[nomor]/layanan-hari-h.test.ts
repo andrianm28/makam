@@ -6,7 +6,7 @@
  * rendered to static markup; the orders are made through the modules' public functions.
  */
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { formatRupiah } from "@/lib/rupiah";
 import { resetDatabase, testDatabase } from "../../../../tests/support/database";
 import { saatDukaTpuDikonfirmasi, siapTpuBertarif, type SiapTpuBertarif } from "../../../../tests/support/layanan-tpu";
@@ -37,7 +37,10 @@ const server = testServerRuntime();
 beforeEach(async () => {
   await resetDatabase();
   browser.reset();
+  // DKI TPU is taken out of the product (ADR 0010): only release 4, open in test alone, still shows its orders in Akun Saya.
+  vi.stubEnv("RILIS_TERBUKA", "4");
 });
+afterEach(() => vi.unstubAllEnvs());
 
 const EMAIL = "pemesan.tpu@contoh.id";
 const QRIS = { method: { kind: "penyedia_pembayaran", channel: "QRIS" }, reference: null } as const;
@@ -101,6 +104,14 @@ describe("Akun Saya reaches the hari-H Layanan of a Saat Duka TPU order in every
     expect(teks).toContain("ditagihkan pada Tagihan di atas");
     // And the Layanan page of the same jobs, which nothing linked from here before, is one click away.
     expect(html).toContain(`href="/layanan/${nomor}"`);
+  });
+
+  it("are not in the Pesanan tab while DKI TPU is taken out of the product (ADR 0010)", async () => {
+    const s = await siapTpuBertarif(db);
+    const { nomor } = await pesananDikonfirmasi(s, { dibayar: false });
+    vi.stubEnv("RILIS_TERBUKA", "3");
+
+    expect(await tabPesanan()).not.toContain(`href="/pengurusan/${nomor}"`);
   });
 
   it("still lists them once the burial is recorded (Dimakamkan)", async () => {

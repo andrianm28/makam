@@ -79,10 +79,11 @@ export async function layananDiLokasi(deps: LayananDeps, lokasiId: string, at: D
 /**
  * The Layanan a Lokasi Mitra offers at `at`, each variant with that place's
  * all-in price. Empty for a Lokasi Mitra that is not listed (a public read
- * serves a Terverifikasi Lokasi Mitra only).
+ * serves a Terverifikasi Lokasi Mitra only) or whose prices are not shown (Harga
+ * Tampil off: the family orders through the CS on WhatsApp, ADR 0011).
  */
 export async function penawaranLokasi(deps: LayananDeps, lokasiId: string, at: Date): Promise<LayananDiTempat[]> {
-  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan || !(await deps.lokasi.publicLokasiMitraTampil(lokasiId))) return [];
+  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan || !(await deps.lokasi.publicLokasiMitraTampil(lokasiId))?.hargaTampil) return [];
   return groupByLayanan(deps, await offerings(deps, { kind: "lokasi_mitra", lokasiId }, at));
 }
 
@@ -213,7 +214,7 @@ export interface LayananUntukPesanan {
 /** The Layanan a Lokasi Mitra offers at `at`, in catalog order, with each variant's own price. */
 export async function penawaranUntukPesanan(deps: LayananDeps, lokasiId: string, at: Date): Promise<LayananUntukPesanan[]> {
   // Layanan is carry-on under an existing Hak Pakai, so a Ditangguhkan Lokasi still offers it (ticket 59).
-  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan || !(await deps.lokasi.publicLokasiMitraTampil(lokasiId))) return [];
+  if (!(await deps.lokasi.izinPesanan(lokasiId, "lanjutan")).diizinkan || !(await deps.lokasi.publicLokasiMitraTampil(lokasiId))?.hargaTampil) return [];
   const [semua, prices] = await Promise.all([katalog(deps.db), deps.tariffs.hargaLayananLokasiSemua(lokasiId, at)]);
   const ditawarkan = new Set((await penawaranOfLokasi(deps.db, lokasiId)).map((offer) => offer.layananVariantId));
   return semua

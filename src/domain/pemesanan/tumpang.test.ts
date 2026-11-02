@@ -83,6 +83,23 @@ function ajukan(
 }
 
 describe("Makamkan di sini", () => {
+  it("is refused at a Lokasi Mitra whose Harga Tampil is off: the family asks the CS on WhatsApp", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { lokasi, cells } = await lokasiDenganPetak(setup);
+    await izinkanTumpang(setup, lokasi);
+    const dibaca = await setup.lokasi.lokasiMitra(lokasi.admin, lokasi.lokasiMitra.id);
+    if (!dibaca.ok) throw new Error("Lokasi Mitra not readable");
+    const saved = await setup.lokasi.setPoliciesAndFlags(lokasi.admin, lokasi.lokasiMitra.id, {
+      policies: dibaca.lokasiMitra.policies,
+      flags: { ...dibaca.lokasiMitra.flags, hargaTampil: false },
+    });
+    if (!saved.ok) throw new Error("flags refused");
+    const { pemesan } = await pemesanDenganEmail(setup, "pemegang@contoh.id", "Siti Aminah");
+    const hakPakaiId = await beriHakPakai(setup, lokasi, cells[0]!.id, { name: "Siti Aminah", phoneNumber: "081200000001", email: "pemegang@contoh.id" });
+
+    expect(await ajukan(setup, lokasi, hakPakaiId, pemesan)).toEqual({ ok: false, reason: "lokasi_tidak_terbuka" });
+  });
+
   it("is implicit for the Akun whose Email Terverifikasi is the holder's, and confirming issues the pay-after Tagihan", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { lokasi, cells } = await lokasiDenganPetak(setup);

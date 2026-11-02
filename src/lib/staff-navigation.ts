@@ -154,14 +154,13 @@ function semuaStaffMenu(role: StaffRole, scope: { lokasiId?: string }): NavGroup
               label: "Tarif global",
               href: `${AP}/tarif`,
               icon: ReceiptIcon,
-              description: "Biaya Layanan Platform, Biaya Pengurusan dan Retribusi Pemda, per versi dengan tanggal berlaku.",
+              description: "Biaya Layanan Platform dan tarif global lain, per versi dengan tanggal berlaku.",
             },
             {
               label: "Katalog Layanan",
               href: `${AP}/layanan`,
               icon: FlowerIcon,
-              description:
-                "Daftar Layanan global, tanda boleh di TPU DKI, harga TPU DKI dan tarif Mitra Jasa, serta Paket Layanan.",
+              description: "Daftar Layanan global dan Paket Layanan.",
             },
             {
               label: "Hari Libur Nasional",
