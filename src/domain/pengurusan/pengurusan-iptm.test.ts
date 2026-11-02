@@ -233,7 +233,7 @@ describe("the worker's Pengurusan tick", () => {
     const tagihan = await sampaiMenungguPembayaran(setup, dasar);
     const tick = scheduledTicks.find((satu) => satu.name === "pengurusan.pembayaran_berkas");
     expect(tick).toBeDefined();
-    const ctx = schedulerContext({ db, pengurusan: { billing: setup.billing } });
+    const ctx = schedulerContext({ db, pengurusan: { billing: setup.billing, notifikasi: setup.notifications } });
 
     await setup.billing.recordPayment(tagihan.id, QRIS);
     await tick!.tick(ctx, wib("2026-10-02 15:00"));

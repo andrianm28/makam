@@ -5,6 +5,8 @@
  * and the family messages the module announced.
  */
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
+import { chasingTpuTick } from "@/domain/pengurusan";
+import { scheduledTicks } from "@/domain/scheduler";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
@@ -19,6 +21,7 @@ import {
 import { buktiTransfer } from "../../../tests/support/refunds";
 import { signedInPetugasLapangan } from "../../../tests/support/publish";
 import { siapkanOperatorPemesanan } from "../../../tests/support/pemesanan";
+import { schedulerContext } from "../../../tests/support/scheduler";
 
 const { db, close } = testDatabase();
 afterAll(close);
@@ -96,6 +99,86 @@ async function sampaiDiajukan(setup: PengajuanSetup, dasar: Dasar) {
   const diajukan = await setup.pengurusan.ajukanIptm(dasar.admin, { nomor: dasar.nomor });
   if (!diajukan.ok) throw new Error(`IPTM Diajukan refused: ${diajukan.reason}`);
 }
+
+/** The worker's Chasing hand-over for TPU orders, on the setup's own Billing and Notifications. */
+function chasingTpu(setup: PengajuanSetup, now: Date) {
+  return chasingTpuTick({ db, billing: setup.billing, notifikasi: setup.notifications }, now);
+}
+
+const PENGINGAT = ["tagihan_pengingat_h14", "tagihan_pengingat_h3", "tagihan_pengingat_h30", "tagihan_pengingat_h7"];
+
+/** The family reminders queued for a Tagihan, by template, sorted. */
+async function pengingatOf(setup: PengajuanSetup, tagihanId: string) {
+  return (await setup.notifications.pesanTagihan(tagihanId))
+    .map((pesan) => pesan.template)
+    .filter((template) => PENGINGAT.includes(template))
+    .sort();
+}
+
+describe("Chasing an overdue pay-after TPU Tagihan (ticket 46, gap 5)", () => {
+  it("the worker's tick queues the family's H+3/7/14/30 reminders once the burial is recorded, and sends H+3 at 08:00 WIB", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    const tick = scheduledTicks.find((satu) => satu.name === "pengurusan.chasing_tpu");
+    expect(tick).toBeDefined();
+    const ctx = schedulerContext({ db, pengurusan: { billing: setup.billing, notifikasi: setup.notifications } });
+
+    // Confirmed but not yet buried: no overdue clock, nothing to chase.
+    await tick!.tick(ctx, setup.clock.now());
+    expect(await pengingatOf(setup, dasar.tagihanId)).toEqual([]);
+
+    // Recorded Dimakamkan at 2026-10-02 12:00: Lewat Jatuh Tempo from 2026-10-05 12:00.
+    await dimakamkan(setup, dasar);
+    await tick!.tick(ctx, setup.clock.now());
+    expect(await pengingatOf(setup, dasar.tagihanId)).toEqual(PENGINGAT);
+
+    // H+3 of the anchor at 08:00 WIB is 2026-10-08 08:00; nothing goes out before it.
+    setup.clock.set(wib("2026-10-08 07:59"));
+    expect((await setup.notifications.kirimPesanJatuhTempo(setup.clock.now())).terkirim).toBe(0);
+    setup.clock.set(wib("2026-10-08 08:00"));
+    expect((await setup.notifications.kirimPesanJatuhTempo(setup.clock.now())).terkirim).toBe(1);
+    const terkirim = setup.email.sent.filter((pesan) => pesan.to === "pemesan@contoh.id" && pesan.subject.includes("Tagihan"));
+    expect(terkirim.length).toBeGreaterThanOrEqual(1);
+    expect(terkirim.at(-1)!.text).toContain("Siti Aminah");
+  });
+
+  it("running the tick again queues nothing new", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    await dimakamkan(setup, dasar);
+
+    expect(await chasingTpu(setup, setup.clock.now())).toEqual({ dijadwalkan: 4, ditandai: 1 });
+    expect(await chasingTpu(setup, setup.clock.now())).toEqual({ dijadwalkan: 0, ditandai: 0 });
+    expect(await pengingatOf(setup, dasar.tagihanId)).toEqual(PENGINGAT);
+  });
+
+  it("stops the reminders once the Tagihan is Lunas", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    await dimakamkan(setup, dasar);
+    await chasingTpu(setup, setup.clock.now());
+    const keKeluarga = () => setup.email.sent.filter((pesan) => pesan.to === "pemesan@contoh.id").length;
+    const sebelum = keKeluarga();
+
+    const lunas = await setup.billing.recordPayment(dasar.tagihanId, { method: { kind: "transfer_manual" }, reference: null });
+    expect(lunas.ok).toBe(true);
+    setup.clock.set(wib("2026-11-05 08:00")); // past H+30
+    const hasil = await setup.notifications.kirimPesanJatuhTempo(setup.clock.now());
+    expect(hasil).toMatchObject({ terkirim: 0, dibatalkan: 4 });
+    expect(keKeluarga()).toBe(sebelum);
+  });
+
+  it("queues nothing for a Tagihan paid before the tick sees the burial", async () => {
+    const setup = pengajuanOnTestDatabase(db);
+    const dasar = await pesananDikonfirmasi(setup);
+    const lunas = await setup.billing.recordPayment(dasar.tagihanId, { method: { kind: "transfer_manual" }, reference: null });
+    expect(lunas.ok).toBe(true);
+    await dimakamkan(setup, dasar);
+
+    expect(await chasingTpu(setup, setup.clock.now())).toEqual({ dijadwalkan: 0, ditandai: 1 });
+    expect(await pengingatOf(setup, dasar.tagihanId)).toEqual([]);
+  });
+});
 
 describe("Dimakamkan on a Saat Duka TPU order", () => {
   it("opens the 7-day window for the filing documents and lists the missing ones in Perlu tindakan", async () => {

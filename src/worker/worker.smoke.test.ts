@@ -43,12 +43,13 @@ describe("pg-boss wiring (smoke)", () => {
           kirimPeringatanStafTick: async () => ({ dikirim: 0 }),
           pengingatHakPakaiBerakhir: async () => ({ ok: true as const }),
           pengingatIptmBerakhir: async () => ({ ok: true as const }),
+          jadwalkanChasing: async () => ({ dijadwalkan: 0 }),
         },
         lokasi: { serviceHoursDeadline: async () => ({ ok: false, reason: "jam_operasional_belum_diisi" as const }), kontakSiagaOf: async () => null, aturanPerpanjanganOf: async () => null, berhentiBerlakuBelumDiproses: async () => [], tandaiBerhentiDiproses: async () => {} },
         identity: { adminLokasiOf: async () => [], accountOnRecord: async () => null },
         // The Layanan module's payment effect re-run reads a grave's Hak Pakai; the smoke test pays nothing.
         inventory: { hakPakaiOfUnit: async () => null, kedaluwarsaTick: async () => ({ kedaluwarsa: 0 }), hakPakaiMenjelangAkhir: async () => [], hakPakaiUntukPerpanjangan: async () => null },
-        billing: { tagihanBerlaku: async () => null },
+        billing: { tagihanBerlaku: async () => null, payAfterAnchored: async () => [] },
         perpanjanganUrl: (hakPakaiId) => `https://makam.test/perpanjangan/${hakPakaiId}`,
         perpanjanganTpuUrl: (makamTpuId) => `https://makam.test/pesan-makam/perpanjang-iptm/${makamTpuId}`,
         notifikasi: {

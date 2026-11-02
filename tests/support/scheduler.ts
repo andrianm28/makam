@@ -30,8 +30,11 @@ export function schedulerContext(parts: {
 }): SchedulerContext {
   return {
     db: parts.db,
-    // No filing-only Pengurusan order is waiting on a Tagihan until a test gives the tick Billing.
-    pengurusan: parts.pengurusan ?? { billing: { tagihanBerlaku: async () => null } },
+    // No Pengurusan order is waiting on a Tagihan until a test gives the ticks Billing (and Chasing) of its own.
+    pengurusan: parts.pengurusan ?? {
+      billing: { tagihanBerlaku: async () => null, payAfterAnchored: async () => [] },
+      notifikasi: { jadwalkanChasing: async () => ({ dijadwalkan: 0 }) },
+    },
     paymentEffects: parts.paymentEffects ?? [],
     reportError: parts.reportError ?? (() => {}),
     notifications: parts.notifications ?? {

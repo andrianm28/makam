@@ -79,6 +79,7 @@ export { JAM_KONFIRMASI_TPU } from "./pilihan";
 export { STATUS_BERAKHIR_DENGAN_PENGEMBALIAN } from "./aturan";
 export type { FotoIptm, PlacePengurusanIptmInput, PlacePengurusanIptmResult, PlaceSaatDukaTpuInput, PlaceSaatDukaTpuResult } from "./saat-duka-tpu";
 export { pengingatIptmTick, type PengingatIptmDeps } from "./pengingat-iptm";
+export { chasingTpuTick, type ChasingTpuDeps } from "./chasing-tpu";
 import { cekTpuTerbuka, koreksiIptmBerakhir, mintaPerbaikan, placePerpanjanganTpu, putuskanCekTpu } from "./perpanjangan-tpu";
 import type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult } from "./perpanjangan-tpu";
 export type { CekTpuTerbuka, KoreksiIptmBerakhirResult, MintaPerbaikanResult, PlacePerpanjanganTpuInput, PlacePerpanjanganTpuResult, PutuskanCekTpuResult };

@@ -15,7 +15,7 @@ import type { Database } from "@/db/client";
 import { rilisAktif } from "@/lib/rilis";
 import { fiturUntukTick, terbukaDi, type Rilis } from "@/lib/rilis-peta";
 import { lapsePayFirstTagihanTick, lewatJatuhTempoPayAfterTagihanTick, retryFailedPaymentEffectsTick, type Billing, type PaymentEffect } from "@/domain/billing";
-import { pembayaranBerkasTick, pengingatIptmTick, type PengingatIptmDeps } from "@/domain/pengurusan";
+import { chasingTpuTick, pembayaranBerkasTick, pengingatIptmTick, type PengingatIptmDeps } from "@/domain/pengurusan";
 import { pruneIpRequests } from "@/domain/identity";
 import { pruneCariMakamAttempts, type Inventory } from "@/domain/inventory";
 import { berhentiBerlakuTick as berhentiBerlaku, type BerhentiContext } from "./berhenti";
@@ -80,9 +80,14 @@ export interface SchedulerContext {
   pengingatIptm: PengingatIptmDeps;
 }
 
-/** What the filing-only Pengurusan IPTM tick reads: its own database and Billing's one public read of a Tagihan. */
+/**
+ * What the Pengurusan ticks read besides their own database: Billing's reads of a Tagihan (the filing-only IPTM's
+ * pay-first one, ticket 47; the overdue anchors of the pay-after TPU ones, ticket 46 gap 5) and Notifications' Chasing,
+ * which queues a pay-after TPU Tagihan's family reminders.
+ */
 export interface PengurusanTickContext {
-  billing: Pick<Billing, "tagihanBerlaku">;
+  billing: Pick<Billing, "tagihanBerlaku" | "payAfterAnchored">;
+  notifikasi: Pick<Notifications, "jadwalkanChasing">;
 }
 
 export type TickFunction = (ctx: SchedulerContext, now: Date) => Promise<void>;
@@ -132,6 +137,8 @@ export const scheduledTicks: readonly ScheduledTick[] = [
   // Pengurusan: a filing-only IPTM whose pay-first Tagihan is Lunas becomes Diproses, and one whose Tagihan lapsed becomes Dibatalkan (ticket 47).
   { name: "pengurusan.pembayaran_berkas", cron: "* * * * *", tick: pembayaranBerkasPengurusanTick },
   { name: "pengurusan.pengingat_iptm", cron: "23 * * * *", tick: pengingatIptmBerakhirTick },
+  // Pengurusan: a recorded TPU burial hands its overdue pay-after Tagihan to Chasing's four family reminders (ticket 46, gap 5).
+  { name: "pengurusan.chasing_tpu", cron: "* * * * *", tick: chasingTpuPengurusanTick },
   // Payouts: an order whose Tagihan is Lunas and whose Pemakaman is recorded gets its Pencairan items (ticket 32);
   // a paid Pemesanan Terencana gets its Hak Pakai item at the end of its Masa Pembatalan (ticket 37).
   { name: "payouts.pencairan_due", cron: "* * * * *", tick: pencairanDueTick },
@@ -235,6 +242,11 @@ async function pengingatIptmBerakhirTick(ctx: SchedulerContext, now: Date): Prom
 /** The worker wrapper around the Pengurusan module's filing-only payment follow-up (idempotent there, as every tick is). */
 async function pembayaranBerkasPengurusanTick(ctx: SchedulerContext, now: Date): Promise<void> {
   await pembayaranBerkasTick({ db: ctx.db, billing: ctx.pengurusan.billing }, now);
+}
+
+/** The worker wrapper around the Pengurusan module's pay-after TPU Chasing hand-over (idempotent there, as every tick is). */
+async function chasingTpuPengurusanTick(ctx: SchedulerContext, now: Date): Promise<void> {
+  await chasingTpuTick({ db: ctx.db, billing: ctx.pengurusan.billing, notifikasi: ctx.pengurusan.notifikasi }, now);
 }
 
 /** The worker wrapper around the Pemesanan module's Terencana payment-hold lapse (idempotent there, as every tick is). */

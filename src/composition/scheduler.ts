@@ -23,12 +23,12 @@ export function composeSchedulerContext(deps: {
   dokumenUrl: (link: string) => string;
   /** The same payment-effect registry the `web` runtime holds, so a retried effect behaves identically (ticket 25). */
   paymentEffects?: readonly PaymentEffect[];
-  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick" | "pengingatHakPakaiBerakhir" | "pengingatIptmBerakhir">;
+  notifications: Pick<Notifications, "kirimPesanJatuhTempo" | "chasingEskalasiTick" | "kirimPeringatanAntreanTick" | "kirimPeringatanStafTick" | "pengingatHakPakaiBerakhir" | "pengingatIptmBerakhir" | "jadwalkanChasing">;
   lokasi: Pick<Lokasi, "serviceHoursDeadline" | "kontakSiagaOf" | "aturanPerpanjanganOf" | "berhentiBerlakuBelumDiproses" | "tandaiBerhentiDiproses">;
   identity: Pick<Identity, "adminLokasiOf" | "accountOnRecord">;
   inventory: Pick<Inventory, "hakPakaiOfUnit" | "kedaluwarsaTick" | "hakPakaiMenjelangAkhir" | "hakPakaiUntukPerpanjangan">;
   /** The Hak Pakai end reminders stop for an ordered Perpanjangan whose Tagihan is still alive (ticket 42). */
-  billing: Pick<Billing, "tagihanBerlaku">;
+  billing: Pick<Billing, "tagihanBerlaku" | "payAfterAnchored">;
   /** A Hak Pakai's Perpanjangan page URL, the link in a reminder. */
   perpanjanganUrl: (hakPakaiId: string) => string;
   /** A Makam TPU's Perpanjangan IPTM page URL, the link in an IPTM expiry reminder (ticket 48). */
@@ -58,7 +58,7 @@ export function composeSchedulerContext(deps: {
     terencana: deps.terencana,
     queues: deps.queues,
     inventory: deps.inventory,
-    pengurusan: { billing: deps.billing },
+    pengurusan: { billing: deps.billing, notifikasi: deps.notifications },
     pengingatIptm: { db: deps.db, identity: deps.identity, notifikasi: deps.notifications, tautan: deps.perpanjanganTpuUrl },
     pengingatHakPakai: { db: deps.db, inventory: deps.inventory, lokasi: deps.lokasi, identity: deps.identity, billing: deps.billing, notifikasi: deps.notifications, perpanjanganUrl: deps.perpanjanganUrl },
   };

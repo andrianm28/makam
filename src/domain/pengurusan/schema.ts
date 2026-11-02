@@ -194,6 +194,11 @@ export const pengurusanTpu = pgTable(
      * the three later timestamps are the steps Dokumen Lengkap, IPTM Diajukan and IPTM Terbit.
      */
     dimakamkanPada: at("dimakamkan_pada"),
+    /**
+     * When the pay-after Tagihan's four family reminders (H+3/7/14/30) were handed to Notifications' Chasing by the
+     * worker's tick (ticket 46, gap 5); null until then, and for an order not yet Dimakamkan.
+     */
+    chasingDijadwalkanPada: at("chasing_dijadwalkan_pada"),
     dokumenDueAt: at("dokumen_due_at"),
     dokumenDiunggah: jsonb("dokumen_diunggah").$type<Record<string, DokumenDiunggah>>(),
     dokumenLengkapPada: at("dokumen_lengkap_pada"),
