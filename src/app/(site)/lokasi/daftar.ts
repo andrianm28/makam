@@ -13,7 +13,7 @@ import { serverRuntime } from "@/server/runtime";
  */
 export interface DaftarLokasiBaris {
   card: LokasiMakamCard;
-  /** What the card shows as its price: null until Admin Platform has entered a price for it. */
+  /** What the card shows as its price: null until Admin Platform has entered a price for it, and always null for a Lokasi Mitra whose prices are not shown (Harga Tampil off). */
   mulaiRp: number | null;
   /** The first Kunjungan Verifikasi photo, a short-lived signed URL (a Lokasi Mitra only). */
   foto: string | undefined;
@@ -48,7 +48,7 @@ export async function daftarLokasi(query: {
     cards.map(async (card): Promise<DaftarLokasiBaris> => {
       if (card.kind === "tpu") return { card, mulaiRp: hargaTpu.mulaiDari, foto: undefined };
       const [pricing, foto] = await Promise.all([tariffs.lokasiPricing(card.id, now), lokasi.publicVisitPhotoUrls(card.id)]);
-      return { card, mulaiRp: pricing.mulaiDari, foto: foto.at(0) };
+      return { card, mulaiRp: card.hargaTampil ? pricing.mulaiDari : null, foto: foto.at(0) };
     }),
   );
   return { baris, kota };

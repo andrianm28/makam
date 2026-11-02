@@ -43,7 +43,7 @@ import {
   type WriteResult,
 } from "./lokasi-mitra";
 import { searchLokasiMitra, type LokasiMitraListPage, type LokasiMitraListQuery } from "./lokasi-list";
-import type { LokasiFlags, LokasiPolicies } from "./policies";
+import type { LokasiFlags, LokasiFlagsInput, LokasiPolicies } from "./policies";
 import type { LokasiProfileInput } from "./profile";
 import { fullLokasiAuditLog, lokasiAuditLog, type LokasiAuditLogResult } from "./audit-view";
 import {
@@ -211,6 +211,7 @@ export {
   lokasiFlagsSchema,
   lokasiPoliciesSchema,
   type LokasiFlags,
+  type LokasiFlagsInput,
   type LokasiPolicies,
 } from "./policies";
 /** Every Lokasi Mitra status: Belum Tayang (set here), Terverifikasi (publish gate, ticket 16), Ditangguhkan and Berhenti (ticket 59). */
@@ -296,7 +297,7 @@ export interface Lokasi {
   setPoliciesAndFlags(
     by: Actor,
     lokasiId: string,
-    input: { policies: LokasiPolicies; flags: LokasiFlags },
+    input: { policies: LokasiPolicies; flags: LokasiFlagsInput },
   ): Promise<SetPoliciesResult>;
   /** Admin Platform (only) sets or changes the bank account, audited. */
   changeBankAccount(

@@ -23,6 +23,7 @@ export function CsLink({
   label = "Tanya CS",
   showHours = false,
   hideLabelOnPhone = false,
+  pesan,
   "aria-label": ariaLabel,
   children,
 }: {
@@ -39,6 +40,8 @@ export function CsLink({
    * the point of a family in a hurry finding a person.
    */
   hideLabelOnPhone?: boolean;
+  /** An opening line typed into the chat for the family (e.g. which Lokasi Mitra they ask about). */
+  pesan?: string;
   /** The link's accessible name, for a call site whose own markup has none. */
   "aria-label"?: string;
   /** Replaces the default icon and label with the call site's own markup. */
@@ -47,7 +50,7 @@ export function CsLink({
   if (!contact) return null;
   return (
     <a
-      href={csWhatsAppLink(contact)}
+      href={csWhatsAppLink(contact, pesan)}
       target="_blank"
       rel="noopener noreferrer"
       aria-label={ariaLabel}

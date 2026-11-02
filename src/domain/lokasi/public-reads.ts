@@ -41,6 +41,8 @@ export interface PublicLokasiMitra {
   tumpang: { allowed: boolean; minYears: number; maxLayers: number; onReleasedPlots: boolean };
   /** Until true, the page hides the Terencana entry (spec, story 151). */
   terencanaAktif: boolean;
+  /** Harga Tampil: false means no amount on the site and no self-serve order; families go through the CS on WhatsApp. */
+  hargaTampil: boolean;
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
   /** Null until its Admin Lokasi saves one (never invented). */
   jamOperasional: Row["jamOperasional"] | null;
@@ -67,6 +69,7 @@ function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
       onReleasedPlots: row.flags.tumpangOnReleasedPlots,
     },
     terencanaAktif: row.flags.pemesananTerencanaAktif,
+    hargaTampil: hargaTampilOf(row),
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     jamOperasional: row.jamOperasional,
   };
@@ -133,6 +136,8 @@ export interface PublicLokasiMitraCard {
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
   /** Whether this Lokasi Mitra takes Pemesanan Terencana (the Terencana wizard's own filter). */
   terencanaAktif: boolean;
+  /** Harga Tampil: false means the card shows no amount and the wizards do not offer it. */
+  hargaTampil: boolean;
 }
 
 export interface PublicLokasiMitraQuery {
@@ -143,6 +148,8 @@ export interface PublicLokasiMitraQuery {
   facilities?: LokasiFacility[];
   /** Only Lokasi Mitra that have switched "Pemesanan Terencana aktif" on (spec, story 39). */
   terencana?: boolean;
+  /** Only Lokasi Mitra whose prices are shown, so a family may order there on the platform (the wizards' lists). */
+  hargaTampil?: boolean;
 }
 
 function toCard(row: Row): PublicLokasiMitraCard {
@@ -155,7 +162,13 @@ function toCard(row: Row): PublicLokasiMitraCard {
     facilities: row.facilities,
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     terencanaAktif: row.flags.pemesananTerencanaAktif,
+    hargaTampil: hargaTampilOf(row),
   };
+}
+
+/** A row saved before the Harga Tampil flag existed has none: it reads as on. */
+function hargaTampilOf(row: Row): boolean {
+  return row.flags.hargaTampil !== false;
 }
 
 /**
@@ -172,6 +185,7 @@ export async function publicLokasiMitraList(
   const conditions = [eq(lokasiMitraTable.status, "terverifikasi"), bukanDataContoh];
   if (query.city) conditions.push(eq(lokasiMitraTable.city, query.city));
   if (query.terencana) conditions.push(sql`${lokasiMitraTable.flags} ->> 'pemesananTerencanaAktif' = 'true'`);
+  if (query.hargaTampil) conditions.push(sql`coalesce(${lokasiMitraTable.flags} ->> 'hargaTampil', 'true') = 'true'`);
   if (query.id) conditions.push(eq(lokasiMitraTable.id, query.id));
   const rows = await deps.db
     .select()

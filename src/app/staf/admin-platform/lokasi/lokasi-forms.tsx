@@ -281,6 +281,11 @@ export function PoliciesForm({
           name="saleTransfersAllowed"
           checked={flags.saleTransfersAllowed}
         />
+        <Checkbox
+          label="Harga tampil di situs (keluarga memesan sendiri di platform). Bila tidak, harga disembunyikan dan keluarga diarahkan ke WhatsApp CS; Admin Platform yang menginput pesanannya."
+          name="hargaTampil"
+          checked={flags.hargaTampil !== false}
+        />
       </fieldset>
       <Submit pending={pending}>Simpan kebijakan</Submit>
       <Feedback state={state} />

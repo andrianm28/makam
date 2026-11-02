@@ -347,6 +347,7 @@ describe("the policies and flags of a Lokasi Mitra", () => {
       tumpang: { allowed: false, minYears: 3, maxLayers: 2 },
       tumpangOnReleasedPlots: false,
       saleTransfersAllowed: false,
+      hargaTampil: true,
     });
   });
 

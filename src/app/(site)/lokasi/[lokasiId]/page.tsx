@@ -26,6 +26,7 @@ import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, embedMapUrl, mapsQueryFor } from "@/lib/maps";
 import { allInBreakdown, labelledPartsBreakdown } from "@/lib/quote-breakdown";
 import { formatRupiah } from "@/lib/rupiah";
+import { CsLink } from "@/components/site/cs-link";
 import { serverRuntime } from "@/server/runtime";
 import { VerifiedPopover } from "./verified-popover";
 
@@ -119,18 +120,24 @@ export async function generateMetadata({ params }: PageProps<"/lokasi/[lokasiId]
  */
 export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lokasiId]">) {
   const { lokasiId } = await params;
-  const { lokasi, tariffs, layanan, inventory, adapters } = serverRuntime();
+  const { lokasi, tariffs, layanan, inventory, adapters, operatorSettings } = serverRuntime();
   // The page stays up while the Lokasi is Ditangguhkan or Berhenti, only without its order buttons (ticket 59).
   const profile = await lokasi.publicLokasiMitraTampil(lokasiId);
   if (!profile) notFound();
   const menerimaPesanan = profile.status === "terverifikasi";
 
-  const [pricing, photoUrls, penawaran, ketersediaan] = await Promise.all([
+  const [pricing, photoUrls, penawaran, ketersediaan, settings] = await Promise.all([
     tariffs.lokasiPricing(lokasiId, adapters.clock.now()),
     lokasi.publicVisitPhotoUrls(lokasiId),
     layanan.penawaranLokasi(lokasiId, adapters.clock.now()),
     inventory.tersediaPerJenisMakam(lokasiId),
+    operatorSettings.current(),
   ]);
+  // Harga Tampil off (owner, 2026-11-02): no amount anywhere on the page, and the family orders through the CS on
+  // WhatsApp, whose chat opens naming this Lokasi Mitra; Admin Platform enters the order.
+  const hargaTampil = profile.hargaTampil;
+  const cs = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
+  const pesanWhatsApp = `Halo Makam.co.id, saya ingin menanyakan harga dan memesan makam di ${profile.name}.`;
 
   const tersediaByJenisMakam = new Map(ketersediaan.map((row) => [row.jenisMakamId, row.count]));
   const mapsQuery = mapsQueryFor(profile);
@@ -141,7 +148,32 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   const pesanHref = `/pesan-makam/saat-duka?lokasiId=${profile.id}`;
   const [mainPhoto, ...restPhotos] = photoUrls;
 
-  const cta = (
+  const ctaWhatsApp = (
+    <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-xs">
+      <div>
+        <p className="text-title-2 text-foreground">Harga lewat WhatsApp</p>
+        <p className="text-small text-muted-foreground">
+          Lokasi ini memberikan harga langsung kepada keluarga. Tanyakan harga dan pesan lewat CS kami; pesanan Anda kami
+          catat di Makam.co.id dan Tagihan dikirim ke email Anda.
+        </p>
+      </div>
+      {menerimaPesanan ? (
+        <CsLink
+          contact={cs}
+          pesan={pesanWhatsApp}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-body-lg font-semibold text-primary-foreground hover:bg-primary/90"
+        >
+          Tanya harga & pesan lewat WhatsApp <ArrowRightIcon className="size-5" aria-hidden />
+        </CsLink>
+      ) : (
+        <p className="text-body font-medium text-foreground">
+          {profile.status === "ditangguhkan" ? "Sementara tidak menerima pesanan." : "Tidak lagi menerima pesanan."}
+        </p>
+      )}
+    </div>
+  );
+
+  const ctaHarga = (
     <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-xs">
       <div>
         <p className="text-caption text-muted-foreground">mulai</p>
@@ -195,6 +227,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
       )}
     </div>
   );
+  const cta = hargaTampil ? ctaHarga : ctaWhatsApp;
 
   return (
     <div className="mx-auto w-full max-w-(--page-max-width) px-4 pt-6 pb-28 md:px-8 md:pt-8 lg:pb-16">
@@ -276,6 +309,30 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
             <VerifiedPopover dikunjungi={dikunjungi} />
           </header>
 
+          {!hargaTampil ? (
+            <Section id="harga" title="Jenis Makam">
+              <p className="text-body text-muted-foreground">
+                Harga di lokasi ini diberikan langsung oleh CS kami lewat WhatsApp, dan sama dengan yang nanti tertera di Tagihan.
+              </p>
+              <ul className="mt-5 flex flex-col gap-4">
+                {pricing.jenisMakam.map((card) => {
+                  const tersedia = tersediaByJenisMakam.get(card.jenisMakam.id) ?? 0;
+                  return (
+                    <li key={card.jenisMakam.id} className="rounded-2xl border border-border bg-card p-5">
+                      <h3 className="text-title-2 text-foreground">{card.jenisMakam.name}</h3>
+                      <p className="text-small text-muted-foreground">
+                        {card.jenisMakam.description ? `${card.jenisMakam.description} · ` : ""}Masa Hak Pakai{" "}
+                        {tenureLabel(card.tenure).toLowerCase()}
+                      </p>
+                      <p className={tersedia === 0 ? "text-small font-medium text-warning-soft-foreground" : "text-small text-success-soft-foreground"}>
+                        {tersedia === 0 ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
+                      </p>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Section>
+          ) : (
           <Section id="harga" title="Harga per Jenis Makam">
             <p className="text-body text-muted-foreground">
               Setiap harga di sini adalah total yang tertagih (all-in): sama dengan yang tertera di Tagihan.
@@ -351,8 +408,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
               </div>
             ) : null}
           </Section>
+          )}
 
-          {penawaran.length > 0 ? (
+          {hargaTampil && penawaran.length > 0 ? (
             <Section id="layanan" title="Layanan">
               <p className="text-body text-muted-foreground">
                 Layanan yang bisa dipesan untuk makam di lokasi ini. Harganya sudah termasuk semua biaya yang akan
@@ -486,7 +544,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
            * on the Saat Duka order flow itself, not repeated here for every
            * Lokasi Mitra page.
            */}
-          {profile.terencanaAktif ? (
+          {profile.terencanaAktif && hargaTampil ? (
             <Section id="pembatalan" title="Pembatalan pemesanan terencana">
               <ul className="flex flex-col gap-2">
                 <li className="flex items-start gap-2 text-body text-foreground">
@@ -513,10 +571,20 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-card/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="flex items-center gap-3">
           <div className="min-w-0 flex-1">
-            <p className="text-caption text-muted-foreground">mulai</p>
-            <p className="text-title-2 tabular-nums">{pricing.mulaiDari !== null ? formatRupiah(pricing.mulaiDari) : "—"}</p>
+            <p className="text-caption text-muted-foreground">{hargaTampil ? "mulai" : "harga"}</p>
+            <p className="text-title-2 tabular-nums">
+              {!hargaTampil ? "lewat WhatsApp" : pricing.mulaiDari !== null ? formatRupiah(pricing.mulaiDari) : "—"}
+            </p>
           </div>
-          {menerimaPesanan ? (
+          {menerimaPesanan && !hargaTampil ? (
+            <CsLink
+              contact={cs}
+              pesan={pesanWhatsApp}
+              className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-body font-semibold text-primary-foreground"
+            >
+              Tanya harga
+            </CsLink>
+          ) : menerimaPesanan ? (
             <Link href={pesanHref} className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-body font-semibold text-primary-foreground">
               Pesan makam sekarang
             </Link>

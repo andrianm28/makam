@@ -89,7 +89,8 @@ export async function placeSaatDuka(deps: PemesananDeps, input: PlaceSaatDukaInp
   if (!akun || akun.id !== input.pemesan.accountId) return { ok: false, reason: "email_bukan_akun_ini" };
 
   const lokasi = await deps.lokasi.publicLokasiMitra(input.lokasiId);
-  if (!lokasi) return { ok: false, reason: "lokasi_tidak_terbuka" };
+  // A Lokasi Mitra whose prices are not shown takes its orders through the CS on WhatsApp (Harga Tampil off).
+  if (!lokasi || !lokasi.hargaTampil) return { ok: false, reason: "lokasi_tidak_terbuka" };
   const pricing = await deps.tariffs.lokasiPricing(input.lokasiId, now);
   const kartu = pricing.jenisMakam.find((card) => card.jenisMakam.id === input.jenisMakamId);
   const harga = await saatDukaHarga(deps, input.lokasiId, input.jenisMakamId, now);

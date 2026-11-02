@@ -268,7 +268,9 @@ function LokasiCard({ row }: { row: DaftarLokasiBaris }) {
           </p>
         )}
         <div className="mt-auto flex items-end justify-between gap-3 pt-2">
-          {mulaiRp !== null ? (
+          {card.kind === "lokasi_mitra" && !card.hargaTampil ? (
+            <p className="text-small font-medium text-foreground">Harga lewat WhatsApp</p>
+          ) : mulaiRp !== null ? (
             <div>
               <p className="text-caption text-muted-foreground">mulai</p>
               <p className="text-title-2 text-foreground tabular-nums">{formatRupiah(mulaiRp)}</p>

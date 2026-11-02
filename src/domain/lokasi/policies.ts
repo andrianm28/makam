@@ -35,8 +35,16 @@ export const lokasiFlagsSchema = z.object({
   tumpangOnReleasedPlots: z.boolean(),
   /** Ganti Pemegang Hak by sale. */
   saleTransfersAllowed: z.boolean(),
+  /**
+   * Harga Tampil: the Lokasi Mitra lets its prices be shown on the site, so families order on the platform. Off, its
+   * page shows no amount and sends families to the CS on WhatsApp, and Admin Platform enters their orders (owner,
+   * 2026-11-02). A Lokasi Mitra saved before the flag existed has none, which reads as on.
+   */
+  hargaTampil: z.boolean().default(true),
 });
 export type LokasiFlags = z.infer<typeof lokasiFlagsSchema>;
+/** The flags as a caller sends them: Harga Tampil may be left out, and then it is on. */
+export type LokasiFlagsInput = z.input<typeof lokasiFlagsSchema>;
 
 /** The policies a new Lokasi Mitra starts with (spec defaults). */
 export const DEFAULT_POLICIES: LokasiPolicies = {
@@ -59,4 +67,5 @@ export const DEFAULT_FLAGS: LokasiFlags = {
   tumpang: { allowed: false, minYears: 3, maxLayers: 2 },
   tumpangOnReleasedPlots: false,
   saleTransfersAllowed: false,
+  hargaTampil: true,
 };

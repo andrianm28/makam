@@ -225,6 +225,7 @@ const policiesSchema = z.object({
   tumpangMaxLayers: count,
   tumpangOnReleasedPlots: checkbox,
   saleTransfersAllowed: checkbox,
+  hargaTampil: checkbox,
 });
 
 /** Admin Platform sets the policies and flags. */
@@ -253,6 +254,7 @@ export async function simpanKebijakan(_previous: FormState, formData: FormData):
           tumpang: { allowed: data.tumpangAllowed, minYears: data.tumpangMinYears, maxLayers: data.tumpangMaxLayers },
           tumpangOnReleasedPlots: data.tumpangOnReleasedPlots,
           saleTransfersAllowed: data.saleTransfersAllowed,
+          hargaTampil: data.hargaTampil,
         },
       }),
     saved: "Kebijakan tersimpan.",

@@ -17,6 +17,7 @@ import {
   lokasiFlagsSchema,
   lokasiPoliciesSchema,
   type LokasiFlags,
+  type LokasiFlagsInput,
   type LokasiPolicies,
 } from "./policies";
 import { lokasiProfileSchema, type LokasiFacility, type LokasiProfileInput } from "./profile";
@@ -314,7 +315,7 @@ export async function setPoliciesAndFlags(
   deps: LokasiDeps,
   by: Actor,
   lokasiId: string,
-  input: { policies: LokasiPolicies; flags: LokasiFlags },
+  input: { policies: LokasiPolicies; flags: LokasiFlagsInput },
 ): Promise<SetPoliciesResult> {
   const policies = lokasiPoliciesSchema.safeParse(input.policies);
   const flags = lokasiFlagsSchema.safeParse(input.flags);

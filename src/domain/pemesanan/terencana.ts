@@ -81,7 +81,7 @@ function dalamBand(harga: NonNullable<TerencanaQuery["harga"]>, mulaiDari: numbe
  */
 export async function pilihanTerencana(deps: PemesananDeps, query: TerencanaQuery = {}): Promise<KartuTerencana[]> {
   const now = deps.clock.now();
-  const cards = await deps.lokasi.publicLokasiMitraList({ city: query.city, facilities: query.facilities, terencana: true });
+  const cards = await deps.lokasi.publicLokasiMitraList({ city: query.city, facilities: query.facilities, terencana: true, hargaTampil: true });
   const priced = await Promise.all(
     cards.map(async (card) => ({ card, mulaiDari: (await deps.tariffs.lokasiPricing(card.id, now)).mulaiDari })),
   );
@@ -105,7 +105,7 @@ export async function pilihanTerencana(deps: PemesananDeps, query: TerencanaQuer
 
 /** Every city with at least one Lokasi Mitra that takes a Terencana order, for the city filter. */
 export async function kotaTerencana(deps: PemesananDeps): Promise<string[]> {
-  const semua = await deps.lokasi.publicLokasiMitraList({ terencana: true });
+  const semua = await deps.lokasi.publicLokasiMitraList({ terencana: true, hargaTampil: true });
   const cities = new Set(semua.map((card) => card.city));
   return [...cities].sort((a, b) => a.localeCompare(b, "id"));
 }
@@ -195,7 +195,7 @@ export interface DenahTerencana {
 export async function denahTerencana(deps: PemesananDeps, lokasiId: string, pilihan: PilihanTerencana = { petak: [], kavling: null }): Promise<DenahTerencana | null> {
   const profile = await deps.lokasi.publicLokasiMitra(lokasiId);
   const denah = await deps.inventory.publicDenah(lokasiId);
-  if (!profile?.terencanaAktif || !denah) return null;
+  if (!profile?.terencanaAktif || !profile.hargaTampil || !denah) return null;
   const now = deps.clock.now();
   const [pricing, kontakSiaga] = await Promise.all([deps.tariffs.lokasiPricing(lokasiId, now), deps.lokasi.kontakSiagaOf(lokasiId)]);
   // The URL names the plots by their number; the Denah names them by id, so the choice is resolved here.
@@ -381,7 +381,8 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
   const result = await refusable<PlaceTerencanaResult>(deps.db, async (tx) => {
     const now = deps.clock.now();
     const profile = await deps.lokasi.publicLokasiMitra(draft.lokasiId);
-    if (!profile?.terencanaAktif) return { ok: false, reason: "lokasi_tidak_ada" };
+    // A Lokasi Mitra whose prices are not shown takes its orders through the CS on WhatsApp (Harga Tampil off).
+    if (!profile?.terencanaAktif || !profile.hargaTampil) return { ok: false, reason: "lokasi_tidak_ada" };
 
     // The same check the wizard's "Lanjut" made, read again here: a plot may have been taken since.
     const dicek = await periksaPilihanTerencana(deps, { lokasiId: draft.lokasiId, units: draft.units });

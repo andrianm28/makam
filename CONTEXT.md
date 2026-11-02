@@ -18,6 +18,10 @@ _Avoid_: Mitra (alone), partner makam, TPS / Tempat Pemakaman Swasta (marketing 
 Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed; every listed Lokasi Mitra is Terverifikasi. Never said of a TPU, which is shown as an official Pemda cemetery instead.
 _Avoid_: Terdaftar, resmi (for a Lokasi Mitra), using it as a badge some listings lack
 
+**Harga Tampil**:
+Said of a Lokasi Mitra whose partner allows its prices on the site (the default): it is ordered self-serve on the platform. A Lokasi Mitra without Harga Tampil is still listed, but shows no price and no order button; the family asks the CS on WhatsApp and Admin Platform enters the order (ADR 0011).
+_Avoid_: Harga tersembunyi, harga privat, jalur offline
+
 **Belum Tayang**:
 Said of a Lokasi Mitra that is still being onboarded and is not yet listed: every Lokasi Mitra starts so, and stays so until it is Terverifikasi.
 _Avoid_: Draft, nonaktif, pending

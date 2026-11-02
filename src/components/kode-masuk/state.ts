@@ -37,9 +37,10 @@ export interface CsContact {
   replyHours: string;
 }
 
-/** The wa.me link to the CS number (a person answering in the Business app; no API). */
-export function csWhatsAppLink(contact: CsContact): string {
-  return `https://wa.me/${contact.whatsApp.replace(/^\+/, "")}`;
+/** The wa.me link to the CS number (a person answering in the Business app; no API), with an opening line typed in when given. */
+export function csWhatsAppLink(contact: CsContact, pesan?: string): string {
+  const base = `https://wa.me/${contact.whatsApp.replace(/^\+/, "")}`;
+  return pesan ? `${base}?text=${encodeURIComponent(pesan)}` : base;
 }
 
 type Refusal<T> = T extends { ok: false; reason: infer R } ? R : never;
