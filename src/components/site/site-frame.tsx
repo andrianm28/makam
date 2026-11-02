@@ -26,7 +26,7 @@ export function SiteFrame({
     <div className="flex min-h-full flex-1 flex-col bg-background text-foreground">
       <SiteHeader items={items} contact={contact} />
       {children}
-      <SiteFooter legalName={legalName} contact={contact} />
+      <SiteFooter legalName={legalName} contact={contact} items={items} />
       <CsFloatingButton contact={contact} />
     </div>
   );
