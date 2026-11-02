@@ -242,7 +242,7 @@ describe("terms 1..K, priced from quote() plus the Biaya Layanan Platform", () =
     expect(tawaran.opsi[0]!.lines.map((line) => line.amount)).toEqual([3_000_000, 150_000]);
   });
 
-  it("offers up to the Lokasi's K terms, each priced per term with the fee once, and none past the QRIS cap", async () => {
+  it("offers up to the Lokasi's K terms, each priced per term with the fee once, also past the QRIS cap", async () => {
     const setup = perpanjanganOnTestDatabase(db);
     const fixture = await hakPakaiSiap(setup);
     await setMaxTerms(setup, fixture, 4);
@@ -250,11 +250,12 @@ describe("terms 1..K, priced from quote() plus the Biaya Layanan Platform", () =
     const tawaran = await setup.perpanjangan.tawaran(fixture.hakPakaiId);
 
     if (!tawaran.ok) throw new Error("no offer");
-    // Rp 3.150.000, Rp 6.150.000, Rp 9.150.000; four terms would be Rp 12.150.000, over the Rp 10.000.000 QRIS cap.
+    // Four terms are Rp 12.150.000, over the Rp 10.000.000 QRIS cap and still offered (paid by Virtual Account or transfer).
     expect(tawaran.opsi.map((one) => [one.terms, one.total, one.endDateBaru])).toEqual([
       [1, 3_150_000, "2031-10-15"],
       [2, 6_150_000, "2036-10-15"],
       [3, 9_150_000, "2041-10-15"],
+      [4, 12_150_000, "2046-10-15"],
     ]);
   });
 

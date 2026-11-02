@@ -73,6 +73,7 @@ import {
   type PaymentWebhookResult,
   type PembayaranPerluDitinjau,
 } from "./payment";
+import { caraBayar, type CaraBayar } from "./batas";
 import { retryFailedPaymentEffects, type PaymentEffect } from "./settlement";
 import { tetapkanHargaKhusus, type HargaKhususDeps, type TetapkanHargaKhususInput, type TetapkanHargaKhususResult } from "./harga-khusus";
 import {
@@ -116,8 +117,11 @@ export {
   newDocumentLink,
   noHeader,
   paymentMethodSchema,
+  BATAS_TAGIHAN,
+  caraBayarKinds,
   QRIS_PAYMENT_CAP,
   withinPaymentCap,
+  type CaraBayar,
   type DocumentHeader,
   type PaymentMethod,
 } from "./shared";
@@ -251,6 +255,8 @@ export interface Billing {
    * is valid, created anew once it expired.
    */
   bayar(link: string): Promise<BayarResult>;
+  /** How a Tagihan of this total is paid: QRIS, Virtual Account or manual transfer (ADR 0013). */
+  caraBayar(total: number): CaraBayar;
   /**
    * A PaymentProvider webhook (the raw body and headers as received): rejected
    * unless its signature checks out, then processed exactly once per event. A
@@ -443,6 +449,7 @@ export function createBilling(deps: BillingDeps): Billing {
     batalkanTagihan: (tagihanId, input) => batalkanTagihan(deps, tagihanId, input, deps.clock.now()),
     recordPayment: (tagihanId, input) => recordPayment(deps, tagihanId, input, deps.clock.now()),
     bayar: (link) => bayar(deps, link, deps.clock.now()),
+    caraBayar: (total) => caraBayar(total, deps.payments.batasVirtualAccount),
     receivePaymentWebhook: (request) => receivePaymentWebhook(deps, request, deps.clock.now()),
     pembayaranPerluDitinjau: () => listPembayaranPerluDitinjau(deps.db),
     tagihanRetribusiLunas: () => listTagihanRetribusiLunas(deps.db),

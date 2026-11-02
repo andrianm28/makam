@@ -47,7 +47,7 @@ export const TEMPLATE_EMAIL = [
   // A new message in a Pekerjaan Layanan's thread: a link only, never the text or a photo (ticket 52).
   "layanan_pesan_baru",
   // A Paket Layanan cycle that cannot be issued because its total passes the
-  // Rilis 1 QRIS cap: the Paket is paused and the Pemesan is told (ticket 54).
+  // largest Tagihan: the Paket is paused and the Pemesan is told (ticket 54).
   "paket_siklus_dijeda",
   // A Hak Pakai nearing its end or in its Masa Tenggang: 60, 30 and 7 days before, then weekly (ticket 42).
   "hak_pakai_berakhir_pengingat",
@@ -299,7 +299,7 @@ export const TABEL_ACARA: Record<
   },
   /**
    * A Paket Layanan cycle whose Tagihan Billing refused because its total passes
-   * the Rilis 1 QRIS cap (ticket 54): the Paket is paused and the Pemesan hears
+   * `BATAS_TAGIHAN` (the largest Tagihan) (ticket 54): the Paket is paused and the Pemesan hears
    * it, because only they can decide what to do next. About a Lokasi Mitra's own
    * work, so a send that keeps failing calls that Lokasi's Admin Lokasi.
    */

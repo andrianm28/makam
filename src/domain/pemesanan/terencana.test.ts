@@ -6,7 +6,7 @@ import { signedInAdminPlatform } from "../../../tests/support/publish";
 import { terencanaLokasi } from "../../../tests/support/terencana";
 import { HARGA_BANDS } from "./terencana";
 import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
-import { QRIS_PAYMENT_CAP, withinPaymentCap } from "@/domain/billing";
+import { BATAS_TAGIHAN, QRIS_PAYMENT_CAP } from "@/domain/billing";
 import type { TerencanaOptions } from "../../../tests/support/terencana";
 
 const { db, close } = testDatabase();
@@ -50,24 +50,21 @@ describe("the Terencana wizard's Lokasi step", () => {
   });
 
   it("names the price bands of the Lokasi step without overlap: each starts where the one before ends", () => {
-    expect(HARGA_BANDS.map((band) => band.label)).toEqual(["Hingga Rp 3 jt", "Rp 3–6 jt", "Di atas Rp 6 jt sampai Rp 10 jt"]);
-    expect(HARGA_BANDS.at(-1)?.until).toBe(QRIS_PAYMENT_CAP);
+    expect(HARGA_BANDS.map((band) => band.label)).toEqual(["Hingga Rp 3 jt", "Rp 3–6 jt", "Rp 6–10 jt", "Di atas Rp 10 jt"]);
+    expect(HARGA_BANDS.at(-2)?.until).toBe(QRIS_PAYMENT_CAP);
+    expect(HARGA_BANDS.at(-1)?.until).toBe(BATAS_TAGIHAN);
   });
 
-  it("never shows a starting price v1 could not be paid for: a Jenis Makam above the QRIS cap is no card price at all", async () => {
+  it("shows a starting price above the QRIS cap, in the band above Rp 10 jt (paid by Virtual Account or transfer, ADR 0013)", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
-    // Rp 12.000.000 all-in is past the cap, so this Lokasi Mitra has nothing a Pemesan can actually order.
     const mahal = await terencanaLokasi(setup, admin, { hargaHakPakai: 11_850_000 });
 
     const pilihan = await setup.pemesanan.pilihanTerencana();
 
-    expect(pilihan.find((satu) => satu.lokasi.id === mahal.lokasiMitra.id)).toMatchObject({ mulaiDari: null, tersedia: 5 });
-    // It is in no price band at all: nothing here is buyable, so no filter may claim it.
-    expect(await setup.pemesanan.pilihanTerencana({ harga: "hingga_3_juta" })).toEqual([]);
-    expect(await setup.pemesanan.pilihanTerencana({ harga: "3_sampai_6_juta" })).toEqual([]);
+    expect(pilihan.find((satu) => satu.lokasi.id === mahal.lokasiMitra.id)).toMatchObject({ mulaiDari: 12_000_000, tersedia: 5 });
     expect(await setup.pemesanan.pilihanTerencana({ harga: "di_atas_6_juta" })).toEqual([]);
-    expect(QRIS_PAYMENT_CAP).toBe(10_000_000);
+    expect(await setup.pemesanan.pilihanTerencana({ harga: "di_atas_10_juta" })).toHaveLength(1);
   });
 
   it("filters by city, by the all-in price band and by facilities", async () => {
@@ -129,7 +126,7 @@ describe("the Terencana wizard's Petak step", () => {
     ]);
   });
 
-  it("says a selection v1 cannot take is over the Rp 10.000.000 QRIS cap, with the total that says why", async () => {
+  it("takes a selection above the Rp 10.000.000 QRIS cap: its Tagihan is paid by Virtual Account or transfer", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { fixture } = await siap(setup);
     await unitIds(setup, fixture, ["A-01", "A-02", "A-07", "A-08", "A-K01"]);
@@ -139,8 +136,8 @@ describe("the Terencana wizard's Petak step", () => {
 
     // One Kavling Keluarga of 2.500.000 plus the platform fee: within the cap.
     expect(denah?.total).toMatchObject({ total: 2_650_000, dalamBatas: true });
-    // Four Petak plus the one platform fee is Rp 10.150.000, a rupiah past it.
-    expect(empat?.total).toMatchObject({ total: 10_150_000, dalamBatas: false });
+    // Four Petak plus the one platform fee is Rp 10.150.000, past the QRIS cap and still taken.
+    expect(empat?.total).toMatchObject({ total: 10_150_000, dalamBatas: true });
   });
 
   it("is no Denah at a Lokasi Mitra that does not take Terencana orders", async () => {
@@ -391,19 +388,17 @@ describe("placing a Pemesanan Terencana", () => {
     expect(setup.terencana).toEqual([]);
   });
 
-  it("refuses a selection v1 cannot take, because its Tagihan would pass the Rp 10.000.000 QRIS cap", async () => {
+  it("places a selection whose Tagihan passes the Rp 10.000.000 QRIS cap (ADR 0013)", async () => {
     const setup = pemesananOnTestDatabase(db);
-    // Four Petak Makam of 2.500.000 plus the one platform fee is Rp 10.150.000, a rupiah past the cap.
+    // Four Petak Makam of 2.500.000 plus the one platform fee is Rp 10.150.000, past the QRIS cap.
     const { fixture, pemesan: pemesanAkun } = await siap(setup);
     const semua = await unitIds(setup, fixture, ["A-01", "A-02", "A-07", "A-08"]);
 
     const hasil = await setup.pemesanan.placeTerencana({ ...pemesanan, pemesan: pemesanAkun, lokasiId: fixture.lokasiMitra.id, units: units({ petak: [semua["A-01"], semua["A-02"], semua["A-07"], semua["A-08"]] }) });
 
-    expect(withinPaymentCap(3 * 2_500_000 + 150_000)).toBe(true);
-    expect(hasil).toEqual({ ok: false, reason: "melebihi_batas_qris", total: 4 * 2_500_000 + 150_000 });
-    // Nothing was held, so the plots are still there for a smaller order.
+    expect(hasil).toMatchObject({ ok: true });
     const denah = await setup.inventory.publicDenah(fixture.lokasiMitra.id);
-    expect(denah?.bloks.flatMap((blok) => blok.cells).filter((cell) => cell.status === "sedang_dipesan")).toHaveLength(0);
+    expect(denah?.bloks.flatMap((blok) => blok.cells).filter((cell) => cell.status === "sedang_dipesan")).toHaveLength(4);
   });
 
   it("refuses a Kode Masuk email that is not the Akun's own, and a phone number that is not Indonesian", async () => {

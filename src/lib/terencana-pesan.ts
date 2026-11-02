@@ -1,5 +1,5 @@
 import type { PilihanDitolak, PlaceTerencanaResult } from "@/domain/pemesanan";
-import { QRIS_PAYMENT_CAP } from "@/domain/billing";
+import { BATAS_TAGIHAN } from "@/domain/billing";
 import { formatRupiah } from "@/lib/rupiah";
 import { identityMessage, type IdentityRefusal } from "@/components/kode-masuk/state";
 
@@ -29,7 +29,7 @@ export function pesanKirim(hasil: Ditolak): string {
       return `${nomor(hasil)} tercatat dua kali dalam pilihan Anda. Pilih ulang petaknya.`;
     case "tanpa_unit":
       return "Belum ada tipe kavling yang dipilih. Pilih salah satu tipe kavling.";
-    case "melebihi_batas_qris":
+    case "melebihi_batas_tagihan":
       return pesanBatasPembayaran(hasil.total);
     case "unit_tidak_ditemukan":
       return "Kavling yang disiapkan untuk Anda tidak ada lagi. Silakan pilih tipe kavling lagi.";
@@ -69,7 +69,7 @@ export function pesanPeriksa(hasil: PilihanDitolak): string {
  * gives, so a family reads one thing about one limit.
  */
 export function pesanBatasPembayaran(total: number): string {
-  return `Total pilihan ini ${formatRupiah(total)} melewati batas pembayaran ${formatRupiah(QRIS_PAYMENT_CAP)} lewat QRIS. Kurangi jumlah petak yang dipilih.`;
+  return `Total pilihan ini ${formatRupiah(total)} melewati batas satu Tagihan ${formatRupiah(BATAS_TAGIHAN)}. Kurangi jumlah petak yang dipilih.`;
 }
 
 /** The words for a guard refusal, in identity's own voice. */

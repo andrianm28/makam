@@ -244,10 +244,18 @@ describe("PaymentProvider environment (SumoPod)", () => {
       apiKey: "sumopod-key",
       webhookSecret: LIVE_SUMOPOD.SUMOPOD_WEBHOOK_SECRET,
       baseUrl: SUMOPOD_SANDBOX_BASE_URL,
+      batasVirtualAccount: 0,
     });
     expect(readRuntimeEnv({ ...auth("production"), ...LIVE_SUMOPOD }).sumopod).toMatchObject({
       baseUrl: SUMOPOD_LIVE_BASE_URL,
     });
+  });
+
+  it("reads the Virtual Account limit from SUMOPOD_BATAS_VA, and refuses one that is not whole rupiah", () => {
+    expect(readRuntimeEnv({ ...auth("staging"), ...LIVE_SUMOPOD, SUMOPOD_BATAS_VA: "500000000" }).sumopod).toMatchObject({
+      batasVirtualAccount: 500_000_000,
+    });
+    expect(() => readRuntimeEnv({ ...auth("staging"), ...LIVE_SUMOPOD, SUMOPOD_BATAS_VA: "1,5 juta" })).toThrow();
   });
 
   it("an explicit SUMOPOD_BASE_URL overrides the per-environment default", () => {

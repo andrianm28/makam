@@ -92,7 +92,10 @@ export function createAdapters(options: AdapterOptions): Adapters {
         clock,
         payments: options.sumopod
           ? new SumopodPaymentProvider(options.sumopod)
-          : notConfigured<PaymentProvider>("PaymentProvider (SumoPod)"),
+          : // Unreachable in staging and production (env refuses to start without SumoPod). If it were
+            // reached, its `batasVirtualAccount` is no number, so `caraBayar` answers transfer_manual and
+            // Bayar never calls the stand-in for an amount above the QRIS cap.
+            notConfigured<PaymentProvider>("PaymentProvider (SumoPod)"),
         email: options.smtp
           ? new SmtpEmailSender(options.smtp)
           : notConfigured<EmailSender>("EmailSender (SumoPod SMTP)"),

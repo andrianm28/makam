@@ -56,7 +56,7 @@ export async function signedInPemesan(setup: QueuesSetup, email = "keluarga@cont
 async function pembayaranTidakDikenal(setup: QueuesSetup, admin: Actor, amountRupiah = 500_000) {
   const changed = await setup.operatorSettings.change(admin, { ...PENGATURAN_OPERATOR, reason: null });
   if (!changed.ok) throw new Error(`Pengaturan Operator refused: ${changed.reason}`);
-  const payment = await setup.payments.createPayment({ reference: "referensi-tak-dikenal", amountRupiah, description: "Pembayaran QRIS" });
+  const payment = await setup.payments.createPayment({ metode: "qris", reference: "referensi-tak-dikenal", amountRupiah, description: "Pembayaran QRIS" });
   const received = await setup.billing.receivePaymentWebhook(setup.payments.webhookFor(payment.providerPaymentId, "paid"));
   if (received.ok !== true || received.outcome !== "perlu_ditinjau") throw new Error("unreachable");
   return received;

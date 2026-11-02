@@ -11,6 +11,9 @@ describe("pengaturanOperatorSchema", () => {
     email: "halo@makam.co.id",
     csWhatsApp: "08115550101",
     csReplyHours: "dibalas mulai pukul 06:00",
+    rekeningBank: "Bank Central Asia (BCA)",
+    rekeningNomor: "1234567890",
+    rekeningAtasNama: "PT Jaya Korpora Prima",
     reason: "Isian awal",
   };
 

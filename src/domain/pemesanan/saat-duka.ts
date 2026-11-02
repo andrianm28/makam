@@ -54,7 +54,7 @@ export type PlaceSaatDukaResult =
   | { ok: false; reason: "email_bukan_akun_ini" }
   /** The Lokasi Mitra is not listed (Terverifikasi), so it takes no new order. */
   | { ok: false; reason: "lokasi_tidak_terbuka" }
-  /** The Jenis Makam cannot be priced at that Lokasi Mitra now, or its all-in total is above the QRIS cap. */
+  /** The Jenis Makam cannot be priced at that Lokasi Mitra now, or its all-in total is above `BATAS_TAGIHAN` (the largest Tagihan). */
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** The Pemesan's name is missing. */
   | { ok: false; reason: "pemesan_kosong" }
@@ -74,7 +74,7 @@ export type PlaceSaatDukaResult =
  *
  * What it checks, in order: that the email really is that Akun's (the Kode
  * Masuk proved it one line earlier), that the Lokasi Mitra still takes orders
- * and the chosen Jenis Makam can still be priced within the QRIS cap, and that
+ * and the chosen Jenis Makam can still be priced within `BATAS_TAGIHAN` (the largest Tagihan), and that
  * the Pemegang Hak is not the Almarhum. What it does not check is
  * availability: a Saat Duka order holds no plot — the Admin Lokasi assigns a
  * cleared Tersedia Petak when it confirms, and offers another or declines.

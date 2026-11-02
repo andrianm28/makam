@@ -54,8 +54,8 @@ export default async function TagihanPage({ params }: PageProps<"/staf/admin-pla
         description={
           bisaDibayar
             ? tagihan.kind === "pay_first"
-              ? "Belum dibayar. Pembayaran boleh lewat QRIS, atau dicatat manual oleh Admin Platform dengan bukti."
-              : "Belum dibayar, dan baru ditagih setelah pemakaman. Pembayaran boleh lewat QRIS, atau dicatat manual oleh Admin Platform dengan bukti."
+              ? "Belum dibayar. Pembayaran lewat QRIS atau Virtual Account sesuai nominalnya, atau dicatat manual oleh Admin Platform dengan bukti (transfer ke rekening Operator)."
+              : "Belum dibayar, dan baru ditagih setelah pemakaman. Pembayaran lewat QRIS atau Virtual Account sesuai nominalnya, atau dicatat manual oleh Admin Platform dengan bukti (transfer ke rekening Operator)."
             : "Tagihan ini sudah lunas atau ditutup, jadi tidak bisa dibayar lagi."
         }
       />

@@ -13,7 +13,7 @@ const penolakan = [
   { reason: "unit_campur" },
   { reason: "unit_ganda", nomor: "A-12" },
   { reason: "tanpa_unit" },
-  { reason: "melebihi_batas_qris", total: 10_150_000 },
+  { reason: "melebihi_batas_tagihan", total: 10_150_000 },
   { reason: "unit_tidak_ditemukan" },
   { reason: "lokasi_tidak_ada" },
   { reason: "harga_tidak_tersedia" },
@@ -31,7 +31,7 @@ describe("the words for a refused Terencana selection", () => {
     expect(pesanKirim({ ok: false, reason: "unit_tidak_bisa_dipilih", nomor: "A-12", status: "terisi", sisa: [] })).toBe(
       "A-12 sudah terisi, jadi tidak bisa dipilih. Silakan pilih tipe kavling lagi.",
     );
-    expect(pesanKirim({ ok: false, reason: "melebihi_batas_qris", total: 10_150_000 })).toContain("Rp 10.150.000 melewati batas pembayaran Rp 10.000.000 lewat QRIS");
+    expect(pesanKirim({ ok: false, reason: "melebihi_batas_tagihan", total: 100_000_000_001 })).toContain("Rp 100.000.000.001 melewati batas satu Tagihan Rp 100.000.000.000");
   });
 
   it("says the same thing at Lanjut as at Kirim", () => {

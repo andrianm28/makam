@@ -32,6 +32,9 @@ import { operatorSettingsVersion } from "./schema";
  * - `email`: the Operator's contact email, trimmed and lower-cased;
  * - `csWhatsApp`: the CS WhatsApp number, canonical E.164 +62 (e.g. "+6281122223333"); build wa.me links from it;
  * - `csReplyHours`: when CS replies, as shown next to the number, e.g. "dibalas mulai pukul 06:00".
+ *
+ * Plus one optional group, `rekening`: the Operator's bank account for a Tagihan
+ * paid by manual transfer (ADR 0013), all three parts or none.
  */
 export const operatorSettingsFields = ["legalName", "address", "phone", "email", "csWhatsApp", "csReplyHours"] as const;
 export type OperatorSettingsField = (typeof operatorSettingsFields)[number];
@@ -39,8 +42,22 @@ export type OperatorSettingsField = (typeof operatorSettingsFields)[number];
 /** One value per field of Pengaturan Operator (see `operatorSettingsFields`). */
 export type OperatorSettingsEntry = Record<OperatorSettingsField, string>;
 
+/** The Operator's bank account for a manual transfer (ADR 0013), shown on a Tagihan paid that way. */
+export interface RekeningOperator {
+  /** e.g. "Bank Central Asia (BCA)". */
+  bank: string;
+  /** As typed, trimmed: digits with optional spaces or dashes. */
+  nomor: string;
+  /** The account holder, e.g. "PT Jaya Korpora Prima". */
+  atasNama: string;
+}
+
+export const rekeningFields = ["bank", "nomor", "atasNama"] as const satisfies readonly (keyof RekeningOperator)[];
+
 /** Pengaturan Operator as in force from `inForceFrom` until the next change. */
 export interface OperatorSettingsValues extends OperatorSettingsEntry {
+  /** Null until an Admin Platform enters it: a Tagihan paid by transfer then points to CS. */
+  rekening: RekeningOperator | null;
   /** The Clock instant this version came into force. */
   inForceFrom: Date;
 }
@@ -48,6 +65,8 @@ export interface OperatorSettingsValues extends OperatorSettingsEntry {
 /** Every value at once (as typed), plus an optional reason for the Entri Audit. */
 export interface ChangeOperatorSettingsInput extends OperatorSettingsEntry {
   reason: string | null;
+  /** The bank account; all three parts empty (or omitted) means none. */
+  rekening?: RekeningOperator | null;
 }
 
 /** The Audit Log entity every change of Pengaturan Operator is recorded on: `{ kind: "pengaturan_operator", id }`. */
@@ -58,6 +77,10 @@ export type ChangeOperatorSettingsResult =
   | WriteRefusal
   | { ok: false; reason: "email_tidak_valid" }
   | { ok: false; reason: "isian_wajib"; field: OperatorSettingsField }
+  /** Some but not all of the bank account's three parts were filled in. */
+  | { ok: false; reason: "rekening_tidak_lengkap" }
+  /** The account number is not digits (spaces and dashes allowed). */
+  | { ok: false; reason: "nomor_rekening_tidak_valid" }
   | PhoneNumberRejection;
 
 export interface OperatorSettings {
@@ -93,7 +116,14 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
         const previous = await latest(tx);
         const [row] = await tx
           .insert(operatorSettingsVersion)
-          .values({ ...checked.values, inForceFrom: deps.clock.now(), changedByAccountId: by.accountId })
+          .values({
+            ...checked.values,
+            rekeningBank: checked.rekening?.bank ?? null,
+            rekeningNomor: checked.rekening?.nomor ?? null,
+            rekeningAtasNama: checked.rekening?.atasNama ?? null,
+            inForceFrom: deps.clock.now(),
+            changedByAccountId: by.accountId,
+          })
           .returning();
         const settings = toValues(row);
         await record({
@@ -112,10 +142,14 @@ export function createOperatorSettings(deps: { db: Database; clock: Clock; audit
 
 const emailSchema = z.email();
 
+const nomorRekeningSchema = z.string().regex(/^[0-9][0-9 -]{3,40}[0-9]$/);
+
 /** The values as kept (trimmed; email lower-cased; CS WhatsApp in +62 form), or why they are refused. */
 function checkValues(
   input: ChangeOperatorSettingsInput,
-): { ok: true; values: OperatorSettingsEntry } | Exclude<ChangeOperatorSettingsResult, { ok: true }> {
+):
+  | { ok: true; values: OperatorSettingsEntry; rekening: RekeningOperator | null }
+  | Exclude<ChangeOperatorSettingsResult, { ok: true }> {
   const trimmed = entryOf(input, (value) => value.trim());
   for (const field of operatorSettingsFields) {
     if (trimmed[field] === "") return { ok: false, reason: "isian_wajib", field };
@@ -124,7 +158,25 @@ function checkValues(
   if (!emailSchema.safeParse(email).success) return { ok: false, reason: "email_tidak_valid" };
   const csWhatsApp = normalisePhoneNumber(trimmed.csWhatsApp);
   if (!csWhatsApp.ok) return csWhatsApp;
-  return { ok: true, values: { ...trimmed, email, csWhatsApp: csWhatsApp.phoneNumber } };
+  const rekening = checkRekening(input.rekening ?? null);
+  if (!rekening.ok) return rekening;
+  return { ok: true, values: { ...trimmed, email, csWhatsApp: csWhatsApp.phoneNumber }, rekening: rekening.rekening };
+}
+
+/** The bank account trimmed, null when all three parts are empty, or why it is refused. */
+function checkRekening(
+  input: RekeningOperator | null,
+):
+  | { ok: true; rekening: RekeningOperator | null }
+  | { ok: false; reason: "rekening_tidak_lengkap" }
+  | { ok: false; reason: "nomor_rekening_tidak_valid" } {
+  if (!input) return { ok: true, rekening: null };
+  const rekening: RekeningOperator = { bank: input.bank.trim(), nomor: input.nomor.trim(), atasNama: input.atasNama.trim() };
+  const filled = rekeningFields.filter((field) => rekening[field] !== "").length;
+  if (filled === 0) return { ok: true, rekening: null };
+  if (filled < rekeningFields.length) return { ok: false, reason: "rekening_tidak_lengkap" };
+  if (!nomorRekeningSchema.safeParse(rekening.nomor).success) return { ok: false, reason: "nomor_rekening_tidak_valid" };
+  return { ok: true, rekening };
 }
 
 /** The last change (optionally among those matching `where`), or null when there is none. */
@@ -140,11 +192,15 @@ async function latest(db: Database, where?: SQL): Promise<OperatorSettingsValues
 
 /** The values as an Entri Audit keeps them; the entry's own time is when they came into force. */
 function auditSnapshot(settings: OperatorSettingsValues): AuditSnapshot {
-  return entryOf(settings);
+  return { ...entryOf(settings), rekening: settings.rekening };
 }
 
 function toValues(row: typeof operatorSettingsVersion.$inferSelect): OperatorSettingsValues {
-  return { ...entryOf(row), inForceFrom: row.inForceFrom };
+  const rekening =
+    row.rekeningBank !== null && row.rekeningNomor !== null && row.rekeningAtasNama !== null
+      ? { bank: row.rekeningBank, nomor: row.rekeningNomor, atasNama: row.rekeningAtasNama }
+      : null;
+  return { ...entryOf(row), rekening, inForceFrom: row.inForceFrom };
 }
 
 /** Just the six values of `source`, each passed through `map`. */

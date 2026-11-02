@@ -18,7 +18,7 @@
  * finds the next cycle's H-7 still ahead and issues nothing. A `sekali` Paket has
  * one cycle and then no next date.
  *
- * A cycle Billing refuses for passing the Rilis 1 QRIS cap is paused here — the
+ * A cycle Billing refuses for passing `BATAS_TAGIHAN` (the largest Tagihan) is paused here — the
  * one refusal that can never succeed on a retry — with a Peringatan to the
  * Pemesan. Ticket 54's other later slices add skip → pause, resume, Hentikan,
  * the stop on a Berakhir Hak Pakai, the tariff-change wording and the optional
@@ -168,7 +168,7 @@ function h7TelahTiba(cycleDate: string, now: Date): boolean {
  * `next_cycle_date`. Returns false when the cycle cannot be issued (a price or an
  * offering is missing), leaving the date alone so the next tick tries again.
  *
- * A Tagihan Billing refuses for passing the Rilis 1 QRIS cap is the one refusal
+ * A Tagihan Billing refuses for passing `BATAS_TAGIHAN` (the largest Tagihan) is the one refusal
  * that will never succeed on a retry: it pauses the Paket (`dijeda`) and tells
  * the Pemesan, in the same transaction, so the tick stops retrying it.
  */
@@ -215,10 +215,10 @@ async function terbitkanSiklus(deps: LayananDeps, pesananPaketId: string, now: D
       lines: baris.lines,
     });
     if (!tagihan.ok) {
-      // A cycle whose total passes the Rilis 1 QRIS cap can never be issued, so
+      // A cycle whose total passes `BATAS_TAGIHAN` (the largest Tagihan) can never be issued, so
       // the Paket is paused instead of retried forever: the pause and the
       // Peringatan that explains it commit in this transaction (ticket 54).
-      if (tagihan.reason === "melebihi_batas_qris") {
+      if (tagihan.reason === "jumlah_terlalu_besar") {
         await deps.notifikasi.paketSiklusDijeda(tx, {
           nomor: paket.nomor,
           email: paket.pemesanEmail,

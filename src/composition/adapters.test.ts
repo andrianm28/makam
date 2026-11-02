@@ -53,7 +53,7 @@ describe("composition root", () => {
       expect(adapters.clock).toBeInstanceOf(SystemClock);
       expectNoFakes(adapters);
       await expect(
-        adapters.payments.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" }),
+        adapters.payments.createPayment({ metode: "qris", reference: "TAG-1", amountRupiah: 1, description: "x" }),
       ).rejects.toBeInstanceOf(PortNotConfiguredError);
     },
   );
@@ -65,7 +65,7 @@ describe("composition root", () => {
 
       expect(adapters.payments).not.toBeInstanceOf(FakePaymentProvider);
       await expect(
-        adapters.payments.createPayment({ reference: "TAG-1", amountRupiah: 1, description: "x" }),
+        adapters.payments.createPayment({ metode: "qris", reference: "TAG-1", amountRupiah: 1, description: "x" }),
       ).rejects.toBeInstanceOf(PortNotConfiguredError);
     },
   );
@@ -100,6 +100,7 @@ describe("composition root", () => {
     apiKey: "sumopod-key",
     webhookSecret: "whsec_c3Vtb3BvZC10ZXN0LXNlY3JldA==",
     baseUrl: "https://api-pay-sandbox.sumopod.com",
+    batasVirtualAccount: 0,
   };
 
   it.each(["staging", "production"] as const)("pays through the live SumoPod PaymentProvider in %s", (appEnv) => {
@@ -111,7 +112,7 @@ describe("composition root", () => {
     async (appEnv) => {
       const { payments } = createAdapters({ appEnv, vapid: VAPID });
       await expect(
-        payments.createPayment({ reference: "TGH-1", amountRupiah: 1, description: "x" }),
+        payments.createPayment({ metode: "qris", reference: "TGH-1", amountRupiah: 1, description: "x" }),
       ).rejects.toThrow(/PaymentProvider \(SumoPod\)/);
     },
   );

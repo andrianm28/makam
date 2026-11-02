@@ -26,8 +26,8 @@ export function konfirmasiTerencanaMessage(reason: Refusal<KonfirmasiTerencanaRe
       return "Pesanan ini sudah ditutup (ditolak atau dibatalkan), jadi tidak bisa dikonfirmasi.";
     case "harga_tidak_tersedia":
       return "Harga salah satu jenis makam pada pesanan ini belum tersedia atau sudah berubah. Periksa Tarif dulu.";
-    case "melebihi_batas_qris":
-      return "Total Tagihan melebihi batas pembayaran QRIS Rp 10.000.000. Tolak pesanan ini atau hubungi Admin Platform.";
+    case "melebihi_batas_tagihan":
+      return "Total Tagihan melebihi batas satu Tagihan (Rp 100.000.000.000). Tolak pesanan ini atau hubungi Admin Platform.";
     case "lokasi_tidak_terbuka":
       return "Lokasi Mitra ini tidak lagi tayang, jadi pesanan tidak bisa dikonfirmasi.";
     case "tagihan_tidak_terbit":

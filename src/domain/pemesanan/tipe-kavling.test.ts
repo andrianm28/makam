@@ -74,6 +74,16 @@ describe("Pilih Tipe Kavling", () => {
     expect(tipe).toMatchObject({ tersedia: 0, berikut: null });
   });
 
+  it("offers a tipe priced above Rp 10.000.000, as Graha Sentosa's kavling are (paid by Virtual Account or transfer, ADR 0013)", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const fixture = await terencanaLokasi(setup, admin, { hargaHakPakai: 217_800_000 });
+
+    const [tipe] = (await setup.pemesanan.tipeKavlingTerencana(fixture.lokasiMitra.id))?.tipe ?? [];
+    expect(tipe?.hargaAllIn).toBeGreaterThan(217_800_000);
+    expect(tipe?.berikut).not.toBeNull();
+  });
+
   it("is null for a Lokasi Mitra that takes no Terencana order", async () => {
     const setup = pemesananOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);

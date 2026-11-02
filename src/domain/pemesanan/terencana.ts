@@ -4,11 +4,11 @@
  * order, picking exact plots on their Denah, and placing the order — which holds
  * the plots, snapshots the Syarat and takes a Nomor Pemesanan, all in one
  * transaction. The prices are always `quote()`'s, and a selection v1 may not take
- * (above the Rp 10.000.000 QRIS cap) is refused here, not only in the picker.
+ * (above `BATAS_TAGIHAN` (the largest Tagihan)) is refused here, not only in the picker.
  */
 import { and, asc, desc, eq } from "drizzle-orm";
 import { refusable } from "@/db/unit-of-work";
-import { withinPaymentCap, QRIS_PAYMENT_CAP } from "@/domain/billing";
+import { BATAS_TAGIHAN, withinPaymentCap, QRIS_PAYMENT_CAP } from "@/domain/billing";
 import { normaliseEmail, normalisePhoneNumber } from "@/domain/identity";
 import type { LokasiFacility } from "@/domain/lokasi";
 import type { PublicDenah, PublicDenahBlok } from "@/domain/inventory";
@@ -46,15 +46,17 @@ export interface KartuTerencana {
 
 /**
  * The price bands of the Lokasi step, named after what a family recognises, and all
- * of them **inside** the one amount v1 can be paid for (the QRIS payment cap): a
+ * of them **inside** `BATAS_TAGIHAN` (the largest Tagihan; above the QRIS cap a
+ * Tagihan is paid by Virtual Account or transfer, ADR 0013): a
  * filtered card then always leads to an order that can be paid, and a Lokasi Mitra
- * whose cheapest plot is above the cap is in no band at all (its own price is hidden,
+ * whose cheapest plot is above that limit is in no band at all (its own price is hidden,
  * like on the Lokasi page, because the wizard would refuse every order there).
  */
 export const HARGA_BANDS = [
   { key: "hingga_3_juta", label: "Hingga Rp 3 jt", until: 3_000_000 },
   { key: "3_sampai_6_juta", label: "Rp 3–6 jt", until: 6_000_000 },
-  { key: "di_atas_6_juta", label: `Di atas Rp 6 jt sampai ${rupiahPendek(QRIS_PAYMENT_CAP)}`, until: QRIS_PAYMENT_CAP },
+  { key: "di_atas_6_juta", label: `Rp 6–${rupiahPendek(QRIS_PAYMENT_CAP).slice(3)}`, until: QRIS_PAYMENT_CAP },
+  { key: "di_atas_10_juta", label: `Di atas ${rupiahPendek(QRIS_PAYMENT_CAP)}`, until: BATAS_TAGIHAN },
 ] as const satisfies readonly { key: NonNullable<TerencanaQuery["harga"]>; label: string; until: number }[];
 
 /** "Rp 10 jt" of a whole amount, the way the chips say it. */
@@ -136,7 +138,7 @@ export interface TotalTerencana {
   /** One line per chosen unit, then the one Biaya Layanan Platform of the whole Tagihan. */
   lines: BarisTotal[];
   total: number;
-  /** Whether this selection may be taken in v1: its total is within the QRIS payment cap. */
+  /** Whether this selection may be taken: its total is within `BATAS_TAGIHAN` (the largest Tagihan). */
   dalamBatas: boolean;
 }
 
@@ -326,8 +328,8 @@ export type PlaceTerencanaResult =
   /** One chosen unit is not a pickable Petak Makam or Kavling Keluarga any more; the order is rolled back whole. */
   | { ok: false; reason: "sudah_dipesan"; nomor: string }
   | { ok: false; reason: "unit_tidak_bisa_dipilih"; nomor: string; status: string }
-  /** v1 takes no order whose Tagihan would pass the Rp 10.000.000 QRIS cap. */
-  | { ok: false; reason: "melebihi_batas_qris"; total: number }
+  /** No order is taken whose Tagihan would pass `BATAS_TAGIHAN` (the largest Tagihan). */
+  | { ok: false; reason: "melebihi_batas_tagihan"; total: number }
   | { ok: false; reason: "harga_tidak_tersedia" }
   /** Layanan for the empty plot go with one Petak Makam only (not several plots, not a Kavling Keluarga). */
   | { ok: false; reason: "layanan_satu_petak" }
@@ -413,7 +415,7 @@ export async function placeTerencana(deps: PemesananDeps, input: unknown): Promi
       now,
     );
     if (!harga.ok) return { ok: false, reason: "harga_tidak_tersedia" };
-    if (!withinPaymentCap(harga.total)) return { ok: false, reason: "melebihi_batas_qris", total: harga.total };
+    if (!withinPaymentCap(harga.total)) return { ok: false, reason: "melebihi_batas_tagihan", total: harga.total };
 
     const pemesan: Pemesan = { accountId: akun.id, email };
     // The Lokasi Mitra answers by the end of its next working day (spec, Pemesanan > Terencana). The order carries the

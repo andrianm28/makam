@@ -117,9 +117,9 @@ describe("a Paket Layanan cycle", () => {
     expect(await setup.layanan.paketSiklusTick(wib("2027-01-01 09:00"))).toEqual({ diterbitkan: 0 });
   });
 
-  it("pauses the Paket and queues one Peringatan when the cycle would exceed the QRIS cap", async () => {
+  it("issues a cycle whose Tagihan passes the QRIS cap: it is paid by Virtual Account or transfer (ADR 0013)", async () => {
     // Two Layanan at Rp 6.000.000 each make one cycle's Tagihan pass the
-    // Rp 10.000.000 single-transaction QRIS cap, so Billing refuses to issue it.
+    // Rp 10.000.000 QRIS cap, which no longer stops it (it paused the Paket until ADR 0013).
     const setup = layananOnTestDatabase(db, { notifikasiNyata: true });
     const admin = await siapkanOperatorLayanan(setup);
     const lokasi = await lokasiDenganLayanan(setup, { amount: 6_000_000 });
@@ -150,23 +150,14 @@ describe("a Paket Layanan cycle", () => {
     });
     if (!langganan.ok) throw new Error(`Berlangganan refused: ${langganan.reason}`);
 
-    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:00"))).toEqual({ diterbitkan: 0 });
+    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:00"))).toEqual({ diterbitkan: 1 });
 
     const dibaca = await setup.layanan.bacaPesananPaket(langganan.paket.id);
-    expect(dibaca?.status).toBe("dijeda");
-    // The cycle is not consumed: it stays where it was for a later resume.
-    expect(dibaca?.nextCycleDate).toBe("2026-11-20");
-    expect(dibaca?.siklus).toHaveLength(0);
-
-    const pesan = await setup.notifications.pesanLayanan(langganan.paket.nomor);
-    expect(pesan.map((satu) => satu.template)).toEqual(["paket_siklus_dijeda"]);
-    expect(pesan[0].status).toBe("menunggu");
-
-    // Idempotent: the paused Paket is not active, so a second tick changes
-    // nothing and queues no second Peringatan.
-    expect(await setup.layanan.paketSiklusTick(wib("2026-11-13 09:30"))).toEqual({ diterbitkan: 0 });
-    expect((await setup.layanan.bacaPesananPaket(langganan.paket.id))?.status).toBe("dijeda");
-    expect(await setup.notifications.pesanLayanan(langganan.paket.nomor)).toHaveLength(1);
+    expect(dibaca?.status).toBe("aktif");
+    expect(dibaca?.siklus).toHaveLength(1);
+    expect(await setup.notifications.pesanLayanan(langganan.paket.nomor)).not.toContainEqual(
+      expect.objectContaining({ template: "paket_siklus_dijeda" }),
+    );
   });
 
   it("schedules one Pekerjaan Layanan per item for that cycle once it is paid", async () => {
