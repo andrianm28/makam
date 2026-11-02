@@ -1,6 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
-import { DEFAULT_FLAGS, DEFAULT_POLICIES } from "@/domain/lokasi";
 import { scheduledTicks } from "@/domain/scheduler";
 import { wib } from "@/lib/time/jakarta";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
@@ -254,22 +253,6 @@ describe("placing an order Layanan", () => {
     setup.clock.advance({ days: 30 });
     expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toEqual({ ok: false, reason: "lokasi_tidak_terbuka" });
     expect(await setup.layanan.penawaranUntukPesanan(lokasi.lokasiMitra.id)).toEqual([]);
-  });
-
-  it("takes no Layanan order and shows no Layanan price at a Lokasi Mitra whose Harga Tampil is off: the family orders through the CS on WhatsApp", async () => {
-    const { setup, lokasi, petak, pemesan } = await siap();
-    expect(await setup.layanan.penawaranUntukPesanan(lokasi.lokasiMitra.id)).not.toEqual([]);
-
-    const saved = await setup.lokasi.setPoliciesAndFlags(lokasi.admin, lokasi.lokasiMitra.id, {
-      policies: DEFAULT_POLICIES,
-      flags: { ...DEFAULT_FLAGS, hargaTampil: false },
-    });
-    if (!saved.ok) throw new Error(`kebijakan refused: ${saved.reason}`);
-
-    expect(await setup.layanan.penawaranUntukPesanan(lokasi.lokasiMitra.id)).toEqual([]);
-    expect(await setup.layanan.penawaranLokasi(lokasi.lokasiMitra.id, setup.clock.now())).toEqual([]);
-    expect(await setup.layanan.cekHakPakai(lokasi.lokasiMitra.id, petak.petakId)).toEqual({ ok: false, reason: "lokasi_tidak_terbuka" });
-    expect(await setup.layanan.placePesananLayanan(pemesan, kirim(pemesan, lokasi, petak.petakId, lokasi.varian.id, "2026-10-20"))).toMatchObject({ ok: false });
   });
 
   it("charges the Biaya Layanan Platform once for an order of two Layanan, not once each", async () => {

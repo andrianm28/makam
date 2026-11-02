@@ -64,9 +64,8 @@ export interface PilihanSaatDukaQuery {
 export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDukaQuery = {}): Promise<GrupSaatDuka[]> {
   const at = deps.clock.now();
   const diluar = query.kecualiLokasiId;
-  // A Lokasi Mitra whose prices are not shown takes its orders through the CS on WhatsApp, never this wizard.
   const semua = await deps.lokasi.publicLokasiMitraList(
-    query.lokasiId ? { id: query.lokasiId, hargaTampil: true } : query.city ? { city: query.city, hargaTampil: true } : { hargaTampil: true },
+    query.lokasiId ? { id: query.lokasiId } : query.city ? { city: query.city } : {},
   );
   const lokasiMitra = diluar ? semua.filter((satu) => satu.id !== diluar) : semua;
   const grup = await Promise.all(

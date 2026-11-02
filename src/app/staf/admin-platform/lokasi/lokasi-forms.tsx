@@ -282,7 +282,7 @@ export function PoliciesForm({
           checked={flags.saleTransfersAllowed}
         />
         <Checkbox
-          label="Harga tampil di situs (keluarga memesan sendiri di platform). Bila tidak, harga disembunyikan dan keluarga diarahkan ke WhatsApp CS; Admin Platform yang menginput pesanannya."
+          label="Harga tampil di Daftar Lokasi dan halaman Lokasi. Bila tidak, harga baru muncul di langkah pemesanan; keluarga tetap memesan sendiri di platform."
           name="hargaTampil"
           checked={flags.hargaTampil !== false}
         />

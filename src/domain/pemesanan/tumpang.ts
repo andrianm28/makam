@@ -96,8 +96,7 @@ export async function ajukanTumpang(deps: PemesananDeps, rawInput: unknown): Pro
   if (!petak) return { ok: false, reason: "petak_tidak_ditemukan" };
 
   const lokasi = await deps.lokasi.publicLokasiMitra(input.lokasiId);
-  // Harga Tampil off: the family orders through the CS on WhatsApp (ADR 0011).
-  if (!lokasi || !lokasi.hargaTampil) return { ok: false, reason: "lokasi_tidak_terbuka" };
+  if (!lokasi) return { ok: false, reason: "lokasi_tidak_terbuka" };
 
   const now = deps.clock.now();
   const holderEmail = hakPakai.pemegangHak?.email ? normaliseEmail(hakPakai.pemegangHak.email) : null;

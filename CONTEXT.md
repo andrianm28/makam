@@ -19,8 +19,8 @@ Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, 
 _Avoid_: Terdaftar, resmi (for a Lokasi Mitra), using it as a badge some listings lack
 
 **Harga Tampil**:
-Said of a Lokasi Mitra whose partner allows its prices on the site (the default): it is ordered self-serve on the platform. A Lokasi Mitra without Harga Tampil is still listed, but shows no price and no order button; the family asks the CS on WhatsApp and Admin Platform enters the order (ADR 0011).
-_Avoid_: Harga tersembunyi, harga privat, jalur offline
+Said of a Lokasi Mitra whose partner allows its prices on the site's front (Daftar Lokasi, its Lokasi page); the default. A Lokasi Mitra without Harga Tampil is still listed and ordered on the platform like any other, but its price first shows inside the order wizard; WhatsApp is only the CS for questions (ADR 0011).
+_Avoid_: Harga tersembunyi, harga privat, jalur offline, pesan lewat WhatsApp
 
 **Belum Tayang**:
 Said of a Lokasi Mitra that is still being onboarded and is not yet listed: every Lokasi Mitra starts so, and stays so until it is Terverifikasi.
