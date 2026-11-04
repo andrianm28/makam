@@ -175,10 +175,11 @@ export function DeactivateForm({ accountId }: { accountId: string }) {
 /** Cancels one open Undangan Staf; the reason is optional and goes to the Audit Log. */
 export function CancelInviteForm({ inviteId, email }: { inviteId: string; email: string }) {
   const [state, submit, pending] = useActionState(batalkanUndangan, idleFormState);
-  const { register, handleSubmit } = useForm<BatalkanUndanganInput>({
+  const { register, handleSubmit, reset } = useForm<BatalkanUndanganInput>({
     resolver: zodResolver(batalkanUndanganSchema, { error: pesanKesalahan }),
     defaultValues: { inviteId, reason: "" },
   });
+  useResetAfterSubmit(state, () => ({ inviteId, reason: "" }), reset);
 
   return (
     <form
