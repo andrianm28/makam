@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GambarTipeKavlingFigure } from "@/components/site/gambar-tipe-kavling";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import {
@@ -253,9 +254,13 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
  * size, capacity, Masa Hak Pakai and all-in price, and the order takes the next pickable unit of that tipe.
  */
 async function PilihTipeKavlingScreen({ lokasiId, filter, pesan }: { lokasiId: string; filter: Filter; pesan: string | null }) {
-  const { pemesanan } = serverRuntime();
+  const { pemesanan, lokasi, tariffs } = serverRuntime();
   const hasil = await pemesanan.tipeKavlingTerencana(lokasiId);
   if (!hasil) notFound();
+  const [galeri, gambarTipe] = await Promise.all([
+    lokasi.publicFotoGaleri(lokasiId),
+    tariffs.publicGambarTipeKavling(hasil.tipe.map((tipe) => tipe.jenisMakamId)),
+  ]);
 
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
@@ -269,6 +274,20 @@ async function PilihTipeKavlingScreen({ lokasiId, filter, pesan }: { lokasiId: s
           </Link>
         </p>
       </div>
+      {galeri.length > 0 ? (
+        <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1" aria-label={`Foto ${hasil.lokasi.name}`}>
+          {galeri.map((foto) => (
+            <li key={foto.id} className="w-56 shrink-0">
+              <figure className="overflow-hidden rounded-xl bg-muted">
+                {/* Galeri Lokasi photo, a short-lived signed URL: plain <img>. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={foto.url!} alt={foto.keterangan} className="aspect-[4/3] w-full object-cover" loading="lazy" />
+                <figcaption className="px-3 py-1.5 text-caption text-muted-foreground">{foto.keterangan}</figcaption>
+              </figure>
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {pesan ? (
         <p role="status" className="rounded-xl bg-warning-soft px-4 py-3 text-body font-medium text-warning-soft-foreground">
           {pesan}
@@ -280,6 +299,7 @@ async function PilihTipeKavlingScreen({ lokasiId, filter, pesan }: { lokasiId: s
         <ul className="grid gap-4 md:grid-cols-2">
           {hasil.tipe.map((tipe) => (
             <li key={tipe.jenisMakamId} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
+              {gambarTipe[tipe.jenisMakamId] ? <GambarTipeKavlingFigure gambar={gambarTipe[tipe.jenisMakamId]} className="overflow-hidden rounded-xl bg-muted" /> : null}
               <div>
                 <h2 className="text-title-2 text-foreground">{tipe.name}</h2>
                 {tipe.description ? <p className="text-body text-muted-foreground">{tipe.description}</p> : null}

@@ -37,7 +37,7 @@ function folder(berkas: Record<string, string>): string {
 async function modul() {
   const test = lokasiOnTestDatabase(db);
   const admin = (await signedInAdminPlatform(test)).actor;
-  return { ...test, admin, tariffs: createTariffs({ db, clock: test.clock, audit: test.audit, lokasi: test.lokasi }) };
+  return { ...test, admin, tariffs: createTariffs({ db, clock: test.clock, audit: test.audit, lokasi: test.lokasi, files: test.files }) };
 }
 
 const TPU_HEADER = "nama,alamat,kota,lintang,bujur,sumber_data,menerima_makam_baru";

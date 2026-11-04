@@ -49,7 +49,7 @@ export async function seedTagihanCommand(
       // This CLI issues a Tagihan for an e2e stack and never takes a payment for it, but the registry is
       // composed whole rather than partly, so the read it needs is here.
       const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
-      const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+      const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi, files: adapters.files });
       const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
       const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError: () => {} });
 

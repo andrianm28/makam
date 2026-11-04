@@ -407,7 +407,7 @@ async function jalankan(input: { db: Database; env: ReturnType<typeof readRuntim
     lokasiIds: [],
     sessionId: `import-data-peluncuran-${wibDateOf(adapters.clock.now())}`,
   };
-  const tariffs = createTariffs({ db, clock: adapters.clock, audit, lokasi });
+  const tariffs = createTariffs({ db, clock: adapters.clock, audit, lokasi, files: adapters.files });
   const tpu = await olahTpu(sumber, lokasi, aktor);
   const biaya = await olahBiaya(sumber, tariffs, aktor, adapters.clock.now(), alasan);
   const katalogLayanan = createKatalogLayanan({ db, clock: adapters.clock, audit });

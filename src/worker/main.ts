@@ -63,7 +63,7 @@ async function main() {
   const notifications = composeNotifications({ env, db: database.db, adapters, audit, identity, billing: billingOn(billingComposition, database.db), reportError });
   // The worker re-runs a payment's failed effects, so it holds the same registry the
   // web runtime does: a Bukti Pemesanan that failed once must be issuable here too.
-  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi, files: adapters.files });
   const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
   const notifikasi = pemesananNotifikasiDari(notifications);
   // One registry, handed to both the scheduler's retry tick and Billing below: a

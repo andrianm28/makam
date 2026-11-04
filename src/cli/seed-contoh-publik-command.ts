@@ -488,7 +488,7 @@ export function susunModul(env: ReturnType<typeof readRuntimeEnv>, database: Ret
   const { audit, identity } = composeIdentity({ env, db: database.db, adapters, alasanBawaan: alasanBawaanAudit });
   const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
   const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+  const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi, files: adapters.files });
   const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
   // Billing's payment effects include the Layanan module's scheduling, which reads a grave's Hak Pakai.
   const billing = composeBilling({ env, db: database.db, adapters, operatorSettings, layanan: { db: database.db, inventory }, reportError: () => {} });

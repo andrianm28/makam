@@ -196,7 +196,7 @@ export async function importKatalogLamaCommand(
 
       const modul: Modul = {
         lokasi,
-        tariffs: createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi }),
+        tariffs: createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi, files: adapters.files }),
         katalog: createKatalogLama({ db: database.db, clock: adapters.clock, audit }),
         aktor: {
           accountId: admin.accountId,
