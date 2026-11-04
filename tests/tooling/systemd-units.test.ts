@@ -399,6 +399,22 @@ describe("deploy/install-host.sh and the makam-prod timers", () => {
   });
 });
 
+describe("deploy/install-host.sh and the compose files", () => {
+  it("installs every compose.yml owned by the deploy units' user, 0600, whoever runs it, so makam-deploy can read it", () => {
+    const h = host();
+    const result = h.install();
+    expect(result.status, result.output).toBe(0);
+    for (const [source, target] of [
+      ["docker-compose.prod.yml", "staging/compose.yml"],
+      ["docker-compose.prod.yml", "prod/compose.yml"],
+      ["deploy/glitchtip/compose.yml", "glitchtip/compose.yml"],
+    ]) {
+      expect(h.calls(), target).toContain(`sudo install -o ubuntu -g ubuntu -m 0600 ${path.join(repo, source)} ${path.join(h.root, target)}`);
+    }
+    expect(h.calls().some((call) => call.startsWith("sudo chown ubuntu:ubuntu ") && call.includes(path.join(h.root, "staging")))).toBe(true);
+  });
+});
+
 describe("deploy/install-host.sh and the off-host backup timers", () => {
   const offsiteTimers = (env: string): string[] => [`makam-${env}-offsite-backup.timer`, `makam-${env}-offsite-restore-test.timer`];
 
@@ -433,6 +449,20 @@ describe("deploy/install-host.sh and the off-host backup timers", () => {
     expect(result.status).toBe(0);
     expect(h.enabled().filter((timer) => timer.startsWith("makam-prod-"))).toEqual([]);
     expect(result.lines.some((line) => line.startsWith("NOTE") && line.includes("makam-prod-offsite-backup.timer"))).toBe(true);
+  });
+
+  it("keeps an environment's off-host timers off, and disables them, while its offsite.ditunda marker puts the backup on hold", () => {
+    const h = host();
+    h.deployed(releaseRecord(DIGEST));
+    h.offsite("staging");
+    h.offsite("prod");
+    writeFileSync(path.join(h.root, "prod", "offsite.ditunda"), "");
+    const result = h.install();
+    expect(result.status, result.output).toBe(0);
+    expect(h.enabled()).toEqual(expect.arrayContaining(offsiteTimers("staging")));
+    expect(h.enabled()).not.toEqual(expect.arrayContaining([offsiteTimers("prod")[0]]));
+    expect(h.calls()).toContain(`sudo systemctl disable --now ${offsiteTimers("prod").join(" ")}`);
+    expect(result.lines.some((line) => line.startsWith("NOTE") && line.includes("offsite.ditunda"))).toBe(true);
   });
 
   it("enables production's off-host timers once production runs and prod/offsite.env exists", () => {

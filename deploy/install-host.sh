@@ -12,7 +12,8 @@
 # first `makam-deploy --env prod` writes it): run this script again after that
 # deploy. Until then it prints a NOTE with the command to enable them by hand.
 # Each environment's off-host backup and its restore check are enabled only
-# once that environment's offsite.env exists (and, for production, it runs).
+# once that environment's offsite.env exists (and, for production, it runs),
+# and never while an offsite.ditunda marker beside it puts them on hold.
 #
 #   deploy/install-host.sh                  # from a clean checkout of main, as ubuntu
 #   deploy/install-host.sh --allow-branch   # testing only: any branch, dirty tree allowed
@@ -38,6 +39,9 @@ esac
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
 ROOT=${MAKAM_ROOT:-/opt/makam-v1}
+# The deploy, backup and off-host units run as this user (makam-staging-deploy.service, User=).
+DEPLOY_USER=$(sed -n 's/^User=//p' "$REPO/deploy/systemd/makam-staging-deploy.service")
+[ -n "$DEPLOY_USER" ] || { echo "refusing: no User= in deploy/systemd/makam-staging-deploy.service" >&2; exit 1; }
 
 branch=$(git -C "$REPO" rev-parse --abbrev-ref HEAD)
 if [ "$ALLOW_BRANCH" = 0 ]; then
@@ -74,9 +78,13 @@ install -m 0644 "$REPO/deploy/nginx/maintenance/makam.co.id.conf" "$REPO/deploy/
 # The runbook, so the incident procedure can be read on the host when GitHub cannot (G6; makam-preflight checks it).
 install -d -m 0755 "$ROOT/docs"
 install -m 0644 "$REPO/docs/ops/runbook.md" "$ROOT/docs/runbook.md"
-install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
-install -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/prod/compose.yml"
-install -m 0600 "$REPO/deploy/glitchtip/compose.yml" "$ROOT/glitchtip/compose.yml"
+# The compose files and their directories belong to the user the deploy timers
+# run as (User= in the units), whoever runs this script: a run under sudo once
+# left them root 0600 and every makam-deploy failed to read compose.yml.
+sudo chown "$DEPLOY_USER:$DEPLOY_USER" "$ROOT/bin" "$ROOT/staging" "$ROOT/prod" "$ROOT/glitchtip" "$ROOT/nginx-backups"
+sudo install -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/staging/compose.yml"
+sudo install -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0600 "$REPO/docker-compose.prod.yml" "$ROOT/prod/compose.yml"
+sudo install -o "$DEPLOY_USER" -g "$DEPLOY_USER" -m 0600 "$REPO/deploy/glitchtip/compose.yml" "$ROOT/glitchtip/compose.yml"
 
 # The cosign public keys. Never in the repository, never replaced silently: a
 # key that is already installed stays until the rotation in the runbook says
@@ -135,7 +143,12 @@ fi
 # fail every night. Production's also waits for the gate above.
 for env in staging prod; do
   OFFSITE_TIMERS=("makam-$env-offsite-backup.timer" "makam-$env-offsite-restore-test.timer")
-  if [ ! -f "$ROOT/$env/offsite.env" ]; then
+  if [ -e "$ROOT/$env/offsite.ditunda" ]; then
+    # The owner has put the off-host copy on hold: keep both timers off, even
+    # if they were on, until the marker is removed (runbook, "Off-host backup").
+    sudo systemctl disable --now "${OFFSITE_TIMERS[@]}"
+    echo "NOTE: $ROOT/$env/offsite.ditunda exists, so ${OFFSITE_TIMERS[*]} are kept NOT enabled (the off-host backup is on hold). Remove that file and run deploy/install-host.sh again to turn them on" >&2
+  elif [ ! -f "$ROOT/$env/offsite.env" ]; then
     echo "NOTE: $ROOT/$env/offsite.env is missing, so the $env off-host backup and its restore check are installed but NOT enabled. Create it and $ROOT/$env/rclone.conf (docs/ops/runbook.md, \"Off-host backup\"), then run deploy/install-host.sh again" >&2
   elif [ "$env" = prod ] && [ -z "$prod_digest" ]; then
     echo "NOTE: production is not deployed yet, so ${OFFSITE_TIMERS[*]} stay NOT enabled; run deploy/install-host.sh again after the first production deploy" >&2

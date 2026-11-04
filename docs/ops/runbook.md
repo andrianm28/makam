@@ -1746,6 +1746,12 @@ until then it prints a `NOTE`. After creating the settings, run
 `deploy/install-host.sh` again, or `sudo systemctl enable --now
 makam-prod-offsite-backup.timer makam-prod-offsite-restore-test.timer`.
 
+**On hold.** To keep an environment's off-host timers off while its
+`offsite.env` stays in place (the owner has put the off-host copy on hold),
+create the marker `/opt/makam-v1/<env>/offsite.ditunda` (`touch` as ubuntu).
+`deploy/install-host.sh` then disables both timers on every run and prints a
+`NOTE`; remove the marker and run it again to turn them on.
+
 **By hand, and looking at them.**
 
 ```bash

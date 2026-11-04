@@ -23,6 +23,7 @@ import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
 import { rilisTerbuka } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
+import { DAFTAR_INFO_MAKAM_SWASTA } from "../info-makam-swasta/daftar";
 import { daftarLokasi, type DaftarLokasiBaris } from "./daftar";
 import { fasilitasHref, hasActiveFilter, jenisHref, kotaHref, lokasiHref, type LokasiFilters } from "./filters";
 
@@ -191,7 +192,49 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
           <p className="mt-1 text-body text-muted-foreground">Coba hapus salah satu filter, atau tanyakan kepada CS kami.</p>
         </div>
       )}
+
+      {baris.length === 0 ? <BelumBermitra /> : null}
     </main>
+  );
+}
+
+/**
+ * While the directory is empty: the private cemeteries of Info Makam Swasta,
+ * each plainly "Belum bermitra" (not Terverifikasi, no price, no order), each
+ * linking to its card there.
+ */
+function BelumBermitra() {
+  return (
+    <section className="mt-10 flex flex-col gap-4" aria-labelledby="belum-bermitra-judul">
+      <div>
+        <h2 id="belum-bermitra-judul" className="text-title-2 text-forest">
+          Pemakaman swasta yang belum bermitra
+        </h2>
+        <p className="mt-1 max-w-2xl text-body text-muted-foreground">
+          Informasi dari sumber publik. Lokasi ini belum kami verifikasi dan belum bisa dipesan atau dibayar lewat Makam.co.id; CS kami
+          bisa membantu Anda bertanya.
+        </p>
+      </div>
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {DAFTAR_INFO_MAKAM_SWASTA.map((lokasi) => (
+          <li key={lokasi.slug} className="relative flex flex-col gap-1 rounded-2xl border border-border bg-card p-5">
+            <h3 className="text-title-3 text-foreground">
+              <Link href={`/info-makam-swasta#${lokasi.slug}`} className="after:absolute after:inset-0">
+                {lokasi.nama}
+              </Link>
+            </h3>
+            <p className="flex items-center gap-1 text-small text-muted-foreground">
+              <MapPinIcon className="size-3.5" aria-hidden /> {lokasi.kota}
+            </p>
+            <p className="text-small text-muted-foreground">{lokasi.segmen}</p>
+            <span className="mt-2 self-start rounded-full bg-muted px-3 py-1 text-caption font-semibold text-muted-foreground">Belum bermitra</span>
+          </li>
+        ))}
+      </ul>
+      <Link href="/info-makam-swasta" className="inline-flex items-center gap-1 self-start text-body font-semibold text-forest">
+        Lihat Info Makam Swasta <ArrowRightIcon className="size-4" aria-hidden />
+      </Link>
+    </section>
   );
 }
 

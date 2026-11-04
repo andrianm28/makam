@@ -159,3 +159,15 @@ export const homepageCsBand = {
   heading: "Butuh bantuan memilih langkah?",
   line: "Tim kami siap mendampingi lewat WhatsApp",
 };
+
+/**
+ * The Beranda's band for the private cemeteries that are not Lokasi Mitra yet
+ * (Info Makam Swasta). Honest by construction: it says they are not partners
+ * and cannot be ordered here, and never calls them Terverifikasi.
+ */
+export const homepageInfoMakamSwasta = {
+  heading: "Info pemakaman swasta",
+  line: "Informasi dari sumber publik tentang pemakaman swasta yang belum bermitra dengan Makam.co.id. Belum bisa dipesan atau dibayar di sini; CS kami bisa membantu Anda bertanya.",
+  badge: "Belum bermitra",
+  link: { label: "Lihat Info Makam Swasta", href: "/info-makam-swasta" },
+};

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { homepageCsBand, homepageHero, homepageTiles, homepageTilesUntuk, homepageTrust, homepageTrustLink } from "./homepage-content";
+import { homepageCsBand, homepageInfoMakamSwasta, homepageHero, homepageTiles, homepageTilesUntuk, homepageTrust, homepageTrustLink } from "./homepage-content";
 
 /**
  * The Beranda's hero, tile row and trust strip (spec, Public site and routing
@@ -79,5 +79,16 @@ describe("the Beranda's trust strip", () => {
     // The TPU permit only becomes something the Operator helps with in a later
     // release, so the Dibantu line may not promise it here (release plan).
     expect(homepageTrust.map((column) => column.line).join(" ")).not.toMatch(/TPU/i);
+  });
+});
+
+describe("the Beranda's Info Makam Swasta band", () => {
+  it("links to /info-makam-swasta, says the locations are not partners and cannot be ordered, and never claims Terverifikasi", () => {
+    expect(homepageInfoMakamSwasta.link.href).toBe("/info-makam-swasta");
+    expect(homepageInfoMakamSwasta.badge).toBe("Belum bermitra");
+    const text = [homepageInfoMakamSwasta.heading, homepageInfoMakamSwasta.line, homepageInfoMakamSwasta.link.label].join(" ");
+    expect(text).toContain("belum bermitra");
+    expect(text).toContain("Belum bisa dipesan");
+    expect(text).not.toMatch(/terverifikasi/i);
   });
 });

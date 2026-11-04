@@ -137,7 +137,7 @@ An Akun holding at least one staff role (Admin Platform, Admin Lokasi, Petugas L
 _Avoid_: Admin user, akun admin
 
 **Undangan Staf**:
-Admin Platform's single-use, expiring offer of one staff role to an email (with an optional phone number as contact, ADR 0009); the role is granted when the Akun whose Email Terverifikasi is that email next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again.
+Admin Platform's single-use, expiring offer of one staff role to an email (with an optional phone number as contact, ADR 0009); the role is granted when the Akun whose Email Terverifikasi is that email next logs in with a Kode Masuk. It is also the only way a Dinonaktifkan Akun holds a staff role again. Until it is accepted, Admin Platform can cancel it (Dibatalkan); a cancelled invite can no longer be accepted.
 _Avoid_: Invite link, pendaftaran staf
 
 **Dinonaktifkan**:

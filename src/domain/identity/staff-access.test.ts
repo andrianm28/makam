@@ -697,3 +697,80 @@ describe("reads are not audited", () => {
     expect(await setup.audit.allEntries()).toEqual(before);
   });
 });
+
+describe("cancelling an Undangan Staf", () => {
+  const INVITEE = "salah@contoh.id";
+
+  it("Admin Platform cancels an open Undangan Staf: it leaves the open invites, its email's next Kode Masuk grants no role, and the cancellation is in the Audit Log with its reason", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const invited = await setup.identity.inviteStaff(actor, { email: INVITEE, role: "petugas_lapangan" });
+    if (!invited.ok) throw new Error("invite refused");
+
+    const cancelled = await setup.identity.cancelStaffInvite(actor, { inviteId: invited.invite.id, reason: "Salah email" });
+
+    expect(cancelled).toEqual({ ok: true, invite: invited.invite });
+    expect(await setup.identity.openStaffInvites()).toEqual([]);
+    const { login } = await logIn(setup, INVITEE);
+    expect(login.roles).toEqual(["pemesan"]);
+    expect(await setup.audit.entriesAbout({ kind: "undangan_staf", id: invited.invite.id })).toEqual([
+      expect.objectContaining({ action: "staf.undang" }),
+      expect.objectContaining({
+        action: "staf.batalkan_undangan",
+        actor: { accountId: actor.accountId, role: "admin_platform" },
+        reason: "Salah email",
+      }),
+    ]);
+  });
+
+  it("cancelling one Undangan Staf leaves the email's other open invites to be accepted", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const wrong = await setup.identity.inviteStaff(actor, { email: INVITEE, role: "admin_platform" });
+    await setup.identity.inviteStaff(actor, { email: INVITEE, role: "petugas_lapangan" });
+    if (!wrong.ok) throw new Error("invite refused");
+
+    expect(await setup.identity.cancelStaffInvite(actor, { inviteId: wrong.invite.id })).toMatchObject({ ok: true });
+
+    expect((await setup.identity.openStaffInvites()).map((invite) => invite.role)).toEqual(["petugas_lapangan"]);
+    expect((await logIn(setup, INVITEE)).login.roles).toEqual(["pemesan", "petugas_lapangan"]);
+  });
+
+  it("an Undangan Staf already accepted, already cancelled, expired or unknown cannot be cancelled, and nothing is recorded", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const accepted = await setup.identity.inviteStaff(actor, { email: "terima@contoh.id", role: "petugas_lapangan" });
+    const twice = await setup.identity.inviteStaff(actor, { email: "dua-kali@contoh.id", role: "petugas_lapangan" });
+    const late = await setup.identity.inviteStaff(actor, { email: "telat@contoh.id", role: "petugas_lapangan" });
+    if (!accepted.ok || !twice.ok || !late.ok) throw new Error("invite refused");
+    await logIn(setup, "terima@contoh.id");
+    await setup.identity.cancelStaffInvite(actor, { inviteId: twice.invite.id });
+    setup.clock.advance({ days: 7 });
+    const before = await setup.audit.allEntries();
+
+    expect(await setup.identity.cancelStaffInvite(actor, { inviteId: accepted.invite.id })).toEqual({ ok: false, reason: "sudah_diterima" });
+    expect(await setup.identity.cancelStaffInvite(actor, { inviteId: twice.invite.id })).toEqual({ ok: false, reason: "sudah_dibatalkan" });
+    expect(await setup.identity.cancelStaffInvite(actor, { inviteId: late.invite.id })).toEqual({ ok: false, reason: "sudah_kedaluwarsa" });
+    expect(await setup.identity.cancelStaffInvite(actor, { inviteId: "5d1f4c2e-0000-4000-8000-0000000000ff" })).toEqual({
+      ok: false,
+      reason: "undangan_tidak_ditemukan",
+    });
+    expect(await setup.audit.allEntries()).toEqual(before);
+  });
+
+  it("only Admin Platform cancels an Undangan Staf", async () => {
+    const setup = identityOnTestDatabase(db);
+    const { actor } = await signedInAdminPlatform(setup);
+    const invited = await setup.identity.inviteStaff(actor, { email: INVITEE, role: "petugas_lapangan" });
+    await setup.identity.inviteStaff(actor, { email: "petugas@contoh.id", role: "petugas_lapangan" });
+    if (!invited.ok) throw new Error("invite refused");
+    const petugas = await logIn(setup, "petugas@contoh.id");
+    const petugasActor = await actorOf(setup.identity, petugas.cookies);
+
+    expect(await setup.identity.cancelStaffInvite(petugasActor, { inviteId: invited.invite.id })).toEqual({
+      ok: false,
+      reason: "tidak_berwenang",
+    });
+    expect((await setup.identity.openStaffInvites()).map((invite) => invite.email)).toEqual([INVITEE]);
+  });
+});

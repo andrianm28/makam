@@ -8,7 +8,7 @@ import { staffRoleLabels } from "@/lib/staff-role-labels";
 import { formatWib } from "@/lib/time/jakarta";
 import { serverRuntime } from "@/server/runtime";
 import { staffMenuActor } from "@/server/staff-area";
-import { DeactivateForm, InviteForm } from "./staff-forms";
+import { CancelInviteForm, DeactivateForm, InviteForm } from "./staff-forms";
 import { roleUndangan, roleUndanganAwal } from "./undangan-peran";
 
 /** Admin Platform: send Undangan Staf, see open invites, deactivate Akun Staf. */
@@ -29,16 +29,22 @@ export default async function StafAdminPage() {
         <InviteForm roles={roles} defaultRole={roleUndanganAwal(roles)} />
       </FormSection>
 
-      <FormSection title="Undangan terbuka">
+      <FormSection
+        title="Undangan terbuka"
+        description="Undangan yang salah alamat atau tidak jadi dipakai bisa dibatalkan selama belum diterima. Undangan yang dibatalkan tidak bisa diterima lagi."
+      >
         <div data-testid="undangan-terbuka">
           {invites.length === 0 ? (
             <p className="text-sm text-muted-foreground">Tidak ada undangan terbuka.</p>
           ) : (
-            <ul className="flex flex-col gap-1 text-sm">
+            <ul className="flex flex-col gap-3 text-sm">
               {invites.map((invite) => (
-                <li key={invite.id}>
-                  {invite.email} · {invite.phoneNumber ?? "–"} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
-                  {formatWib(invite.expiresAt)}
+                <li key={invite.id} className="flex flex-col gap-1">
+                  <span>
+                    {invite.email} · {invite.phoneNumber ?? "–"} · {staffRoleLabels[invite.role]} · berlaku sampai{" "}
+                    {formatWib(invite.expiresAt)}
+                  </span>
+                  <CancelInviteForm inviteId={invite.id} email={invite.email} />
                 </li>
               ))}
             </ul>

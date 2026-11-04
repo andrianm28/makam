@@ -27,7 +27,15 @@ import {
   type UpdatePhoneNumberResult,
 } from "./email";
 import { normaliseEmail } from "./email-address";
-import { inviteStaff, openStaffInvites, type InviteStaffInput, type InviteStaffResult, type StaffInvite } from "./invites";
+import {
+  cancelStaffInvite,
+  inviteStaff,
+  openStaffInvites,
+  type CancelStaffInviteResult,
+  type InviteStaffInput,
+  type InviteStaffResult,
+  type StaffInvite,
+} from "./invites";
 import {
   nameAkunForSeed,
   requestKodeMasuk,
@@ -84,7 +92,7 @@ export {
   type RecoverAccountInput,
   type RecoverAccountResult,
 } from "./pemulihan-akun";
-export type { InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
+export type { CancelStaffInviteResult, InviteStaffInput, InviteStaffResult, StaffInvite } from "./invites";
 export {
   akunResource,
   wakafResource,
@@ -216,8 +224,10 @@ export interface Identity {
   recoverAccount(by: Actor, input: RecoverAccountInput): Promise<RecoverAccountResult>;
   /** An Akun as its records hold it, by id (the Pemulihan Akun screen; Admin Platform pages only), or null. */
   accountOnRecord(accountId: string): Promise<AccountOnRecord | null>;
-  /** Every Undangan Staf not yet accepted and not expired; with `lokasiId`, the Admin Lokasi invites to that Lokasi Mitra. */
+  /** Every Undangan Staf not yet accepted, cancelled or expired; with `lokasiId`, the Admin Lokasi invites to that Lokasi Mitra. */
   openStaffInvites(filter?: { lokasiId?: string }): Promise<StaffInvite[]>;
+  /** Admin Platform cancels an open Undangan Staf: it can no longer be accepted (audited). */
+  cancelStaffInvite(by: Actor, input: { inviteId: string; reason?: string | null }): Promise<CancelStaffInviteResult>;
   /** Akun Saya: the Akun's phone number, a contact (+62, never verified); audited for an Akun Staf. */
   updatePhoneNumber(by: Actor, input: { phoneNumber: string }): Promise<UpdatePhoneNumberResult>;
   /** Verifikasi Email, step 1: sends a code to the email typed; nothing changes on the Akun yet. */
@@ -256,6 +266,7 @@ export function createIdentity(deps: IdentityDeps): Identity {
     adminLokasiSince: (accountId, lokasiId, since) => adminLokasiSince(deps, accountId, lokasiId, since),
     removeAdminLokasi: (by, input) => removeAdminLokasi(deps, by, input),
     openStaffInvites: (filter) => openStaffInvites(deps, filter),
+    cancelStaffInvite: (by, input) => cancelStaffInvite(deps, by, input),
     deactivateStaff: (by, input) => deactivateStaff(deps, by, input),
     recoverAccount: (by, input) => recoverAccount(reporting, by, input),
     accountOnRecord: (accountId) => accountOnRecord(deps, accountId),

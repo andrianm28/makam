@@ -26,5 +26,11 @@ export const nonaktifkanStafSchema = z.object({
   reason: z.string().trim().max(STAF_REASON_MAX),
 });
 
+export const batalkanUndanganSchema = z.object({
+  inviteId: z.uuid(),
+  reason: z.string().trim().max(STAF_REASON_MAX).optional(),
+});
+
 export type UndangStafInput = z.infer<typeof undangStafSchema>;
 export type NonaktifkanStafInput = z.infer<typeof nonaktifkanStafSchema>;
+export type BatalkanUndanganInput = z.infer<typeof batalkanUndanganSchema>;

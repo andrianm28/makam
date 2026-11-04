@@ -127,8 +127,68 @@ export async function inviteStaff(deps: InviteDeps, by: Actor, input: InviteStaf
   return { ok: true, invite: { id: outcome.id, email, phoneNumber, role: input.role, lokasiId, expiresAt }, delivered };
 }
 
+export type CancelStaffInviteResult =
+  | { ok: true; invite: StaffInvite }
+  | {
+      ok: false;
+      reason:
+        | "tidak_berwenang"
+        | "undangan_tidak_ditemukan"
+        /** Its invitee already logged in and holds the role: deactivate the Akun Staf instead. */
+        | "sudah_diterima"
+        | "sudah_dibatalkan"
+        | "sudah_kedaluwarsa";
+    };
+
 /**
- * Every Undangan Staf not yet accepted and not expired on the Clock, oldest
+ * Admin Platform cancels an open Undangan Staf (sent to the wrong email, or no
+ * longer wanted): it can no longer be accepted, and leaves the open invites.
+ * Recorded with its Entri Audit in one transaction. An invite already
+ * accepted, cancelled or expired is refused and left as it is.
+ */
+export async function cancelStaffInvite(
+  deps: { db: Database; clock: Clock; audit: AuditLog },
+  by: Actor,
+  input: { inviteId: string; reason?: string | null },
+): Promise<CancelStaffInviteResult> {
+  const refusal = writeRefusal(by, "staf.batalkan_undangan", stafResource());
+  if (refusal) return refusal;
+  const now = deps.clock.now();
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [invite] = await tx.select().from(identityStaffInvite).where(eq(identityStaffInvite.id, input.inviteId)).for("update");
+    if (!invite) return { ok: false, reason: "undangan_tidak_ditemukan" } as const;
+    if (invite.acceptedAt) return { ok: false, reason: "sudah_diterima" } as const;
+    if (invite.cancelledAt) return { ok: false, reason: "sudah_dibatalkan" } as const;
+    if (invite.expiresAt.getTime() <= now.getTime()) return { ok: false, reason: "sudah_kedaluwarsa" } as const;
+    await tx
+      .update(identityStaffInvite)
+      .set({ cancelledAt: now, cancelledByAccountId: by.accountId })
+      .where(eq(identityStaffInvite.id, invite.id));
+    await record({
+      actor: { accountId: by.accountId, role: "admin_platform" },
+      action: "staf.batalkan_undangan",
+      entity: { kind: "undangan_staf", id: invite.id },
+      lokasiId: invite.lokasiId,
+      before: { email: invite.email, role: invite.role, expiresAt: invite.expiresAt.toISOString() },
+      after: { cancelledAt: now.toISOString() },
+      reason: input.reason?.trim() || null,
+    });
+    return {
+      ok: true,
+      invite: {
+        id: invite.id,
+        email: invite.email,
+        phoneNumber: invite.phoneNumber,
+        role: invite.role,
+        lokasiId: invite.lokasiId,
+        expiresAt: invite.expiresAt,
+      },
+    } as const;
+  });
+}
+
+/**
+ * Every Undangan Staf not yet accepted, not cancelled and not expired on the Clock, oldest
  * first; with `lokasiId`, only the Admin Lokasi invites to that Lokasi Mitra.
  */
 export async function openStaffInvites(
@@ -148,6 +208,7 @@ export async function openStaffInvites(
     .where(
       and(
         isNull(identityStaffInvite.acceptedAt),
+        isNull(identityStaffInvite.cancelledAt),
         gt(identityStaffInvite.expiresAt, deps.clock.now()),
         filter.lokasiId === undefined ? undefined : eq(identityStaffInvite.lokasiId, filter.lokasiId),
       ),
@@ -178,6 +239,7 @@ export async function acceptOpenInvites(
         and(
           eq(identityStaffInvite.email, account.email),
           isNull(identityStaffInvite.acceptedAt),
+          isNull(identityStaffInvite.cancelledAt),
           gt(identityStaffInvite.expiresAt, now),
         ),
       )

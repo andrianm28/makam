@@ -129,6 +129,9 @@ export const identityStaffInvite = pgTable(
     expiresAt: at("expires_at").notNull(),
     acceptedAt: at("accepted_at"),
     acceptedAccountId: text("accepted_account_id"),
+    /** When Admin Platform cancelled it (Dibatalkan); a cancelled invite can no longer be accepted. */
+    cancelledAt: at("cancelled_at"),
+    cancelledByAccountId: text("cancelled_by_account_id"),
   },
   (table) => [index("identity_staff_invite_email_idx").on(table.email, table.expiresAt)],
 );

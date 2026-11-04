@@ -9,7 +9,7 @@ import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
 import { rilisTerbuka } from "@/lib/rilis";
 import { staffRoleLabels } from "@/lib/staff-role-labels";
-import { nonaktifkanStafSchema, undangStafSchema } from "./schema";
+import { batalkanUndanganSchema, nonaktifkanStafSchema, undangStafSchema } from "./schema";
 
 /** Admin Platform sends an Undangan Staf. */
 export async function undangStaf(_previous: FormState, formData: FormData): Promise<FormState> {
@@ -83,4 +83,31 @@ export async function nonaktifkanStaf(_previous: FormState, formData: FormData):
   }
   revalidatePath("/staf/admin-platform/staf");
   return { status: "berhasil", message: "Akun Staf dinonaktifkan: perannya dicabut dan sesinya diakhiri." };
+}
+
+/** Admin Platform cancels an open Undangan Staf. */
+export async function batalkanUndangan(_previous: FormState, formData: FormData): Promise<FormState> {
+  const result = await guarded({
+    fitur: "inti",
+    action: "staf.batalkan_undangan",
+    resource: () => stafResource(),
+    schema: batalkanUndanganSchema,
+    input: { inviteId: formData.get("inviteId"), reason: formData.get("reason") ?? undefined },
+    run: (actor, data) => serverRuntime().identity.cancelStaffInvite(actor, data),
+  });
+  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
+  const cancelled = result.value;
+  if (!cancelled.ok) {
+    const messages: Record<typeof cancelled.reason, string> = {
+      undangan_tidak_ditemukan: "Undangan ini tidak ditemukan.",
+      sudah_diterima: "Undangan ini sudah diterima. Untuk mencabut perannya, nonaktifkan Akun Staf-nya.",
+      sudah_dibatalkan: "Undangan ini sudah dibatalkan.",
+      sudah_kedaluwarsa: "Undangan ini sudah kedaluwarsa.",
+      tidak_berwenang: guardMessage("tidak_berwenang"),
+    };
+    revalidatePath("/staf/admin-platform/staf");
+    return { status: "gagal", message: messages[cancelled.reason] };
+  }
+  revalidatePath("/staf/admin-platform/staf");
+  return { status: "berhasil", message: `Undangan untuk ${cancelled.invite.email} dibatalkan: tidak bisa diterima lagi.` };
 }

@@ -191,3 +191,37 @@ describe("the runbook's HSTS step", () => {
     expect(step.indexOf("install-host.sh")).toBeLessThan(step.indexOf("makam-switch --ke v1"));
   });
 });
+
+describe("the staging and production blocks, side by side in one nginx", () => {
+  // Both files are included at http level of the same nginx. A directive that may appear only
+  // once per level, declared at http level in each, makes `nginx -t` fail as a duplicate.
+  const httpLevel = (text: string): string[] => {
+    let depth = 0;
+    const out: string[] = [];
+    for (const raw of text.split("\n")) {
+      const line = raw.replace(/#.*$/, "").trim();
+      if (depth === 0 && line) out.push(line);
+      depth += (line.match(/\{/g) ?? []).length - (line.match(/\}/g) ?? []).length;
+    }
+    return out;
+  };
+  const files = ["deploy/nginx/makam.co.id.conf", "deploy/nginx/dev.makam.co.id.conf"];
+
+  it("declare limit_req_status inside each https server, never at http level", () => {
+    for (const file of files) {
+      const text = read(file);
+      expect(httpLevel(text).filter((line) => line.startsWith("limit_req_status")), file).toEqual([]);
+      const servers = text.split(/\nserver \{/).slice(1);
+      const https = servers.filter((server) => server.includes("listen 443"));
+      expect(https.length, file).toBe(1);
+      expect(https[0], file).toMatch(/\n\s+limit_req_status 429;/);
+    }
+  });
+
+  it("put nothing at http level but their own maps, rate-limit zones and server blocks", () => {
+    for (const file of files) {
+      const stray = httpLevel(read(file)).filter((line) => !/^(map |limit_req_zone |server \{|\}$)/.test(line));
+      expect(stray, file).toEqual([]);
+    }
+  });
+});

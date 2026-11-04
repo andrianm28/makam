@@ -8,11 +8,13 @@ import { pesanKesalahan } from "@/components/makam/form-errors";
 import { Button } from "@/components/ui/button";
 import { ServerResult, idleFormState } from "../../form-feedback";
 import { useResetAfterSubmit } from "../../form-reset";
-import { nonaktifkanStaf, undangStaf } from "./actions";
+import { batalkanUndangan, nonaktifkanStaf, undangStaf } from "./actions";
 import {
   STAF_REASON_MAX,
+  batalkanUndanganSchema,
   nonaktifkanStafSchema,
   undangStafSchema,
+  type BatalkanUndanganInput,
   type NonaktifkanStafInput,
   type UndangStafInput,
 } from "./schema";
@@ -164,6 +166,44 @@ export function DeactivateForm({ accountId }: { accountId: string }) {
       <FieldError id={reasonErrorId} message={errors.reason?.message} />
       <Button type="submit" variant="destructive" size="sm" disabled={pending}>
         Nonaktifkan
+      </Button>
+      <ServerResult state={state} />
+    </form>
+  );
+}
+
+/** Cancels one open Undangan Staf; the reason is optional and goes to the Audit Log. */
+export function CancelInviteForm({ inviteId, email }: { inviteId: string; email: string }) {
+  const [state, submit, pending] = useActionState(batalkanUndangan, idleFormState);
+  const { register, handleSubmit } = useForm<BatalkanUndanganInput>({
+    resolver: zodResolver(batalkanUndanganSchema, { error: pesanKesalahan }),
+    defaultValues: { inviteId, reason: "" },
+  });
+
+  return (
+    <form
+      noValidate
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={handleSubmit((data) => {
+        const formData = new FormData();
+        formData.set("inviteId", data.inviteId);
+        formData.set("reason", data.reason ?? "");
+        startTransition(() => submit(formData));
+      })}
+    >
+      <input type="hidden" {...register("inviteId")} />
+      <label className="sr-only" htmlFor={`alasan-batal-${inviteId}`}>
+        Alasan membatalkan undangan untuk {email}
+      </label>
+      <input
+        id={`alasan-batal-${inviteId}`}
+        {...register("reason")}
+        maxLength={STAF_REASON_MAX}
+        placeholder="Alasan (opsional)"
+        className={inputClass}
+      />
+      <Button type="submit" variant="outline" size="sm" disabled={pending} aria-label={`Batalkan undangan untuk ${email}`}>
+        Batalkan
       </Button>
       <ServerResult state={state} />
     </form>

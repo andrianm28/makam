@@ -37,6 +37,7 @@ export type AuditAction =
   | "staf.peran_diberikan"
   /** Admin Platform deactivates an Akun Staf. */
   | "staf.nonaktifkan"
+  | "staf.batalkan_undangan"
   /** Admin Platform removes an Admin Lokasi from one Lokasi Mitra. */
   | "staf.lepas_admin_lokasi"
   /** Pemulihan Akun: Admin Platform moves an Akun to a new Email Terverifikasi after a KTP check. */

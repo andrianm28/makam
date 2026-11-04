@@ -7,6 +7,7 @@ import { CsLink } from "@/components/site/cs-link";
 import {
   homepageCsBand,
   homepageHero,
+  homepageInfoMakamSwasta,
   homepageTilesUntuk,
   homepageTilesIntro,
   homepageTrust,
@@ -14,6 +15,7 @@ import {
   homepageTrustLink,
 } from "@/lib/homepage-content";
 import { serverRuntime } from "@/server/runtime";
+import { DAFTAR_INFO_MAKAM_SWASTA } from "./info-makam-swasta/daftar";
 
 export const metadata: Metadata = {
   title: "Makam.co.id — Urus Pemakaman dengan Tenang, dalam Satu Platform",
@@ -120,6 +122,33 @@ export default async function BerandaPage() {
               );
             })}
           </ul>
+        </div>
+      </section>
+
+      <section className="px-4 pb-14 md:px-8" aria-labelledby="info-makam-swasta-title">
+        <div className="mx-auto flex max-w-(--page-max-width) flex-col gap-4 rounded-3xl border border-border bg-card p-6 sm:p-8">
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="info-makam-swasta-title" className="text-title-2 text-forest">
+              {homepageInfoMakamSwasta.heading}
+            </h2>
+            <span className="rounded-full bg-muted px-3 py-1 text-caption font-semibold text-muted-foreground">{homepageInfoMakamSwasta.badge}</span>
+          </div>
+          <p className="max-w-2xl text-body text-muted-foreground">{homepageInfoMakamSwasta.line}</p>
+          <ul className="flex flex-wrap gap-2" aria-label="Pemakaman swasta yang belum bermitra">
+            {DAFTAR_INFO_MAKAM_SWASTA.map((lokasi) => (
+              <li key={lokasi.slug}>
+                <Link
+                  href={`/info-makam-swasta#${lokasi.slug}`}
+                  className="inline-flex min-h-(--touch-target) items-center rounded-full border border-border px-3 text-small text-foreground hover:border-forest"
+                >
+                  {lokasi.nama}
+                </Link>
+              </li>
+            ))}
+          </ul>
+          <Link href={homepageInfoMakamSwasta.link.href} className="inline-flex items-center gap-1 self-start text-body font-semibold text-forest">
+            {homepageInfoMakamSwasta.link.label} <ArrowRightIcon className="size-4" aria-hidden="true" />
+          </Link>
         </div>
       </section>
 

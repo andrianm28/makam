@@ -113,7 +113,10 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, semuaKota, kota, jenis, kemb
                   key={satu.lokasiId}
                   grup={satu}
                   terpilih={terpilih}
-                  onPilih={(kartu) => setTerpilih({ kind: "lokasi_mitra", lokasiId: satu.lokasiId, kartu })}
+                  onPilih={(kartu) => {
+                    setTerpilih({ kind: "lokasi_mitra", lokasiId: satu.lokasiId, kartu });
+                    gulirKePilihan(idGrup(satu.lokasiId));
+                  }}
                 />
               ))}
             </ul>
@@ -173,6 +176,27 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, semuaKota, kota, jenis, kemb
       </div>
     </div>
   );
+}
+
+/** The element id of a Lokasi Mitra's card in the list, the target of `gulirKePilihan`. */
+function idGrup(lokasiId: string): string {
+  return `grup-${lokasiId}`;
+}
+
+/**
+ * After a tap on a makam (R11, the owner's 7 Sep ask: with nothing moving she
+ * took the page for still loading), the chosen card's bottom slides up to just
+ * above the sticky bar, so its total and Lanjut sit right under what was
+ * chosen. Smooth unless the visitor asks for reduced motion; never on the
+ * card chosen for them on arrival.
+ */
+function gulirKePilihan(id: string): void {
+  requestAnimationFrame(() => {
+    const target = document.getElementById(id);
+    if (!target) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    target.scrollIntoView({ block: "end", behavior: reduce ? "auto" : "smooth" });
+  });
 }
 
 /** The next step's URL for a choice: a Lokasi Mitra card's own, a TPU's own submission screen. */
@@ -430,7 +454,7 @@ function GrupKartu({
 
   const adaTerpilih = terpilih?.kind === "lokasi_mitra" && terpilih.lokasiId === grup.lokasiId;
   return (
-    <li>
+    <li id={idGrup(grup.lokasiId)} className="scroll-mb-40">
       <div
         className={cn(
           "flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5",
@@ -488,7 +512,7 @@ function GrupKartuTunggal({
   onPilih: (kartu: KartuView) => void;
 }) {
   return (
-    <li>
+    <li id={idGrup(grup.lokasiId)} className="scroll-mb-40">
       {/*
         The same radiogroup semantics its "banyak" sibling gives its Jenis
         Makam list, just with the one option this Lokasi Mitra has: a named

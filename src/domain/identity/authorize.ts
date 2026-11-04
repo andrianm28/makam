@@ -45,6 +45,8 @@ export type Action =
   | "staf.undang"
   /** Deactivate an Akun Staf (Admin Platform). */
   | "staf.nonaktifkan"
+  /** Cancel an open Undangan Staf (Admin Platform). */
+  | "staf.batalkan_undangan"
   /** Read the whole Audit Log. */
   | "audit.lihat"
   /** Open the Pengaturan Operator edit screen (Admin Platform). */
@@ -507,6 +509,7 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
       return resource.kind === "menu_staf" && holds(resource.role) ? allowed : denied;
     case "staf.undang":
     case "staf.nonaktifkan":
+    case "staf.batalkan_undangan":
     case "akun.pemulihan":
     case "lokasi.buat":
       return holds("admin_platform") ? allowed : denied;
