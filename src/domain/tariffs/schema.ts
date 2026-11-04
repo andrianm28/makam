@@ -222,3 +222,19 @@ export const tariffJenisMakamVersion = pgTable(
     ),
   ],
 );
+
+/**
+ * Owned by the Tariffs module: a Jenis Makam's Gambar Tipe Kavling (an
+ * illustration or plan, never headstones or the burial area) and its caption,
+ * at most one per Jenis Makam. Not a tariff, so not append-only: the history
+ * is in the Audit Log, and a replaced file stays in the FileStore.
+ */
+export const tariffGambarTipeKavling = pgTable("tariff_gambar_tipe_kavling", {
+  jenisMakamId: uuid("jenis_makam_id")
+    .primaryKey()
+    .references(() => tariffJenisMakam.id),
+  fileKey: text("file_key").notNull(),
+  keterangan: text("keterangan").notNull(),
+  updatedAt: at("updated_at").notNull(),
+  updatedByAccountId: text("updated_by_account_id").notNull(),
+});

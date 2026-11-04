@@ -3,6 +3,7 @@ import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiFacility } from "./profile";
 import type { JamOperasional } from "./jam-operasional-schema";
 import { lokasiMitraStatuses } from "./skema-klien";
+import { kategoriFotoGaleri } from "./skema-galeri";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -129,3 +130,28 @@ export const lokasiHariLiburNasional = pgTable("lokasi_hari_libur_nasional", {
   name: text("name").notNull(),
   createdAt: at("created_at").notNull(),
 });
+
+/**
+ * Owned by the Lokasi module: the Galeri Lokasi, the public photos of a Lokasi
+ * Mitra (facilities and landscape, never headstones or the burial area). A
+ * photo taken off keeps its row (`removed_at`), so its Entri Audit still names a file.
+ */
+export const lokasiFotoGaleri = pgTable(
+  "lokasi_foto_galeri",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    lokasiId: uuid("lokasi_id")
+      .notNull()
+      .references(() => lokasiMitra.id),
+    kategori: text("kategori", { enum: kategoriFotoGaleri }).notNull(),
+    /** The caption, also the alt text. */
+    keterangan: text("keterangan").notNull(),
+    fileKey: text("file_key").notNull(),
+    contentType: text("content_type").notNull(),
+    createdAt: at("created_at").notNull(),
+    createdByAccountId: text("created_by_account_id").notNull(),
+    removedAt: at("removed_at"),
+    removedByAccountId: text("removed_by_account_id"),
+  },
+  (table) => [index("lokasi_foto_galeri_lokasi_idx").on(table.lokasiId, table.createdAt)],
+);

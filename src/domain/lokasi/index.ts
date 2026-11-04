@@ -8,7 +8,7 @@
  */
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
-import type { Actor, Identity } from "@/domain/identity";
+import type { Actor, Identity, WriteRefusal } from "@/domain/identity";
 import type { Clock } from "@/ports/clock";
 import type { FileStore } from "@/ports/file-store";
 import {
@@ -138,6 +138,22 @@ import {
   type UpdateTpuDkiFlagResult,
   type UpdateTpuDkiResult,
 } from "./tpu";
+import {
+  FOTO_GALERI_MAKS,
+  FOTO_GALERI_MAX_BYTES,
+  KETERANGAN_FOTO_MAX,
+  fotoGaleri,
+  hapusFotoGaleri,
+  publicFotoGaleri,
+  unggahFotoGaleri,
+  type FotoGaleri,
+  type HapusFotoGaleriResult,
+  type UnggahFotoGaleriResult,
+} from "./galeri";
+import type { KategoriFotoGaleri } from "./skema-galeri";
+export { FOTO_GALERI_MAKS, FOTO_GALERI_MAX_BYTES, KETERANGAN_FOTO_MAX };
+export type { FotoGaleri, HapusFotoGaleriResult, KategoriFotoGaleri, UnggahFotoGaleriResult };
+export { kategoriFotoGaleri, labelKategoriFotoGaleri } from "./skema-galeri";
 import {
   aturanGantiPemegangHak,
   publicLokasiMitra,
@@ -487,6 +503,18 @@ export interface Lokasi {
   publicLokasiMakamCities(query?: { kind?: LokasiMakamKind }): Promise<string[]>;
   /** Signed URLs to a Terverifikasi Lokasi Mitra's Kunjungan Verifikasi visit photos (no actor, for its Lokasi page). */
   publicVisitPhotoUrls(lokasiId: string): Promise<string[]>;
+  /** Admin Platform adds a Galeri Lokasi photo (facilities and landscape only, confirmed by the uploader), audited. */
+  unggahFotoGaleri(
+    by: Actor,
+    lokasiId: string,
+    input: { foto: { body: Uint8Array; contentType: string }; kategori: KategoriFotoGaleri; keterangan: string; tanpaMakam: boolean },
+  ): Promise<UnggahFotoGaleriResult>;
+  /** Admin Platform takes a Galeri Lokasi photo off, audited. */
+  hapusFotoGaleri(by: Actor, lokasiId: string, fotoId: string): Promise<HapusFotoGaleriResult>;
+  /** The Galeri Lokasi for staff (Admin Platform, or that Lokasi's Admin Lokasi). */
+  fotoGaleri(by: Actor, lokasiId: string): Promise<{ ok: true; foto: FotoGaleri[] } | WriteRefusal>;
+  /** The Galeri Lokasi of a Terverifikasi Lokasi Mitra, signed URLs, for the public page and the wizard (no actor). */
+  publicFotoGaleri(lokasiId: string): Promise<FotoGaleri[]>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -556,6 +584,10 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     publicLokasiMakamList: (query) => publicLokasiMakamList(deps, query),
     publicLokasiMakamCities: (query) => publicLokasiMakamCities(deps, query),
     publicVisitPhotoUrls: (lokasiId) => publicVisitPhotoUrls(deps, lokasiId),
+    unggahFotoGaleri: (by, lokasiId, input) => unggahFotoGaleri(deps, by, lokasiId, input),
+    hapusFotoGaleri: (by, lokasiId, fotoId) => hapusFotoGaleri(deps, by, lokasiId, fotoId),
+    fotoGaleri: (by, lokasiId) => fotoGaleri(deps, by, lokasiId),
+    publicFotoGaleri: (lokasiId) => publicFotoGaleri(deps, lokasiId),
   };
 }
 export {

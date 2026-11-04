@@ -102,6 +102,14 @@ _Avoid_: Kavling (alone), blok keluarga, makam keluarga (that is every grave a f
 A class of Petak Makam at a Lokasi Makam (e.g. by size, block or facilities) with its own price; what a Pemesan chooses before an Admin Lokasi assigns the exact Petak Makam.
 _Avoid_: Tipe makam, kelas, kategori
 
+**Gambar Tipe Kavling**:
+The one image a Jenis Makam may carry on its card: an illustration or plan of its size and layout, set by Admin Platform with a caption. Never a photo of headstones or the burial area; the uploader confirms it for every image.
+_Avoid_: Foto makam, foto petak
+
+**Galeri Lokasi**:
+The public photos of a Lokasi Mitra (at most 12): facilities and landscape only (gate, garden, buildings, access and parking), each captioned and confirmed by Admin Platform to show no headstones or burial area. Shown only while the Lokasi Mitra is Terverifikasi; unlike Kunjungan Verifikasi photos, which are evidence, it is made for display.
+_Avoid_: Foto kunjungan (that is the visit's evidence)
+
 **Nomor Makam**:
 The identifier of a Petak Makam as recorded by its operator.
 _Avoid_: Nomor petak, kode makam

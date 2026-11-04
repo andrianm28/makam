@@ -55,7 +55,7 @@ export function testServerRuntime() {
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-    const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi, files: adapters.files });
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
     // Filled in once Payouts is composed below (ticket 30: Billing's own Harga
     // Khusus path only ever *calls* this once a write happens, well after this

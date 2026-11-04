@@ -512,6 +512,20 @@
       "when": 1793759780571,
       "tag": "0072_far_echo",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793760639881,
+      "tag": "0073_shiny_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 74,
+      "version": "7",
+      "when": 1793760923240,
+      "tag": "0074_ordinary_wolverine",
+      "breakpoints": true
     }
   ]
 }

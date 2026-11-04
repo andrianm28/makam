@@ -16,7 +16,7 @@
  * plus who set the "tarif diperiksa" mark. The global tariffs are public.
  */
 import type { Database } from "@/db/client";
-import type { Actor } from "@/domain/identity";
+import type { Actor, WriteRefusal } from "@/domain/identity";
 import type { TariffDeps } from "./deps";
 import {
   globalTariff,
@@ -93,7 +93,30 @@ export type {
 } from "./biaya-pemakaman";
 
 /** Public reads (no actor; a Terverifikasi Lokasi Mitra only), the writes, and the staff reads. */
+import {
+  GAMBAR_TIPE_KAVLING_MAX_BYTES,
+  hapusGambarTipeKavling,
+  publicGambarTipeKavling,
+  setGambarTipeKavling,
+  staffGambarTipeKavling,
+  type GambarTipeKavling,
+  type SetGambarTipeKavlingResult,
+} from "./gambar-tipe-kavling";
+export { GAMBAR_TIPE_KAVLING_MAX_BYTES, type GambarTipeKavling, type SetGambarTipeKavlingResult };
+
 export interface Tariffs extends TariffReads {
+  /** Admin Platform sets or replaces a Jenis Makam's Gambar Tipe Kavling (an illustration or plan, never headstones), audited. */
+  setGambarTipeKavling(
+    by: Actor,
+    jenisMakamId: string,
+    input: { gambar: { body: Uint8Array; contentType: string }; keterangan: string; tanpaMakam: boolean },
+  ): Promise<SetGambarTipeKavlingResult>;
+  /** Admin Platform takes a Jenis Makam's Gambar Tipe Kavling off, audited. */
+  hapusGambarTipeKavling(by: Actor, jenisMakamId: string): Promise<{ ok: true } | WriteRefusal | { ok: false; reason: "tidak_ditemukan" }>;
+  /** Each Jenis Makam's Gambar Tipe Kavling, at Terverifikasi Lokasi Mitra only (no actor), keyed by Jenis Makam id. */
+  publicGambarTipeKavling(jenisMakamIds: readonly string[]): Promise<Record<string, GambarTipeKavling>>;
+  /** The same for staff screens, any Lokasi status; the caller has checked the actor may see that Lokasi. */
+  staffGambarTipeKavling(jenisMakamIds: readonly string[]): Promise<Record<string, GambarTipeKavling>>;
   /** Admin Platform enters a new version of a global tariff, in force from its effective date; audited. */
   setGlobalTariff(by: Actor, input: SetGlobalTariffInput): Promise<SetGlobalTariffResult>;
   /** The version of a global tariff in force at `at`, or null when none was yet. */
@@ -190,5 +213,9 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     hargaLayananLokasiSemuaHistory: (lokasiId) => hargaLokasiSemuaHistory(deps.db, lokasiId),
     within: (tx) => createTariffs({ ...deps, db: tx }),
     markTariffsChecked: (by, lokasiId, input) => markTariffsChecked(deps, by, lokasiId, input),
+    setGambarTipeKavling: (by, jenisMakamId, input) => setGambarTipeKavling(deps, by, jenisMakamId, input),
+    hapusGambarTipeKavling: (by, jenisMakamId) => hapusGambarTipeKavling(deps, by, jenisMakamId),
+    publicGambarTipeKavling: (ids) => publicGambarTipeKavling(deps, ids),
+    staffGambarTipeKavling: (ids) => staffGambarTipeKavling(deps, ids),
   };
 }

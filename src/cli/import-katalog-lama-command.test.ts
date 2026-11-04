@@ -70,7 +70,7 @@ async function modul() {
     ...test,
     katalog,
     admin,
-    tariffs: createTariffs({ db, clock: test.clock, audit: test.audit, lokasi: test.lokasi }),
+    tariffs: createTariffs({ db, clock: test.clock, audit: test.audit, lokasi: test.lokasi, files: test.files }),
     /** The Lokasi Mitra one old catalog code was imported as, as the module reads it. */
     async lokasiMitra(kode: string) {
       const impor = await katalog.lokasi(kode);

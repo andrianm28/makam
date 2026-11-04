@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { GambarTipeKavlingFigure } from "@/components/site/gambar-tipe-kavling";
 import Link from "next/link";
 import {
   ArrowRightIcon,
@@ -126,9 +127,10 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   if (!profile) notFound();
   const menerimaPesanan = profile.status === "terverifikasi";
 
-  const [pricing, photoUrls, penawaran, ketersediaan, settings] = await Promise.all([
+  const [pricing, visitPhotoUrls, galeri, penawaran, ketersediaan, settings] = await Promise.all([
     tariffs.lokasiPricing(lokasiId, adapters.clock.now()),
     lokasi.publicVisitPhotoUrls(lokasiId),
+    lokasi.publicFotoGaleri(lokasiId),
     layanan.penawaranLokasi(lokasiId, adapters.clock.now()),
     inventory.tersediaPerJenisMakam(lokasiId),
     operatorSettings.current(),
@@ -146,7 +148,13 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   // Verifikasi records one day for every photo, so every caption here reads the same, unlike the mock's.
   const dikunjungiFoto = profile.kunjunganVerifikasi ? formatTanggalPanjang(profile.kunjunganVerifikasi.visitedOn) : null;
   const pesanHref = `/pesan-makam/saat-duka?lokasiId=${profile.id}`;
-  const [mainPhoto, ...restPhotos] = photoUrls;
+  const gambarTipe = await tariffs.publicGambarTipeKavling(pricing.jenisMakam.map((card) => card.jenisMakam.id));
+  // The Galeri Lokasi (facilities and landscape, captioned) leads once it has a photo; until then the Kunjungan Verifikasi photos stand in.
+  const pakaiGaleri = galeri.length > 0;
+  const photos = pakaiGaleri
+    ? galeri.map((foto) => ({ url: foto.url!, alt: foto.keterangan }))
+    : visitPhotoUrls.map((url, index) => ({ url, alt: index === 0 ? `Foto lokasi ${profile.name}` : `Foto lokasi ${profile.name} ${index + 1}` }));
+  const [mainPhoto, ...restPhotos] = photos;
 
   const ctaHarga = (
     <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-xs">
@@ -242,8 +250,12 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
           <figure className="relative aspect-[4/3] overflow-hidden rounded-3xl md:aspect-auto md:min-h-[26rem]">
             {/* Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={mainPhoto} alt={`Foto lokasi ${profile.name}`} className="h-full w-full object-cover" />
-            {dikunjungiFoto ? (
+            <img src={mainPhoto.url} alt={mainPhoto.alt} className="h-full w-full object-cover" />
+            {pakaiGaleri ? (
+              <figcaption className="absolute bottom-3 left-3 rounded-full bg-card/90 px-3 py-1 text-caption font-medium text-foreground">
+                {mainPhoto.alt}
+              </figcaption>
+            ) : dikunjungiFoto ? (
               <figcaption className="absolute bottom-3 left-3 rounded-full bg-card/90 px-3 py-1 text-caption font-medium text-foreground">
                 Foto kunjungan {dikunjungiFoto}
               </figcaption>
@@ -251,11 +263,11 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
           </figure>
           {restPhotos.length > 0 ? (
             <div className="grid grid-cols-3 gap-2 md:grid-cols-1 md:gap-3">
-              {restPhotos.slice(0, 3).map((url, index) => (
-                <figure key={url} className="relative aspect-[4/3] overflow-hidden rounded-2xl md:aspect-auto md:min-h-0">
+              {restPhotos.slice(0, 3).map((photo) => (
+                <figure key={photo.url} className="relative aspect-[4/3] overflow-hidden rounded-2xl md:aspect-auto md:min-h-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`Foto lokasi ${profile.name} ${index + 2}`} className="h-full w-full object-cover" />
-                  {dikunjungiFoto ? (
+                  <img src={photo.url} alt={photo.alt} className="h-full w-full object-cover" />
+                  {!pakaiGaleri && dikunjungiFoto ? (
                     <figcaption className="absolute bottom-2 left-2 hidden rounded-full bg-card/90 px-2 py-0.5 text-caption text-foreground sm:block">
                       {dikunjungiFoto}
                     </figcaption>
@@ -307,6 +319,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                   const tersedia = tersediaByJenisMakam.get(card.jenisMakam.id) ?? 0;
                   return (
                     <li key={card.jenisMakam.id} className="rounded-2xl border border-border bg-card p-5">
+                      {gambarTipe[card.jenisMakam.id] ? <GambarTipeKavlingFigure gambar={gambarTipe[card.jenisMakam.id]} /> : null}
                       <h3 className="text-title-2 text-foreground">{card.jenisMakam.name}</h3>
                       <p className="text-small text-muted-foreground">
                         {card.jenisMakam.description ? `${card.jenisMakam.description} · ` : ""}Masa Hak Pakai{" "}
@@ -334,6 +347,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                   const habis = tersedia === 0;
                   return (
                     <li key={card.jenisMakam.id} className="rounded-2xl border border-border bg-card p-5">
+                      {gambarTipe[card.jenisMakam.id] ? <GambarTipeKavlingFigure gambar={gambarTipe[card.jenisMakam.id]} /> : null}
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <h3 className="text-title-2 text-foreground">{card.jenisMakam.name}</h3>

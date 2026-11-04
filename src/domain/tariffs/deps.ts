@@ -1,3 +1,4 @@
+import type { FileStore } from "@/ports/file-store";
 import type { Database } from "@/db/client";
 import type { AuditLog } from "@/domain/audit";
 import type { Lokasi } from "@/domain/lokasi";
@@ -10,4 +11,6 @@ export interface TariffDeps {
   audit: AuditLog;
   /** A Lokasi Mitra is looked up through the Lokasi module, never its table: by a staff actor, or whether it is listed. */
   lokasi: Pick<Lokasi, "lokasiMitra" | "isTerverifikasi" | "dapatDiharga">;
+  /** The private FileStore, for a Jenis Makam's Gambar Tipe Kavling. */
+  files: FileStore;
 }

@@ -78,12 +78,15 @@ export type AuditAction =
   | "lokasi.ubah_rekening"
   /** Admin Platform uploads a Lokasi Mitra's agreement scan and signing date. */
   | "lokasi.unggah_perjanjian"
+  | "lokasi.tambah_foto_galeri"
+  | "lokasi.hapus_foto_galeri"
   /** Admin Platform enters a new version of a global tariff (Biaya Layanan Platform, Biaya Pengurusan, Retribusi Pemda). */
   | "tarif.ubah_global"
   /** Admin Platform defines a Jenis Makam of a Lokasi Mitra with its first tariff version. */
   | "tarif.buat_jenis_makam"
   /** Admin Platform enters a new tariff version of a Jenis Makam (Harga Hak Pakai, tenure, Perpanjangan price). */
   | "tarif.ubah_jenis_makam"
+  | "tarif.ubah_gambar_jenis_makam"
   /** Admin Platform enters a new version of a Lokasi Mitra's Biaya Pemakaman (+ tumpang amount). */
   | "tarif.ubah_biaya_pemakaman"
   /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" (publish gate). */

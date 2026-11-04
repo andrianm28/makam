@@ -99,7 +99,7 @@ export function serverRuntime(): ServerRuntime {
     const { audit, identity } = composeIdentity({ env, db: database.db, adapters });
     const lokasi = createLokasi({ db: database.db, clock: adapters.clock, files: adapters.files, audit, identity });
     const operatorSettings = createOperatorSettings({ db: database.db, clock: adapters.clock, audit });
-    const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi });
+    const tariffs = createTariffs({ db: database.db, clock: adapters.clock, audit, lokasi, files: adapters.files });
     // One place picks live or fake (AGENTS.md); the wizard's Denah and hold need a Lokasi Mitra's Terencana switch and tumpang rules.
     const inventory = createInventory({ db: database.db, clock: adapters.clock, audit, files: adapters.files, tariffs, lokasi, pemesananPernahMenyebut: pernahMenyebutPetakAtauKavling });
     // Billing's composition, held as one value: the runtime's own Billing, the read-only one Notifications and the payment effects all come from it (a payment's downstream effect acts inside Billing's transaction, so it is built from this too).
