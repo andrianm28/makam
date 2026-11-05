@@ -240,7 +240,7 @@ export async function publicLokasiMitraList(
  * exists in the FileStore). No actor: the public Lokasi page's own read.
  */
 export async function publicVisitPhotoUrls(deps: { db: Database; files: FileStore }, lokasiId: string): Promise<string[]> {
-  const profile = await publicLokasiMitra(deps, lokasiId);
+  const profile = await publicLokasiMitraProfil(deps, lokasiId);
   if (!profile?.kunjunganVerifikasi) return [];
   const urls = await Promise.all(
     profile.kunjunganVerifikasi.photos.map((key) =>
