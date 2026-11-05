@@ -195,7 +195,7 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
     <>
       <PublishGateChecklist lokasiId={lokasiMitra.id} />
 
-      {lokasiMitra.status === "belum_tayang" || !rilisTerbuka("lokasi_ditangguhkan") ? null : (
+      {lokasiMitra.status === "belum_tayang" || lokasiMitra.status === "tayang_belum_terverifikasi" || !rilisTerbuka("lokasi_ditangguhkan") ? null : (
         <Section
           id="status-kemitraan"
           title="Status kemitraan"

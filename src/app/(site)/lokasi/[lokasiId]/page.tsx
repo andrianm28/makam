@@ -116,7 +116,7 @@ export async function generateMetadata({ params }: PageProps<"/lokasi/[lokasiId]
 /**
  * The public Lokasi Mitra page (spec, stories 8–12), ported 1:1 from the
  * public-site prototype (`/pratinjau/publik/lokasi/[slug]`): breadcrumb, photo
- * mosaic, header with the Terverifikasi popover, prices, documents,
+ * mosaic, header with the Terverifikasi popover (or the Belum Terverifikasi badge), prices, documents,
  * facilities, Jam Operasional, map, and the sticky order card / phone bar.
  * Every price comes from the tariffs module's own quote, unchanged; see the
  * ticket comments for the handful of places where the prototype's mock number
@@ -279,7 +279,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
               <figcaption className="absolute bottom-3 left-3 rounded-full bg-card/90 px-3 py-1 text-caption font-medium text-foreground">
                 {mainPhoto.alt}
               </figcaption>
-            ) : dikunjungiFoto ? (
+            ) : dikunjungiFoto && !belumTerverifikasi ? (
               <figcaption className="absolute bottom-3 left-3 rounded-full bg-card/90 px-3 py-1 text-caption font-medium text-foreground">
                 Foto kunjungan {dikunjungiFoto}
               </figcaption>
@@ -499,7 +499,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
           </Section>
 
           <Section id="fasilitas" title="Fasilitas">
-            {dikunjungi ? <p className="text-body text-muted-foreground">Diperiksa petugas kami saat kunjungan {dikunjungi}.</p> : null}
+            {dikunjungi && !belumTerverifikasi ? <p className="text-body text-muted-foreground">Diperiksa petugas kami saat kunjungan {dikunjungi}.</p> : null}
             <ul className="mt-4 grid gap-3 sm:grid-cols-2">
               {allFacilities.map((facility) => {
                 const ada = profile.facilities.checked.includes(facility);
@@ -558,7 +558,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                 >
                   <NavigationIcon className="size-4" aria-hidden /> Petunjuk arah
                 </a>
-                {dikunjungi ? (
+                {dikunjungi && !belumTerverifikasi ? (
                   <p className="mt-2 text-small text-muted-foreground">
                     Titik peta dicatat petugas kami saat kunjungan {dikunjungi}. Membuka Google Maps di tab baru.
                   </p>

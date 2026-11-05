@@ -488,7 +488,7 @@ export interface Lokasi {
   activateTerencana(by: Actor, lokasiId: string, input: ActivateTerencanaInput): Promise<ActivateTerencanaResult>;
   /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
   publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
-  /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang or example data. */
+  /** The listed profile for the public Lokasi page and directory, including a Lokasi Tayang (Belum Terverifikasi), flagged `belumTerverifikasi`; null for Belum Tayang or example data. Not for booking: booking reads `publicLokasiMitra`. */
   publicLokasiMitraProfil(lokasiId: string): Promise<PublicLokasiMitraProfil | null>;
   /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang, unverified or example data. */
   publicLokasiMitraTampil(lokasiId: string): Promise<(PublicLokasiMitra & PengelolaKontak & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null>;
