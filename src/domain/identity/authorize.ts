@@ -107,6 +107,9 @@ export type Action =
   | "lokasi.catat_cek_denah"
   /** Admin Platform publishes a Lokasi Mitra once the publish gate is met (Admin Platform only). */
   | "lokasi.terbitkan"
+  /** Admin Platform lists a Lokasi Mitra without verification, or takes that listing down (owner, 2026-11-05). */
+  | "lokasi.tayangkan_belum_terverifikasi"
+  | "lokasi.tarik_tayangan"
   /** Admin Platform switches "Pemesanan Terencana aktif" on once its own gate is met (Admin Platform only). */
   | "lokasi.aktifkan_terencana"
   /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17's Tier 4 "publish-gate check" row). */
@@ -536,6 +539,8 @@ export function authorize(actor: Actor | null, action: Action, resource: Resourc
     case "lokasi.ubah_rekening":
     case "lokasi.atur_admin_lokasi":
     case "lokasi.terbitkan":
+    case "lokasi.tayangkan_belum_terverifikasi":
+    case "lokasi.tarik_tayangan":
     case "lokasi.aktifkan_terencana":
     case "lokasi.konfirmasi_syarat_tayang":
     case "lokasi.ubah_status":

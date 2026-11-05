@@ -9,8 +9,12 @@
 import { z } from "zod";
 import { tanggalSchema } from "./jam-operasional-schema";
 
-/** Every status a Lokasi Mitra can have. It starts Belum Tayang; later tickets set the others. */
-export const lokasiMitraStatuses = ["belum_tayang", "terverifikasi", "ditangguhkan", "berhenti"] as const;
+/**
+ * Every status a Lokasi Mitra can have. It starts Belum Tayang; later tickets set the others.
+ * `tayang_belum_terverifikasi` (owner, 2026-11-05): listed with a "Belum Terverifikasi" mark, never bookable. A status of its own,
+ * not a flag on Terverifikasi, so every read that asks for "terverifikasi" fails closed for it.
+ */
+export const lokasiMitraStatuses = ["belum_tayang", "tayang_belum_terverifikasi", "terverifikasi", "ditangguhkan", "berhenti"] as const;
 
 /** The rows a page of the Lokasi Mitra list shows at most, and by default. */
 export const LOKASI_LIST_MAX_PAGE_SIZE = 50;

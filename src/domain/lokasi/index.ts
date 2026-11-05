@@ -102,6 +102,8 @@ import {
 } from "./kunjungan";
 import {
   publishLokasiMitra,
+  tayangkanBelumTerverifikasi,
+  type TayangkanBelumTerverifikasiResult,
   recordPublishGateMasihTerpenuhi,
   type PublishInput,
   type PublishLokasiMitraResult,
@@ -259,7 +261,7 @@ export type {
   RecordKunjunganVerifikasiResult,
 } from "./kunjungan";
 export type { HentikanResult, IzinPesanan, JenisPesanan, StatusPesanan, UbahStatusResult } from "./status-pesanan";
-export type { PublishInput, PublishLokasiMitraResult } from "./publish";
+export type { PublishInput, PublishLokasiMitraResult, TayangkanBelumTerverifikasiResult } from "./publish";
 export type { TandaiDataContohInput, TandaiDataContohResult } from "./data-contoh";
 export {
   TPU_LIMITS,
@@ -443,6 +445,11 @@ export interface Lokasi {
    */
   publish(by: Actor, lokasiId: string, input: PublishInput): Promise<PublishLokasiMitraResult>;
   /**
+   * Admin Platform lists this Belum Tayang Lokasi Mitra without verification (owner, 2026-11-05): Jam Operasional and a
+   * Kontak Siaga with a phone are the whole minimum. Listed only, never bookable. Audited.
+   */
+  tayangkanBelumTerverifikasi(by: Actor, lokasiId: string): Promise<TayangkanBelumTerverifikasiResult>;
+  /**
    * Admin Platform records that this Lokasi Mitra still meets the publish
    * gate, closing the Antrean's Tier 4 "publish-gate check" row (ticket 17),
    * audited.
@@ -560,6 +567,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     recordCekDenah: (by, lokasiId, input) => recordCekDenah(deps, by, lokasiId, input),
     cekDenahOf: (lokasiId) => cekDenahOf(deps, lokasiId),
     publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
+    tayangkanBelumTerverifikasi: (by, lokasiId) => tayangkanBelumTerverifikasi(deps, by, lokasiId),
     recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
     tangguhkan: (by, lokasiId, input) => tangguhkan(deps, by, lokasiId, input),
     pulihkan: (by, lokasiId, input) => pulihkan(deps, by, lokasiId, input),

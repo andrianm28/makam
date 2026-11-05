@@ -96,6 +96,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "lokasi.catat_kunjungan_verifikasi": "Kunjungan Verifikasi dicatat",
   "lokasi.catat_cek_denah": "Cek Denah dicatat",
   "lokasi.terbitkan": "Lokasi Mitra diterbitkan (Terverifikasi)",
+  "lokasi.tayangkan_belum_terverifikasi": "Lokasi Mitra ditayangkan (Belum Terverifikasi)",
+  "lokasi.tarik_tayangan": "Tayangan Belum Terverifikasi ditarik",
   "lokasi.aktifkan_terencana": "Pemesanan Terencana diaktifkan",
   "denah.pakai_petak": "Petak dipakai untuk pesanan",
   "pemesanan.konfirmasi_saat_duka": "Pesanan Saat Duka dikonfirmasi",
