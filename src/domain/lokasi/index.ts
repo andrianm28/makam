@@ -24,6 +24,7 @@ import {
   changeBankAccount,
   createLokasiMitra,
   isTerverifikasi,
+  tampilDiSitus,
   lokasiMitraOfAdminLokasi,
   lokasiMitraCountsByStatus,
   readLokasiMitra,
@@ -303,6 +304,8 @@ export interface Lokasi {
   createLokasiMitra(by: Actor, input: NewLokasiMitra, options?: { reason?: string }): Promise<CreateLokasiMitraResult>;
   /** Whether this Lokasi Mitra is Terverifikasi (listed); no actor, for public reads. False for an unknown id. */
   isTerverifikasi(lokasiId: string): Promise<boolean>;
+  /** Whether the public site shows this Lokasi Mitra: Terverifikasi or listed without verification. Display only; never a reason to take an order. */
+  tampilDiSitus(lokasiId: string): Promise<boolean>;
   /** One Lokasi Mitra's record, for Admin Platform or one of its Admin Lokasi. */
   lokasiMitra(by: Actor, lokasiId: string): Promise<LokasiMitraResult>;
   /** Admin Platform records the profile (name, pengelola, address, city, pin, facilities), audited. */
@@ -535,6 +538,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
   return {
     createLokasiMitra: (by, input, options) => createLokasiMitra(deps, by, input, options),
     isTerverifikasi: (lokasiId) => isTerverifikasi(deps, lokasiId),
+    tampilDiSitus: (lokasiId) => tampilDiSitus(deps, lokasiId),
     lokasiMitra: (by, lokasiId) => readLokasiMitra(deps, by, lokasiId),
     updateProfile: (by, lokasiId, input, options) => updateProfile(deps, by, lokasiId, input, options),
     tandaiDataContoh: (by, lokasiId, input) => tandaiDataContoh(deps, by, lokasiId, input),

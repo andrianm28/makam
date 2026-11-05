@@ -19,6 +19,11 @@ export function publicVisibility(deps: TariffDeps): Visibility {
   return (lokasiId) => deps.lokasi.isTerverifikasi(lokasiId);
 }
 
+/** What a profile or card may show the tarif of: also a Lokasi listed without verification, which can still not be quoted. */
+export function displayVisibility(deps: TariffDeps): Visibility {
+  return (lokasiId) => deps.lokasi.tampilDiSitus(lokasiId);
+}
+
 /**
  * What a quote may price: also a Lokasi Mitra that is Ditangguhkan or Berhenti before its effective date, because
  * Perpanjangan and the other carry-on actions under an existing Hak Pakai are priced there (ticket 59).
@@ -62,6 +67,11 @@ export interface TariffReads {
    */
   lokasiPricing(lokasiId: string, at: Date): Promise<LokasiPublicPricing>;
   /**
+   * The same prices for the public Lokasi page and the directory card only: also for a Lokasi listed without verification
+   * (owner, 2026-11-05), whose prices are shown but never ordered or quoted. An order path reads `lokasiPricing`.
+   */
+  lokasiPricingTampil(lokasiId: string, at: Date): Promise<LokasiPublicPricing>;
+  /**
    * Every price a TPU page or a TPU card shows, at `at`: the two Biaya
    * Pengurusan amounts, the Retribusi Pemda as its own line (Rp 0 where the
    * Pemda charges nothing) and the card's starting price. No Biaya Layanan
@@ -76,7 +86,7 @@ export interface StaffTariffReads extends TariffReads {
   tariffsChecked(lokasiId: string): Promise<TariffsChecked | null>;
 }
 
-export function tariffReads(deps: TariffDeps, visibility: Visibility, quoting: Visibility = visibility): StaffTariffReads {
+export function tariffReads(deps: TariffDeps, visibility: Visibility, quoting: Visibility = visibility, display: Visibility = visibility): StaffTariffReads {
   const { db } = deps;
   return {
     lokasiTariffs: (lokasiId, at) => lokasiTariffs(db, remembered(visibility), lokasiId, at),
@@ -88,6 +98,7 @@ export function tariffReads(deps: TariffDeps, visibility: Visibility, quoting: V
     biayaPemakamanHistory: async (lokasiId) => ((await visibility(lokasiId)) ? biayaPemakamanVersions(db, lokasiId) : []),
     quote: (lines, at) => quote(db, remembered(quoting), lines, at),
     lokasiPricing: (lokasiId, at) => lokasiPublicPricing(db, remembered(visibility), lokasiId, at),
+    lokasiPricingTampil: (lokasiId, at) => lokasiPublicPricing(db, remembered(display), lokasiId, at),
     tpuPricing: (at) => tpuPublicPricing(db, remembered(visibility), at),
     tariffsChecked: async (lokasiId) => ((await visibility(lokasiId)) ? tariffsChecked(db, lokasiId) : null),
   };
