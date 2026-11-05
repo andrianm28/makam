@@ -26,9 +26,8 @@ describe("Antrean: the Kunjungan Verifikasi of a Lokasi Mitra listed without ver
     });
     if (!tugas.ok) throw new Error("unreachable");
 
-    const rows = (await setup.queues.antrean(admin)).filter((row) => row.subjectId === lokasiMitra.id);
+    const rows = (await setup.queues.antrean(admin)).filter((row) => row.subjectId === lokasiMitra.id || row.subjectId === tugas.tugasLapangan.id);
 
-    expect(rows.map((row) => row.type)).not.toContain("lokasi_kunjungan_ulang");
-    expect(rows).toHaveLength(1);
+    expect(rows.map((row) => row.type)).toEqual(["tugas_lapangan_lain"]);
   });
 });

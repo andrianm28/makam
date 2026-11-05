@@ -21,7 +21,7 @@ export const otherTugasLapanganRowType: AntreanRowType = {
       if (item.type === "ambil_surat_pengantar") continue;
       if (item.type === "kunjungan_verifikasi" && item.lokasiId) {
         const lokasi = lokasiById.get(item.lokasiId);
-        if (lokasi && lokasi.status !== "belum_tayang") continue;
+        if (lokasi && lokasi.status !== "belum_tayang" && lokasi.status !== "tayang_belum_terverifikasi") continue;
       }
       const unassigned = item.assigneeAccountId.trim() === "";
       const overdue = item.plannedDate < today;

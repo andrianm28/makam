@@ -40,7 +40,7 @@ export const lokasiRevisitRowType: AntreanRowType = {
     for (const item of tugas) {
       if (item.type !== "kunjungan_verifikasi" || item.status !== "ditugaskan" || !item.lokasiId) continue;
       const lokasi = lokasiById.get(item.lokasiId);
-      if (!lokasi || lokasi.status === "belum_tayang") continue;
+      if (!lokasi || lokasi.status === "belum_tayang" || lokasi.status === "tayang_belum_terverifikasi") continue;
       rows.push({
         subjectKind: "lokasi_mitra",
         subjectId: item.lokasiId,
