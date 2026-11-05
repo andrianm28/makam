@@ -178,6 +178,20 @@ export async function isTerverifikasi(deps: LokasiDeps, lokasiId: string): Promi
   return row?.status === "terverifikasi" && !row.dataContoh;
 }
 
+/**
+ * Whether a Lokasi Mitra is shown on the public site: Terverifikasi, or listed without verification (owner, 2026-11-05);
+ * never example data. For display only (a profile's tarif): an order or a quote asks `isTerverifikasi`, `dapatDiharga`
+ * and `izinPesanan`, which refuse the unverified one.
+ */
+export async function tampilDiSitus(deps: LokasiDeps, lokasiId: string): Promise<boolean> {
+  if (!isLokasiId(lokasiId)) return false;
+  const [row] = await deps.db
+    .select({ status: lokasiMitraTable.status, dataContoh: lokasiMitraTable.dataContoh })
+    .from(lokasiMitraTable)
+    .where(eq(lokasiMitraTable.id, lokasiId));
+  return (row?.status === "terverifikasi" || row?.status === "tayang_belum_terverifikasi") && !row.dataContoh;
+}
+
 /** A Lokasi Mitra in a list (the Admin Platform list, the Lokasi switcher, the Antrean's Tier 4 Lokasi rows). */
 export interface LokasiMitraSummary {
   id: string;
@@ -395,6 +409,7 @@ export type LokasiMitraWriteAction = Extract<
   | "lokasi.catat_cek_denah"
   | "lokasi.konfirmasi_syarat_tayang"
   | "lokasi.ubah_status"
+  | "lokasi.tarik_tayangan"
 >;
 
 /** What a write changes on the row, and the Entri Audit's before and after. */

@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import type { FileStore } from "@/ports/file-store";
 import { isLokasiId } from "./lokasi-mitra";
@@ -103,8 +103,30 @@ export async function publicLokasiMitraTampil(
 ): Promise<(PublicLokasiMitra & PengelolaKontak & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null> {
   if (!isLokasiId(lokasiId)) return null;
   const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
-  if (!row || row.dataContoh || row.status === "belum_tayang") return null;
+  if (!row || row.dataContoh || row.status === "belum_tayang" || row.status === "tayang_belum_terverifikasi") return null;
   return { ...toPublicLokasiMitra(row), pengelolaTelepon: row.pengelolaTelepon, pengelolaEmail: row.pengelolaEmail, status: row.status };
+}
+
+/** What the public Lokasi page reads: the Tampil profile, also for a Lokasi listed without verification (`belumTerverifikasi`). */
+export type PublicLokasiMitraProfil = PublicLokasiMitra &
+  PengelolaKontak & { status: "tayang_belum_terverifikasi" | "terverifikasi" | "ditangguhkan" | "berhenti"; belumTerverifikasi: boolean };
+
+/**
+ * The profile for the public Lokasi page: everything `publicLokasiMitraTampil` serves, plus a Lokasi listed without
+ * verification, marked `belumTerverifikasi` (owner, 2026-11-05). For display only: an order entry point never asks this,
+ * it asks `izinPesanan`. Null for Belum Tayang, example data or an unknown id.
+ */
+export async function publicLokasiMitraProfil(deps: { db: Database }, lokasiId: string): Promise<PublicLokasiMitraProfil | null> {
+  if (!isLokasiId(lokasiId)) return null;
+  const [row] = await deps.db.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
+  if (!row || row.dataContoh || row.status === "belum_tayang") return null;
+  return {
+    ...toPublicLokasiMitra(row),
+    pengelolaTelepon: row.pengelolaTelepon,
+    pengelolaEmail: row.pengelolaEmail,
+    status: row.status,
+    belumTerverifikasi: row.status === "tayang_belum_terverifikasi",
+  };
 }
 
 /** A Lokasi Mitra's own rules for a Ganti Pemegang Hak: whether a sale may transfer the right, and the fee it collects offline. */
@@ -141,9 +163,13 @@ export interface PublicLokasiMitraCard {
   terencanaAktif: boolean;
   /** Harga Tampil: false means the card shows no amount and the wizards do not offer it. */
   hargaTampil: boolean;
+  /** Listed without verification (owner, 2026-11-05): the card carries the "Belum Terverifikasi" mark and offers no order. */
+  belumTerverifikasi: boolean;
 }
 
 export interface PublicLokasiMitraQuery {
+  /** Also the Lokasi listed without verification: only the directory asks for them, never a list a wizard picks from. */
+  termasukBelumTerverifikasi?: boolean;
   city?: string;
   /** Only this Lokasi Mitra, the deep link a visitor came from ("Data & kirim" prices that one). */
   id?: string;
@@ -166,7 +192,15 @@ function toCard(row: Row): PublicLokasiMitraCard {
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     terencanaAktif: row.flags.pemesananTerencanaAktif,
     hargaTampil: hargaTampilOf(row),
+    belumTerverifikasi: row.status === "tayang_belum_terverifikasi",
   };
+}
+
+/** The statuses a public listing serves. */
+function statusTayang(termasukBelumTerverifikasi: boolean) {
+  return termasukBelumTerverifikasi
+    ? inArray(lokasiMitraTable.status, ["terverifikasi", "tayang_belum_terverifikasi"])
+    : eq(lokasiMitraTable.status, "terverifikasi");
 }
 
 /** A row saved before the Harga Tampil flag existed has none: it reads as on. */
@@ -185,7 +219,7 @@ export async function publicLokasiMitraList(
   deps: { db: Database },
   query: PublicLokasiMitraQuery = {},
 ): Promise<PublicLokasiMitraCard[]> {
-  const conditions = [eq(lokasiMitraTable.status, "terverifikasi"), bukanDataContoh];
+  const conditions = [statusTayang(query.termasukBelumTerverifikasi === true), bukanDataContoh];
   if (query.city) conditions.push(eq(lokasiMitraTable.city, query.city));
   if (query.terencana) conditions.push(sql`${lokasiMitraTable.flags} ->> 'pemesananTerencanaAktif' = 'true'`);
   if (query.hargaTampil) conditions.push(sql`coalesce(${lokasiMitraTable.flags} ->> 'hargaTampil', 'true') = 'true'`);
@@ -206,7 +240,7 @@ export async function publicLokasiMitraList(
  * exists in the FileStore). No actor: the public Lokasi page's own read.
  */
 export async function publicVisitPhotoUrls(deps: { db: Database; files: FileStore }, lokasiId: string): Promise<string[]> {
-  const profile = await publicLokasiMitra(deps, lokasiId);
+  const profile = await publicLokasiMitraProfil(deps, lokasiId);
   if (!profile?.kunjunganVerifikasi) return [];
   const urls = await Promise.all(
     profile.kunjunganVerifikasi.photos.map((key) =>
@@ -217,11 +251,11 @@ export async function publicVisitPhotoUrls(deps: { db: Database; files: FileStor
 }
 
 /** Every city with at least one Terverifikasi Lokasi Mitra, for the directory's city filter. */
-export async function publicLokasiMitraCities(deps: { db: Database }): Promise<string[]> {
+export async function publicLokasiMitraCities(deps: { db: Database }, options: { termasukBelumTerverifikasi?: boolean } = {}): Promise<string[]> {
   const rows = await deps.db
     .selectDistinct({ city: lokasiMitraTable.city })
     .from(lokasiMitraTable)
-    .where(and(eq(lokasiMitraTable.status, "terverifikasi"), bukanDataContoh))
+    .where(and(statusTayang(options.termasukBelumTerverifikasi === true), bukanDataContoh))
     .orderBy(asc(lokasiMitraTable.city));
   return rows.map((row) => row.city);
 }
@@ -242,7 +276,7 @@ export async function publicTpuDkiCities(deps: { db: Database }): Promise<string
  */
 export async function publicLokasiMakamCities(deps: { db: Database }, query: { kind?: LokasiMakamKind } = {}): Promise<string[]> {
   const [lokasiMitra, tpu] = await Promise.all([
-    !query.kind || query.kind === "lokasi_mitra" ? publicLokasiMitraCities(deps) : Promise.resolve([]),
+    !query.kind || query.kind === "lokasi_mitra" ? publicLokasiMitraCities(deps, { termasukBelumTerverifikasi: true }) : Promise.resolve([]),
     !query.kind || query.kind === "tpu" ? publicTpuDkiCities(deps) : Promise.resolve([]),
   ]);
   return [...new Set([...lokasiMitra, ...tpu])].sort((a, b) => a.localeCompare(b, "id"));
@@ -274,7 +308,7 @@ export async function publicLokasiMakamList(deps: { db: Database }, query: Lokas
   const wants = (kind: LokasiMakamKind) => !query.kind || query.kind === kind;
   const [lokasiMitra, tpu] = await Promise.all([
     wants("lokasi_mitra")
-      ? publicLokasiMitraList(deps, { city: query.city, facilities: query.facilities })
+      ? publicLokasiMitraList(deps, { city: query.city, facilities: query.facilities, termasukBelumTerverifikasi: true })
       : Promise.resolve([]),
     wants("tpu") ? publicTpuDkiList(deps, { city: query.city }) : Promise.resolve([]),
   ]);

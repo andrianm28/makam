@@ -13,6 +13,7 @@ import {
   type UbahStatusResult,
   type InviteAdminLokasiResult,
   type PublishLokasiMitraResult,
+  type TayangkanBelumTerverifikasiResult,
   type RemoveAdminLokasiFromLokasiResult,
   type SetPoliciesResult,
   type UpdateProfileResult,
@@ -39,6 +40,7 @@ type LokasiRefusal = Refused<
   | InviteAdminLokasiResult
   | RemoveAdminLokasiFromLokasiResult
   | PublishLokasiMitraResult
+  | TayangkanBelumTerverifikasiResult
   | ActivateTerencanaResult
   | UbahStatusResult
   | HentikanResult
@@ -63,6 +65,7 @@ const refusalMessages: Record<LokasiRefusal, string> = {
   alasan_wajib: "Tulis alasannya.",
   bukan_admin_lokasi_di_sini: "Akun ini bukan Admin Lokasi di Lokasi Mitra ini.",
   gerbang_belum_terpenuhi: "Belum bisa: syarat di atas belum semuanya terpenuhi.",
+  syarat_minimum_belum_terpenuhi: "Belum bisa ditayangkan: simpan Jam Operasional dan pilih Kontak Siaga yang punya nomor telepon dulu.",
   status_tidak_bisa_diterbitkan: "Lokasi Mitra ini sudah tidak Belum Tayang: statusnya tidak bisa diterbitkan lewat sini.",
   status_tidak_cocok: "Status Lokasi Mitra ini sudah berubah: muat ulang halaman ini.",
   tanggal_lampau: "Tanggal berlaku Berhenti tidak boleh sudah lewat.",
@@ -370,6 +373,31 @@ export async function terbitkanLokasiMitra(_previous: FormState, formData: FormD
       });
     },
     saved: "Lokasi Mitra ini sekarang Terverifikasi dan tampil di Daftar Lokasi.",
+  });
+}
+
+/**
+ * Admin Platform lists the Lokasi Mitra before it is verified (owner, 2026-11-05): shown with a "Belum Terverifikasi"
+ * mark, never bookable. Needs only Jam Operasional and a Kontak Siaga with a phone; `lokasi.tayangkanBelumTerverifikasi` re-checks.
+ */
+export async function tayangkanBelumTerverifikasi(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.tayangkan_belum_terverifikasi",
+    schema: targetSchema,
+    input: { lokasiId: formData.get("lokasiId") },
+    run: (actor, data) => serverRuntime().lokasi.tayangkanBelumTerverifikasi(actor, data.lokasiId),
+    saved: "Lokasi Mitra ini tayang dengan tanda Belum Terverifikasi: tampil di situs, tetapi belum bisa dipesan.",
+  });
+}
+
+/** Admin Platform takes an unverified listing back to Belum Tayang. */
+export async function tarikTayangan(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.tarik_tayangan",
+    schema: targetSchema,
+    input: { lokasiId: formData.get("lokasiId") },
+    run: (actor, data) => serverRuntime().lokasi.tarikTayangan(actor, data.lokasiId),
+    saved: "Tayangan ditarik: Lokasi Mitra ini kembali Belum Tayang.",
   });
 }
 

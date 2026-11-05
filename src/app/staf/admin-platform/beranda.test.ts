@@ -32,6 +32,7 @@ describe("the Admin Platform Beranda", () => {
     expect((await adminPlatformBeranda()).lokasiMitra).toEqual({
       belum_tayang: 2,
       terverifikasi: 0,
+      tayang_belum_terverifikasi: 0,
       ditangguhkan: 0,
       berhenti: 0,
     });

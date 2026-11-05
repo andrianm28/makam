@@ -109,6 +109,22 @@ export async function signedInPetugasLapangan(setup: PublishSetup, admin: Actor,
   return actor;
 }
 
+/**
+ * Only the two facts a Lokasi Mitra needs to be listed without verification (owner, 2026-11-05): Jam Operasional
+ * saved, and a Kontak Siaga with a phone. Everything else of the full publish gate stays unmet.
+ */
+export async function minimumUntukTayang(setup: PublishSetup, admin: Actor, lokasiId: string, options: { jam?: boolean; kontak?: boolean } = {}) {
+  if (options.jam !== false) {
+    const jam = await setup.lokasi.setJamOperasional(admin, lokasiId, readyJamOperasional);
+    if (!jam.ok) throw new Error(`jam operasional refused: ${jam.reason}`);
+  }
+  if (options.kontak === false) return null;
+  const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiId]);
+  const pick = await setup.lokasi.pickKontakSiaga(admin, lokasiId, { accountId: adminLokasi.accountId });
+  if (!pick.ok) throw new Error(`kontak siaga refused: ${pick.reason}`);
+  return adminLokasi;
+}
+
 export interface ReadyToPublishOptions {
   /** The Admin Lokasi's contact number, so a second Lokasi Mitra can have its own Akun (default: the shared one). */
   phoneNumberAdminLokasi?: string;

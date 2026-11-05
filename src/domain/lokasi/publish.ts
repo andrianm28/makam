@@ -29,6 +29,52 @@ export type PublishLokasiMitraResult =
   /** Example data standing in for a cemetery is never listed (ticket 86), gate met or not. */
   | { ok: false; reason: "data_contoh_tidak_bisa_diterbitkan" };
 
+export type TayangkanBelumTerverifikasiResult =
+  | { ok: true; status: "tayang_belum_terverifikasi" }
+  | WriteRefusal
+  | NotFound
+  | { ok: false; reason: "syarat_minimum_belum_terpenuhi"; belum: ("jam_operasional" | "kontak_siaga")[] }
+  | { ok: false; reason: "status_tidak_bisa_diterbitkan" }
+  | { ok: false; reason: "data_contoh_tidak_bisa_diterbitkan" };
+
+/**
+ * Admin Platform lists a Belum Tayang Lokasi Mitra before the full publish gate is met (owner, 2026-11-05): the
+ * minimum is Jam Operasional saved and a Kontak Siaga with a phone. It is listed only, never bookable (see
+ * `izinPesanan`); the normal publish later makes it Terverifikasi. Example data is never listed. Audited.
+ */
+export async function tayangkanBelumTerverifikasi(deps: PublishDeps, by: Actor, lokasiId: string): Promise<TayangkanBelumTerverifikasiResult> {
+  const refusal = writeRefusal(by, "lokasi.tayangkan_belum_terverifikasi", lokasiMitraResource(lokasiId));
+  if (refusal) return refusal;
+  if (!isLokasiId(lokasiId)) return { ok: false, reason: "tidak_ditemukan" };
+
+  const kontakSiaga = await kontakSiagaOf(deps, lokasiId);
+  return deps.audit.staffWrite(deps.db, async (tx, record) => {
+    const [row] = await tx.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId)).for("update");
+    if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
+    if (row.status !== "belum_tayang") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
+    if (row.dataContoh) return { ok: false, reason: "data_contoh_tidak_bisa_diterbitkan" } as const;
+    const belum: ("jam_operasional" | "kontak_siaga")[] = [];
+    if (row.jamOperasional === null) belum.push("jam_operasional");
+    if (kontakSiaga === null || kontakSiaga.phoneNumber === null) belum.push("kontak_siaga");
+    if (belum.length > 0) return { ok: false, reason: "syarat_minimum_belum_terpenuhi", belum } as const;
+
+    await tx
+      .update(lokasiMitraTable)
+      .set({ status: "tayang_belum_terverifikasi", updatedAt: deps.clock.now() })
+      .where(eq(lokasiMitraTable.id, lokasiId));
+    await record({
+      actor: { accountId: by.accountId, role: actingRole(by) },
+      action: "lokasi.tayangkan_belum_terverifikasi",
+      entity: { kind: "lokasi_mitra", id: lokasiId },
+      lokasiId,
+      before: { status: row.status },
+      after: { status: "tayang_belum_terverifikasi" },
+      reason: null,
+    });
+    return { ok: true, status: "tayang_belum_terverifikasi" } as const;
+  });
+}
+
 /**
  * Admin Platform publishes a Lokasi Mitra: Belum Tayang → Terverifikasi, only
  * once the publish gate is fully met (spec, Lokasi > publish gate; decisions
@@ -52,13 +98,14 @@ export async function publishLokasiMitra(
   const [before] = await deps.db.select({ status: lokasiMitraTable.status }).from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
   if (!before) return { ok: false, reason: "tidak_ditemukan" } as const;
   if (before.status === "terverifikasi") return { ok: true, status: before.status };
+  // Listed without verification: the full gate below makes it Terverifikasi.
 
   const kontakSiaga = await kontakSiagaOf(deps, lokasiId);
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [row] = await tx.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId)).for("update");
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
     // Not belum_tayang any more (including a race that just published it): nothing to do here, and a no-op transaction cannot commit.
-    if (row.status !== "belum_tayang") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
+    if (row.status !== "belum_tayang" && row.status !== "tayang_belum_terverifikasi") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
     // Example data is never listed, so it never passes the gate whatever it holds.
     if (row.dataContoh) return { ok: false, reason: "data_contoh_tidak_bisa_diterbitkan" } as const;
 

@@ -16,7 +16,7 @@ export const BERHENTI_DEFAULT_DAYS = 30;
  */
 export type JenisPesanan = "hak_pakai_baru" | "lanjutan" | "siklus_paket";
 
-export type IzinPesanan = { diizinkan: true } | { diizinkan: false; alasan: "ditangguhkan" | "berhenti" };
+export type IzinPesanan = { diizinkan: true } | { diizinkan: false; alasan: "ditangguhkan" | "berhenti" | "belum_terverifikasi" };
 
 export interface StatusPesanan {
   status: LokasiMitraStatus;
@@ -32,6 +32,9 @@ export type HentikanResult = { ok: true; berlakuOn: string } | Exclude<UbahStatu
 /** The pure rule: may an order of this kind be taken, given the Lokasi's status and the day. */
 export function izinPesananDari(facts: StatusPesanan, jenis: JenisPesanan): IzinPesanan {
   switch (facts.status) {
+    // Listed without verification (owner, 2026-11-05): no order of any kind until it is fully Terverifikasi.
+    case "tayang_belum_terverifikasi":
+      return { diizinkan: false, alasan: "belum_terverifikasi" };
     case "ditangguhkan":
       return jenis === "hak_pakai_baru" ? { diizinkan: false, alasan: "ditangguhkan" } : { diizinkan: true };
     case "berhenti":
@@ -76,6 +79,21 @@ export async function tangguhkan(deps: LokasiDeps, by: Actor, lokasiId: string, 
         ? ({ ok: false, reason: "status_tidak_cocok" } as const)
         : { values: { status: "ditangguhkan" as const }, before: { status: row.status }, after: { status: "ditangguhkan", ...alasanDari(input) } },
     "lokasi.ubah_status",
+  );
+}
+
+/** Admin Platform takes an unverified listing back to Belum Tayang. Audited. */
+export async function tarikTayangan(deps: LokasiDeps, by: Actor, lokasiId: string): Promise<UbahStatusResult> {
+  return writeLokasiMitra(
+    deps,
+    by,
+    lokasiId,
+    "lokasi.tarik_tayangan",
+    (row) =>
+      row.status !== "tayang_belum_terverifikasi"
+        ? ({ ok: false, reason: "status_tidak_cocok" } as const)
+        : { values: { status: "belum_tayang" as const }, before: { status: row.status }, after: { status: "belum_tayang" } },
+    "lokasi.tarik_tayangan",
   );
 }
 
@@ -158,6 +176,6 @@ export async function dapatDiharga(deps: LokasiDeps, lokasiId: string): Promise<
   const [row] = await deps.db.select({ dataContoh: lokasiMitraTable.dataContoh }).from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
   if (!row || row.dataContoh) return false;
   const facts = await statusPesananOf(deps, lokasiId);
-  if (!facts || facts.status === "belum_tayang") return false;
+  if (!facts || facts.status === "belum_tayang" || facts.status === "tayang_belum_terverifikasi") return false;
   return izinPesananDari(facts, "lanjutan").diizinkan;
 }

@@ -4,7 +4,7 @@ import { lokasiMitraResource, writeRefusal, type Actor, type WriteRefusal } from
 import { documentExtension } from "@/lib/files/document-type";
 import type { FileStore } from "@/ports/file-store";
 import { isLokasiId, type LokasiDeps } from "./lokasi-mitra";
-import { publicLokasiMitra, VISIT_PHOTO_URL_SECONDS } from "./public-reads";
+import { publicLokasiMitraProfil, VISIT_PHOTO_URL_SECONDS } from "./public-reads";
 import { lokasiFotoGaleri, lokasiMitra } from "./schema";
 import { kategoriFotoGaleri, type KategoriFotoGaleri } from "./skema-galeri";
 
@@ -154,10 +154,10 @@ export async function fotoGaleri(deps: GaleriDeps, by: Actor, lokasiId: string):
   return { ok: true, foto: await fotoAktif(deps, lokasiId) };
 }
 
-/** The Galeri Lokasi of a Terverifikasi Lokasi Mitra, for the public page and the wizard; empty for any other. No actor. */
+/** The Galeri Lokasi of a Terverifikasi Lokasi Mitra or one listed without verification, for the public page and the wizard; empty for any other. No actor. */
 export async function publicFotoGaleri(deps: GaleriDeps, lokasiId: string): Promise<FotoGaleri[]> {
   if (!isLokasiId(lokasiId)) return [];
-  const profile = await publicLokasiMitra(deps, lokasiId);
-  if (!profile) return [];
+  const profile = await publicLokasiMitraProfil(deps, lokasiId);
+  if (!profile || (profile.status !== "terverifikasi" && profile.status !== "tayang_belum_terverifikasi")) return [];
   return (await fotoAktif(deps, lokasiId)).filter((foto) => foto.url !== null);
 }

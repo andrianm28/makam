@@ -181,6 +181,10 @@ export type AuditAction =
   | "lokasi.catat_cek_denah"
   /** Admin Platform publishes a Lokasi Mitra (Belum Tayang → Terverifikasi) once the publish gate is met. */
   | "lokasi.terbitkan"
+  /** Admin Platform lists a Lokasi Mitra without verification (Belum Tayang → Tayang Belum Terverifikasi). */
+  | "lokasi.tayangkan_belum_terverifikasi"
+  /** Admin Platform takes an unverified listing back to Belum Tayang. */
+  | "lokasi.tarik_tayangan"
   /** Admin Platform switches a Lokasi Mitra's "Pemesanan Terencana aktif" on. */
   | "lokasi.aktifkan_terencana"
   /** Admin Platform records that a Lokasi Mitra still meets the publish gate, after a revisit (ticket 17). */

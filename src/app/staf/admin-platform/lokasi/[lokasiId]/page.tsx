@@ -22,6 +22,7 @@ import {
   PoliciesForm,
   ProfileForm,
   PublishForm,
+  TayangBelumTerverifikasiForm,
   StatusLokasiForms,
 } from "../lokasi-forms";
 import { MintaKunjunganUlangForm } from "./minta-kunjungan-ulang-form";
@@ -80,7 +81,11 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
     kontakSiagaDipilih: siaga.kontakSiaga !== null,
   };
   const gate = publishGate(facts);
-  const sudahTerbit = read.lokasiMitra.status !== "belum_tayang";
+  const status = read.lokasiMitra.status;
+  // Listed without verification still waits for the full gate (owner, 2026-11-05).
+  const sudahTerbit = status !== "belum_tayang" && status !== "tayang_belum_terverifikasi";
+  const belumVerifikasi = status === "tayang_belum_terverifikasi";
+  const minimumTerpenuhi = facts.jamOperasionalDiisi && siaga.kontakSiaga !== null && siaga.kontakSiaga.phoneNumber !== null;
 
   return (
     <Section
@@ -89,6 +94,8 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
       description={
         sudahTerbit
           ? "Lokasi Mitra ini sudah tidak Belum Tayang."
+          : belumVerifikasi
+            ? "Tayang dengan tanda Belum Terverifikasi. Penuhi semua syarat berikut, lalu Terbitkan, agar bisa dipesan."
           : gate.ready
             ? "Setiap syarat terpenuhi: siap diterbitkan."
             : "Semua syarat berikut harus terpenuhi sebelum Lokasi Mitra ini bisa Terverifikasi."
@@ -113,6 +120,9 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
         })}
       </ul>
       {sudahTerbit ? null : <PublishForm lokasiId={lokasiId} ready={gate.ready} />}
+      {sudahTerbit || gate.ready && !belumVerifikasi ? null : (
+        <TayangBelumTerverifikasiForm lokasiId={lokasiId} status={status} minimumTerpenuhi={minimumTerpenuhi} />
+      )}
     </Section>
   );
 }
@@ -185,7 +195,7 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
     <>
       <PublishGateChecklist lokasiId={lokasiMitra.id} />
 
-      {lokasiMitra.status === "belum_tayang" || !rilisTerbuka("lokasi_ditangguhkan") ? null : (
+      {lokasiMitra.status === "belum_tayang" || lokasiMitra.status === "tayang_belum_terverifikasi" || !rilisTerbuka("lokasi_ditangguhkan") ? null : (
         <Section
           id="status-kemitraan"
           title="Status kemitraan"
