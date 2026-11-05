@@ -6,6 +6,7 @@ describe("the status vocabulary", () => {
   it("labels each status in CONTEXT.md words", () => {
     expect(Object.values(statusVocabulary).map((status) => status.label)).toEqual([
       "Belum Tayang",
+      "Belum Terverifikasi",
       "Terverifikasi",
       "Aktif",
       "Ditangguhkan",

@@ -40,8 +40,8 @@ describe("a new Lokasi Mitra", () => {
 });
 
 describe("the status of a Lokasi Mitra", () => {
-  it("is one of Belum Tayang, Terverifikasi, Ditangguhkan and Berhenti; only Belum Tayang is set here (the others by the publish gate and ticket 59)", () => {
-    expect(LOKASI_MITRA_STATUSES).toEqual(["belum_tayang", "terverifikasi", "ditangguhkan", "berhenti"]);
+  it("is one of Belum Tayang, Tayang Belum Terverifikasi, Terverifikasi, Ditangguhkan and Berhenti; only Belum Tayang is set here (the others by the publish gate and ticket 59)", () => {
+    expect(LOKASI_MITRA_STATUSES).toEqual(["belum_tayang", "tayang_belum_terverifikasi", "terverifikasi", "ditangguhkan", "berhenti"]);
   });
 });
 
@@ -51,6 +51,7 @@ describe("how many Lokasi Mitra there are in each status", () => {
     const { actor: admin } = await signedInAdminPlatform(setup);
     expect(await setup.lokasi.lokasiMitraCountsByStatus(admin)).toEqual({
       belum_tayang: 0,
+      tayang_belum_terverifikasi: 0,
       terverifikasi: 0,
       ditangguhkan: 0,
       berhenti: 0,
@@ -64,6 +65,7 @@ describe("how many Lokasi Mitra there are in each status", () => {
 
     expect(await setup.lokasi.lokasiMitraCountsByStatus(admin)).toEqual({
       belum_tayang: 1,
+      tayang_belum_terverifikasi: 0,
       terverifikasi: 1,
       ditangguhkan: 1,
       berhenti: 0,
@@ -71,6 +73,7 @@ describe("how many Lokasi Mitra there are in each status", () => {
     const adminLokasi = await signedInAdminLokasi(setup, admin, [first.id]);
     expect(await setup.lokasi.lokasiMitraCountsByStatus(adminLokasi)).toEqual({
       belum_tayang: 0,
+      tayang_belum_terverifikasi: 0,
       terverifikasi: 0,
       ditangguhkan: 0,
       berhenti: 0,
