@@ -41,6 +41,18 @@ describe("the Galeri Lokasi", () => {
     expect(JSON.stringify(entry)).not.toContain("255,216");
   });
 
+  it("shows the Galeri Lokasi of a Lokasi Mitra listed without verification too, though not of one still Belum Tayang", async () => {
+    const setup = lokasiOnTestDatabase(db);
+    const { actor: admin } = await signedInAdminPlatform(setup);
+    const lokasi = await newLokasiMitra(setup, admin);
+    await setup.lokasi.unggahFotoGaleri(admin, lokasi.id, foto());
+
+    expect(await setup.lokasi.publicFotoGaleri(lokasi.id)).toEqual([]);
+    await setLokasiMitraStatusForTest(db, lokasi.id, "tayang_belum_terverifikasi");
+
+    expect(await setup.lokasi.publicFotoGaleri(lokasi.id)).toEqual([expect.objectContaining({ keterangan: "Gerbang utama" })]);
+  });
+
   it("refuses a photo whose uploader does not confirm it shows no headstones or burial area, one with no caption, and a file that is not an image", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
