@@ -117,6 +117,7 @@ import {
   statusPesananOf,
   tandaiBerhentiDiproses,
   tangguhkan,
+  tarikTayangan,
   type HentikanResult,
   type IzinPesanan,
   type JenisPesanan,
@@ -160,6 +161,8 @@ import {
   aturanGantiPemegangHak,
   publicLokasiMitra,
   publicLokasiMitraTampil,
+  publicLokasiMitraProfil,
+  type PublicLokasiMitraProfil,
   publicLokasiMitraCities,
   publicLokasiMitraList,
   publicLokasiMakamCities,
@@ -457,6 +460,8 @@ export interface Lokasi {
   recordPublishGateMasihTerpenuhi(by: Actor, lokasiId: string): Promise<WriteResult>;
   /** Admin Platform sets a Terverifikasi Lokasi Ditangguhkan (ticket 59), audited. */
   tangguhkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
+  /** Admin Platform takes an unverified listing back to Belum Tayang, audited. */
+  tarikTayangan(by: Actor, lokasiId: string): Promise<UbahStatusResult>;
   /** Admin Platform reinstates a Ditangguhkan Lokasi, audited. */
   pulihkan(by: Actor, lokasiId: string, input?: { alasan?: string }): Promise<UbahStatusResult>;
   /** Admin Platform sets a Lokasi Berhenti with an effective date (default 30 days), audited. */
@@ -481,6 +486,8 @@ export interface Lokasi {
   /** A Terverifikasi Lokasi Mitra's public profile (no actor, for its Lokasi page); null for anything else. */
   publicLokasiMitra(lokasiId: string): Promise<PublicLokasiMitra | null>;
   /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang or example data. */
+  publicLokasiMitraProfil(lokasiId: string): Promise<PublicLokasiMitraProfil | null>;
+  /** The same profile for a page that stays up while the Lokasi is Ditangguhkan or Berhenti, with its status; null for Belum Tayang, unverified or example data. */
   publicLokasiMitraTampil(lokasiId: string): Promise<(PublicLokasiMitra & PengelolaKontak & { status: "terverifikasi" | "ditangguhkan" | "berhenti" }) | null>;
   /** Every Terverifikasi Lokasi Mitra, for the Daftar Lokasi Makam directory (no actor), filtered by city, one Lokasi Mitra, and facilities. */
   publicLokasiMitraList(query?: PublicLokasiMitraQuery): Promise<PublicLokasiMitraCard[]>;
@@ -569,6 +576,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     publish: (by, lokasiId, input) => publishLokasiMitra(deps, by, lokasiId, input),
     tayangkanBelumTerverifikasi: (by, lokasiId) => tayangkanBelumTerverifikasi(deps, by, lokasiId),
     recordPublishGateMasihTerpenuhi: (by, lokasiId) => recordPublishGateMasihTerpenuhi(deps, by, lokasiId),
+    tarikTayangan: (by, lokasiId) => tarikTayangan(deps, by, lokasiId),
     tangguhkan: (by, lokasiId, input) => tangguhkan(deps, by, lokasiId, input),
     pulihkan: (by, lokasiId, input) => pulihkan(deps, by, lokasiId, input),
     hentikan: (by, lokasiId, input, within) => hentikan(within ? { ...deps, db: within } : deps, by, lokasiId, input),
@@ -579,6 +587,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     tandaiBerhentiDiproses: (lokasiId) => tandaiBerhentiDiproses(deps, lokasiId),
     activateTerencana: (by, lokasiId, input) => activateTerencana(deps, by, lokasiId, input),
     publicLokasiMitra: (lokasiId) => publicLokasiMitra(deps, lokasiId),
+    publicLokasiMitraProfil: (lokasiId) => publicLokasiMitraProfil(deps, lokasiId),
     publicLokasiMitraTampil: (lokasiId) => publicLokasiMitraTampil(deps, lokasiId),
     publicLokasiMitraList: (query) => publicLokasiMitraList(deps, query),
     publicLokasiMitraCities: () => publicLokasiMitraCities(deps),

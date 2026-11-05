@@ -395,6 +395,7 @@ export type LokasiMitraWriteAction = Extract<
   | "lokasi.catat_cek_denah"
   | "lokasi.konfirmasi_syarat_tayang"
   | "lokasi.ubah_status"
+  | "lokasi.tarik_tayangan"
 >;
 
 /** What a write changes on the row, and the Entri Audit's before and after. */

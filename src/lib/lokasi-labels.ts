@@ -5,6 +5,7 @@ import { staffRoleLabels } from "./staff-role-labels";
 /** How each Lokasi Mitra status is named on screen (CONTEXT.md). */
 export const lokasiStatusLabels: Record<LokasiMitraStatus, string> = {
   belum_tayang: "Belum Tayang",
+  tayang_belum_terverifikasi: "Belum Terverifikasi",
   terverifikasi: "Terverifikasi",
   ditangguhkan: "Ditangguhkan",
   berhenti: "Berhenti",

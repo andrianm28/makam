@@ -98,13 +98,14 @@ export async function publishLokasiMitra(
   const [before] = await deps.db.select({ status: lokasiMitraTable.status }).from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId));
   if (!before) return { ok: false, reason: "tidak_ditemukan" } as const;
   if (before.status === "terverifikasi") return { ok: true, status: before.status };
+  // Listed without verification: the full gate below makes it Terverifikasi.
 
   const kontakSiaga = await kontakSiagaOf(deps, lokasiId);
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     const [row] = await tx.select().from(lokasiMitraTable).where(eq(lokasiMitraTable.id, lokasiId)).for("update");
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
     // Not belum_tayang any more (including a race that just published it): nothing to do here, and a no-op transaction cannot commit.
-    if (row.status !== "belum_tayang") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
+    if (row.status !== "belum_tayang" && row.status !== "tayang_belum_terverifikasi") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
     // Example data is never listed, so it never passes the gate whatever it holds.
     if (row.dataContoh) return { ok: false, reason: "data_contoh_tidak_bisa_diterbitkan" } as const;
 

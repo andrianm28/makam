@@ -14,6 +14,7 @@ export type StatusTone = "neutral" | "info" | "success" | "warning" | "danger";
 
 export const statusVocabulary = {
   belum_tayang: { label: lokasiStatusLabels.belum_tayang, tone: "neutral" },
+  tayang_belum_terverifikasi: { label: lokasiStatusLabels.tayang_belum_terverifikasi, tone: "warning" },
   terverifikasi: { label: lokasiStatusLabels.terverifikasi, tone: "success" },
   // A Mitra Jasa taking work, a Hak Pakai that is, and a paid Pemesanan Terencana (ticket 37): same word, same tone.
   aktif: { label: "Aktif", tone: "success" },
