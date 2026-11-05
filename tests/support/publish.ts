@@ -118,11 +118,11 @@ export async function minimumUntukTayang(setup: PublishSetup, admin: Actor, loka
     const jam = await setup.lokasi.setJamOperasional(admin, lokasiId, readyJamOperasional);
     if (!jam.ok) throw new Error(`jam operasional refused: ${jam.reason}`);
   }
-  if (options.kontak !== false) {
-    const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiId]);
-    const pick = await setup.lokasi.pickKontakSiaga(admin, lokasiId, { accountId: adminLokasi.accountId });
-    if (!pick.ok) throw new Error(`kontak siaga refused: ${pick.reason}`);
-  }
+  if (options.kontak === false) return null;
+  const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiId]);
+  const pick = await setup.lokasi.pickKontakSiaga(admin, lokasiId, { accountId: adminLokasi.accountId });
+  if (!pick.ok) throw new Error(`kontak siaga refused: ${pick.reason}`);
+  return adminLokasi;
 }
 
 export interface ReadyToPublishOptions {

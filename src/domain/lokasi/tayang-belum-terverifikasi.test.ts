@@ -4,7 +4,6 @@ import {
   minimumUntukTayang,
   newLokasiMitra,
   publishOnTestDatabase,
-  signedInAdminLokasi,
   signedInAdminPlatform,
 } from "../../../tests/support/publish";
 
@@ -49,8 +48,8 @@ describe("listing a Lokasi Mitra without verification (Tayang Belum Terverifikas
     const setup = publishOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
     const lokasiMitra = await newLokasiMitra(setup, admin);
-    await minimumUntukTayang(setup, admin, lokasiMitra.id);
-    const adminLokasi = await signedInAdminLokasi(setup, admin, [lokasiMitra.id]);
+    const adminLokasi = await minimumUntukTayang(setup, admin, lokasiMitra.id);
+    if (!adminLokasi) throw new Error("no Admin Lokasi");
 
     expect(await setup.lokasi.tayangkanBelumTerverifikasi(adminLokasi, lokasiMitra.id)).toEqual({ ok: false, reason: "tidak_berwenang" });
   });
