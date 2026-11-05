@@ -15,8 +15,12 @@ A Lokasi Makam run by a partner (private, wakaf, yayasan or masjid cemetery) tha
 _Avoid_: Mitra (alone), partner makam, TPS / Tempat Pemakaman Swasta (marketing copy only, never in the product)
 
 **Terverifikasi**:
-Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed; every listed Lokasi Mitra is Terverifikasi. Never said of a TPU, which is shown as an official Pemda cemetery instead.
-_Avoid_: Terdaftar, resmi (for a Lokasi Mitra), using it as a badge some listings lack
+Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed and ordered from. Never said of a TPU, which is shown as an official Pemda cemetery instead. Since 2026-11-05 a Lokasi Mitra may also be listed while not yet Terverifikasi: see **Tayang Belum Terverifikasi**.
+_Avoid_: Terdaftar, resmi (for a Lokasi Mitra)
+
+**Tayang Belum Terverifikasi**:
+Said of a Lokasi Mitra that Admin Platform has listed before the full publish gate is met (owner, 2026-11-05); the minimum is Jam Operasional saved and a Kontak Siaga with a phone. Its profile, photos, tariffs and Jam Operasional show with a "Belum Terverifikasi" mark and make no claim of partnership or verification; it is listed only, never bookable: no Pemesanan of any kind, no Tagihan, and the Pesan buttons give way to a Hubungi Kami route. It becomes Terverifikasi through the normal publish once the full gate is met. Example data is never listed this way.
+_Avoid_: Terverifikasi sebagian, tayang percobaan, draft publik
 
 **Harga Tampil**:
 Said of a Lokasi Mitra whose partner allows its prices on the site's front (Daftar Lokasi, its Lokasi page); the default. A Lokasi Mitra without Harga Tampil is still listed and ordered on the platform like any other, but its price first shows inside the order wizard; WhatsApp is only the CS for questions (ADR 0011).
