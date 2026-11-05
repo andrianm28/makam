@@ -5,6 +5,7 @@ import {
   ArrowRightIcon,
   CalendarClockIcon,
   CheckIcon,
+  CircleAlertIcon,
   CircleSlashIcon,
   ClockIcon,
   FileTextIcon,
@@ -70,7 +71,7 @@ function Section({ id, title, children }: { id: string; title: string; children:
   );
 }
 
-function JamOperasionalTable({ jamOperasional }: { jamOperasional: JamOperasional }) {
+function JamOperasionalTable({ jamOperasional, dapatDipesan }: { jamOperasional: JamOperasional; dapatDipesan: boolean }) {
   return (
     <div className="flex flex-col gap-4">
       <ul className="flex flex-col gap-1 text-body-lg text-foreground">
@@ -96,17 +97,19 @@ function JamOperasionalTable({ jamOperasional }: { jamOperasional: JamOperasiona
           </ul>
         </div>
       ) : null}
-      <p className="text-body text-muted-foreground">
-        Pesanan Saat Duka dikonfirmasi dalam 2 jam di dalam Jam Operasional. Di luar jam itu, halaman pesanan menampilkan
-        kapan konfirmasi datang dan nomor Kontak Siaga lokasi ini.
-      </p>
+      {dapatDipesan ? (
+        <p className="text-body text-muted-foreground">
+          Pesanan Saat Duka dikonfirmasi dalam 2 jam di dalam Jam Operasional. Di luar jam itu, halaman pesanan menampilkan
+          kapan konfirmasi datang dan nomor Kontak Siaga lokasi ini.
+        </p>
+      ) : null}
     </div>
   );
 }
 
 export async function generateMetadata({ params }: PageProps<"/lokasi/[lokasiId]">) {
   const { lokasiId } = await params;
-  const profile = await serverRuntime().lokasi.publicLokasiMitraTampil(lokasiId);
+  const profile = await serverRuntime().lokasi.publicLokasiMitraProfil(lokasiId);
   return { title: profile ? `${profile.name} — Makam.co.id` : "Lokasi tidak ditemukan — Makam.co.id" };
 }
 
@@ -122,13 +125,15 @@ export async function generateMetadata({ params }: PageProps<"/lokasi/[lokasiId]
 export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lokasiId]">) {
   const { lokasiId } = await params;
   const { lokasi, tariffs, layanan, inventory, adapters, operatorSettings } = serverRuntime();
-  // The page stays up while the Lokasi is Ditangguhkan or Berhenti, only without its order buttons (ticket 59).
-  const profile = await lokasi.publicLokasiMitraTampil(lokasiId);
+  // The page stays up while the Lokasi is Ditangguhkan or Berhenti, only without its order buttons (ticket 59), and for a
+  // Lokasi listed without verification, marked "Belum Terverifikasi" and with a Hubungi Kami route instead (owner, 2026-11-05).
+  const profile = await lokasi.publicLokasiMitraProfil(lokasiId);
   if (!profile) notFound();
+  const belumTerverifikasi = profile.belumTerverifikasi;
   const menerimaPesanan = profile.status === "terverifikasi";
 
   const [pricing, visitPhotoUrls, galeri, penawaran, ketersediaan, settings] = await Promise.all([
-    tariffs.lokasiPricing(lokasiId, adapters.clock.now()),
+    tariffs.lokasiPricingTampil(lokasiId, adapters.clock.now()),
     lokasi.publicVisitPhotoUrls(lokasiId),
     lokasi.publicFotoGaleri(lokasiId),
     layanan.penawaranLokasi(lokasiId, adapters.clock.now()),
@@ -210,6 +215,23 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
         )}
       </div>
         </>
+      ) : belumTerverifikasi ? (
+        <div className="flex flex-col gap-3">
+          <p className="flex items-start gap-2 text-body text-muted-foreground">
+            <CircleAlertIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
+            <span>
+              <span className="font-medium text-foreground">Belum bisa dipesan lewat Makam.co.id.</span> Lokasi ini belum
+              kami verifikasi. Hubungi kami untuk bertanya atau mengatur pemesanan.
+            </span>
+          </p>
+          {cs ? (
+            <CsLink contact={cs} label="Hubungi Kami via CS" pesan={pesanWhatsApp} />
+          ) : (
+            <Link href="/hubungi-kami" className="font-medium text-forest underline underline-offset-4">
+              Hubungi Kami
+            </Link>
+          )}
+        </div>
       ) : (
         <p className="flex items-start gap-2 text-body text-muted-foreground">
           <ClockIcon className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -229,7 +251,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
     <div className="mx-auto w-full max-w-(--page-max-width) px-4 pt-6 pb-28 md:px-8 md:pt-8 lg:pb-16">
       {menerimaPesanan ? null : (
         <p role="status" className="mb-4 rounded-xl bg-warning-soft px-4 py-3 text-body font-medium text-warning-soft-foreground">
-          {profile.status === "ditangguhkan"
+          {belumTerverifikasi
+            ? "Belum Terverifikasi: lokasi ini belum diverifikasi Makam.co.id, jadi belum bisa dipesan lewat situs ini. Profil, foto, harga, dan jam operasional di bawah adalah data yang kami miliki; hubungi kami bila ingin bertanya."
+            : profile.status === "ditangguhkan"
             ? "Lokasi ini sementara tidak menerima pesanan. Halaman ini tetap tersedia untuk keluarga yang sudah memesan."
             : "Lokasi ini telah berhenti bermitra dengan makam.co.id dan tidak menerima pesanan."}
         </p>
@@ -306,7 +330,13 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
               Dikelola oleh <span className="font-semibold">{profile.pengelolaName}</span>, yang memberikan Hak Pakai
               kepada keluarga.
             </p>
-            <VerifiedPopover dikunjungi={dikunjungi} />
+            {belumTerverifikasi ? (
+              <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-warning-soft px-3 py-1 text-small font-medium text-warning-soft-foreground">
+                <CircleAlertIcon className="size-4 shrink-0" aria-hidden /> Belum Terverifikasi
+              </p>
+            ) : (
+              <VerifiedPopover dikunjungi={dikunjungi} />
+            )}
           </header>
 
           {!hargaTampil ? (
@@ -325,9 +355,11 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                         {card.jenisMakam.description ? `${card.jenisMakam.description} · ` : ""}Masa Hak Pakai{" "}
                         {tenureLabel(card.tenure).toLowerCase()}
                       </p>
-                      <p className={tersedia === 0 ? "text-small font-medium text-warning-soft-foreground" : "text-small text-success-soft-foreground"}>
-                        {tersedia === 0 ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
-                      </p>
+                      {belumTerverifikasi ? null : (
+                        <p className={tersedia === 0 ? "text-small font-medium text-warning-soft-foreground" : "text-small text-success-soft-foreground"}>
+                          {tersedia === 0 ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
+                        </p>
+                      )}
                     </li>
                   );
                 })}
@@ -363,13 +395,15 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                         </div>
                         <div className="sm:text-right">
                           <p className="text-title-1 tabular-nums text-foreground">{formatRupiah(card.hakPakai.total)}</p>
-                          <p
-                            className={
-                              habis ? "text-small font-medium text-warning-soft-foreground" : "text-small text-success-soft-foreground"
-                            }
-                          >
-                            {habis ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
-                          </p>
+                          {belumTerverifikasi ? null : (
+                            <p
+                              className={
+                                habis ? "text-small font-medium text-warning-soft-foreground" : "text-small text-success-soft-foreground"
+                              }
+                            >
+                              {habis ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <p className="mt-3 border-t border-border pt-3 text-caption text-muted-foreground tabular-nums">
@@ -459,7 +493,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                 ))}
               </ul>
             )}
-            <p className="mt-3 text-body text-muted-foreground">
+            <p className={belumTerverifikasi ? "hidden" : "mt-3 text-body text-muted-foreground"}>
               Dokumen boleh menyusul: unggah nanti dari halaman pesanan, atau bawa saat hari pemakaman.
             </p>
           </Section>
@@ -495,7 +529,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
 
           <Section id="jam" title="Jam Operasional">
             {profile.jamOperasional ? (
-              <JamOperasionalTable jamOperasional={profile.jamOperasional} />
+              <JamOperasionalTable jamOperasional={profile.jamOperasional} dapatDipesan={!belumTerverifikasi} />
             ) : (
               <p className="text-muted-foreground">Jam Operasional belum tersedia.</p>
             )}
@@ -546,7 +580,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
            * on the Saat Duka order flow itself, not repeated here for every
            * Lokasi Mitra page.
            */}
-          {profile.terencanaAktif ? (
+          {profile.terencanaAktif && !belumTerverifikasi ? (
             <Section id="pembatalan" title="Pembatalan pemesanan terencana">
               <ul className="flex flex-col gap-2">
                 <li className="flex items-start gap-2 text-body text-foreground">
@@ -583,7 +617,9 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
               Pesan makam sekarang
             </Link>
           ) : (
-            <p className="text-small font-medium text-warning-soft-foreground">Tidak menerima pesanan</p>
+            <p className="text-small font-medium text-warning-soft-foreground">
+              {belumTerverifikasi ? "Belum Terverifikasi" : "Tidak menerima pesanan"}
+            </p>
           )}
         </div>
       </div>

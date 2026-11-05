@@ -47,7 +47,7 @@ export async function daftarLokasi(query: {
   const baris = await Promise.all(
     cards.map(async (card): Promise<DaftarLokasiBaris> => {
       if (card.kind === "tpu") return { card, mulaiRp: hargaTpu.mulaiDari, foto: undefined };
-      const [pricing, foto] = await Promise.all([tariffs.lokasiPricing(card.id, now), lokasi.publicVisitPhotoUrls(card.id)]);
+      const [pricing, foto] = await Promise.all([tariffs.lokasiPricingTampil(card.id, now), lokasi.publicVisitPhotoUrls(card.id)]);
       return { card, mulaiRp: card.hargaTampil ? pricing.mulaiDari : null, foto: foto.at(0) };
     }),
   );

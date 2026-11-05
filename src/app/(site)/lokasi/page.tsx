@@ -4,6 +4,7 @@ import {
   ArmchairIcon,
   ArrowRightIcon,
   BadgeCheckIcon,
+  CircleAlertIcon,
   DropletIcon,
   LandmarkIcon,
   LightbulbIcon,
@@ -310,10 +311,16 @@ function LokasiCard({ row }: { row: DaftarLokasiBaris }) {
             {formatTanggalPanjang(card.flagUpdatedOn)}
           </p>
         ) : (
-          <p className="flex items-center gap-1.5 text-small font-medium text-success-soft-foreground">
-            <BadgeCheckIcon className="size-4" aria-hidden /> Terverifikasi
-            {card.kunjunganVerifikasi ? ` · dikunjungi ${formatBulanTahun(card.kunjunganVerifikasi.visitedOn)}` : ""}
-          </p>
+          card.belumTerverifikasi ? (
+            <p className="flex items-center gap-1.5 text-small font-medium text-warning-soft-foreground">
+              <CircleAlertIcon className="size-4" aria-hidden /> Belum Terverifikasi
+            </p>
+          ) : (
+            <p className="flex items-center gap-1.5 text-small font-medium text-success-soft-foreground">
+              <BadgeCheckIcon className="size-4" aria-hidden /> Terverifikasi
+              {card.kunjunganVerifikasi ? ` · dikunjungi ${formatBulanTahun(card.kunjunganVerifikasi.visitedOn)}` : ""}
+            </p>
+          )
         )}
         <div className="mt-auto flex items-end justify-between gap-3 pt-2">
           {card.kind === "lokasi_mitra" && !card.hargaTampil ? (
