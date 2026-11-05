@@ -12,6 +12,8 @@ import {
   hentikanLokasi,
   pulihkanLokasi,
   tangguhkanLokasi,
+  tarikTayangan,
+  tayangkanBelumTerverifikasi,
   lepasAdminLokasi,
   simpanDokumen,
   simpanKebijakan,
@@ -356,6 +358,39 @@ export function PublishForm({ lokasiId, ready }: { lokasiId: string; ready: bool
   );
 }
 
+/**
+ * Admin Platform lists a Lokasi Mitra before it is verified (owner, 2026-11-05), or takes that listing down. Listed
+ * without verification means shown with a "Belum Terverifikasi" mark and a Hubungi Kami route, with no ordering.
+ */
+export function TayangBelumTerverifikasiForm({ lokasiId, status, minimumTerpenuhi }: { lokasiId: string; status: LokasiMitra["status"]; minimumTerpenuhi: boolean }) {
+  const [tayangState, tayangAction, tayangPending] = useActionState(tayangkanBelumTerverifikasi, idle);
+  const [tarikState, tarikAction, tarikPending] = useActionState(tarikTayangan, idle);
+  if (status === "tayang_belum_terverifikasi") {
+    return (
+      <form action={tarikAction} className="flex flex-col items-start gap-2">
+        <input type="hidden" name="lokasiId" value={lokasiId} />
+        <p className="text-small text-muted-foreground">
+          Lokasi ini tayang dengan tanda Belum Terverifikasi: tampil di situs, tetapi tidak bisa dipesan.
+        </p>
+        <Submit pending={tarikPending}>Tarik tayangan</Submit>
+        <Feedback state={tarikState} />
+      </form>
+    );
+  }
+  return (
+    <form action={tayangAction} className="flex flex-col items-start gap-2">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <p className="text-small text-muted-foreground">
+        Belum semua syarat terpenuhi? Lokasi ini tetap bisa ditayangkan dengan tanda Belum Terverifikasi: profil, foto,
+        harga, dan jam operasional tampil, tanpa tombol pesan (pengunjung diarahkan ke Hubungi Kami). Syaratnya hanya Jam
+        Operasional dan Kontak Siaga dengan nomor telepon.
+      </p>
+      <Submit pending={tayangPending || !minimumTerpenuhi}>Tayangkan (belum terverifikasi)</Submit>
+      <Feedback state={tayangState} />
+    </form>
+  );
+}
+
 /** Admin Platform's "Aktifkan Terencana" button: refused unless every Petak is cleared and a Cek Denah is done. */
 export function ActivateTerencanaForm({ lokasiId, ready }: { lokasiId: string; ready: boolean }) {
   const [state, action, pending] = useActionState(aktifkanTerencana, idle);
@@ -377,7 +412,7 @@ export function StatusLokasiForms({ lokasiId, status, berlakuOn }: { lokasiId: s
   const [tangguhkanState, tangguhkanAction, tangguhkanPending] = useActionState(tangguhkanLokasi, idle);
   const [pulihkanState, pulihkanAction, pulihkanPending] = useActionState(pulihkanLokasi, idle);
   const [hentikanState, hentikanAction, hentikanPending] = useActionState(hentikanLokasi, idle);
-  if (status === "belum_tayang") return null;
+  if (status === "belum_tayang" || status === "tayang_belum_terverifikasi") return null;
   if (status === "berhenti") {
     return <p className="text-sm text-muted-foreground">Berhenti{berlakuOn ? `, berlaku ${berlakuOn}` : ""}. Keputusan ini tidak bisa dibatalkan.</p>;
   }
