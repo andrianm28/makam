@@ -318,8 +318,8 @@ function TagInfo({ grup, diAtasHijau = false }: { grup: GrupView; diAtasHijau?: 
 function FotoGerbang({ url, nama }: { url: string | null; nama: string }) {
   if (!url) {
     return (
-      <div className="flex aspect-[16/10] items-end bg-forest p-4" aria-hidden>
-        <span className="rounded-lg bg-ivory/20 px-3 py-1 text-body font-semibold text-ivory">{nama}</span>
+      <div className="flex aspect-[16/6] items-end bg-brand-soft p-5" aria-hidden>
+        <span className="font-heading text-xl font-extrabold text-forest">{nama}</span>
       </div>
     );
   }
@@ -355,8 +355,9 @@ function LangkahKavling({
       <Link href={kembaliKeGrid} className="inline-flex items-center gap-2 self-start text-lg font-bold text-forest hover:underline">
         <ArrowLeft className="size-5" aria-hidden /> Ganti makam
       </Link>
-      <div className="grid overflow-hidden rounded-3xl bg-forest text-ivory md:grid-cols-[320px_1fr]">
-        <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} />
+      <div className={cn("grid overflow-hidden rounded-3xl bg-forest text-ivory", grup.photoUrl && "md:grid-cols-[320px_1fr]")}>
+        {/* Without a gate photo the band is the name itself; a placeholder panel would only repeat it. */}
+        {grup.photoUrl ? <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} /> : null}
         <div className="flex flex-col gap-3 p-6 md:p-10">
           <p className="text-body font-semibold tracking-wide text-sand uppercase">{grup.kota}</p>
           <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pilih tipe kavling</h1>
