@@ -1,6 +1,7 @@
 import { rilisTerbuka } from "@/lib/rilis";
 import type { Metadata } from "next";
 import { PilihMakam } from "./pilih-makam";
+import { profilLokasi } from "./profil-lokasi";
 import { layarPilihMakam } from "./daftar";
 import { dariDari } from "./dari";
 import { grupView } from "./tampilan";
@@ -33,6 +34,8 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
     }),
     operatorSettings.current(),
   ]);
+  // On a Lokasi Mitra's Pilih Tipe Kavling step the whole Lokasi Mitra page comes with it (dri, 6 Nov 2026).
+  const profil = layar.asal ? await profilLokasi(layar.asal.id) : null;
 
   return (
     <PilihMakam
@@ -48,6 +51,7 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
           : null
       }
       preselect={layar.asal?.id ?? null}
+      profil={profil}
       awal={kartuAwal(layar.grup, layar.asal?.id ?? null)}
       csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
     />
