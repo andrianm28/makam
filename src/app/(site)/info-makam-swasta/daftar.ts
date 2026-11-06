@@ -4,7 +4,7 @@
  * domain record: nothing here can be ordered or paid, nothing is labelled
  * Terverifikasi, and no price is shown (prices found online are mostly from
  * agents or old news). A location that signs moves to Lokasi Mitra through the
- * normal publish gate and is taken off this list.
+ * normal publish gate and is taken off this list (Graha Sentosa, 6 Nov 2026).
  *
  * Source: makam-prospek/profil-lengkap-21-prospek.md (research, 2 Nov 2026).
  */
@@ -21,17 +21,6 @@ export type InfoMakamSwasta = {
 };
 
 export const DAFTAR_INFO_MAKAM_SWASTA: readonly InfoMakamSwasta[] = [
-  {
-    slug: "graha-sentosa",
-    nama: "Graha Sentosa Memorial Park",
-    kota: "Kabupaten Karawang",
-    alamat: "Jl. Trans Heksa Karawang, Desa Wanajaya, Kec. Telukjambe Barat (exit Tol Karawang Barat 2 KM 46)",
-    pengelola: "PT Permata Bumi Kencana",
-    segmen: "Tionghoa dan non-Muslim (Buddha, Katolik, Kristen), konsep Feng Shui",
-    luas: "50 ha, perbukitan",
-    fasilitas: "Paviliun serbaguna 200 orang, danau dan ruang terbuka hijau, keamanan 24 jam, layanan duka 24 jam bersama Rumah Duka Sentosa.",
-    sumber: ["Booklet dan materi penjualan Graha Sentosa (Maret 2026)"],
-  },
   {
     slug: "san-diego-hills",
     nama: "San Diego Hills Memorial Park",

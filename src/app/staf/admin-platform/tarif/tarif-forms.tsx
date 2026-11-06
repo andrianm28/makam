@@ -194,7 +194,7 @@ export function BiayaPemakamanJenisForm({ lokasiId, jenisMakamId, today }: { lok
     <form action={action} className="grid gap-3 sm:grid-cols-2">
       <input type="hidden" name="lokasiId" value={lokasiId} />
       <input type="hidden" name="jenisMakamId" value={jenisMakamId} />
-      <RupiahField label="Biaya Pemakaman khusus tipe ini (Rp, kosongkan untuk memakai Biaya Pemakaman Lokasi)" name="biayaPemakaman" placeholder="11.800.000" />
+      <RupiahField label="Biaya Pemakaman khusus tipe ini (Rp, kosongkan untuk memakai Biaya Pemakaman Lokasi)" name="biayaPemakaman" placeholder="2.500.000" />
       <EffectiveOnAndReason today={today} />
       <div className="flex flex-col gap-2 sm:col-span-2">
         <Submit pending={pending}>Simpan Biaya Pemakaman tipe ini</Submit>

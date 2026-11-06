@@ -228,9 +228,8 @@ export const tariffJenisMakamVersion = pgTable(
 
 /**
  * Owned by the Tariffs module: every version of one Jenis Makam's own Biaya
- * Pemakaman (dri, 6 Nov 2026: Graha Sentosa charges Rp 11.800.000 for its
- * Single Standard, Peace Garden and Heavenly Garden and Rp 9.600.000 for the
- * rest). While a version with an amount is in force it replaces the Lokasi
+ * Pemakaman (dri, 6 Nov 2026: a Lokasi Mitra may charge some Jenis Makam a
+ * different Biaya Pemakaman than the rest). While a version with an amount is in force it replaces the Lokasi
  * Mitra's Biaya Pemakaman for a new Hak Pakai of this Jenis Makam; a version
  * with `biaya_pemakaman` null returns it to the Lokasi's. A tumpang keeps the
  * Lokasi's tumpang amount. Append-only like every price book.

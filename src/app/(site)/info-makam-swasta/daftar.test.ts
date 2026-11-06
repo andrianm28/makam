@@ -2,11 +2,11 @@ import { describe, expect, it } from "vitest";
 import { DAFTAR_INFO_MAKAM_SWASTA, pesanKonsultasi } from "./daftar";
 
 describe("Info Makam Swasta: public information on private cemeteries that are not Lokasi Mitra", () => {
-  it("lists the ten researched locations, Graha Sentosa first, each once", () => {
-    expect(DAFTAR_INFO_MAKAM_SWASTA).toHaveLength(10);
-    expect(DAFTAR_INFO_MAKAM_SWASTA[0].nama).toBe("Graha Sentosa Memorial Park");
+  it("lists the nine researched locations not yet Lokasi Mitra, each once; Graha Sentosa left it when it became one", () => {
+    expect(DAFTAR_INFO_MAKAM_SWASTA).toHaveLength(9);
+    expect(DAFTAR_INFO_MAKAM_SWASTA.map((l) => l.nama)).not.toContain("Graha Sentosa Memorial Park");
     const slugs = DAFTAR_INFO_MAKAM_SWASTA.map((l) => l.slug);
-    expect(new Set(slugs).size).toBe(10);
+    expect(new Set(slugs).size).toBe(9);
   });
 
   it("names a public source for every location", () => {
