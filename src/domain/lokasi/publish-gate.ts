@@ -40,3 +40,16 @@ export function publishGate(facts: PublishGateFacts): PublishGate {
   ];
   return { ready: items.every((item) => item.met), items };
 }
+
+/**
+ * The gate items Tayang Belum Terverifikasi needs (owner, 2026-11-05): Jam
+ * Operasional and a Kontak Siaga a family can phone. The other items are
+ * optional for that listing, still required to become Terverifikasi.
+ */
+export const syaratTayangBelumTerverifikasi = ["jam_operasional", "kontak_siaga"] as const satisfies readonly PublishGateKey[];
+export type SyaratTayangBelumTerverifikasi = (typeof syaratTayangBelumTerverifikasi)[number];
+
+/** Whether a gate item is required to be listed Belum Terverifikasi (false: optional there, required only to become Terverifikasi). */
+export function wajibUntukTayangBelumTerverifikasi(key: PublishGateKey): boolean {
+  return (syaratTayangBelumTerverifikasi as readonly PublishGateKey[]).includes(key);
+}

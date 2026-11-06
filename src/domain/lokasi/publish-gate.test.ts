@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { publishGate, type PublishGateFacts } from "@/domain/lokasi";
+import { publishGate, syaratTayangBelumTerverifikasi, wajibUntukTayangBelumTerverifikasi, type PublishGateFacts } from "@/domain/lokasi";
 
 const everythingDone: PublishGateFacts = {
   agreement: { signedOn: "2026-09-12", scanUploaded: true },
@@ -49,5 +49,14 @@ describe("the publish gate of a Lokasi Mitra", () => {
     expect(unmet({ ...everythingDone, jamOperasionalDiisi: false })).toEqual(["jam_operasional"]);
     expect(unmet({ ...everythingDone, kontakSiagaDipilih: false })).toEqual(["kontak_siaga"]);
     expect(publishGate({ ...everythingDone, kontakSiagaDipilih: false }).ready).toBe(false);
+  });
+});
+
+describe("the gate items for Tayang Belum Terverifikasi", () => {
+  it("are Jam Operasional and Kontak Siaga; the agreement, the Kunjungan Verifikasi and the tariff check are optional there", () => {
+    expect([...syaratTayangBelumTerverifikasi]).toEqual(["jam_operasional", "kontak_siaga"]);
+    const keys = publishGate(everythingDone).items.map((item) => item.key);
+    expect(keys.filter(wajibUntukTayangBelumTerverifikasi)).toEqual(["jam_operasional", "kontak_siaga"]);
+    expect(keys.filter((key) => !wajibUntukTayangBelumTerverifikasi(key))).toEqual(["perjanjian", "kunjungan_verifikasi", "tarif_diperiksa"]);
   });
 });
