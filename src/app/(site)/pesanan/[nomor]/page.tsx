@@ -66,7 +66,6 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   const tagihan = order.tagihanId ? await billing.tagihanBerlaku(order.tagihanId) : null;
   // A refund on this order waiting for a bank account: the page is the Pemesan's own, so only they see it.
   const pengembalian = await refunds.permintaanUntukPesanan(order.nomor);
-  const kontak = order.pemakaman ? await lokasi.kontakSiagaOf(order.lokasi.id) : null;
   const jumlahJamPembayaran = await lokasi.saatDukaPaymentWindowHours(order.lokasi.id);
   // A declined order is the one place a family is sent back to Pilih makam, so
   // the banner and the link are read from the order's own rebook (spec, Public
@@ -109,7 +108,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         <section className="flex flex-col gap-3" data-testid="tumpang-ditolak">
           <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Permintaan pemakaman tidak dapat dilaksanakan</h2>
           <p className="text-body text-muted-foreground">
-            Hak Pakai makam itu tidak berubah dan tidak ada yang perlu dibayar. Hubungi {order.lokasi.name} untuk membicarakan langkah berikutnya.
+            Hak Pakai makam itu tidak berubah dan tidak ada yang perlu dibayar. Hubungi CS makam.co.id untuk membicarakan langkah berikutnya; kami yang berbicara dengan Lokasi Mitra.
           </p>
         </section>
       ) : null}
@@ -154,7 +153,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         )
       ) : null}
 
-      {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (
+      {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} csContact={csContact} /> : order.konfirmasiDueAt ? (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
           Pesanan sedang diproses. <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat{" "}
           {formatTanggalJam(order.konfirmasiDueAt)}
@@ -264,11 +263,12 @@ async function terencanaFor(params: Promise<{ nomor: string }>): Promise<Pemesan
 function Dikonfirmasi({
   order,
   tagihan,
-  kontak,
+  csContact,
 }: {
   order: PemesananOrder;
   tagihan: Awaited<ReturnType<ReturnType<typeof serverRuntime>["billing"]["tagihan"]>>;
-  kontak: Awaited<ReturnType<ReturnType<typeof serverRuntime>["lokasi"]["kontakSiagaOf"]>>;
+  /** Questions go to the platform's CS, never to the Lokasi Mitra directly (dri, 6 Nov 2026). */
+  csContact: CsContact | null;
 }) {
   return (
     <section className="flex flex-col gap-3" data-testid="pesanan-dikonfirmasi">
@@ -278,10 +278,7 @@ function Dikonfirmasi({
         <Baris label="Pemakaman" value={order.pemakaman ? formatTanggalJam(order.pemakaman.at) : "menyusul"} />
         {order.pemakamanTanggal ? <Baris label="Pemakaman dilaksanakan" value={formatTanggal(order.pemakamanTanggal)} /> : null}
         <Baris label="Lokasi Mitra" value={order.lokasi.name} href={`/lokasi/${order.lokasi.id}`} />
-        <Baris
-          label="Hubungi Lokasi Mitra"
-          value={kontak ? [kontak.name, kontak.phoneNumber].filter(Boolean).join(" · ") || order.lokasi.name : order.lokasi.name}
-        />
+        <Baris label="Ada pertanyaan?" value="Hubungi CS makam.co.id" href={csContact ? csWhatsAppLink(csContact, `Pesanan ${order.nomor}`) : "/hubungi-kami"} />
         {tagihan ? (
           <>
             <Baris label="Tagihan" value={tagihan.nomorTagihan} href={documentPagePath(tagihan.link)} />

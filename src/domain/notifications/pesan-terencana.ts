@@ -124,7 +124,6 @@ export function terencanaDikonfirmasi(deps: PesanKeluargaDeps, input: TerencanaD
       unit: data.unit,
       calonName: data.calonName,
       tahanSampai: data.tahanSampai,
-      kontakLokasi: data.kontakLokasi,
       tagihan: { nomorTagihan: data.tagihan.nomorTagihan, total: data.tagihan.total, dueAt: data.tagihan.dueAt, tautan: deps.dokumenUrl(data.tagihan.link) },
       tautan: deps.pesananUrl(data.nomor),
     }),

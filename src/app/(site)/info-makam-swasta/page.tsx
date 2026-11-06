@@ -42,7 +42,7 @@ export default async function InfoMakamSwastaPage() {
         <p className="font-heading text-2xl font-extrabold text-forest">Belum bermitra dengan Makam.co.id</p>
         <p className="mt-2">
           Lokasi di halaman ini belum kami verifikasi dan tidak bisa dipesan atau dibayar lewat Makam.co.id. Keterangan
-          fasilitas berasal dari pengelola atau berita, bisa berubah; pastikan langsung ke pengelolanya. Lokasi yang sudah bisa dipesan ada di{" "}
+          fasilitas berasal dari pengelola atau berita, bisa berubah; tanyakan lewat CS kami. Lokasi yang sudah bisa dipesan ada di{" "}
           <Link href="/lokasi" className="font-bold text-forest underline underline-offset-4">
             Daftar Lokasi
           </Link>

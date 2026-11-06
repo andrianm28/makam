@@ -399,7 +399,7 @@ function LangkahKavling({
         ))}
       </ul>
 
-      <KonfirmasiPromise grup={grup} />
+      <KonfirmasiPromise grup={grup} csContact={csContact} />
 
       {csContact ? (
         <a
@@ -640,10 +640,11 @@ function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: b
 
 /**
  * Said once per Lokasi Mitra: inside Jam Operasional, when it will confirm;
- * outside it, the same deadline plus the Kontak Siaga to phone for a burial
- * that cannot wait.
+ * outside it, the same deadline plus the platform's CS for a burial that cannot
+ * wait. A family never contacts the Lokasi Mitra directly (dri, 6 Nov 2026):
+ * the Kontak Siaga is for staff and CS only.
  */
-function KonfirmasiPromise({ grup }: { grup: GrupView }) {
+function KonfirmasiPromise({ grup, csContact }: { grup: GrupView; csContact: CsContact | null }) {
   if (grup.bukaSekarang) {
     return (
       <p className="flex items-start gap-2 text-small text-muted-foreground">
@@ -660,14 +661,9 @@ function KonfirmasiPromise({ grup }: { grup: GrupView }) {
           Sekarang di luar Jam Operasional Lokasi Mitra ini. <strong className="font-semibold">{grup.konfirmasi}</strong>
         </span>
       </p>
-      {grup.kontakSiaga ? (
-        <p className="mt-1 pl-6">
-          Perlu lebih cepat? Kontak Siaga: {grup.kontakSiaga.nama ? `${grup.kontakSiaga.nama}, ` : ""}
-          <a href={`tel:${grup.kontakSiaga.telepon}`} className="font-semibold underline underline-offset-2">
-            {grup.kontakSiaga.telepon}
-          </a>
-        </p>
-      ) : null}
+      <p className="mt-1 pl-6">
+        Perlu lebih cepat? <CsTanyaCS csContact={csContact} />, kami yang menghubungi Lokasi Mitra untuk Anda.
+      </p>
     </div>
   );
 }

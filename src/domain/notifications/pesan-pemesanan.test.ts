@@ -96,7 +96,7 @@ describe("a Saat Duka order submitted reaches the family's verified email", () =
 });
 
 describe("the same order confirmed reaches the family's verified email", () => {
-  it("names the assigned Petak, the Lokasi's contact, the document checklist and the payment deadline", async () => {
+  it("names the assigned Petak, the CS to ask (never the Lokasi Mitra's own number), the document checklist and the payment deadline", async () => {
     const setup = notificationsOnTestDatabase(db);
 
     expect(await setup.notifications.pesananDikonfirmasi(pesananDikonfirmasi())).toEqual({ ok: true });
@@ -106,7 +106,8 @@ describe("the same order confirmed reaches the family's verified email", () => {
     expect(sent).toHaveLength(1);
     const text = sent[0]!.text;
     expect(text).toContain("A-01");
-    expect(text).toContain("+628111111111");
+    expect(text).not.toContain("+628111111111");
+    expect(text).toContain("hubungi CS makam.co.id");
     expect(text).toContain("Kartu Keluarga");
     expect(text).toContain("TGH-2026-000123");
     expect(text).toContain("5 Oktober 2026, 10.00 WIB");
@@ -170,7 +171,7 @@ describe("the Pemegang Hak's consent request for a further burial (Makamkan di s
 });
 
 describe("a refused further burial reaches the family in its own words", () => {
-  it("says the Lokasi cannot carry it out, nothing is due and the Hak Pakai is untouched, with the Kontak Siaga to call and no Pilih makam link, and opens no call row", async () => {
+  it("says the Lokasi cannot carry it out, nothing is due and the Hak Pakai is untouched, with the CS to ask (never the Kontak Siaga's number) and no Pilih makam link, and opens no call row", async () => {
     const setup = notificationsOnTestDatabase(db);
     const hasil = await setup.notifications.tumpangDitolak({
       pemesananId: PESANAN_ID,
@@ -190,8 +191,8 @@ describe("a refused further burial reaches the family in its own words", () => {
     expect(sent[0]?.text).toContain("Pemegang Hak tidak menyetujui");
     expect(sent[0]?.text).toContain("Hak Pakai");
     expect(sent[0]?.text).toContain("tidak ada yang perlu dibayar");
-    expect(sent[0]?.text).toContain("Pak Ahmad");
-    expect(sent[0]?.text).toContain("081200000009");
+    expect(sent[0]?.text).not.toContain("081200000009");
+    expect(sent[0]?.text).toContain("hubungi CS makam.co.id");
     expect(sent[0]?.text).not.toContain("Pilih makam");
     expect(sent[0]?.text).not.toContain("saat-duka");
     expect(await setup.notifications.pesanPemesanan(PESANAN_ID)).toEqual([expect.objectContaining({ template: "tumpang_ditolak", status: "terkirim" })]);

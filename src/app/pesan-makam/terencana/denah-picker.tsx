@@ -7,7 +7,6 @@ import type { TahanUnit } from "@/domain/inventory";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { lanjutPilihPetak, type LanjutState } from "./actions";
-import { formatTelepon } from "@/lib/format-telepon";
 import { kavlingByNomor, ringkasanPilihan } from "./ringkasan";
 import type { DenahView, KavlingView, SelView } from "./tampilan";
 import { terencanaPath } from "./tautan";
@@ -106,7 +105,7 @@ export function DenahPicker({
       return;
     }
     if (cell.status !== "bisa_dipilih") {
-      setPesan(cell.tumpangSaja ? tumpangSentence(cell, denah) : petakSentence(cell));
+      setPesan(cell.tumpangSaja ? tumpangSentence(cell) : petakSentence(cell));
       return;
     }
     if (kavling) {
@@ -198,12 +197,12 @@ export function DenahPicker({
 
         <aside className="flex flex-col gap-4">
           <div className="hidden lg:block">
-            <Detail denah={denah} fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
+            <Detail fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
           </div>
           {/* Phone: the tapped cell's detail floats just above the total bar. */}
           {fokus ? (
             <div className="fixed inset-x-3 bottom-[6.5rem] z-20 lg:hidden">
-              <Detail denah={denah} fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
+              <Detail fokus={fokus} terpilih={terpilih} onTutup={() => setFokus(null)} />
             </div>
           ) : null}
           <details className="group rounded-2xl border border-border bg-card p-4 lg:open:pb-4" open>
@@ -221,7 +220,7 @@ export function DenahPicker({
               <Legend swatch="border-2 border-primary bg-brand-soft" pintu label="Pintu Masuk (cara masuk lokasi)" />
               <Legend
                 swatch="bg-neutral-soft after:absolute after:bottom-0.5 after:right-0.5 after:size-1.5 after:rounded-full after:bg-sage-strong"
-                label="Terisi, bisa untuk tumpang (hubungi Admin Lokasi)"
+                label="Terisi, bisa untuk tumpang (lewat CS)"
               />
               <li className="text-muted-foreground">Petak yang warnanya redup tetap bisa diketuk, dan alasannya muncul di panel detailnya.</li>
             </ul>
@@ -389,7 +388,7 @@ function Legend({ swatch, label, pintu }: { swatch: string; label: string; pintu
 }
 
 /** The tapped cell's own panel: its Nomor Makam, its Jenis Makam, and why it cannot be picked. */
-function Detail({ denah, fokus, terpilih, onTutup }: { denah: DenahView; fokus: SelView | null; terpilih: (cell: SelView) => boolean; onTutup: () => void }) {
+function Detail({ fokus, terpilih, onTutup }: { fokus: SelView | null; terpilih: (cell: SelView) => boolean; onTutup: () => void }) {
   if (!fokus) {
     return (
       <div className="rounded-2xl border border-border bg-card p-4 text-body text-muted-foreground">
@@ -398,7 +397,7 @@ function Detail({ denah, fokus, terpilih, onTutup }: { denah: DenahView; fokus: 
     );
   }
   const isi = fokus.tumpangSaja ? (
-    <p>{tumpangSentence(fokus, denah)}</p>
+    <p>{tumpangSentence(fokus)}</p>
   ) : fokus.status === "bisa_dipilih" ? (
     <p>
       {fokus.kavling ? "Kavling Keluarga ini dipilih utuh, dengan satu Hak Pakai untuk seluruh petaknya." : "Harga Hak Pakai petak ini sudah masuk di total pilihan Anda."}{" "}
@@ -419,9 +418,9 @@ function Detail({ denah, fokus, terpilih, onTutup }: { denah: DenahView; fokus: 
         </span>
       </div>
       {isi}
-      {fokus.tumpangSaja && denah.kontakSiaga ? (
-        <a href={`tel:${denah.kontakSiaga.telepon.replace(/-/g, "")}`} className="inline-flex items-center gap-1.5 font-semibold text-primary">
-          <Phone className="size-4" aria-hidden /> Hubungi Admin Lokasi: {denah.kontakSiaga.nama}, {formatTelepon(denah.kontakSiaga.telepon)}
+      {fokus.tumpangSaja ? (
+        <a href="/hubungi-kami" className="inline-flex items-center gap-1.5 font-semibold text-primary">
+          <Phone className="size-4" aria-hidden /> Hubungi CS makam.co.id
         </a>
       ) : null}
       <button type="button" onClick={onTutup} aria-label="Tutup detail petak" className="absolute top-2 right-2 inline-flex size-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent">
@@ -484,10 +483,12 @@ function alasanKavling(kavling: KavlingView): string {
   return kavling.status === "sedang_dipesan" ? "sedang dipesan keluarga lain, jadi tidak bisa dipilih." : "sudah dipakai, jadi tidak bisa dipilih.";
 }
 
-/** A Terisi plot that can still take a tumpang: a tumpang is arranged with the Admin Lokasi, not bought here. */
-function tumpangSentence(cell: SelView, denah: DenahView): string {
-  const siapa = denah.kontakSiaga ? `: ${denah.kontakSiaga.nama}, ${formatTelepon(denah.kontakSiaga.telepon)}` : ".";
+/**
+ * A Terisi plot that can still take a tumpang: it is not bought here, and the family arranges it through the platform's
+ * CS, never with the Lokasi Mitra directly (dri, 6 Nov 2026).
+ */
+function tumpangSentence(cell: SelView): string {
   return cell.kavling
-    ? `Kavling Keluarga ${cell.kavling.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang. Pengaturannya lewat Admin Lokasi${siapa}`
-    : `${cell.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang (pemakaman di makam yang sudah ada). Pengaturannya lewat Admin Lokasi${siapa}`;
+    ? `Kavling Keluarga ${cell.kavling.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang. Pengaturannya lewat CS makam.co.id.`
+    : `${cell.nomor} sudah terisi dan hanya bisa dipakai untuk tumpang (pemakaman di makam yang sudah ada). Pengaturannya lewat CS makam.co.id.`;
 }

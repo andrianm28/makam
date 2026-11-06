@@ -152,9 +152,9 @@ function jawabMessage(reason: string): string {
     case "alasan_wajib":
       return "Tulis alasan pembatalan dulu.";
     case "sudah_dibayar":
-      return "Tagihan pesanan ini sudah dibayar, jadi tidak bisa ditarik lagi. Hubungi Lokasi Mitra untuk pembatalan sesuai Syarat Pemesanan.";
+      return "Tagihan pesanan ini sudah dibayar, jadi tidak bisa ditarik lagi. Hubungi CS makam.co.id untuk pembatalan sesuai Syarat Pemesanan.";
     case "pemakaman_sudah_dicatat":
-      return "Pemakaman sudah dilakukan, jadi petak tidak bisa dikembalikan. Hubungi Lokasi Mitra untuk SHO dan pemindahan jenazah.";
+      return "Pemakaman sudah dilakukan, jadi petak tidak bisa dikembalikan. Hubungi CS makam.co.id untuk SHO dan pemindahan jenazah.";
     case "hak_pakai_tidak_ditemukan":
     case "hak_pakai_sudah_berakhir":
       return "Hak Pakai pesanan ini sudah berakhir, jadi tidak ada yang bisa dikembalikan.";

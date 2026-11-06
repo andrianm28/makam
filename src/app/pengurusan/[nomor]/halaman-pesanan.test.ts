@@ -367,7 +367,8 @@ describe("the order page of a Saat Duka TPU order, which has a burial", () => {
 
     expect(teks).toContain("Pemakaman sudah dikonfirmasi");
     expect(teks).toContain(`Waktu pemakaman ${formatTanggalJam(wib("2026-10-02 09:00"))}`);
-    expect(teks).toContain("Petugas TPU Kober, 0218501234");
+    // The family asks the platform, never the TPU office directly (dri, 6 Nov 2026).
+    expect(teks).not.toContain("0218501234");
     expect(teks).toContain(`Tagihan ${tagihan!.nomor} sebesar`);
     expect(html).toContain(`href="/dokumen/${tagihan!.link}"`);
     expect(teks).toContain("Dibawa saat pemakaman");

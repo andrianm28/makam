@@ -88,7 +88,6 @@ export async function pengurusanDikonfirmasi(
     almarhum: data.almarhum,
     pemakamanAt: data.pemakamanAt,
     adminPlatform: data.adminPlatform,
-    kontakTpu: data.kontakTpu,
     catatan: data.catatan,
     dokumen: data.dokumen,
     harga: data.harga,

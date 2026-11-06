@@ -43,8 +43,6 @@ export interface GrupView {
   bukaSekarang: boolean;
   /** "Dikonfirmasi paling lambat …", or that it has no Jam Operasional to promise one. */
   konfirmasi: string;
-  /** The Kontak Siaga to phone outside Jam Operasional; null before one is picked. */
-  kontakSiaga: { nama: string; telepon: string } | null;
   pilihan: KartuView[];
   /** The Lokasi Mitra's own Kunjungan Verifikasi photo, signed for this request; null when it has none yet. */
   photoUrl: string | null;
@@ -75,12 +73,6 @@ export function grupView(grup: GrupSaatDuka, photoUrl: string | null = null): Gr
     krematorium: grup.lokasi.infoKartu.krematorium,
     bukaSekarang: grup.konfirmasi.bukaSekarang,
     konfirmasi: konfirmasiLabel(grup.konfirmasi.batas),
-    kontakSiaga: grup.konfirmasi.kontakSiaga?.phoneNumber
-      ? {
-          nama: grup.konfirmasi.kontakSiaga.name,
-          telepon: grup.konfirmasi.kontakSiaga.phoneNumber,
-        }
-      : null,
     pilihan: grup.pilihan.map(kartuView),
     photoUrl,
   };
