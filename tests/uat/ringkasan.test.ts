@@ -49,7 +49,7 @@ function selesai(satu: Perjalanan): [TestCase, TestResult] {
 
 /** One `npm run uat` invocation: the journeys that ran, then the summary the folder holds afterwards. */
 function jalankan(folder: string, perjalanan: Perjalanan[], mulai = new Date("2026-10-04T03:00:00Z")): string {
-  const pelapor = new RingkasanReporter({ out: folder, baseUrl: "https://dev.makam.co.id", sekarang: () => mulai });
+  const pelapor = new RingkasanReporter({ out: folder, baseUrl: "https://stg.makam.co.id", sekarang: () => mulai });
   for (const satu of perjalanan) pelapor.onTestEnd(...selesai(satu));
   pelapor.onEnd({ status: "passed" } as FullResult);
   return readFileSync(path.join(folder, "ringkasan.md"), "utf8");

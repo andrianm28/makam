@@ -14,7 +14,7 @@
 #
 # The blocks come from $MAKAM_SWITCH_SRC (default $MAKAM_ROOT/nginx, where
 # deploy/install-host.sh copies deploy/nginx). The staging block
-# (dev.makam.co.id.conf) is never touched.
+# (stg.makam.co.id.conf) is never touched.
 set -euo pipefail
 
 MAKAM_ROOT=${MAKAM_ROOT:-/opt/makam-v1}

@@ -1,13 +1,13 @@
 # UAT runner (ticket 110)
 
-Playwright journeys for the staging UAT of Rilis 1, 2 and 3. Agents run them against `https://dev.makam.co.id` with an automated browser; the owner reads out the Kode Masuk codes, spot-checks the screenshots and signs off. It is **not** the e2e suite: its own `uat/perjalanan` directory, never run by CI or by `npm run e2e`, and it **refuses any base URL other than staging or a local stack** (production is never a target; a browser request to a production host is aborted).
+Playwright journeys for the staging UAT of Rilis 1, 2 and 3. Agents run them against `https://stg.makam.co.id` with an automated browser; the owner reads out the Kode Masuk codes, spot-checks the screenshots and signs off. It is **not** the e2e suite: its own `uat/perjalanan` directory, never run by CI or by `npm run e2e`, and it **refuses any base URL other than staging or a local stack** (production is never a target; a browser request to a production host is aborted).
 
 Checklists the journeys follow: `.scratch/makam-v1-build/uat-rilis-1-checklist.md` (sections 0 to 11) and `uat-rilis-2-3-checklist.md` (items tagged [BAYAR] / [TANPA-BAYAR]).
 
 ## Run
 
 ```
-UAT_BASE_URL=https://dev.makam.co.id \
+UAT_BASE_URL=https://stg.makam.co.id \
 UAT_EMAIL_PEMESAN=owner+pemesan@gmail.com UAT_EMAIL_ADMIN_LOKASI=owner+lokasi@gmail.com \
 UAT_EMAIL_ADMIN_PLATFORM=owner+platform@gmail.com \
 UAT_OUT=/home/ubuntu/uat-runs/rilis-1 \
@@ -23,7 +23,7 @@ Journeys are serial and hand state on through `$UAT_OUT/keadaan.json` (the Nomor
 
 | Variable | Meaning |
 |---|---|
-| `UAT_BASE_URL` | **required**: `https://dev.makam.co.id` or `http://127.0.0.1:<port>` / `localhost` |
+| `UAT_BASE_URL` | **required**: `https://stg.makam.co.id` or `http://127.0.0.1:<port>` / `localhost` |
 | `UAT_BASIC_AUTH_USER`, `UAT_BASIC_AUTH_PASSWORD` | basic auth for a staging that has it (it has none today); both or neither; never committed |
 | `UAT_EMAIL_PEMESAN`, `_ADMIN_LOKASI`, `_ADMIN_PLATFORM`, `_PETUGAS_LAPANGAN`, `_MITRA_JASA` | the personas: the owner's Gmail plus-aliases |
 | `UAT_OUT` | this run's folder; default `/home/ubuntu/uat-runs/<WIB date>-<sha>` (`UAT_RUNS_DIR` changes the parent, `UAT_SHA` the sha) |
@@ -52,7 +52,7 @@ It never writes over a code already waiting and never gives the same code twice;
 
 The base URL is checked twice, and either check stops the run with a message that starts `UAT ditolak`:
 
-1. **By its words** (`bacaKonfigurasi`, `support/lingkungan.ts`): only exactly `https://dev.makam.co.id`, or `localhost` / `127.0.0.1` / `[::1]` on any port. Production and look-alike hosts are refused, and a browser request to any other makam.co.id host is aborted during the run.
+1. **By its words** (`bacaKonfigurasi`, `support/lingkungan.ts`): only exactly `https://stg.makam.co.id`, or `localhost` / `127.0.0.1` / `[::1]` on any port. Production and look-alike hosts are refused, and a browser request to any other makam.co.id host is aborted during the run.
 2. **By asking the stack** (`support/pra-uji.ts`, Playwright's `globalSetup`, once before any journey): the runner calls `GET <base URL>/api/health` and reads `environment`, the `APP_ENV` of that process. Only `development`, `test` or `staging` pass. This is the check that stops a loopback port of the production host from passing as a local stack: production listens on `127.0.0.1:3100`, passes check 1 and answers `production`, so the run exits 1 with "mengaku environment produksi". The check fails closed: no answer (nothing listening, a timeout), an answer that is not the health report, no `environment` in it, or an environment the runner does not know ("tidak dikenal") are all refused. A 503 from a known environment (the worker's heartbeat is stale) still passes, because the check settles where the stack is, not whether it is well. Staging's basic auth, when set, is sent with the request.
 
 So a local stack (`UAT_BASE_URL=http://127.0.0.1:3310`) runs only when its own `APP_ENV` is `development` or `test`. Nothing is sent to the stack, not even a login, before both checks pass.

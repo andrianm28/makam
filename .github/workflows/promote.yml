@@ -121,7 +121,7 @@ jobs:
           # And the newest smoke result for this digest must be a pass (the smoke
           # workflow records one against the digest and ref it just checked).
           jq -e --arg digest "$digest" \
-            '[.[] | select((.description // "") | startswith("smoke test against dev.makam.co.id for " + $digest + ":"))]
+            '[.[] | select((.description // "") | startswith("smoke test against stg.makam.co.id for " + $digest + ":"))]
              | sort_by(.created_at) | last | .state == "success"' <<< "$statuses" > /dev/null \
             || refuse "$digest has no passed staging smoke test as its newest smoke result; run the \"Smoke test staging\" workflow"
           {

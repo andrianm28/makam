@@ -74,7 +74,7 @@ const prodTwin = (staging: string): string => staging.replace("makam-staging-", 
 
 /** Local, so it is the same whether or not nginx and TLS are up: nginx still serves the old app until the switch. */
 const PROD_HEALTH_URL = "http://127.0.0.1:3100/api/health";
-const STAGING_HEALTH_URL = "https://dev.makam.co.id/api/health";
+const STAGING_HEALTH_URL = "https://stg.makam.co.id/api/health";
 
 /** What a staging directive must say once the unit is production's. */
 function asProd(value: string): string {

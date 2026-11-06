@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 /**
  * The staging smoke test (ticket 72): the short gate in front of production,
- * run from a hosted runner against the real https://dev.makam.co.id by
+ * run from a hosted runner against the real https://stg.makam.co.id by
  * .github/workflows/staging-smoke.yml. Three pages, no login, no seeded data:
  * health, the public home and the Masuk page. Anything that needs an Akun
  * belongs in the e2e job against a throwaway stack, not here.
@@ -61,7 +61,7 @@ test("@smoke the browser DSN is served at runtime, not baked into the image", as
     .poll(() => page.evaluate(() => window.__MAKAM_BROWSER_SENTRY_DSN__), { timeout: 10_000 })
     .toBe(served.sentryDsn);
 
-  // The hosted gate runs against dev.makam.co.id, where the DSN is set; the CI
+  // The hosted gate runs against stg.makam.co.id, where the DSN is set; the CI
   // e2e stack sets none, and there an empty DSN is the correct answer (it turns
   // browser reporting off rather than reporting to nowhere).
   const isTheRealSite = !["127.0.0.1", "localhost"].includes(new URL(page.url()).hostname);

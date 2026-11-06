@@ -6,7 +6,7 @@ import { bacaKonfigurasi } from "./support/lingkungan";
 
 /*
  * The UAT runner (ticket 110, `npm run uat`): scripted journeys against staging
- * (https://dev.makam.co.id) or a local stack, with the owner reading out the
+ * (https://stg.makam.co.id) or a local stack, with the owner reading out the
  * codes. It is not the e2e suite: its own testDir, never run by CI or by
  * `npm run e2e`. The base URL is refused unless it is staging or local, and before
  * any journey the stack itself must say it is development, test or staging

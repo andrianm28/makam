@@ -167,7 +167,7 @@ const deployment = (extra: Record<string, unknown> = {}) => ({ id: 77, ref: SHA,
 const status = (state: string, description: string, createdAt: string) => ({ state, description, created_at: createdAt });
 const hostHealthy = (digest = DIGEST) => status("success", `sha-${SHA} (${digest}) healthy`, "2026-10-04T05:02:00Z");
 const smokeStatus = (state: "success" | "failure", at: string, digest = DIGEST) =>
-  status(state, `smoke test against dev.makam.co.id for ${digest}: ${state}`, at);
+  status(state, `smoke test against stg.makam.co.id for ${digest}: ${state}`, at);
 const inProgress = status("in_progress", `migrate and restart makam-staging on sha-${SHA}`, "2026-10-04T05:00:00Z");
 
 function verify(statuses: unknown[] | string, deployments: unknown[] = [deployment()]): RunResult {

@@ -37,7 +37,7 @@ async function main() {
       ...event,
       request: {
         method: "POST",
-        url: `https://dev.makam.co.id/sentry-check?wa=${SAMPLE_PHONE}`,
+        url: `https://stg.makam.co.id/sentry-check?wa=${SAMPLE_PHONE}`,
         query_string: `wa=${SAMPLE_PHONE}`,
         data: JSON.stringify({ phone: SAMPLE_PHONE, note: "request body must not arrive" }),
         cookies: { session: "must-not-arrive" },

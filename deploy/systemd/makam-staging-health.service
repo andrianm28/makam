@@ -1,7 +1,7 @@
 # Local watchdog for staging: the app's /api/health and the host's root disk.
 # Both log failures to the journal (tags makam-health and makam-disk). Not the uptime alarm.
 [Unit]
-Description=Check https://dev.makam.co.id/api/health and the host's disk
+Description=Check https://stg.makam.co.id/api/health and the host's disk
 Wants=network-online.target
 After=network-online.target
 
@@ -9,7 +9,7 @@ After=network-online.target
 Type=oneshot
 User=ubuntu
 Group=ubuntu
-ExecStart=/opt/makam-v1/bin/makam-healthcheck https://dev.makam.co.id/api/health
+ExecStart=/opt/makam-v1/bin/makam-healthcheck https://stg.makam.co.id/api/health
 # The disk check (ticket 73) runs second on purpose: systemd stops a oneshot at
 # the first failing ExecStart, and the app check is the one an operator (and the
 # external UptimeRobot alarm) acts on, so a minute in which the app is already

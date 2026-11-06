@@ -179,13 +179,13 @@ describe("composition root", () => {
           vapid: VAPID,
           filesRoot: root,
           authSecret: "a-test-auth-secret-at-least-32-bytes-long",
-          appBaseUrl: "https://dev.makam.co.id/",
+          appBaseUrl: "https://stg.makam.co.id/",
         });
 
         await files.put({ key: "a.jpg", body: new Uint8Array([1]), contentType: "image/jpeg" });
         const url = await files.signedUrl("a.jpg", { expiresInSeconds: 60 });
 
-        expect(new URL(url).origin).toBe("https://dev.makam.co.id");
+        expect(new URL(url).origin).toBe("https://stg.makam.co.id");
         expect(new URL(url).pathname).toBe("/api/files/a.jpg");
       },
     );

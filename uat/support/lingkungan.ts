@@ -8,7 +8,7 @@ import { JEDA_ANTAR_KODE_MS, MARGIN_BAWAAN_MS } from "./jeda-kode";
  *
  * The runner pays and logs in on a real stack, so its first rule is that it never
  * targets production. Three guards, each alone enough for one way of getting there:
- * the base URL must be exactly staging (https://dev.makam.co.id) or a local stack;
+ * the base URL must be exactly staging (https://stg.makam.co.id) or a local stack;
  * the stack at that address must itself say, on /api/health, that it is development,
  * test or staging (a loopback port on the production host is a "local stack" to the
  * URL check, and production listens on 127.0.0.1:3100 there); and a browser request
@@ -16,9 +16,9 @@ import { JEDA_ANTAR_KODE_MS, MARGIN_BAWAAN_MS } from "./jeda-kode";
  * are unit-tested (tests/uat/lingkungan.test.ts).
  */
 
-export const STAGING_ORIGIN = "https://dev.makam.co.id";
+export const STAGING_ORIGIN = "https://stg.makam.co.id";
 
-const STAGING_HOST = "dev.makam.co.id";
+const STAGING_HOST = "stg.makam.co.id";
 const PRODUCTION_DOMAIN = "makam.co.id";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
@@ -41,7 +41,7 @@ function milikMakam(host: string): boolean {
 }
 
 /**
- * The origin to run against, or a refusal. Only exactly `https://dev.makam.co.id`
+ * The origin to run against, or a refusal. Only exactly `https://stg.makam.co.id`
  * (default port, no path, no password) and localhost / 127.0.0.1 / [::1] on any
  * port pass; production, look-alike hosts and anything else are refused.
  */
@@ -84,7 +84,7 @@ export function pastikanBaseUrlBoleh(url: string | undefined): string {
 
 /**
  * True when a request the browser is about to make goes to a production
- * makam.co.id host (staging itself is `dev.makam.co.id`). The runner aborts such
+ * makam.co.id host (staging itself is `stg.makam.co.id`). The runner aborts such
  * a request: a link that leaks the production address must never be followed.
  */
 export function permintaanKeProduksi(url: string): boolean {

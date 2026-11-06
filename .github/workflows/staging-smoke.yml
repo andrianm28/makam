@@ -1,7 +1,7 @@
 name: Smoke test staging
 
 # The gate in front of production (ticket 72): a short Playwright smoke test
-# against the real https://dev.makam.co.id, on a hosted runner, never on the
+# against the real https://stg.makam.co.id, on a hosted runner, never on the
 # host. It runs for the digest staging is actually running and records the
 # result against that digest as a GitHub Deployment status, which
 # "Promosikan ke produksi" reads before it will promote anything.
@@ -36,7 +36,7 @@ concurrency:
 
 jobs:
   smoke:
-    name: Playwright smoke against dev.makam.co.id
+    name: Playwright smoke against stg.makam.co.id
     runs-on: ubuntu-latest
     timeout-minutes: 15
     # A deployment_status event fires for every status of every Deployment, the
@@ -52,7 +52,7 @@ jobs:
       contents: read
       deployments: write
     env:
-      BASE_URL: https://dev.makam.co.id
+      BASE_URL: https://stg.makam.co.id
     steps:
       # What staging is running right now: the newest staging deployment that
       # names a digest, with its id and the commit it was made for. A host that
@@ -156,4 +156,4 @@ jobs:
           gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$DEPLOYMENT_ID/statuses" \
             -f state="$state" -f environment=staging \
             -f "log_url=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
-            -f "description=smoke test against dev.makam.co.id for $DIGEST: $state"
+            -f "description=smoke test against stg.makam.co.id for $DIGEST: $state"

@@ -11,7 +11,7 @@ const repo = fileURLToPath(new URL("../..", import.meta.url));
 const read = (file: string) => readFileSync(path.join(repo, file), "utf8");
 
 describe("the staging block", () => {
-  const block = read("deploy/nginx/dev.makam.co.id.conf");
+  const block = read("deploy/nginx/stg.makam.co.id.conf");
 
   it("gives the SumoPod webhook the path the app serves, /api/webhooks/pembayaran", () => {
     expect(block).toMatch(/location = \/api\/webhooks\/pembayaran \{/);
@@ -19,9 +19,26 @@ describe("the staging block", () => {
   });
 });
 
+describe("the old staging name dev.makam.co.id", () => {
+  const block = read("deploy/nginx/stg.makam.co.id.conf");
+  const dev = block.split(/\nserver \{/).slice(1).filter((server) => server.includes("server_name dev.makam.co.id;"));
+
+  it("answers on http and https only with a 301 to stg.makam.co.id, keeping the path", () => {
+    expect(dev).toHaveLength(2);
+    for (const server of dev) expect(server).toContain("return 301 https://stg.makam.co.id$request_uri;");
+    expect(block).toMatch(/server_name stg\.makam\.co\.id;/);
+  });
+
+  it("still proxies the SumoPod webhook to staging, since a webhook sender does not follow a redirect", () => {
+    const https = dev.find((server) => server.includes("listen 443"))!;
+    expect(https).toMatch(/location = \/api\/webhooks\/pembayaran \{[^}]*include snippets\/makam-staging-proxy\.conf;/);
+    expect(https).toContain('add_header X-Robots-Tag "noindex, nofollow, noarchive, nosnippet" always;');
+  });
+});
+
 describe("the production block for makam.co.id and www", () => {
   const block = read("deploy/nginx/makam.co.id.conf");
-  const staging = read("deploy/nginx/dev.makam.co.id.conf");
+  const staging = read("deploy/nginx/stg.makam.co.id.conf");
   const stagingProxy = read("deploy/nginx/makam-staging-proxy.conf");
   const proxy = read("deploy/nginx/makam-prod-proxy.conf");
 
@@ -205,7 +222,7 @@ describe("the staging and production blocks, side by side in one nginx", () => {
     }
     return out;
   };
-  const files = ["deploy/nginx/makam.co.id.conf", "deploy/nginx/dev.makam.co.id.conf"];
+  const files = ["deploy/nginx/makam.co.id.conf", "deploy/nginx/stg.makam.co.id.conf"];
 
   it("declare limit_req_status inside each https server, never at http level", () => {
     for (const file of files) {
@@ -213,8 +230,8 @@ describe("the staging and production blocks, side by side in one nginx", () => {
       expect(httpLevel(text).filter((line) => line.startsWith("limit_req_status")), file).toEqual([]);
       const servers = text.split(/\nserver \{/).slice(1);
       const https = servers.filter((server) => server.includes("listen 443"));
-      expect(https.length, file).toBe(1);
-      expect(https[0], file).toMatch(/\n\s+limit_req_status 429;/);
+      expect(https.length, file).toBeGreaterThan(0);
+      for (const server of https) expect(server, file).toMatch(/\n\s+limit_req_status 429;/);
     }
   });
 

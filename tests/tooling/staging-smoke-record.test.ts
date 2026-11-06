@@ -14,7 +14,7 @@ const RECORD_STEP = "Record the result against the digest";
 
 afterEach(cleanSandboxes);
 
-/** What `curl https://dev.makam.co.id/api/health` prints; `unreachable` is a curl that fails. */
+/** What `curl https://stg.makam.co.id/api/health` prints; `unreachable` is a curl that fails. */
 type Health = { release?: string | null } | "unreachable" | "not json";
 
 function record(result: string, health: Health = { release: REF }): RunResult {
@@ -50,7 +50,7 @@ describe("staging smoke: the result recorded against the digest", () => {
     const post = posted(r);
     expect(post).toContain("deployments/4242/statuses");
     expect(post).toContain("state=success");
-    expect(post).toContain(`description=smoke test against dev.makam.co.id for ${DIGEST}: success`);
+    expect(post).toContain(`description=smoke test against stg.makam.co.id for ${DIGEST}: success`);
     expect(r.calls.some((call) => call.startsWith("curl") && call.includes("/api/health"))).toBe(true);
   });
 
@@ -58,7 +58,7 @@ describe("staging smoke: the result recorded against the digest", () => {
     const r = record(result);
     expect(r.status).toBe(0);
     expect(posted(r)).toContain("state=failure");
-    expect(posted(r)).toContain(`description=smoke test against dev.makam.co.id for ${DIGEST}: failure`);
+    expect(posted(r)).toContain(`description=smoke test against stg.makam.co.id for ${DIGEST}: failure`);
   });
 });
 
@@ -67,7 +67,7 @@ describe("staging smoke: a pass belongs to the digest that is actually running",
     const r = record("success", { release: PREVIOUS_REF });
     expect(r.status).toBe(0);
     expect(posted(r)).toContain("state=failure");
-    expect(posted(r)).toContain(`description=smoke test against dev.makam.co.id for ${DIGEST}: failure`);
+    expect(posted(r)).toContain(`description=smoke test against stg.makam.co.id for ${DIGEST}: failure`);
     expect(r.stderr).toContain(PREVIOUS_REF);
     expect(r.stderr).toContain(REF);
   });
