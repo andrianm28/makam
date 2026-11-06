@@ -37,7 +37,7 @@ export function SiteFooter({ legalName, contact, items = [] }: { legalName: stri
           </nav>
         ))}
         {lainnya.length > 0 ? (
-          // The groups without sub-items (Program Wakaf, Daftar Lokasi) are their own headings, side by side in one column.
+          // The groups without sub-items (Proteksi Kedukaan) are their own headings, side by side in one column.
           <nav aria-label="Program dan lokasi" className="flex flex-col gap-3 text-small">
             {lainnya.map((item) =>
               item.href ? (

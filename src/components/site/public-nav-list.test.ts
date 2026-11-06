@@ -43,18 +43,18 @@ describe("the public site navigation", () => {
   it("opens a group in the top bar as a disclosure with its pages and a link to the group's own page", () => {
     const markup = renderToStaticMarkup(createElement(PublicNavList, { items, pathname: "/", variant: "bar" }));
     expect(markup).toMatch(/<details[^>]*>\s*<summary[^>]*>.*Layanan Kedukaan/);
-    expect(markup).toContain('href="/layanan-kedukaan/mobil-jenazah"');
+    expect(markup).toContain('href="/layanan-kedukaan/rumah-duka"');
     expect(markup).toContain('href="/layanan-kedukaan"');
     expect(markup).toContain('href="/konsultasi-rencana-pemakaman"');
   });
 
   it("marks the page being read as the current one", () => {
     const markup = renderToStaticMarkup(
-      createElement(PublicNavList, { items, pathname: "/lokasi", variant: "bar" }),
+      createElement(PublicNavList, { items, pathname: "/konsultasi-rencana-pemakaman", variant: "bar" }),
     );
     const current = [...markup.matchAll(/<a[^>]*>/g)].map((match) => match[0]);
     expect(current.filter((tag) => tag.includes('aria-current="page"'))).toHaveLength(1);
-    expect(current.find((tag) => tag.includes('aria-current="page"'))).toContain('href="/lokasi"');
+    expect(current.find((tag) => tag.includes('aria-current="page"'))).toContain('href="/konsultasi-rencana-pemakaman"');
   });
 
   it("says an unbuilt page is coming instead of linking to nothing", () => {

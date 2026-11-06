@@ -6,60 +6,52 @@ import { contentPageLinks, publicMenu, publicMenuLabels } from "./public-navigat
 /** A menu as its reader sees it: the labels in order. */
 const labels = (signedIn: boolean) => publicMenu({ signedIn }).map((item) => item.label);
 
-describe("the public site menu", () => {
-  it("lists the owner's four groups, Jasa Pemakaman, Layanan Kedukaan, Program Wakaf Tanah Pemakaman, Daftar Lokasi, then the account item", () => {
-    expect(labels(false)).toEqual(["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi", "Masuk"]);
+describe("the public site menu (rapat Ira, 6 Nov 2026)", () => {
+  it("lists Jasa Pemakaman, Layanan Kedukaan and Proteksi Kedukaan, then the account item: no Daftar Lokasi and no wakaf programme", () => {
+    expect(labels(false)).toEqual(["Jasa Pemakaman", "Layanan Kedukaan", "Proteksi Kedukaan", "Masuk"]);
   });
 
   it("offers Akun Saya instead of Masuk to a signed-in visitor", () => {
     expect(labels(true)).toEqual([...publicMenuLabels, "Akun Saya"]);
   });
 
-  it("puts Pesan Sekarang, Konsultasi Rencana Pemakaman and Makam Keluarga under Jasa Pemakaman", () => {
+  it("puts only Pesan Sekarang and Konsultasi Rencana Pemakaman under Jasa Pemakaman: Makam Keluarga is hidden for now", () => {
     const jasa = publicMenu({ signedIn: false }).find((item) => item.label === "Jasa Pemakaman");
     expect(jasa?.children?.map((child) => [child.label, child.href])).toEqual([
       ["Pesan Sekarang", "/pesan-makam/saat-duka"],
       ["Konsultasi Rencana Pemakaman", "/konsultasi-rencana-pemakaman"],
-      ["Makam Keluarga", "/makam-keluarga"],
     ]);
   });
 
-  it("lists the six Layanan Kedukaan under their group, which opens its own page", () => {
+  it("lists Rumah Duka, and Jasa Cargo, Repatriasi and Bunga Duka Cita as Segera hadir, with no Mobil or Peti Jenazah", () => {
     const kedukaan = publicMenu({ signedIn: false }).find((item) => item.label === "Layanan Kedukaan");
     expect(kedukaan?.href).toBe("/layanan-kedukaan");
-    expect(kedukaan?.children?.map((child) => child.label)).toEqual([
-      "Rumah Duka",
-      "Mobil Jenazah",
-      "Jasa Cargo Jenazah",
-      "Jasa Repatriasi Jenazah",
-      "Peti Jenazah",
-      "Bunga Duka Cita",
+    expect(kedukaan?.children?.map((child) => [child.label, child.href ?? null, child.description])).toEqual([
+      ["Rumah Duka", "/layanan-kedukaan/rumah-duka", expect.any(String)],
+      ["Jasa Cargo Jenazah", null, "Segera hadir."],
+      ["Jasa Repatriasi Jenazah", null, "Segera hadir."],
+      ["Bunga Duka Cita", null, "Segera hadir."],
     ]);
   });
 
-  it("leads every visitor to the Lokasi directory and to Masuk", () => {
-    const menu = publicMenu({ signedIn: false });
-    expect(menu.find((item) => item.label === "Daftar Lokasi")?.href).toBe("/lokasi");
-    expect(menu.find((item) => item.label === "Masuk")?.href).toBe("/masuk");
+  it("shows Proteksi Kedukaan as Segera hadir, with no link and no date", () => {
+    const proteksi = publicMenu({ signedIn: false }).find((item) => item.label === "Proteksi Kedukaan");
+    expect(proteksi).toEqual({ label: "Proteksi Kedukaan", description: "Segera hadir." });
+    expect(JSON.stringify(publicMenu({ signedIn: false }))).not.toMatch(/\d{4}/);
   });
 
-  it("never links the wakaf programme before its release is open, and says so instead of a date", () => {
-    const unbuilt = publicMenu({ signedIn: false, rilis: 1 }).filter((item) => !item.href);
-    expect(unbuilt.map((item) => item.label)).toEqual(["Program Wakaf Tanah Pemakaman"]);
-    for (const item of unbuilt) expect(item.description).toBe("Segera hadir.");
-    expect(publicMenu({ signedIn: false, rilis: 3 }).find((item) => item.label === "Program Wakaf Tanah Pemakaman")?.href).toBe("/wakaf-tanah");
-    expect(JSON.stringify(publicMenu({ signedIn: false }))).not.toMatch(/\d{4}/);
+  it("leads every visitor to Masuk", () => {
+    expect(publicMenu({ signedIn: false }).find((item) => item.label === "Masuk")?.href).toBe("/masuk");
   });
 });
 
 describe("the content pages", () => {
-  it("are the four written for this release, the Lokasi directory and the Kebijakan Privasi", () => {
+  it("are the four written for this release and the Kebijakan Privasi; the Lokasi directory left the footer too", () => {
     expect(contentPageLinks).toEqual([
       { href: "/tentang-kami", label: "Tentang Kami" },
       { href: "/cara-kami-bekerja", label: "Cara Kami Bekerja" },
       { href: "/faq", label: "FAQ" },
       { href: "/hubungi-kami", label: "Hubungi Kami" },
-      { href: "/lokasi", label: "Daftar Lokasi" },
       { href: "/kebijakan-privasi", label: "Kebijakan Privasi" },
     ]);
   });

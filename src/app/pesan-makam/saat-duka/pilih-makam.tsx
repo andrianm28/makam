@@ -317,7 +317,7 @@ function FotoGerbang({ url, nama }: { url: string | null; nama: string }) {
   if (!url) {
     return (
       <div className="flex aspect-[16/10] items-end bg-forest p-3" aria-hidden>
-        <span className="rounded-md bg-black/30 px-2 py-0.5 text-caption text-white">{nama}</span>
+        <span className="rounded-md bg-ivory/20 px-2 py-0.5 text-caption text-ivory">{nama}</span>
       </div>
     );
   }

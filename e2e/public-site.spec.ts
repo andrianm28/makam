@@ -1,7 +1,4 @@
-import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
-import { readRilisEnv } from "../src/lib/env";
-import { terbukaDi } from "../src/lib/rilis-peta";
 
 /**
  * The public site's own smoke test: the Beranda's hero in the order a family in a
@@ -14,28 +11,14 @@ import { terbukaDi } from "../src/lib/rilis-peta";
  * stack nobody has filled in has none. `cs-link.test.ts` and `site-header.test.ts`
  * cover it instead.
  */
-const menuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Program Wakaf Tanah Pemakaman", "Daftar Lokasi"];
+const menuLabels = ["Jasa Pemakaman", "Layanan Kedukaan", "Proteksi Kedukaan"];
 
 /**
- * The release the stack under test has open (ADR 0006). The stack takes it from
- * `deploy/ci/e2e.env`, which the runner's own environment does not carry, so unless
- * `RILIS_TERBUKA` is set for the run (a local stack on another release), read it there.
+ * The menu items with no page yet, so "Segera hadir" (rapat Ira, 6 Nov 2026): Proteksi Kedukaan,
+ * and under Layanan Kedukaan the three without a mitra or vendor yet.
  */
-function rilisStack() {
-  let fromFile: string | undefined;
-  try {
-    fromFile = /^RILIS_TERBUKA=(\d*)\s*$/m.exec(readFileSync("deploy/ci/e2e.env", "utf8"))?.[1];
-  } catch {
-    fromFile = undefined;
-  }
-  return readRilisEnv({ APP_ENV: process.env.APP_ENV, RILIS_TERBUKA: process.env.RILIS_TERBUKA ?? fromFile });
-}
-
-/**
- * The menu items whose page is not there in this release, so "Segera hadir": only the wakaf
- * programme, which opens with Rilis 3.
- */
-const belumHadir = terbukaDi("wakaf", rilisStack()) ? [] : ["Program Wakaf Tanah Pemakaman"];
+const belumHadir = ["Proteksi Kedukaan"];
+const kedukaanSegera = ["Jasa Cargo Jenazah", "Jasa Repatriasi Jenazah", "Bunga Duka Cita"];
 
 test("the Beranda leads with the urgent entry, and offers the planned one beside it", async ({ page }) => {
   await page.goto("/");
@@ -96,15 +79,13 @@ test("the top bar lists the whole menu, and only opens the pages that exist", as
     await expect(menu.getByText(label, { exact: true })).toBeVisible();
     await expect(menu.getByRole("link", { name: new RegExp(`^${label}`) })).toHaveCount(0);
   }
-  await expect(menu.getByText("Segera", { exact: true })).toHaveCount(belumHadir.length);
-  // A group opens its pages: Layanan Kedukaan lists the six and links its own page.
+  await expect(menu.getByText("Segera", { exact: true })).toHaveCount(belumHadir.length + kedukaanSegera.length);
+  // A group opens its pages: Layanan Kedukaan links Rumah Duka and its own page; no Mobil or Peti Jenazah.
   await menu.getByText("Layanan Kedukaan", { exact: true }).click();
-  await expect(menu.getByRole("link", { name: "Mobil Jenazah" })).toHaveAttribute("href", "/layanan-kedukaan/mobil-jenazah");
+  await expect(menu.getByRole("link", { name: "Rumah Duka" })).toHaveAttribute("href", "/layanan-kedukaan/rumah-duka");
+  await expect(menu.getByText("Mobil Jenazah")).toHaveCount(0);
+  for (const label of kedukaanSegera) await expect(menu.getByRole("link", { name: label })).toHaveCount(0);
   await expect(menu.getByRole("link", { name: "Semua Layanan Kedukaan" })).toHaveAttribute("href", "/layanan-kedukaan");
-  // An item whose release is open is a link to its page.
-  if (!belumHadir.includes("Program Wakaf Tanah Pemakaman")) {
-    await expect(menu.getByRole("link", { name: /^Program Wakaf Tanah Pemakaman/ })).toHaveAttribute("href", "/wakaf-tanah");
-  }
 });
 
 test.describe("on a phone", () => {
