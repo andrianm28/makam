@@ -8,10 +8,12 @@ import {
   type CreateJenisMakamResult,
   type MarkTariffsCheckedResult,
   type MissingTariff,
+  type SetBiayaPemakamanJenisResult,
   type SetBiayaPemakamanResult,
   type SetGlobalTariffResult,
   type SetJenisMakamTariffResult,
   type Tenure,
+  type UbahKeteranganJenisMakamResult,
 } from "@/domain/tariffs";
 import { guarded } from "@/server/guard";
 import { optionalRupiahInput, rupiahInput } from "@/server/rupiah-input";
@@ -27,6 +29,8 @@ type TariffResult =
   | CreateJenisMakamResult
   | SetJenisMakamTariffResult
   | SetBiayaPemakamanResult
+  | SetBiayaPemakamanJenisResult
+  | UbahKeteranganJenisMakamResult
   | MarkTariffsCheckedResult;
 type TariffRefusal = Extract<TariffResult, { ok: false }>;
 
@@ -50,6 +54,8 @@ function refusalMessage(refusal: TariffRefusal): string {
       return "Tanggal berlaku tidak boleh sebelum hari ini.";
     case "nama_sudah_ada":
       return "Sudah ada Jenis Makam dengan nama ini di Lokasi Mitra ini.";
+    case "keterangan_tidak_valid":
+      return "Keterangan paling banyak 500 huruf.";
     case "tarif_belum_lengkap":
       return `Tarif belum lengkap: isi dulu ${refusal.missing.map((missing) => missingLabels[missing]).join(", ")}.`;
   }
@@ -283,5 +289,63 @@ export async function tandaiTarifDiperiksa(_previous: FormState, formData: FormD
     run: (actor, data) => serverRuntime().tariffs.markTariffsChecked(actor, data.lokasiId, { reason: data.reason }),
     saved: () => "Tarif ditandai sudah diperiksa.",
     pages: (data) => [...lokasiPage(data.lokasiId), `/staf/admin-platform/lokasi/${data.lokasiId}`],
+  });
+}
+
+const biayaPemakamanJenisSchema = z.object({
+  lokasiId: id,
+  jenisMakamId: id,
+  biayaPemakaman: optionalRupiahInput,
+  effectiveOn,
+  reason,
+});
+
+/**
+ * Admin Platform enters one Jenis Makam's own Biaya Pemakaman (dri, 6 Nov 2026), or, left empty, returns it to the
+ * Lokasi's from the date given.
+ */
+export async function simpanBiayaPemakamanJenis(_previous: FormState, formData: FormData): Promise<FormState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  return tariffWrite({
+    resource: lokasiMitraResource(lokasiId),
+    schema: biayaPemakamanJenisSchema,
+    input: {
+      lokasiId,
+      jenisMakamId: formData.get("jenisMakamId"),
+      biayaPemakaman: field(formData, "biayaPemakaman"),
+      effectiveOn: formData.get("effectiveOn"),
+      reason: field(formData, "reason"),
+    },
+    run: (actor, data) =>
+      serverRuntime().tariffs.setBiayaPemakamanJenis(actor, data.jenisMakamId, {
+        biayaPemakaman: data.biayaPemakaman,
+        effectiveOn: data.effectiveOn,
+        reason: data.reason,
+      }),
+    saved: (data) =>
+      data.biayaPemakaman === null
+        ? `Mulai ${formatTanggal(data.effectiveOn)} tipe ini memakai Biaya Pemakaman Lokasi.`
+        : `Biaya Pemakaman tipe ini ${formatRupiah(data.biayaPemakaman)} berlaku mulai ${formatTanggal(data.effectiveOn)}.`,
+    pages: (data) => lokasiPage(data.lokasiId),
+  });
+}
+
+const keteranganSchema = z.object({ lokasiId: id, jenisMakamId: id, description: z.string().trim().max(500), reason });
+
+/** Admin Platform corrects a Jenis Makam's description (dri, 6 Nov 2026). */
+export async function ubahKeteranganJenisMakam(_previous: FormState, formData: FormData): Promise<FormState> {
+  const lokasiId = String(formData.get("lokasiId") ?? "");
+  return tariffWrite({
+    resource: lokasiMitraResource(lokasiId),
+    schema: keteranganSchema,
+    input: {
+      lokasiId,
+      jenisMakamId: formData.get("jenisMakamId"),
+      description: formData.get("description") ?? "",
+      reason: field(formData, "reason"),
+    },
+    run: (actor, data) => serverRuntime().tariffs.ubahKeteranganJenisMakam(actor, data.jenisMakamId, { description: data.description, reason: data.reason }),
+    saved: () => "Keterangan tipe disimpan.",
+    pages: (data) => lokasiPage(data.lokasiId),
   });
 }

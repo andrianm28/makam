@@ -391,6 +391,11 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                               ? `Perpanjangan ${formatRupiah(card.perpanjangan.total)} per ${tenureLabel(card.tenure)}`
                               : "Tidak perlu diperpanjang"}
                           </p>
+                          {card.biayaPemakamanKhusus ? (
+                            <p className="text-lg text-muted-foreground" data-testid="biaya-pemakaman-khusus">
+                              Biaya Pemakaman tipe ini {formatRupiah(card.biayaPemakamanKhusus.total)}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="sm:text-right">
                           <p className="font-heading text-3xl font-extrabold tabular-nums text-forest md:text-4xl">{formatRupiah(card.hakPakai.total)}</p>

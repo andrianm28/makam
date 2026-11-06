@@ -4,7 +4,8 @@
  * future; old versions are never changed or deleted.
  *
  * Owns tables: tariff_global_version, tariff_jenis_makam, tariff_jenis_makam_version,
- * tariff_biaya_pemakaman_version, tariff_check.
+ * tariff_biaya_pemakaman_version, tariff_biaya_pemakaman_jenis_version, tariff_jenis_makam_keterangan,
+ * tariff_check.
  *
  * Every write is a staff write: it records an Entri Audit through the Audit
  * Log module in the same transaction (with `lokasiId` for a Lokasi Mitra's
@@ -103,6 +104,19 @@ import {
   type SetGambarTipeKavlingResult,
 } from "./gambar-tipe-kavling";
 export { GAMBAR_TIPE_KAVLING_MAX_BYTES, type GambarTipeKavling, type SetGambarTipeKavlingResult };
+import {
+  setBiayaPemakamanJenis,
+  ubahKeteranganJenisMakam,
+  type SetBiayaPemakamanJenisInput,
+  type SetBiayaPemakamanJenisResult,
+  type UbahKeteranganJenisMakamResult,
+} from "./biaya-pemakaman-jenis";
+export type {
+  BiayaPemakamanJenisVersion,
+  SetBiayaPemakamanJenisInput,
+  SetBiayaPemakamanJenisResult,
+  UbahKeteranganJenisMakamResult,
+} from "./biaya-pemakaman-jenis";
 
 export interface Tariffs extends TariffReads {
   /** Admin Platform sets or replaces a Jenis Makam's Gambar Tipe Kavling (an illustration or plan, never headstones), audited. */
@@ -133,6 +147,13 @@ export interface Tariffs extends TariffReads {
   ): Promise<SetJenisMakamTariffResult>;
   /** Admin Platform enters a new version of a Lokasi Mitra's Biaya Pemakaman (+ tumpang amount); audited on that Lokasi. */
   setBiayaPemakaman(by: Actor, lokasiId: string, input: SetBiayaPemakamanInput): Promise<SetBiayaPemakamanResult>;
+  /**
+   * Admin Platform enters a new version of one Jenis Makam's own Biaya Pemakaman (an amount, or null to take the
+   * Lokasi's again); a new Hak Pakai of it is quoted with it while it is in force. Audited on its Lokasi.
+   */
+  setBiayaPemakamanJenis(by: Actor, jenisMakamId: string, input: SetBiayaPemakamanJenisInput): Promise<SetBiayaPemakamanJenisResult>;
+  /** Admin Platform corrects a Jenis Makam's description; audited on its Lokasi. Prices and Tagihan are untouched. */
+  ubahKeteranganJenisMakam(by: Actor, jenisMakamId: string, input: { description: string; reason: string | null }): Promise<UbahKeteranganJenisMakamResult>;
   /**
    * Admin Platform enters a new price for one Layanan variant at one Lokasi Mitra;
    * audited on that Lokasi. A variant with no price in force cannot be offered, so
@@ -200,6 +221,8 @@ export function createTariffs(deps: TariffDeps): Tariffs {
     createJenisMakam: (by, lokasiId, input) => createJenisMakam(deps, by, lokasiId, input),
     setJenisMakamTariff: (by, jenisMakamId, input) => setJenisMakamTariff(deps, by, jenisMakamId, input),
     setBiayaPemakaman: (by, lokasiId, input) => setBiayaPemakaman(deps, by, lokasiId, input),
+    setBiayaPemakamanJenis: (by, jenisMakamId, input) => setBiayaPemakamanJenis(deps, by, jenisMakamId, input),
+    ubahKeteranganJenisMakam: (by, jenisMakamId, input) => ubahKeteranganJenisMakam(deps, by, jenisMakamId, input),
     setHargaLayananLokasi: (by, lokasiId, layananVariantId, input) =>
       setHargaLayananLokasi(deps, by, lokasiId, layananVariantId, input),
     setHargaLayananDki: (by, layananVariantId, input) => setHargaLayananDki(deps, by, layananVariantId, input),

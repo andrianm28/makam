@@ -44,6 +44,8 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "tarif.buat_jenis_makam": "Jenis Makam ditambahkan",
   "tarif.ubah_jenis_makam": "Tarif Jenis Makam diubah",
   "tarif.ubah_gambar_jenis_makam": "Gambar Tipe Kavling diubah",
+  "tarif.ubah_biaya_pemakaman_jenis": "Biaya Pemakaman tipe diubah",
+  "tarif.ubah_keterangan_jenis_makam": "Keterangan tipe diubah",
   "tarif.ubah_biaya_pemakaman": "Biaya Pemakaman diubah",
   "tarif.tandai_diperiksa": "Tarif ditandai sudah diperiksa",
   "tarif.ubah_harga_layanan": "Harga Layanan diubah",

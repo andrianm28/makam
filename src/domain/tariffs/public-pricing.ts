@@ -36,6 +36,8 @@ export interface JenisMakamCard {
   hakPakai: AllInPrice;
   /** One Perpanjangan term, all-in; null for Selamanya or without a Perpanjangan price entered. */
   perpanjangan: AllInPrice | null;
+  /** Its own Biaya Pemakaman, all-in, while one is in force (dri, 6 Nov 2026); null when it takes the Lokasi's. */
+  biayaPemakamanKhusus: AllInPrice | null;
 }
 
 export interface LokasiPublicPricing {
@@ -67,7 +69,13 @@ export async function lokasiPublicPricing(db: Database, visible: Visibility, lok
         if (perpanjanganQuote.ok && withinPaymentCap(perpanjanganQuote.total)) perpanjangan = allInOf(perpanjanganQuote);
       }
 
-      return { jenisMakam: jm, tenure: jm.inForce.tenure, hakPakai: allInOf(hakPakaiQuote), perpanjangan };
+      let biayaPemakamanKhusus: AllInPrice | null = null;
+      if (jm.biayaPemakamanJenis.inForce?.biayaPemakaman != null) {
+        const khusus = await quote(db, visible, [{ kind: "biaya_pemakaman", lokasiId, tumpang: false, jenisMakamId: jm.id }], at);
+        if (khusus.ok) biayaPemakamanKhusus = allInOf(khusus);
+      }
+
+      return { jenisMakam: jm, tenure: jm.inForce.tenure, hakPakai: allInOf(hakPakaiQuote), perpanjangan, biayaPemakamanKhusus };
     }),
   );
   const priced = cards.filter((card): card is JenisMakamCard => card !== null);

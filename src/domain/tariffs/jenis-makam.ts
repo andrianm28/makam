@@ -11,7 +11,7 @@ import {
   type Rupiah,
   type InvalidTariff,
 } from "./money";
-import { tariffJenisMakam, tariffJenisMakamVersion } from "./schema";
+import { tariffJenisMakam, tariffJenisMakamKeterangan, tariffJenisMakamVersion } from "./schema";
 import { isUuid } from "./ids";
 import { lockLokasiTariffs } from "./locks";
 import {
@@ -190,17 +190,22 @@ export async function setJenisMakamTariff(
 export async function jenisMakamOfLokasi(db: Database, lokasiId: string): Promise<JenisMakam[]> {
   if (!isUuid(lokasiId)) return [];
   const rows = await db
-    .select()
+    .select({ jenis: tariffJenisMakam, keterangan: tariffJenisMakamKeterangan.description })
     .from(tariffJenisMakam)
+    .leftJoin(tariffJenisMakamKeterangan, eq(tariffJenisMakamKeterangan.jenisMakamId, tariffJenisMakam.id))
     .where(eq(tariffJenisMakam.lokasiId, lokasiId))
     .orderBy(asc(tariffJenisMakam.nameKey));
-  return rows.map(toJenisMakam);
+  return rows.map(withKeterangan);
 }
 
 export async function findJenisMakam(db: Database, jenisMakamId: string): Promise<JenisMakam | null> {
   if (!isUuid(jenisMakamId)) return null;
-  const [row] = await db.select().from(tariffJenisMakam).where(eq(tariffJenisMakam.id, jenisMakamId));
-  return row ? toJenisMakam(row) : null;
+  const [row] = await db
+    .select({ jenis: tariffJenisMakam, keterangan: tariffJenisMakamKeterangan.description })
+    .from(tariffJenisMakam)
+    .leftJoin(tariffJenisMakamKeterangan, eq(tariffJenisMakamKeterangan.jenisMakamId, tariffJenisMakam.id))
+    .where(eq(tariffJenisMakam.id, jenisMakamId));
+  return row ? withKeterangan(row) : null;
 }
 
 /** Every tariff version of one Jenis Makam, in entry order. */
@@ -249,6 +254,12 @@ function versionSnapshot(version: JenisMakamTariffVersion) {
 
 function toJenisMakam(row: typeof tariffJenisMakam.$inferSelect): JenisMakam {
   return { id: row.id, lokasiId: row.lokasiId, name: row.name, description: row.description };
+}
+
+/** A Jenis Makam with its description as last corrected by Admin Platform, when it was. */
+function withKeterangan(row: { jenis: typeof tariffJenisMakam.$inferSelect; keterangan: string | null }): JenisMakam {
+  const jenisMakam = toJenisMakam(row.jenis);
+  return row.keterangan === null ? jenisMakam : { ...jenisMakam, description: row.keterangan };
 }
 
 function toVersion(row: typeof tariffJenisMakamVersion.$inferSelect): JenisMakamTariffVersion {

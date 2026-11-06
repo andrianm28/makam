@@ -6,10 +6,12 @@ import type { GlobalTariffKey } from "@/domain/tariffs";
 import type { FormState } from "../../form-state";
 import {
   simpanBiayaPemakaman,
+  simpanBiayaPemakamanJenis,
   simpanTarifGlobal,
   simpanTarifJenisMakam,
   tambahJenisMakam,
   tandaiTarifDiperiksa,
+  ubahKeteranganJenisMakam,
 } from "./actions";
 
 const inputClass =
@@ -177,6 +179,41 @@ export function TariffsCheckedForm({ lokasiId }: { lokasiId: string }) {
       <input type="hidden" name="lokasiId" value={lokasiId} />
       <Field label="Catatan (opsional)" name="reason" maxLength={500} placeholder="mis. cocok dengan perjanjian" />
       <Submit pending={pending}>Tandai tarif sudah diperiksa</Submit>
+      <Feedback state={state} />
+    </form>
+  );
+}
+
+/**
+ * One Jenis Makam's own Biaya Pemakaman (dri, 6 Nov 2026): an amount replaces the Lokasi's for a new Hak Pakai of
+ * this type; left empty, the type follows the Lokasi's again from that date. A tumpang keeps the Lokasi's.
+ */
+export function BiayaPemakamanJenisForm({ lokasiId, jenisMakamId, today }: { lokasiId: string; jenisMakamId: string; today: string }) {
+  const [state, action, pending] = useActionState(simpanBiayaPemakamanJenis, idle);
+  return (
+    <form action={action} className="grid gap-3 sm:grid-cols-2">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="jenisMakamId" value={jenisMakamId} />
+      <RupiahField label="Biaya Pemakaman khusus tipe ini (Rp, kosongkan untuk memakai Biaya Pemakaman Lokasi)" name="biayaPemakaman" placeholder="11.800.000" />
+      <EffectiveOnAndReason today={today} />
+      <div className="flex flex-col gap-2 sm:col-span-2">
+        <Submit pending={pending}>Simpan Biaya Pemakaman tipe ini</Submit>
+        <Feedback state={state} />
+      </div>
+    </form>
+  );
+}
+
+/** Corrects a Jenis Makam's description; prices and issued Tagihan are untouched. */
+export function KeteranganJenisMakamForm({ lokasiId, jenisMakamId, description }: { lokasiId: string; jenisMakamId: string; description: string }) {
+  const [state, action, pending] = useActionState(ubahKeteranganJenisMakam, idle);
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <input type="hidden" name="jenisMakamId" value={jenisMakamId} />
+      <Field label="Keterangan" name="description" defaultValue={description} maxLength={500} />
+      <Field label="Alasan (opsional)" name="reason" maxLength={500} />
+      <Submit pending={pending}>Simpan keterangan</Submit>
       <Feedback state={state} />
     </form>
   );

@@ -227,6 +227,49 @@ export const tariffJenisMakamVersion = pgTable(
 );
 
 /**
+ * Owned by the Tariffs module: every version of one Jenis Makam's own Biaya
+ * Pemakaman (dri, 6 Nov 2026: Graha Sentosa charges Rp 11.800.000 for its
+ * Single Standard, Peace Garden and Heavenly Garden and Rp 9.600.000 for the
+ * rest). While a version with an amount is in force it replaces the Lokasi
+ * Mitra's Biaya Pemakaman for a new Hak Pakai of this Jenis Makam; a version
+ * with `biaya_pemakaman` null returns it to the Lokasi's. A tumpang keeps the
+ * Lokasi's tumpang amount. Append-only like every price book.
+ */
+export const tariffBiayaPemakamanJenisVersion = pgTable(
+  "tariff_biaya_pemakaman_jenis_version",
+  {
+    ...versionColumns(),
+    jenisMakamId: uuid("jenis_makam_id")
+      .notNull()
+      .references(() => tariffJenisMakam.id),
+    lokasiId: uuid("lokasi_id").notNull(),
+    biayaPemakaman: rupiah("biaya_pemakaman"),
+  },
+  (table) => [
+    index("tariff_biaya_pemakaman_jenis_version_idx").on(table.jenisMakamId, table.inForceFrom, table.seq),
+    check(
+      "tariff_biaya_pemakaman_jenis_version_amount_check",
+      sql`${table.biayaPemakaman} is null or ${inRupiahRange(table.biayaPemakaman)}`,
+    ),
+  ],
+);
+
+/**
+ * Owned by the Tariffs module: a Jenis Makam's description as last corrected by
+ * Admin Platform (dri, 6 Nov 2026), at most one per Jenis Makam. The Jenis
+ * Makam row itself never changes; while a row here exists, its description is
+ * the one shown. Not a tariff, so not append-only: the history is in the Audit Log.
+ */
+export const tariffJenisMakamKeterangan = pgTable("tariff_jenis_makam_keterangan", {
+  jenisMakamId: uuid("jenis_makam_id")
+    .primaryKey()
+    .references(() => tariffJenisMakam.id),
+  description: text("description").notNull(),
+  updatedAt: at("updated_at").notNull(),
+  updatedByAccountId: text("updated_by_account_id").notNull(),
+});
+
+/**
  * Owned by the Tariffs module: a Jenis Makam's Gambar Tipe Kavling (an
  * illustration or plan, never headstones or the burial area) and its caption,
  * at most one per Jenis Makam. Not a tariff, so not append-only: the history

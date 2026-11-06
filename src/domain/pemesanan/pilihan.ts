@@ -158,7 +158,7 @@ export async function saatDukaHarga(
   const quoted = await deps.tariffs.quote(
     [
       { kind: "harga_hak_pakai", jenisMakamId },
-      { kind: "biaya_pemakaman", lokasiId, tumpang: false },
+      { kind: "biaya_pemakaman", lokasiId, tumpang: false, jenisMakamId },
     ],
     at,
   );

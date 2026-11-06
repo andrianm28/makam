@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
 import { biayaPemakamanVersions, type BiayaPemakamanVersion } from "./biaya-pemakaman";
+import { biayaPemakamanJenisVersions, type BiayaPemakamanJenisVersion } from "./biaya-pemakaman-jenis";
 import { jenisMakamOfLokasi, jenisMakamVersions, type JenisMakam, type JenisMakamTariffVersion } from "./jenis-makam";
 import type { Visibility } from "./reads";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
@@ -12,7 +13,11 @@ export interface PriceAt<V> {
   scheduledChange: V | null;
 }
 
-export type JenisMakamPrice = JenisMakam & PriceAt<JenisMakamTariffVersion>;
+export type JenisMakamPrice = JenisMakam &
+  PriceAt<JenisMakamTariffVersion> & {
+    /** Its own Biaya Pemakaman at that instant (an amount, or null = the Lokasi's), when one was ever entered. */
+    biayaPemakamanJenis: PriceAt<BiayaPemakamanJenisVersion>;
+  };
 
 /** A Lokasi Mitra's tariffs at an instant. */
 export interface LokasiTariffs {
@@ -34,7 +39,11 @@ export async function lokasiTariffs(db: Database, visible: Visibility, lokasiId:
     biayaPemakamanVersions(db, lokasiId),
   ]);
   const prices = await Promise.all(
-    jenisMakam.map(async (one) => ({ ...one, ...priceAt(await jenisMakamVersions(db, one.id), at) })),
+    jenisMakam.map(async (one) => ({
+      ...one,
+      ...priceAt(await jenisMakamVersions(db, one.id), at),
+      biayaPemakamanJenis: priceAt(await biayaPemakamanJenisVersions(db, one.id), at),
+    })),
   );
   return { jenisMakam: prices, biayaPemakaman: priceAt(biayaPemakaman, at) };
 }

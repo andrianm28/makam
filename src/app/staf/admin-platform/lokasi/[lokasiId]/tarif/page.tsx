@@ -10,7 +10,9 @@ import { formatRupiah } from "@/lib/rupiah";
 import { formatTenure } from "../../../tarif/format";
 import {
   BiayaPemakamanForm,
+  BiayaPemakamanJenisForm,
   JenisMakamTariffForm,
+  KeteranganJenisMakamForm,
   NewJenisMakamForm,
   TariffsCheckedForm,
 } from "../../../tarif/tarif-forms";
@@ -35,7 +37,7 @@ async function saatDukaTotal(tariffs: StaffTariffReads, lokasiId: string, jenisM
   const quote = await tariffs.quote(
     [
       { kind: "harga_hak_pakai", jenisMakamId },
-      { kind: "biaya_pemakaman", lokasiId, tumpang: false },
+      { kind: "biaya_pemakaman", lokasiId, tumpang: false, jenisMakamId },
     ],
     now,
   );
@@ -57,6 +59,23 @@ function JenisMakamSummary({ jenisMakam }: { jenisMakam: JenisMakamPrice }) {
       {scheduledChange ? (
         <p>
           Harga baru mulai {formatTanggal(scheduledChange.effectiveOn)}: {describe(scheduledChange)}
+        </p>
+      ) : null}
+    </>
+  );
+}
+
+/** A Jenis Makam's own Biaya Pemakaman, when one was ever entered: in force now, and the next change. */
+function BiayaPemakamanJenisSummary({ jenisMakam }: { jenisMakam: JenisMakamPrice }) {
+  const { inForce, scheduledChange } = jenisMakam.biayaPemakamanJenis;
+  if (!inForce && !scheduledChange) return null;
+  const describe = (amount: number | null) => (amount === null ? "memakai Biaya Pemakaman Lokasi" : `Biaya Pemakaman khusus ${formatRupiah(amount)}`);
+  return (
+    <>
+      {inForce ? <p>{describe(inForce.biayaPemakaman)} · berlaku sejak {formatTanggal(inForce.effectiveOn)}</p> : null}
+      {scheduledChange ? (
+        <p>
+          Mulai {formatTanggal(scheduledChange.effectiveOn)}: {describe(scheduledChange.biayaPemakaman)}
         </p>
       ) : null}
     </>
@@ -119,11 +138,24 @@ export default async function TarifLokasiPage({ params }: PageProps<"/staf/admin
               {one.description ? <span className="font-normal text-muted-foreground"> · {one.description}</span> : null}
             </h3>
             <JenisMakamSummary jenisMakam={one} />
+            <BiayaPemakamanJenisSummary jenisMakam={one} />
             <p>Total semua biaya Saat Duka saat ini: {totals[index]}</p>
             <details>
               <summary className="cursor-pointer">Tarif baru untuk {one.name}</summary>
               <div className="mt-3">
                 <JenisMakamTariffForm lokasiId={lokasiMitra.id} jenisMakamId={one.id} today={today} />
+              </div>
+            </details>
+            <details>
+              <summary className="cursor-pointer">Biaya Pemakaman khusus {one.name}</summary>
+              <div className="mt-3">
+                <BiayaPemakamanJenisForm lokasiId={lokasiMitra.id} jenisMakamId={one.id} today={today} />
+              </div>
+            </details>
+            <details>
+              <summary className="cursor-pointer">Ubah keterangan {one.name}</summary>
+              <div className="mt-3">
+                <KeteranganJenisMakamForm lokasiId={lokasiMitra.id} jenisMakamId={one.id} description={one.description} />
               </div>
             </details>
           </article>

@@ -1,5 +1,6 @@
 import type { Database } from "@/db/client";
-import { biayaPemakamanVersions } from "./biaya-pemakaman";
+import { biayaPemakamanVersions, type BiayaPemakamanVersion } from "./biaya-pemakaman";
+import { biayaPemakamanJenisVersions, type BiayaPemakamanJenisVersion } from "./biaya-pemakaman-jenis";
 import { globalTariffVersions, type GlobalTariffKey, type GlobalTariffVersion } from "./global-tariffs";
 import { hargaLayananLokasiHistory, layananDkiVersionList } from "./layanan-harga";
 import { z } from "zod";
@@ -15,8 +16,12 @@ const NOL: Rupiah = rupiahSchema.parse(0);
 export type QuoteLine =
   /** A new Hak Pakai of this Jenis Makam. */
   | { kind: "harga_hak_pakai"; jenisMakamId: string }
-  /** One Pemakaman at this Lokasi Mitra; `tumpang` for one under an existing Hak Pakai on an occupied Petak Makam. */
-  | { kind: "biaya_pemakaman"; lokasiId: string; tumpang: boolean }
+  /**
+   * One Pemakaman at this Lokasi Mitra; `tumpang` for one under an existing Hak Pakai on an occupied Petak Makam.
+   * `jenisMakamId`, for a new Hak Pakai of that Jenis Makam: its own Biaya Pemakaman when one is in force
+   * (dri, 6 Nov 2026), else the Lokasi's. A tumpang always takes the Lokasi's.
+   */
+  | { kind: "biaya_pemakaman"; lokasiId: string; tumpang: boolean; jenisMakamId?: string }
   /**
    * A Perpanjangan Makam of a Hak Pakai of this Jenis Makam by `terms` further
    * terms. `tenure` is the Hak Pakai's own Masa Hak Pakai, as snapshotted when
@@ -105,7 +110,7 @@ export type QuoteResult = Quote | QuoteRefusal;
 
 const quoteLineSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("harga_hak_pakai"), jenisMakamId: idSchema }),
-  z.object({ kind: z.literal("biaya_pemakaman"), lokasiId: idSchema, tumpang: z.boolean() }),
+  z.object({ kind: z.literal("biaya_pemakaman"), lokasiId: idSchema, tumpang: z.boolean(), jenisMakamId: idSchema.optional() }),
   z.object({
     kind: z.literal("perpanjangan"),
     jenisMakamId: idSchema,
@@ -297,11 +302,20 @@ async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<S
         }),
       );
     }
-    case "biaya_pemakaman":
+    case "biaya_pemakaman": {
       if (!(await pricing.visible(line.lokasiId))) return { ok: false, reason: "tidak_ditemukan" };
+      const lokasiVersions = await biayaPemakamanVersions(db, line.lokasiId);
+      let versions: readonly BiayaPemakamanVersion[] = lokasiVersions;
+      if (line.jenisMakamId !== undefined && !line.tumpang) {
+        const found = await jenisMakamOf(pricing, line.jenisMakamId);
+        if (!found.ok) return found;
+        // A Jenis Makam of another Lokasi Mitra cannot price this one's Pemakaman.
+        if (found.value.lokasiId !== line.lokasiId) return { ok: false, reason: "baris_tidak_valid" };
+        versions = denganBiayaJenis(lokasiVersions, await biayaPemakamanJenisVersions(db, found.value.id));
+      }
       return fromVersions(
         "biaya_pemakaman",
-        await biayaPemakamanVersions(db, line.lokasiId),
+        versions,
         at,
         (version) => priced(line.tumpang ? (version.biayaPemakamanTumpang ?? version.biayaPemakaman) : version.biayaPemakaman),
         (amount, _version, schedule) => ({
@@ -313,6 +327,7 @@ async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<S
           ...schedule,
         }),
       );
+    }
     case "perpanjangan": {
       const found = await jenisMakamOf(pricing, line.jenisMakamId);
       if (!found.ok) return found;
@@ -396,4 +411,35 @@ async function priceLine(pricing: Pricing, line: QuoteLine, at: Date): Promise<S
         }),
       );
   }
+}
+
+/**
+ * The Lokasi's Biaya Pemakaman versions with a Jenis Makam's own laid over them, as one price book: at every instant
+ * either changes, the amount is the Jenis Makam's when it has one in force, else the Lokasi's. Each merged version
+ * keeps the times of the change that made it, so "Harga berlaku sejak" and "Harga baru mulai" read as for any line.
+ */
+export function denganBiayaJenis(
+  lokasi: readonly BiayaPemakamanVersion[],
+  jenis: readonly BiayaPemakamanJenisVersion[],
+): BiayaPemakamanVersion[] {
+  if (jenis.length === 0) return [...lokasi];
+  const changes = [...lokasi, ...jenis].sort((a, b) => a.inForceFrom.getTime() - b.inForceFrom.getTime() || a.seq - b.seq);
+  const merged: BiayaPemakamanVersion[] = [];
+  for (const [index, change] of changes.entries()) {
+    const fromLokasi = inForceAt(lokasi, change.inForceFrom);
+    const fromJenis = inForceAt(jenis, change.inForceFrom);
+    const times = { effectiveOn: change.effectiveOn, inForceFrom: change.inForceFrom, enteredAt: change.enteredAt, seq: index };
+    const next: BiayaPemakamanVersion | null =
+      fromJenis?.biayaPemakaman != null
+        ? { ...times, lokasiId: fromJenis.lokasiId, biayaPemakaman: fromJenis.biayaPemakaman, biayaPemakamanTumpang: null }
+        : fromLokasi && { ...fromLokasi, ...times };
+    if (!next) continue;
+    const previous = merged.at(-1);
+    // A change that leaves the amount as it was is no change: the amount holds since the earlier one.
+    if (previous && previous.inForceFrom.getTime() !== next.inForceFrom.getTime() && previous.biayaPemakaman === next.biayaPemakaman && previous.biayaPemakamanTumpang === next.biayaPemakamanTumpang) continue;
+    // Of two changes at one instant, the later one is what holds then.
+    if (previous && previous.inForceFrom.getTime() === next.inForceFrom.getTime()) merged.pop();
+    merged.push(next);
+  }
+  return merged;
 }

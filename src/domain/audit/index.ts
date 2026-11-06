@@ -87,6 +87,8 @@ export type AuditAction =
   /** Admin Platform enters a new tariff version of a Jenis Makam (Harga Hak Pakai, tenure, Perpanjangan price). */
   | "tarif.ubah_jenis_makam"
   | "tarif.ubah_gambar_jenis_makam"
+  | "tarif.ubah_biaya_pemakaman_jenis"
+  | "tarif.ubah_keterangan_jenis_makam"
   /** Admin Platform enters a new version of a Lokasi Mitra's Biaya Pemakaman (+ tumpang amount). */
   | "tarif.ubah_biaya_pemakaman"
   /** Admin Platform marks a Lokasi Mitra's tariffs "diperiksa" (publish gate). */

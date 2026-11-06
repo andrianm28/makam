@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import type { NewAuditEntry, RecordEntry } from "@/domain/audit";
 import type { TariffDeps } from "./deps";
 import type {
+  tariffBiayaPemakamanJenisVersion,
   tariffBiayaPemakamanVersion,
   tariffGlobalVersion,
   tariffJenisMakamVersion,
@@ -17,6 +18,7 @@ type VersionTable =
   | typeof tariffGlobalVersion
   | typeof tariffJenisMakamVersion
   | typeof tariffBiayaPemakamanVersion
+  | typeof tariffBiayaPemakamanJenisVersion
   | typeof tariffLayananVersion
   | typeof tariffLayananDkiVersion
   | typeof tariffMitraJasaVersion;
