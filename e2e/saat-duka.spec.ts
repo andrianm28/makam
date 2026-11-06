@@ -24,21 +24,26 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   const email = coldEmail();
   const telepon = coldNumber();
 
-  // Screen 1: the grid of Lokasi Mitra cards; at ?lokasiId= its Pilih Tipe Kavling step, each tipe with its own total, and the sticky bar.
+  // Screen 1: the grid of Lokasi Mitra cards; at ?lokasiId= its Pilih Tipe Kavling step with the Lokasi Mitra's whole page
+  // and no price (dri, 6 Nov 2026): the sticky bar names the tipe only.
   await page.goto(lokasi ? `/pesan-makam/saat-duka?lokasiId=${lokasi.split("/").pop()}` : "/pesan-makam/saat-duka");
   await expect(page.getByRole("heading", { name: lokasi ? "Pilih tipe kavling" : "Pilih makam" })).toBeVisible();
   await expect(page.getByRole("radio", { name: /Reguler 1 × 2 m/ })).toBeVisible();
-  await expect(page.getByTestId("total-semua-biaya")).not.toHaveText("Pilih makam dulu");
+  if (lokasi) await expect(page.getByTestId("profil-lokasi")).toBeVisible();
+  await expect(page.getByTestId("total-semua-biaya")).toHaveCount(0);
 
-  // The sticky bar expands to the itemised lines.
+  await page.getByRole("radio", { name: /Reguler 1 × 2 m/ }).click();
+  await expect(page.getByTestId("tipe-terpilih")).toContainText("Reguler 1 × 2 m");
+  await page.getByRole("button", { name: "Lanjut" }).click();
+  await expect(page).toHaveURL(/\/pesan-makam\/saat-duka\/data\?/);
+
+  // The tipe's detail and its total are read on Data & kirim, and the sticky bar expands to the itemised lines.
+  await expect(page.getByTestId("detail-tipe")).toContainText("Reguler 1 × 2 m");
+  await expect(page.getByTestId("total-semua-biaya")).toBeVisible();
   await page.getByRole("button", { name: /Lihat rincian|Total semua biaya/ }).click();
   await expect(page.getByText("Harga Hak Pakai – Reguler 1 × 2 m")).toBeVisible();
   await expect(page.getByText("Biaya Pemakaman").first()).toBeVisible();
   await expect(page.getByText("Biaya Layanan Platform")).toBeVisible();
-
-  await page.getByRole("radio", { name: /Reguler 1 × 2 m/ }).click();
-  await page.getByRole("button", { name: "Lanjut" }).click();
-  await expect(page).toHaveURL(/\/pesan-makam\/saat-duka\/data\?/);
 
   // Screen 2: the family's data, then Kirim, which asks for the Kode Masuk.
   await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();

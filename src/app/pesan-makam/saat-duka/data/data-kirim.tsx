@@ -138,9 +138,17 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
             Cukup yang kami perlukan untuk menyiapkan pemakaman. Sisanya bisa menyusul.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ivory/15 px-5 py-4">
-            <p className="min-w-0 text-lg">
-              <span className="font-bold text-sand">{kartu.jenisMakamName}</span> · {lokasi.name}
-            </p>
+            {/* The tipe's detail and its total are read here, not on Pilih makam (dri, 6 Nov 2026). */}
+            <div className="min-w-0" data-testid="detail-tipe">
+              <p className="text-lg">
+                <span className="font-bold text-sand">{kartu.jenisMakamName}</span> · {lokasi.name}
+              </p>
+              {kartu.deskripsi ? <p className="text-body-lg text-ivory/85">{kartu.deskripsi}</p> : null}
+              <p className="text-body-lg text-ivory/85">{kartu.masaHakPakai}</p>
+              <p className="mt-1 font-heading text-2xl font-extrabold tabular-nums text-ivory">
+                {formatRupiah(kartu.total)} <span className="text-body font-normal text-ivory/80">semua biaya</span>
+              </p>
+            </div>
             <Link
               href={`/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(lokasi.id)}`}
               className="shrink-0 text-lg font-bold text-ivory underline underline-offset-4"

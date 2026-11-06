@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ChevronUp, Clock, Flame, MapPin, MessageCircle, MoonStar, Ruler } from "lucide-react";
+import { ArrowRight, Check, ChevronUp, Clock, Flame, MapPin, MessageCircle, MoonStar, Ruler } from "lucide-react";
 import { FilterChip } from "@/components/makam/filter-chip";
 import { Button } from "@/components/ui/button";
 import { agamaDiterima, labelAgama, type Agama } from "@/domain/lokasi/skema-info-kartu";
@@ -12,6 +12,7 @@ import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
 import { perKota, saringAgama, type KartuView, type GrupView, type TpuKartuView } from "./tampilan";
+import type { ProfilLokasi } from "./profil-lokasi";
 
 export interface PilihMakamProps {
   grup: GrupView[];
@@ -29,6 +30,8 @@ export interface PilihMakamProps {
   banner: BannerTolak | null;
   /** The Lokasi Mitra chosen on the grid (or deep linked): the screen opens on its Pilih Tipe Kavling step; null for the grid. */
   preselect: string | null;
+  /** The chosen Lokasi Mitra's own page (photos, documents, facilities, hours, map), rendered on the server; null on the grid. */
+  profil: ProfilLokasi | null;
   /**
    * The card the screen starts on, which the Pemesanan module chose: the deep
    * linked Lokasi Mitra's cheapest card, else the list's own first one.
@@ -68,7 +71,7 @@ interface Baris {
  * browser's back button returns to the grid; there the sticky "Total semua
  * biaya" bar expands to the itemised lines and carries the choice on.
  */
-export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner, preselect, awal, csContact }: PilihMakamProps) {
+export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner, preselect, profil, awal, csContact }: PilihMakamProps) {
   const router = useRouter();
   const dipilih = preselect ? (grup.find((satu) => satu.lokasiId === preselect) ?? null) : null;
   const [terpilih, setTerpilih] = useState<Terpilih | null>(() => pilihanAwal(dipilih, tpu, jenis, awal));
@@ -92,8 +95,8 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner
           grup={dipilih}
           terpilih={terpilih}
           onPilih={(kartu) => setTerpilih({ kind: "lokasi_mitra", lokasiId: dipilih.lokasiId, kartu })}
-          kembaliKeGrid={urlGrid(dari)}
           csContact={csContact}
+          profil={profil}
         />
       ) : (
         <div className="mt-6 flex flex-col gap-8">
@@ -122,7 +125,8 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner
       {tampilBar ? (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
           <div className="mx-auto max-w-3xl px-4">
-            {rincianTerbuka && terpilih ? (
+            {/* On a Lokasi Mitra the bar names the tipe only: its total is read at Data & kirim (dri, 6 Nov 2026). */}
+            {rincianTerbuka && terpilih?.kind === "tpu_dki" ? (
               <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
                 {rincian.map((baris) => (
                   <div key={baris.label} className="flex justify-between gap-4">
@@ -136,25 +140,34 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner
               </dl>
             ) : null}
             <div className="flex items-center gap-3 py-3">
-              <button
-                type="button"
-                disabled={!terpilih}
-                onClick={() => setRincianTerbuka((buka) => !buka)}
-                aria-expanded={rincianTerbuka}
-                aria-controls="rincian-total"
-                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left disabled:cursor-default"
-              >
-                <span className="min-w-0">
-                  <span className="block text-caption text-muted-foreground">Total semua biaya</span>
-                  <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
-                    {total === null ? "Pilih makam dulu" : formatRupiah(total)}
+              {terpilih?.kind === "lokasi_mitra" || dipilih ? (
+                <p className="min-w-0 flex-1">
+                  <span className="block text-caption text-muted-foreground">Tipe kavling</span>
+                  <span className="block truncate font-heading text-xl font-extrabold text-foreground" data-testid="tipe-terpilih">
+                    {terpilih?.kind === "lokasi_mitra" ? terpilih.kartu.jenisMakamName : "Pilih tipe dulu"}
                   </span>
-                </span>
-                {terpilih ? (
-                  <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !rincianTerbuka && "rotate-180")} aria-hidden />
-                ) : null}
-                {terpilih ? <span className="sr-only">{rincianTerbuka ? "Sembunyikan rincian" : "Lihat rincian"}</span> : null}
-              </button>
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!terpilih}
+                  onClick={() => setRincianTerbuka((buka) => !buka)}
+                  aria-expanded={rincianTerbuka}
+                  aria-controls="rincian-total"
+                  className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left disabled:cursor-default"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-caption text-muted-foreground">Total semua biaya</span>
+                    <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
+                      {total === null ? "Pilih makam dulu" : formatRupiah(total)}
+                    </span>
+                  </span>
+                  {terpilih ? (
+                    <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !rincianTerbuka && "rotate-180")} aria-hidden />
+                  ) : null}
+                  {terpilih ? <span className="sr-only">{rincianTerbuka ? "Sembunyikan rincian" : "Lihat rincian"}</span> : null}
+                </button>
+              )}
               <Button
                 size="lg"
                 disabled={!terpilih}
@@ -239,8 +252,15 @@ function GridPerKota({
               {kelompok.kota}
             </h2>
             <ul className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {kelompok.grup.map((satu) => (
-                <KartuBesar key={satu.lokasiId} grup={satu} href={urlKavling(satu.lokasiId, dari)} />
+              {kelompok.grup.map((satu, index) => (
+                <KartuBesar
+                  key={satu.lokasiId}
+                  grup={satu}
+                  href={urlKavling(satu.lokasiId, dari)}
+                  // dri, 6 Nov 2026: a city with few partners must not leave half a row empty, so an odd last card
+                  // takes the whole row, photo beside the text.
+                  lebar={kelompok.grup.length % 2 === 1 && index === kelompok.grup.length - 1}
+                />
               ))}
             </ul>
           </section>
@@ -250,13 +270,15 @@ function GridPerKota({
   );
 }
 
-/** One Lokasi Mitra as a big card: gate photo, name, address, agama and krematorium, description, from-price, "Pilih". */
-function KartuBesar({ grup, href }: { grup: GrupView; href: string }) {
-  const mulai = Math.min(...grup.pilihan.map((kartu) => kartu.total));
+/**
+ * One Lokasi Mitra as a big card: gate photo, name, address, agama and krematorium, description, "Pilih". No price on
+ * the grid (dri, 6 Nov 2026): the tipe and its total are read at Data & kirim.
+ */
+function KartuBesar({ grup, href, lebar }: { grup: GrupView; href: string; lebar: boolean }) {
   return (
-    <li className="flex">
-      <article className="flex w-full flex-col overflow-hidden rounded-3xl bg-forest text-ivory">
-        <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} />
+    <li className={cn("flex", lebar && "md:col-span-2")}>
+      <article className={cn("flex w-full flex-col overflow-hidden rounded-3xl bg-forest text-ivory", lebar && "md:grid md:grid-cols-[1.2fr_1fr]")}>
+        <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} isi={lebar} />
         <div className="flex flex-1 flex-col gap-4 p-6 md:p-8">
           <div>
             <h3 className="font-heading text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{grup.lokasiName}</h3>
@@ -269,11 +291,8 @@ function KartuBesar({ grup, href }: { grup: GrupView; href: string }) {
           </div>
           <TagInfo grup={grup} diAtasHijau />
           {grup.deskripsi ? <p className="text-lg text-ivory/90">{grup.deskripsi}</p> : null}
-          <div className="mt-auto flex flex-wrap items-end justify-between gap-4 pt-2">
-            <p className="text-lg text-ivory/80">
-              mulai
-              <span className="block font-heading text-3xl font-extrabold tabular-nums text-sand">{formatRupiah(mulai)}</span>
-            </p>
+          <p className="text-lg text-ivory/80">{grup.pilihan.length} tipe kavling tersedia</p>
+          <div className="mt-auto flex justify-end pt-2">
             <Link
               href={href}
               aria-label={`Pilih ${grup.lokasiName}`}
@@ -315,10 +334,10 @@ function TagInfo({ grup, diAtasHijau = false }: { grup: GrupView; diAtasHijau?: 
 }
 
 /** The gate photo (its Galeri's gerbang photo, else a Kunjungan Verifikasi photo); a plain green panel when it has none. */
-function FotoGerbang({ url, nama }: { url: string | null; nama: string }) {
+function FotoGerbang({ url, nama, isi = false }: { url: string | null; nama: string; isi?: boolean }) {
   if (!url) {
     return (
-      <div className="flex aspect-[16/6] items-end bg-brand-soft p-5" aria-hidden>
+      <div className={cn("flex aspect-[16/6] items-end bg-brand-soft p-5", isi && "md:aspect-auto md:h-full")} aria-hidden>
         <span className="font-heading text-xl font-extrabold text-forest">{nama}</span>
       </div>
     );
@@ -326,7 +345,7 @@ function FotoGerbang({ url, nama }: { url: string | null; nama: string }) {
   return (
     // A short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt={`Gerbang ${nama}`} className="aspect-[16/10] w-full object-cover" />
+    <img src={url} alt={`Gerbang ${nama}`} className={cn("aspect-[16/10] w-full object-cover", isi && "md:aspect-auto md:h-full")} />
   );
 }
 
@@ -341,20 +360,17 @@ function LangkahKavling({
   grup,
   terpilih,
   onPilih,
-  kembaliKeGrid,
   csContact,
+  profil,
 }: {
   grup: GrupView;
   terpilih: Terpilih | null;
   onPilih: (kartu: KartuView) => void;
-  kembaliKeGrid: string;
   csContact: CsContact | null;
+  profil: ProfilLokasi | null;
 }) {
   return (
     <div className="mx-auto mt-6 flex max-w-5xl flex-col gap-8">
-      <Link href={kembaliKeGrid} className="inline-flex items-center gap-2 self-start text-lg font-bold text-forest hover:underline">
-        <ArrowLeft className="size-5" aria-hidden /> Ganti makam
-      </Link>
       <div className={cn("grid overflow-hidden rounded-3xl bg-forest text-ivory", grup.photoUrl && "md:grid-cols-[320px_1fr]")}>
         {/* Without a gate photo the band is the name itself; a placeholder panel would only repeat it. */}
         {grup.photoUrl ? <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} /> : null}
@@ -364,11 +380,11 @@ function LangkahKavling({
           <p className="font-heading text-2xl font-extrabold md:text-3xl">{grup.lokasiName}</p>
           {grup.alamat ? <p className="text-lg text-ivory/85">{grup.alamat}</p> : null}
           <TagInfo grup={grup} diAtasHijau />
-          <Link href={`/lokasi/${grup.lokasiId}`} className="text-lg font-semibold text-sand underline underline-offset-4">
-            Lihat fasilitas, jam operasional dan petunjuk arah
-          </Link>
+          {grup.deskripsi ? <p className="text-lg text-ivory/90">{grup.deskripsi}</p> : null}
         </div>
       </div>
+
+      {profil?.galeri}
 
       <p className="text-lg text-muted-foreground">Hanya tipe yang masih tersedia yang ditampilkan.</p>
 
@@ -395,11 +411,13 @@ function LangkahKavling({
           <MessageCircle className="size-5" aria-hidden /> Tanya stok kavling lewat WhatsApp CS
         </a>
       ) : null}
+
+      {profil?.rincian}
     </div>
   );
 }
 
-/** One tipe kavling: its name, size and capacity from the brosur, Masa Hak Pakai, count and all-in price; a radio. */
+/** One tipe kavling: its name, size and capacity from the brosur, Masa Hak Pakai and count; a radio. Its price is read at Data & kirim. */
 function KartuKavling({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: boolean; onPilih: (kartu: KartuView) => void }) {
   return (
     <li className="flex">
@@ -407,7 +425,7 @@ function KartuKavling({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: 
         type="button"
         role="radio"
         aria-checked={dipilih}
-        aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
+        aria-label={kartu.jenisMakamName}
         onClick={() => onPilih(kartu)}
         className={cn(
           "flex w-full flex-col gap-3 rounded-3xl border-4 p-6 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 md:p-8",
@@ -421,9 +439,6 @@ function KartuKavling({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: 
         {kartu.deskripsi ? <span className="text-lg text-foreground">{kartu.deskripsi}</span> : null}
         <span className="text-lg text-muted-foreground">
           {kartu.masaHakPakai} · {kartu.tersedia} tersedia
-        </span>
-        <span className="mt-1 font-heading text-3xl font-extrabold tabular-nums text-foreground">
-          {formatRupiah(kartu.total)} <span className="text-body font-normal text-muted-foreground">semua biaya</span>
         </span>
       </button>
     </li>
