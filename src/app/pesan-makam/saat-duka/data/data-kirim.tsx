@@ -132,23 +132,22 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         backLabel="Pilih makam"
       />
       <div className="mt-6 flex flex-col gap-6">
-        <div>
-          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
-          <p className="mt-1 text-body-lg text-muted-foreground">
+        <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
+          <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Data &amp; kirim</h1>
+          <p className="mt-3 max-w-2xl text-lg text-ivory/85">
             Cukup yang kami perlukan untuk menyiapkan pemakaman. Sisanya bisa menyusul.
           </p>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 rounded-2xl bg-brand-soft px-4 py-3">
-          <p className="min-w-0 text-body text-brand-soft-foreground">
-            <span className="font-semibold">{kartu.jenisMakamName}</span> · {lokasi.name}
-          </p>
-          <Link
-            href={`/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(lokasi.id)}`}
-            className="shrink-0 text-body font-semibold text-brand underline underline-offset-2"
-          >
-            Ganti
-          </Link>
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ivory/15 px-5 py-4">
+            <p className="min-w-0 text-lg">
+              <span className="font-bold text-sand">{kartu.jenisMakamName}</span> · {lokasi.name}
+            </p>
+            <Link
+              href={`/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(lokasi.id)}`}
+              className="shrink-0 text-lg font-bold text-ivory underline underline-offset-4"
+            >
+              Ganti
+            </Link>
+          </div>
         </div>
 
         {/*
@@ -342,9 +341,9 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         <CatatanPembayaran jumlahJam={jumlahJamPembayaran} />
 
         {kodeMasukTerbuka ? (
-          <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary bg-card p-5">
-            <p className="flex items-center gap-2 text-title-3 text-foreground">
-              <Mail className="size-5 text-primary" aria-hidden /> Masukkan Kode Masuk
+          <div className="flex flex-col gap-4 rounded-3xl border-4 border-forest bg-card p-6 md:p-8">
+            <p className="flex items-center gap-2 font-heading text-2xl font-extrabold text-forest">
+              <Mail className="size-6 text-forest" aria-hidden /> Masukkan Kode Masuk
             </p>
             <KodeMasukForm
               requestAction={mintaKodeMasuk}
@@ -361,7 +360,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               size="lg"
               disabled={mengirim || sudahDikirim}
               onClick={kirimPesananSekarang}
-              className="h-12 px-6 text-body-lg"
+              className="h-14 rounded-xl px-8 text-lg font-bold"
             >
               {mengirim ? "Mengirim…" : "Kirim pesanan"} <ArrowRight aria-hidden />
             </Button>
@@ -442,7 +441,7 @@ function StickyBar({ kartu, layanan, terbuka, setTerbuka }: { kartu: KartuView; 
           >
             <span className="min-w-0">
               <span className="block text-caption text-muted-foreground">Total semua biaya</span>
-              <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
+              <span className="block font-heading text-2xl font-extrabold tabular-nums text-foreground md:text-3xl" data-testid="total-semua-biaya">
                 {formatRupiah(kartu.total + layanan)}
               </span>
             </span>

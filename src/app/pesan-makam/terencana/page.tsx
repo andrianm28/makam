@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cn } from "@/lib/utils";
 import { GambarTipeKavlingFigure } from "@/components/site/gambar-tipe-kavling";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -101,16 +102,16 @@ function Progress({ langkah, total, backHref, backLabel }: { langkah: number; to
       <div className="flex items-center justify-between gap-3">
         <Link
           href={backHref}
-          className="-ml-2 inline-flex h-10 items-center gap-1.5 rounded-lg px-2 text-body font-medium text-primary hover:bg-accent"
+          className="-ml-2 inline-flex h-12 items-center gap-2 rounded-xl px-3 text-lg font-bold text-forest hover:bg-accent"
         >
-          <ArrowLeft className="size-4" aria-hidden /> {backLabel}
+          <ArrowLeft className="size-5" aria-hidden /> {backLabel}
         </Link>
-        <span className="text-small text-muted-foreground">
+        <span className="text-body font-semibold text-muted-foreground">
           Langkah {langkah} dari {total}
         </span>
       </div>
       <div
-        className="h-1.5 overflow-hidden rounded-full bg-muted"
+        className="h-2.5 overflow-hidden rounded-full bg-muted"
         role="progressbar"
         aria-valuemin={1}
         aria-valuemax={total}
@@ -138,9 +139,9 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
       <Progress langkah={1} total={3} backHref="/" backLabel="Kembali" />
-      <div>
-        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih lokasi</h1>
-        <p className="mt-1 max-w-2xl text-body-lg text-muted-foreground">
+      <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
+        <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pilih lokasi</h1>
+        <p className="mt-3 max-w-2xl text-lg text-ivory/85">
           Lokasi Mitra yang sudah membuka pemesanan terencana. Di langkah berikutnya Anda memilih tipe kavlingnya.
         </p>
       </div>
@@ -181,11 +182,11 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
         </div>
       </div>
       {kartu.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
+        <p className="rounded-3xl border-2 border-dashed border-border-strong p-8 text-center text-lg text-muted-foreground">
           Belum ada lokasi dengan pemesanan terencana yang cocok. Coba hapus salah satu filter.
         </p>
       ) : (
-        <ul className="grid gap-5 sm:grid-cols-2">
+        <ul className="grid gap-6 md:grid-cols-2">
           {kartu.map((satu) => (
             <Kartu key={satu.id} kartu={satu} />
           ))}
@@ -197,7 +198,7 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
 
 function Kartu({ kartu }: { kartu: LokasiView }) {
   return (
-    <li className="group relative flex flex-col overflow-hidden rounded-3xl border border-border bg-card shadow-xs transition-shadow hover:shadow-md">
+    <li className="group relative flex flex-col overflow-hidden rounded-3xl bg-forest text-ivory shadow-xs transition-shadow hover:shadow-md">
       {kartu.foto ? (
         <div className="relative aspect-video overflow-hidden">
           {/* Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires. */}
@@ -205,33 +206,33 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
           <img src={kartu.foto} alt={`Foto ${kartu.name}`} className="size-full object-cover" />
         </div>
       ) : null}
-      <div className="flex flex-1 flex-col gap-3 p-5">
+      <div className="flex flex-1 flex-col gap-4 p-6 md:p-8">
         <div>
-          <h2 className="text-title-2 text-foreground">
+          <h2 className="font-heading text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">
             <Link href={terencanaPath({ langkah: "petak", lokasiId: kartu.id })} className="text-left after:absolute after:inset-0">
               {kartu.name}
             </Link>
           </h2>
-          <p className="mt-1 flex items-center gap-1 text-small text-muted-foreground">
-            <MapPin className="size-3.5" aria-hidden /> {kartu.city}
+          <p className="mt-2 flex items-center gap-2 text-lg text-ivory/85">
+            <MapPin className="size-5 text-sand" aria-hidden /> {kartu.city}
           </p>
         </div>
-        <p className="flex items-center gap-1.5 text-small font-medium text-success-soft-foreground">
-          <BadgeCheckIcon className="size-4" aria-hidden /> {kartu.terverifikasi}
+        <p className="flex items-center gap-2 text-body font-semibold text-sand">
+          <BadgeCheckIcon className="size-5" aria-hidden /> {kartu.terverifikasi}
         </p>
         <div className="mt-auto flex items-end justify-between gap-3 pt-2">
           <div>
-            <p className="text-caption text-muted-foreground">mulai</p>
-            <p className="text-title-2 tabular-nums">{kartu.mulai ?? "belum ada harga"}</p>
-            <p className="text-caption text-muted-foreground">Hak Pakai; biaya pemakaman dibayar nanti</p>
+            <p className="text-body text-ivory/80">mulai</p>
+            <p className="font-heading text-3xl font-extrabold tabular-nums text-sand">{kartu.mulai ?? "belum ada harga"}</p>
+            <p className="text-body text-ivory/80">Hak Pakai; biaya pemakaman dibayar nanti</p>
           </div>
           {kartu.fasilitas.length > 0 ? (
             <ul className="flex items-center gap-1.5" aria-label="Fasilitas">
               {kartu.fasilitas.map((satu) => {
                 const Icon = facilityIcons[satu.key];
                 return (
-                  <li key={satu.key} title={satu.label} className="inline-flex size-8 items-center justify-center rounded-full bg-brand-soft text-primary">
-                    <Icon className="size-4" aria-hidden />
+                  <li key={satu.key} title={satu.label} className="inline-flex size-10 items-center justify-center rounded-full bg-ivory/15 text-ivory">
+                    <Icon className="size-5" aria-hidden />
                     <span className="sr-only">{satu.label}</span>
                   </li>
                 );
@@ -266,11 +267,11 @@ async function PilihTipeKavlingScreen({ lokasiId, filter, pesan }: { lokasiId: s
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 pt-5 pb-16">
       <Progress langkah={2} total={3} backHref={terencanaPath(filter)} backLabel="Pilih lokasi" />
-      <div>
-        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih tipe kavling</h1>
-        <p className="mt-1 text-body-lg text-muted-foreground">
+      <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
+        <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pilih tipe kavling</h1>
+        <p className="mt-3 text-lg text-ivory/85">
           {hasil.lokasi.name}, {hasil.lokasi.city}.{" "}
-          <Link href={`/lokasi/${hasil.lokasi.id}`} className="font-medium text-primary underline underline-offset-2">
+          <Link href={`/lokasi/${hasil.lokasi.id}`} className="font-bold text-sand underline underline-offset-4">
             Lihat lokasi
           </Link>
         </p>
@@ -295,32 +296,32 @@ async function PilihTipeKavlingScreen({ lokasiId, filter, pesan }: { lokasiId: s
         </p>
       ) : null}
       {hasil.tipe.length === 0 ? (
-        <p className="text-body text-muted-foreground">Belum ada tipe kavling yang bisa dipesan di lokasi ini.</p>
+        <p className="text-lg text-muted-foreground">Belum ada tipe kavling yang bisa dipesan di lokasi ini.</p>
       ) : (
-        <ul className="grid gap-4 md:grid-cols-2">
+        <ul className="grid gap-6 md:grid-cols-2">
           {hasil.tipe.map((tipe) => (
-            <li key={tipe.jenisMakamId} className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-5">
+            <li key={tipe.jenisMakamId} className="flex flex-col gap-4 rounded-3xl border-4 border-border bg-card p-6 md:p-8">
               {gambarTipe[tipe.jenisMakamId] ? <GambarTipeKavlingFigure gambar={gambarTipe[tipe.jenisMakamId]} className="overflow-hidden rounded-xl bg-muted" /> : null}
               <div>
-                <h2 className="text-title-2 text-foreground">{tipe.name}</h2>
-                {tipe.description ? <p className="text-body text-muted-foreground">{tipe.description}</p> : null}
-                <p className="text-small text-muted-foreground">Masa Hak Pakai {tenureLabel(tipe.tenure).toLowerCase()}</p>
+                <h2 className="font-heading text-2xl font-extrabold tracking-tight text-forest md:text-3xl">{tipe.name}</h2>
+                {tipe.description ? <p className="mt-1 text-lg text-muted-foreground">{tipe.description}</p> : null}
+                <p className="mt-1 text-body text-muted-foreground">Masa Hak Pakai {tenureLabel(tipe.tenure).toLowerCase()}</p>
               </div>
               <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-display tabular-nums text-foreground">{formatRupiah(tipe.hargaAllIn)}</p>
-                  <p className="text-caption text-muted-foreground">sudah all-in · {tipe.tersedia > 0 ? `${tipe.tersedia} tersedia` : "habis"}</p>
+                  <p className="text-body text-muted-foreground">sudah all-in · {tipe.tersedia > 0 ? `${tipe.tersedia} tersedia` : "habis"}</p>
                 </div>
                 {tipe.berikut ? (
                   <Link
                     href={terencanaPath({ langkah: "data", lokasiId, ...tipe.berikut })}
-                    className={buttonVariants({ size: "lg" })}
+                    className={cn(buttonVariants({ size: "lg" }), "h-14 rounded-xl px-8 text-lg font-bold")}
                     aria-label={`Pilih ${tipe.name}`}
                   >
-                    Pilih <ArrowRight className="size-4" aria-hidden />
+                    Pilih <ArrowRight className="size-5" aria-hidden />
                   </Link>
                 ) : (
-                  <span className="text-small font-medium text-muted-foreground">Habis</span>
+                  <span className="text-lg font-bold text-muted-foreground">Habis</span>
                 )}
               </div>
             </li>
@@ -370,9 +371,9 @@ async function DataKirimScreen({ lokasiId, pilihan }: { lokasiId: string; piliha
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-40">
       <Progress langkah={3} total={3} backHref={terencanaPath({ langkah: "petak", lokasiId })} backLabel="Pilih tipe kavling" />
-      <div>
-        <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Data &amp; kirim</h1>
-        <p className="mt-1 text-body-lg text-muted-foreground">Data untuk mencatat Hak Pakai. Tidak ada yang dibayar saat mengirim.</p>
+      <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
+        <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Data &amp; kirim</h1>
+        <p className="mt-3 text-lg text-ivory/85">Data untuk mencatat Hak Pakai. Tidak ada yang dibayar saat mengirim.</p>
       </div>
       <DataKirim
         draft={{ lokasiId, units, email: actor?.email ?? "", phoneNumber: actor?.phoneNumber ?? "" }}
@@ -406,19 +407,21 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 pt-5 pb-16">
-      <div className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-6">
-        <span className="inline-flex size-11 items-center justify-center rounded-full bg-success-soft text-success-soft-foreground">
-          <Check className="size-6" aria-hidden />
+      <div className="flex flex-col gap-4 rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
+        <span className="inline-flex size-14 items-center justify-center rounded-full bg-ivory text-forest">
+          <Check className="size-8" aria-hidden />
         </span>
-        <h1 className="text-title-1 text-forest">Pesanan terkirim</h1>
-        <p className="text-body-lg text-muted-foreground">
-          Nomor Pemesanan <span className="font-mono font-semibold text-foreground">{tampil.nomor}</span>
+        <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pesanan terkirim</h1>
+        <p className="text-xl text-ivory/85">
+          Nomor Pemesanan <span className="font-mono font-bold text-sand">{tampil.nomor}</span>
         </p>
-        <p className="text-body text-foreground">
+      </div>
+      <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 md:p-8">
+        <p className="text-lg text-foreground">
           {tampil.ringkasan} di {tampil.lokasiNama} kini ditahan untuk Anda. Lokasi Mitra akan mengonfirmasi pesanan ini pada hari kerja berikutnya; setelah itu Tagihan
           terbit dan dikirim ke email Anda, dan Anda punya {jamTahan === null ? "waktu" : `${jamTahan} jam`} untuk membayar.
         </p>
-        <ul className="flex flex-col gap-1 text-small text-muted-foreground">
+        <ul className="flex flex-col gap-1 text-body text-muted-foreground">
           {tampil.unit.map((satu) => (
             <li key={satu} className="font-mono">
               {satu}
@@ -426,8 +429,8 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
           ))}
         </ul>
         <div>
-          <h2 className="text-title-3 text-foreground">Syarat Pemesanan Terencana</h2>
-          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-small text-muted-foreground">
+          <h2 className="font-heading text-2xl font-extrabold tracking-tight text-forest">Syarat Pemesanan Terencana</h2>
+          <ul className="mt-3 flex list-disc flex-col gap-2 pl-5 text-body text-muted-foreground">
             {tampil.syarat.map((satu) => (
               <li key={satu}>{satu}</li>
             ))}
@@ -435,13 +438,13 @@ async function Terkirim({ lokasiId, nomor }: { lokasiId: string; nomor: string }
           <p className="mt-2 text-small text-muted-foreground">Syarat ini tersimpan bersama pesanan Anda, bukan mengikuti perubahan kebijakan lokasi.</p>
         </div>
         <div className="flex flex-wrap gap-3 pt-2">
-          <Link href={`/pesanan/${tampil.nomor}`} className={buttonVariants({ size: "lg" })}>
+          <Link href={`/pesanan/${tampil.nomor}`} className={cn(buttonVariants({ size: "lg" }), "h-14 rounded-xl px-8 text-lg font-bold")}>
             Ikuti pesanan
           </Link>
-          <Link href={`/lokasi/${lokasiId}`} className={buttonVariants({ variant: "outline", size: "lg" })}>
+          <Link href={`/lokasi/${lokasiId}`} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-14 rounded-xl px-8 text-lg font-bold")}>
             Lihat lokasi
           </Link>
-          <Link href="/lokasi" className={buttonVariants({ variant: "outline", size: "lg" })}>
+          <Link href="/lokasi" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-14 rounded-xl px-8 text-lg font-bold")}>
             Cari lokasi lain
           </Link>
         </div>
