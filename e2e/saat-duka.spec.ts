@@ -47,7 +47,7 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
 
   // Screen 2: the family's data, then Kirim, which asks for the Kode Masuk.
   await expect(page.getByRole("heading", { name: "Data & kirim" })).toBeVisible();
-  await expect(page.getByText("Belum ada yang dibayar sekarang.")).toBeVisible();
+  await expect(page.getByText("Belum ada yang dibayar sekarang.", { exact: true })).toBeVisible();
   await page.getByLabel("Nama lengkap").fill("Budi Santoso");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Nomor telepon").fill(telepon.typed);
