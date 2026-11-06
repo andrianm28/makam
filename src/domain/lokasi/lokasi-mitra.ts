@@ -27,16 +27,12 @@ import { lokasiMitra as lokasiMitraTable, lokasiMitraStatuses } from "./schema";
 export type LokasiMitraStatus = (typeof lokasiMitraStatuses)[number];
 
 /**
- * The document checklist a new Lokasi Mitra starts with (spec, Lokasi): the
- * death certificate from the RS / Puskesmas, the death report letter from the
- * Lurah or RT/RW, and the KTP + KK of the Almarhum and of the Pemesan.
+ * The document checklist a new Lokasi Mitra starts with (rapat Ira, 6 Nov
+ * 2026): the KTP of the Almarhum, the Kartu Keluarga and the KTP of the
+ * Pemesan, attached in the order form before Kirim. The death certificate is
+ * no longer asked: it is usually issued only after the burial.
  */
-export const DEFAULT_DOCUMENT_CHECKLIST: readonly string[] = [
-  "Surat keterangan kematian dari RS / Puskesmas",
-  "Surat pengantar / laporan kematian dari Lurah atau RT/RW",
-  "KTP dan KK Almarhum",
-  "KTP dan KK Pemesan",
-];
+export const DEFAULT_DOCUMENT_CHECKLIST: readonly string[] = ["KTP Almarhum", "Kartu Keluarga", "KTP Pemesan"];
 
 /** A Lokasi Mitra's onboarding record, as the Lokasi module hands it out. */
 export interface LokasiMitra {

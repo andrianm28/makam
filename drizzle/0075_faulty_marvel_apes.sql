@@ -1,1 +1,3 @@
-ALTER TABLE "lokasi_mitra" ADD COLUMN "info_kartu" jsonb DEFAULT '{"agama":[],"deskripsi":"","luasLahan":"","krematorium":false}'::jsonb NOT NULL;
+ALTER TABLE "lokasi_mitra" ADD COLUMN "info_kartu" jsonb DEFAULT '{"agama":[],"deskripsi":"","luasLahan":"","krematorium":false}'::jsonb NOT NULL;--> statement-breakpoint
+-- Rapat Ira, 6 Nov 2026: a Lokasi Mitra still on the old default checklist moves to the new one (KTP Almarhum, Kartu Keluarga, KTP Pemesan; no death certificate). A checklist an Admin Platform changed is left as it is.
+UPDATE "lokasi_mitra" SET "document_checklist" = '["KTP Almarhum","Kartu Keluarga","KTP Pemesan"]'::jsonb WHERE "document_checklist" = '["Surat keterangan kematian dari RS / Puskesmas","Surat pengantar / laporan kematian dari Lurah atau RT/RW","KTP dan KK Almarhum","KTP dan KK Pemesan"]'::jsonb;

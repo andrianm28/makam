@@ -67,6 +67,7 @@ export default async function DataKirimPage({ searchParams }: PageProps<"/pesan-
       mintaKodeMasuk={kirimKodeMasuk}
       csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
       jumlahJamPembayaran={jumlahJamPembayaran}
+      dokumen={profil?.documentChecklist ?? []}
       layananHariH={hariH.map((satu) => ({
         id: satu.layanan.id,
         name: satu.layanan.name,

@@ -7,7 +7,7 @@ import { lastEmailCode } from "./support/email-outbox";
 import { coldEmail } from "./support/emails";
 import { fromNewIp, masukSetelahJeda } from "./support/masuk";
 import { coldNumber } from "./support/numbers";
-import { seedSaatDukaLokasi } from "./support/saat-duka";
+import { seedSaatDukaLokasi, lampirkanDokumen } from "./support/saat-duka";
 
 /*
  * The Saat Duka critical path end to end (spec, Testing Decisions, end-to-end 1;
@@ -60,6 +60,7 @@ test("Saat Duka: a family orders, the Lokasi confirms and records the burial, th
   await page.getByLabel("Nama mendiang").fill("Siti Aminah");
   await page.getByRole("radio", { name: "Perempuan" }).click();
   await page.getByLabel("Tanggal wafat").fill("2026-09-30");
+  await lampirkanDokumen(page);
   await fromNewIp(page);
   await page.getByRole("button", { name: "Kirim pesanan" }).first().click();
   await page.getByRole("button", { name: "Kirim Kode Masuk" }).click();
