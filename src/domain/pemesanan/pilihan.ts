@@ -7,13 +7,15 @@
  */
 import { withinPaymentCap } from "@/domain/billing";
 import type { AllInPrice, Tenure } from "@/domain/tariffs";
-import type { KontakSiaga, WorkingTimeResult } from "@/domain/lokasi";
+import type { InfoKartu, KontakSiaga, WorkingTimeResult } from "@/domain/lokasi";
 import type { PemesananDeps } from "./deps";
 
 /** One card of the list: a Jenis Makam at a Lokasi Mitra that still has one. */
 export interface PilihanSaatDuka {
   jenisMakamId: string;
   jenisMakamName: string;
+  /** The Jenis Makam's own description (its size and capacity, from the mitra's brosur); the Pilih Tipe Kavling card shows it. */
+  jenisMakamDescription: string;
   /** The Masa Hak Pakai the Hak Pakai would have, as the card words it. */
   tenure: Tenure;
   /** Cleared Tersedia units of this Jenis Makam (a Kavling Keluarga counts as one); at least 1. */
@@ -27,7 +29,7 @@ export interface PilihanSaatDuka {
 
 /** A Lokasi Mitra in the list, with the promise and the contact said once. */
 export interface GrupSaatDuka {
-  lokasi: { id: string; name: string; city: string };
+  lokasi: { id: string; name: string; city: string; address: string; infoKartu: InfoKartu };
   /**
    * The confirmation promise, from the Lokasi's Jam Operasional: whether it is
    * open now, when it will confirm (2 service hours), and its Kontak Siaga
@@ -82,6 +84,7 @@ export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDuk
           return harga && {
             jenisMakamId: card.jenisMakam.id,
             jenisMakamName: card.jenisMakam.name,
+            jenisMakamDescription: card.jenisMakam.description,
             tenure: card.tenure,
             tersedia: counts.get(card.jenisMakam.id)!,
             harga,
@@ -93,7 +96,9 @@ export async function pilihanSaatDuka(deps: PemesananDeps, query: PilihanSaatDuk
         .filter((one) => !query.jenisMakamId || one.jenisMakamId === query.jenisMakamId)
         .sort((a, b) => a.harga.total - b.harga.total);
       if (priced.length === 0) return null;
-      return { lokasi: { id: lokasi.id, name: lokasi.name, city: lokasi.city }, konfirmasi: await konfirmasi(deps, lokasi.id), pilihan: priced };
+      return {
+        lokasi: { id: lokasi.id, name: lokasi.name, city: lokasi.city, address: lokasi.address, infoKartu: lokasi.infoKartu },
+        konfirmasi: await konfirmasi(deps, lokasi.id), pilihan: priced };
     }),
   );
   return grup

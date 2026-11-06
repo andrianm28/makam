@@ -1,5 +1,6 @@
 import type { GrupSaatDuka, PilihanSaatDuka } from "@/domain/pemesanan";
 import type { KartuTpu } from "@/domain/pengurusan";
+import { labelAgama, agamaDiterima, type Agama } from "@/domain/lokasi/skema-info-kartu";
 import { konfirmasiTpuLabel } from "@/lib/pengurusan-labels";
 import { konfirmasiLabel, tenureLabel } from "@/lib/pemesanan-labels";
 import { quoteLineLabel } from "@/lib/quote-line-label";
@@ -14,6 +15,8 @@ import { quoteLineLabel } from "@/lib/quote-line-label";
 export interface KartuView {
   jenisMakamId: string;
   jenisMakamName: string;
+  /** Its size and capacity as the mitra's brosur says them; "" when none was written. */
+  deskripsi: string;
   /** "Masa Hak Pakai 5 tahun" / "Masa Hak Pakai selamanya". */
   masaHakPakai: string;
   /** Cleared Tersedia units of this Jenis Makam. */
@@ -28,6 +31,14 @@ export interface GrupView {
   lokasiId: string;
   lokasiName: string;
   kota: string;
+  alamat: string;
+  /** The agama it accepts, in the list's own order: the agama filter reads it. */
+  agama: Agama[];
+  /** "Lintas agama" when it takes every one, else the names joined; "" when none is recorded. */
+  agamaLabel: string;
+  deskripsi: string;
+  luasLahan: string;
+  krematorium: boolean;
   /** Whether the Lokasi is inside its Jam Operasional at the Clock's now. */
   bukaSekarang: boolean;
   /** "Dikonfirmasi paling lambat …", or that it has no Jam Operasional to promise one. */
@@ -43,6 +54,7 @@ export function kartuView(kartu: PilihanSaatDuka): KartuView {
   return {
     jenisMakamId: kartu.jenisMakamId,
     jenisMakamName: kartu.jenisMakamName,
+    deskripsi: kartu.jenisMakamDescription,
     masaHakPakai: `Masa Hak Pakai ${tenureLabel(kartu.tenure)}`,
     tersedia: kartu.tersedia,
     total: kartu.harga.total,
@@ -50,22 +62,17 @@ export function kartuView(kartu: PilihanSaatDuka): KartuView {
   };
 }
 
-/**
- * The shape "Pilih makam" draws a Lokasi Mitra card in (the prototype's own
- * distinction): a single Jenis Makam collapses into one selectable row (photo,
- * name, price and radio together, no inner list); more than one keeps the
- * header-plus-list shape, because there is a choice to lay out. Pure and
- * total: never anything to invent, so it takes only the one fact it needs.
- */
-export function bentukKartu(grup: Pick<GrupView, "pilihan">): "tunggal" | "banyak" {
-  return grup.pilihan.length === 1 ? "tunggal" : "banyak";
-}
-
 export function grupView(grup: GrupSaatDuka, photoUrl: string | null = null): GrupView {
   return {
     lokasiId: grup.lokasi.id,
     lokasiName: grup.lokasi.name,
     kota: grup.lokasi.city,
+    alamat: grup.lokasi.address,
+    agama: agamaDiterima.filter((agama) => grup.lokasi.infoKartu.agama.includes(agama)),
+    agamaLabel: agamaLabel(grup.lokasi.infoKartu.agama),
+    deskripsi: grup.lokasi.infoKartu.deskripsi,
+    luasLahan: grup.lokasi.infoKartu.luasLahan,
+    krematorium: grup.lokasi.infoKartu.krematorium,
     bukaSekarang: grup.konfirmasi.bukaSekarang,
     konfirmasi: konfirmasiLabel(grup.konfirmasi.batas),
     kontakSiaga: grup.konfirmasi.kontakSiaga?.phoneNumber
@@ -77,6 +84,33 @@ export function grupView(grup: GrupSaatDuka, photoUrl: string | null = null): Gr
     pilihan: grup.pilihan.map(kartuView),
     photoUrl,
   };
+}
+
+/** What the card says about the agama a Lokasi Mitra accepts: "Lintas agama" for all six, else the names; "" for none recorded. */
+export function agamaLabel(agama: readonly Agama[]): string {
+  const urut = agamaDiterima.filter((satu) => agama.includes(satu));
+  if (urut.length === agamaDiterima.length) return "Lintas agama";
+  return urut.map((satu) => labelAgama[satu]).join(", ");
+}
+
+/**
+ * The Lokasi Mitra groups the agama filter keeps: every one for "semua", else
+ * those that accept that agama. A Lokasi with no agama recorded is kept only
+ * under "semua", since nothing says it takes that agama.
+ */
+export function saringAgama<T extends Pick<GrupView, "agama">>(grup: T[], agama: Agama | "semua"): T[] {
+  return agama === "semua" ? grup : grup.filter((satu) => satu.agama.includes(agama));
+}
+
+/** The groups by city, in the order the cities first appear (the list is cheapest first, so the cheapest city leads). */
+export function perKota<T extends Pick<GrupView, "kota">>(grup: T[]): { kota: string; grup: T[] }[] {
+  const urutan: { kota: string; grup: T[] }[] = [];
+  for (const satu of grup) {
+    const ada = urutan.find((kelompok) => kelompok.kota === satu.kota);
+    if (ada) ada.grup.push(satu);
+    else urutan.push({ kota: satu.kota, grup: [satu] });
+  }
+  return urutan;
 }
 
 /** One TPU of the "Pilih makam" section, as its card shows it. */

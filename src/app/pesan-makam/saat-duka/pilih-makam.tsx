@@ -2,17 +2,16 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { ArrowRight, Check, ChevronLeft, ChevronRight, ChevronUp, Clock, MoonStar } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ArrowRight, Check, ChevronUp, Clock, Flame, MapPin, MessageCircle, MoonStar, Ruler } from "lucide-react";
 import { FilterChip } from "@/components/makam/filter-chip";
-import { KotaPickerAksi } from "@/components/makam/kota-picker";
 import { Button } from "@/components/ui/button";
+import { agamaDiterima, labelAgama, type Agama } from "@/domain/lokasi/skema-info-kartu";
 import { Progress } from "./progress";
-import { ingatKota } from "./actions";
 import { formatRupiah } from "@/lib/rupiah";
 import { cn } from "@/lib/utils";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
-import { bentukKartu, type KartuView, type GrupView, type TpuKartuView } from "./tampilan";
+import { perKota, saringAgama, type KartuView, type GrupView, type TpuKartuView } from "./tampilan";
 
 export interface PilihMakamProps {
   grup: GrupView[];
@@ -20,10 +19,6 @@ export interface PilihMakamProps {
   tpu: TpuKartuView[];
   /** False while DKI TPU is not open in this environment: no TPU section and no type chip (ADR 0006). */
   tpuTerbuka: boolean;
-  /** Every city with a Terverifikasi Lokasi Mitra, for the filter. */
-  semuaKota: string[];
-  /** The city the list is filtered to; null is "Semua kota". */
-  kota: string | null;
   /** The type chip the combined list is filtered by. */
   jenis: JenisPilihan;
   /** The "Pilih makam" URL to come back to, keeping the deep-linked Lokasi. */
@@ -32,7 +27,7 @@ export interface PilihMakamProps {
   dari: string | null;
   /** The banner after a Tolak: the Lokasi Mitra that refused and why, in the closed list's own words; null on an ordinary visit. */
   banner: BannerTolak | null;
-  /** The Lokasi Mitra the visitor came from; null when the list decides alone. */
+  /** The Lokasi Mitra chosen on the grid (or deep linked): the screen opens on its Pilih Tipe Kavling step; null for the grid. */
   preselect: string | null;
   /**
    * The card the screen starts on, which the Pemesanan module chose: the deep
@@ -55,7 +50,7 @@ export type KartuAwal = { lokasiId: string; jenisMakamId: string } | null;
 /** The type chip over the combined list, as the screen read it off the URL. */
 type JenisPilihan = "semua" | "lokasi_mitra" | "tpu_dki";
 
-/** What is selected: one Lokasi Mitra card, or one TPU of the section. */
+/** What is selected: one tipe kavling of the chosen Lokasi Mitra, or one TPU of the section. */
 type Terpilih = { kind: "lokasi_mitra"; lokasiId: string; kartu: KartuView } | { kind: "tpu_dki"; kartu: TpuKartuView };
 
 /** Every choice on the screen, the way the sticky bar reads its total and its lines. */
@@ -65,210 +60,388 @@ interface Baris {
 }
 
 /**
- * "Pilih makam": every Lokasi Mitra that still has a Jenis Makam with a cleared
- * Tersedia unit, cheapest all-in total first, then the TPU section below
- * (spec, story 19), with the type chip over the combined list and the sticky
- * "Total semua biaya" bar that expands to the itemised lines. The selected card
- * carries on to the next step in its own URL, so the browser's back button
- * returns to the same choice.
+ * "Pilih makam" (rapat Ira, 6 Nov 2026; she chose Opsi A, the grid of big
+ * cards): every Lokasi Mitra with a cleared Tersedia unit as a big card with
+ * its gate photo, grouped under its city's heading, narrowed by the agama
+ * dropdown (dri chose it over the city filter). "Pilih" opens the Lokasi
+ * Mitra's own Pilih Tipe Kavling step at its own URL (`?lokasiId=`), so the
+ * browser's back button returns to the grid; there the sticky "Total semua
+ * biaya" bar expands to the itemised lines and carries the choice on.
  */
-export function PilihMakam({ grup, tpu, tpuTerbuka, semuaKota, kota, jenis, kembali, dari, banner, preselect, awal, csContact }: PilihMakamProps) {
+export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner, preselect, awal, csContact }: PilihMakamProps) {
   const router = useRouter();
-  const [terpilih, setTerpilih] = useState<Terpilih | null>(() => pilihanAwal(grup, tpu, jenis, awal));
+  const dipilih = preselect ? (grup.find((satu) => satu.lokasiId === preselect) ?? null) : null;
+  const [terpilih, setTerpilih] = useState<Terpilih | null>(() => pilihanAwal(dipilih, tpu, jenis, awal));
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
+  const [agama, setAgama] = useState<Agama | "semua">("semua");
   const total = terpilih?.kartu.total ?? null;
   const rincian: Baris[] = terpilih?.kartu.rincian ?? [];
   const lokasiSaja = jenis === "lokasi_mitra";
+  const tampilBar = dipilih !== null || (tpuTerbuka && !lokasiSaja && tpu.length > 0);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 pt-5 pb-40">
+    <div className={cn("mx-auto w-full max-w-6xl px-4 pt-5", tampilBar ? "pb-40" : "pb-16")}>
       <Progress
         langkah={1}
         total={2}
-        onBack={() => router.push(preselect ? `/lokasi/${preselect}` : "/")}
-        backLabel="Kembali"
+        onBack={() => router.push(dipilih ? urlGrid(dari) : "/")}
+        backLabel={dipilih ? "Ganti makam" : "Kembali"}
       />
-      <div className="mt-6 flex flex-col gap-6">
-        <div>
-          <h1 className="text-title-1 text-forest md:text-3xl md:leading-tight">Pilih makam</h1>
-          <p className="mt-1 text-body-lg text-muted-foreground">
-            Diurutkan dari total biaya terendah. Hanya makam yang masih tersedia yang ditampilkan.
-          </p>
-        </div>
-
-        {banner ? <BannerTolakSaatDuka banner={banner} /> : null}
-
-        {tpuTerbuka ? <JenisFilter jenis={jenis} kembali={kembali} kota={kota} /> : null}
-
-        <KotaFilter semuaKota={semuaKota} kota={kota} kembali={kembali} jenis={jenis} />
-
-        {!lokasiSaja ? (
-          grup.length === 0 ? (
-            <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
-              Belum ada makam tersedia di kota ini. Coba kota lain, atau tanyakan kepada CS kami.
+      {dipilih ? (
+        <LangkahKavling
+          grup={dipilih}
+          terpilih={terpilih}
+          onPilih={(kartu) => setTerpilih({ kind: "lokasi_mitra", lokasiId: dipilih.lokasiId, kartu })}
+          kembaliKeGrid={urlGrid(dari)}
+          csContact={csContact}
+        />
+      ) : (
+        <div className="mt-6 flex flex-col gap-8">
+          <div>
+            <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-forest md:text-5xl">Pilih makam</h1>
+            <p className="mt-2 max-w-2xl text-body-lg text-muted-foreground">
+              Semua lokasi sudah bermitra dengan Makam.co.id. Hanya makam yang masih tersedia yang ditampilkan, dengan harga lengkap
+              sebelum memesan.
             </p>
-          ) : (
-            <DaftarGeser jumlah={grup.length} awalId={terpilih?.kind === "lokasi_mitra" ? idGrup(terpilih.lokasiId) : null}>
-              {grup.map((satu) => (
-                <GrupKartu
-                  key={satu.lokasiId}
-                  grup={satu}
-                  terpilih={terpilih}
-                  onPilih={(kartu) => {
-                    setTerpilih({ kind: "lokasi_mitra", lokasiId: satu.lokasiId, kartu });
-                    gulirKePilihan(idGrup(satu.lokasiId));
-                  }}
-                />
-              ))}
-            </DaftarGeser>
-          )
-        ) : null}
+          </div>
 
-        {!lokasiSaja ? (
-          <TpuSection tpu={tpu} terpilih={terpilih} onPilih={(kartu) => setTerpilih({ kind: "tpu_dki", kartu })} csContact={csContact} />
-        ) : null}
-      </div>
+          {banner ? <BannerTolakSaatDuka banner={banner} /> : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
-        <div className="mx-auto max-w-3xl px-4">
-          {rincianTerbuka && terpilih ? (
-            <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
-              {rincian.map((baris) => (
-                <div key={baris.label} className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">{baris.label}</dt>
-                  <dd className="whitespace-nowrap">{formatRupiah(baris.amount)}</dd>
-                </div>
-              ))}
-              <p className="text-small text-muted-foreground">
-                Belum ada yang dibayar sekarang. Tagihan terbit setelah pemakaman dikonfirmasi.
-              </p>
-            </dl>
+          {tpuTerbuka ? <JenisFilter jenis={jenis} kembali={kembali} /> : null}
+
+          {!lokasiSaja ? (
+            <GridPerKota grup={grup} agama={agama} onAgama={setAgama} dari={dari} csContact={csContact} />
           ) : null}
-          <div className="flex items-center gap-3 py-3">
-            <button
-              type="button"
-              disabled={!terpilih}
-              onClick={() => setRincianTerbuka((buka) => !buka)}
-              aria-expanded={rincianTerbuka}
-              aria-controls="rincian-total"
-              className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left disabled:cursor-default"
-            >
-              <span className="min-w-0">
-                <span className="block text-caption text-muted-foreground">Total semua biaya</span>
-                <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
-                  {total === null ? "Pilih makam dulu" : formatRupiah(total)}
+
+          {!lokasiSaja && tpuTerbuka ? (
+            <TpuSection tpu={tpu} terpilih={terpilih} onPilih={(kartu) => setTerpilih({ kind: "tpu_dki", kartu })} csContact={csContact} />
+          ) : null}
+        </div>
+      )}
+
+      {tampilBar ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card shadow-sticky">
+          <div className="mx-auto max-w-3xl px-4">
+            {rincianTerbuka && terpilih ? (
+              <dl id="rincian-total" className="flex flex-col gap-2 border-b border-border py-4 text-body tabular-nums">
+                {rincian.map((baris) => (
+                  <div key={baris.label} className="flex justify-between gap-4">
+                    <dt className="text-muted-foreground">{baris.label}</dt>
+                    <dd className="whitespace-nowrap">{formatRupiah(baris.amount)}</dd>
+                  </div>
+                ))}
+                <p className="text-small text-muted-foreground">
+                  Belum ada yang dibayar sekarang. Tagihan terbit setelah pemakaman dikonfirmasi.
+                </p>
+              </dl>
+            ) : null}
+            <div className="flex items-center gap-3 py-3">
+              <button
+                type="button"
+                disabled={!terpilih}
+                onClick={() => setRincianTerbuka((buka) => !buka)}
+                aria-expanded={rincianTerbuka}
+                aria-controls="rincian-total"
+                className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left disabled:cursor-default"
+              >
+                <span className="min-w-0">
+                  <span className="block text-caption text-muted-foreground">Total semua biaya</span>
+                  <span className="block text-title-2 tabular-nums text-foreground" data-testid="total-semua-biaya">
+                    {total === null ? "Pilih makam dulu" : formatRupiah(total)}
+                  </span>
                 </span>
-              </span>
-              {terpilih ? (
-                <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !rincianTerbuka && "rotate-180")} aria-hidden />
-              ) : null}
-              {terpilih ? <span className="sr-only">{rincianTerbuka ? "Sembunyikan rincian" : "Lihat rincian"}</span> : null}
-            </button>
-            <Button
-              size="lg"
-              disabled={!terpilih}
-              onClick={() => terpilih && router.push(langkahBerikut(terpilih, dari))}
-              className="h-12 shrink-0 px-6 text-body-lg"
-            >
-              Lanjut <ArrowRight aria-hidden />
-            </Button>
+                {terpilih ? (
+                  <ChevronUp className={cn("size-5 shrink-0 text-primary transition-transform", !rincianTerbuka && "rotate-180")} aria-hidden />
+                ) : null}
+                {terpilih ? <span className="sr-only">{rincianTerbuka ? "Sembunyikan rincian" : "Lihat rincian"}</span> : null}
+              </button>
+              <Button
+                size="lg"
+                disabled={!terpilih}
+                onClick={() => terpilih && router.push(langkahBerikut(terpilih, dari))}
+                className="h-12 shrink-0 px-6 text-body-lg"
+              >
+                Lanjut <ArrowRight aria-hidden />
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }
 
-/** The element id of a Lokasi Mitra's card in the list, the target of `gulirKePilihan`. */
-function idGrup(lokasiId: string): string {
-  return `grup-${lokasiId}`;
+/** The grid's own URL, keeping a Tolak's `dari` so the banner and the family's data survive "Ganti makam". */
+function urlGrid(dari: string | null): string {
+  return dari ? `/pesan-makam/saat-duka?dari=${encodeURIComponent(dari)}` : "/pesan-makam/saat-duka";
 }
 
-/**
- * After a tap on a makam (R11, the owner's 7 Sep ask: with nothing moving she
- * took the page for still loading), the chosen card's bottom slides up to just
- * above the sticky bar, so its total and Lanjut sit right under what was
- * chosen. Smooth unless the visitor asks for reduced motion; never on the
- * card chosen for them on arrival.
- */
-function gulirKePilihan(id: string): void {
-  requestAnimationFrame(() => {
-    const target = document.getElementById(id);
-    if (!target) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    target.scrollIntoView({ block: "end", inline: "nearest", behavior: reduce ? "auto" : "smooth" });
-  });
+/** A Lokasi Mitra's own Pilih Tipe Kavling step. */
+function urlKavling(lokasiId: string, dari: string | null): string {
+  const query = new URLSearchParams({ lokasiId });
+  if (dari) query.set("dari", dari);
+  return `/pesan-makam/saat-duka?${query.toString()}`;
 }
 
-/** The width every Lokasi Mitra card takes in the horizontal list: most of a phone's width, so the next card peeks in. */
-const LEBAR_KARTU = "w-[85%] max-w-sm shrink-0 snap-start sm:w-80";
-
-/**
- * The Lokasi Mitra cards as one horizontal row (owner, 6 Nov 2026: "list
- * mitra lokasi dibuat horizontal card"), cheapest first from the left. On a
- * phone the next card peeks in at the edge and a swipe moves one card at a
- * time; with a mouse, the arrows do. On arrival the row is already at the card
- * chosen for the visitor, without moving the page itself.
- */
-function DaftarGeser({ jumlah, awalId, children }: { jumlah: number; awalId: string | null; children: React.ReactNode }) {
-  const baris = useRef<HTMLUListElement>(null);
-  const [awal] = useState(awalId);
-
-  useEffect(() => {
-    const ul = baris.current;
-    const kartu = awal ? document.getElementById(awal) : null;
-    if (!ul || !kartu) return;
-    // The row is the cards' offset parent (`relative`); 16px is its own px-4 lead-in.
-    ul.scrollLeft = kartu.offsetLeft - 16;
-  }, [awal]);
-
-  const geser = (arah: 1 | -1) => {
-    const ul = baris.current;
-    if (!ul) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    ul.scrollBy({ left: arah * ul.clientWidth * 0.8, behavior: reduce ? "auto" : "smooth" });
-  };
-
+/** The agama dropdown and the big cards under their city headings (Opsi A). */
+function GridPerKota({
+  grup,
+  agama,
+  onAgama,
+  dari,
+  csContact,
+}: {
+  grup: GrupView[];
+  agama: Agama | "semua";
+  onAgama: (agama: Agama | "semua") => void;
+  dari: string | null;
+  csContact: CsContact | null;
+}) {
+  const tersaring = saringAgama(grup, agama);
   return (
-    <section className="flex flex-col gap-2" aria-labelledby="mitra-judul">
-      <div className="flex items-end justify-between gap-3">
-        <div>
-          <h2 id="mitra-judul" className="text-title-3 text-foreground">
-            Lokasi Mitra
-          </h2>
-          <p className="text-small text-muted-foreground">
-            {jumlah} lokasi{jumlah > 1 ? " · geser untuk melihat lainnya" : ""}
-          </p>
-        </div>
-        {jumlah > 1 ? (
-          <div className="hidden gap-2 sm:flex">
-            <button
-              type="button"
-              onClick={() => geser(-1)}
-              className="inline-flex size-10 items-center justify-center rounded-full border border-border-strong bg-card text-forest hover:bg-accent"
-            >
-              <ChevronLeft className="size-5" aria-hidden />
-              <span className="sr-only">Lokasi sebelumnya</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => geser(1)}
-              className="inline-flex size-10 items-center justify-center rounded-full border border-border-strong bg-card text-forest hover:bg-accent"
-            >
-              <ChevronRight className="size-5" aria-hidden />
-              <span className="sr-only">Lokasi berikutnya</span>
-            </button>
-          </div>
-        ) : null}
+    <section className="flex flex-col gap-8" aria-label="Lokasi Mitra">
+      <div className="flex flex-wrap items-center gap-3">
+        <label htmlFor="filter-agama" className="text-body font-semibold text-foreground">
+          Agama
+        </label>
+        <select
+          id="filter-agama"
+          value={agama}
+          onChange={(event) => onAgama(event.target.value as Agama | "semua")}
+          className="h-11 rounded-xl border border-border-strong bg-card px-3 pr-8 text-body text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+        >
+          <option value="semua">Semua agama</option>
+          {agamaDiterima.map((satu) => (
+            <option key={satu} value={satu}>
+              {labelAgama[satu]}
+            </option>
+          ))}
+        </select>
+        <span className="text-small text-muted-foreground" aria-live="polite">
+          {tersaring.length} lokasi mitra
+        </span>
       </div>
-      <ul
-        ref={baris}
-        className="relative -mx-4 flex snap-x snap-mandatory scroll-px-4 items-start gap-3 overflow-x-auto overscroll-x-contain px-4 pt-1 pb-3 [scrollbar-width:thin]"
-      >
-        {children}
-      </ul>
+
+      {tersaring.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border-strong p-6 text-center text-body text-muted-foreground">
+          {agama === "semua"
+            ? "Belum ada makam tersedia saat ini."
+            : `Belum ada lokasi mitra untuk agama ${labelAgama[agama]}.`}{" "}
+          <CsTanyaCS csContact={csContact} />
+        </p>
+      ) : (
+        perKota(tersaring).map((kelompok) => (
+          <section key={kelompok.kota} className="flex flex-col gap-4" aria-labelledby={`kota-${kelompok.kota}`}>
+            <h2
+              id={`kota-${kelompok.kota}`}
+              className="flex items-center gap-3 text-small font-bold uppercase tracking-[0.14em] text-muted-foreground after:h-px after:flex-1 after:bg-border"
+            >
+              {kelompok.kota}
+            </h2>
+            <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {kelompok.grup.map((satu) => (
+                <KartuBesar key={satu.lokasiId} grup={satu} href={urlKavling(satu.lokasiId, dari)} />
+              ))}
+            </ul>
+          </section>
+        ))
+      )}
     </section>
   );
+}
+
+/** One Lokasi Mitra as a big card: gate photo, name, address, agama and krematorium, description, from-price, "Pilih". */
+function KartuBesar({ grup, href }: { grup: GrupView; href: string }) {
+  const mulai = Math.min(...grup.pilihan.map((kartu) => kartu.total));
+  return (
+    <li className="flex">
+      <article className="flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-card">
+        <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} />
+        <div className="flex flex-1 flex-col gap-3 p-5">
+          <div>
+            <h3 className="text-xl font-extrabold leading-snug text-foreground">{grup.lokasiName}</h3>
+            {grup.alamat ? (
+              <p className="mt-1 flex items-start gap-1.5 text-small text-muted-foreground">
+                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {grup.alamat}
+              </p>
+            ) : null}
+          </div>
+          <TagInfo grup={grup} />
+          {grup.deskripsi ? <p className="text-body text-foreground">{grup.deskripsi}</p> : null}
+          <div className="mt-auto flex items-end justify-between gap-3 pt-2">
+            <p className="text-small text-muted-foreground">
+              mulai
+              <span className="block text-title-2 font-extrabold tabular-nums text-foreground">{formatRupiah(mulai)}</span>
+            </p>
+            <Link
+              href={href}
+              aria-label={`Pilih ${grup.lokasiName}`}
+              className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-primary px-5 text-body font-bold text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/50"
+            >
+              Pilih <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
+        </div>
+      </article>
+    </li>
+  );
+}
+
+/** The agama it accepts, krematorium and luas lahan, as small tags; nothing for what is not recorded. */
+function TagInfo({ grup }: { grup: GrupView }) {
+  if (!grup.agamaLabel && !grup.krematorium && !grup.luasLahan) return null;
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label="Info lokasi">
+      {grup.agamaLabel ? (
+        <li className="rounded-full bg-muted px-3 py-1 text-caption font-semibold text-foreground">{grup.agamaLabel}</li>
+      ) : null}
+      {grup.krematorium ? (
+        <li className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-3 py-1 text-caption font-semibold text-brand">
+          <Flame className="size-3.5" aria-hidden />
+          Ada krematorium
+        </li>
+      ) : null}
+      {grup.luasLahan ? (
+        <li className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-caption font-semibold text-foreground">
+          <Ruler className="size-3.5" aria-hidden />
+          Luas {grup.luasLahan}
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+/** The gate photo (its Galeri's gerbang photo, else a Kunjungan Verifikasi photo); a plain green panel when it has none. */
+function FotoGerbang({ url, nama }: { url: string | null; nama: string }) {
+  if (!url) {
+    return (
+      <div className="flex aspect-[16/10] items-end bg-forest p-3" aria-hidden>
+        <span className="rounded-md bg-black/30 px-2 py-0.5 text-caption text-white">{nama}</span>
+      </div>
+    );
+  }
+  return (
+    // A short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt={`Gerbang ${nama}`} className="aspect-[16/10] w-full object-cover" />
+  );
+}
+
+/**
+ * Pilih Tipe Kavling for the Lokasi Mitra chosen on the grid: its card in
+ * short, every tipe kavling still tersedia with its size and capacity from
+ * the brosur, Masa Hak Pakai, count and all-in price, the confirmation
+ * promise once, and the CS on WhatsApp for a stock question only (dri, 6 Nov
+ * 2026: the order, the confirmation and the payment stay on the platform).
+ */
+function LangkahKavling({
+  grup,
+  terpilih,
+  onPilih,
+  kembaliKeGrid,
+  csContact,
+}: {
+  grup: GrupView;
+  terpilih: Terpilih | null;
+  onPilih: (kartu: KartuView) => void;
+  kembaliKeGrid: string;
+  csContact: CsContact | null;
+}) {
+  return (
+    <div className="mx-auto mt-6 flex max-w-4xl flex-col gap-6">
+      <Link href={kembaliKeGrid} className="inline-flex items-center gap-1.5 self-start text-body font-bold text-brand hover:underline">
+        <ArrowLeft className="size-4" aria-hidden /> Ganti makam
+      </Link>
+      <div className="grid overflow-hidden rounded-2xl border border-border bg-card sm:grid-cols-[220px_1fr]">
+        <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} />
+        <div className="flex flex-col gap-2 p-5">
+          <p className="text-small font-bold uppercase tracking-[0.14em] text-muted-foreground">{grup.kota}</p>
+          <p className="text-xl font-extrabold text-foreground">{grup.lokasiName}</p>
+          {grup.alamat ? <p className="text-small text-muted-foreground">{grup.alamat}</p> : null}
+          <TagInfo grup={grup} />
+          <Link href={`/lokasi/${grup.lokasiId}`} className="text-small font-medium text-brand underline-offset-2 hover:underline">
+            Lihat fasilitas, jam operasional dan petunjuk arah
+          </Link>
+        </div>
+      </div>
+
+      <div>
+        <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-forest md:text-4xl">Pilih tipe kavling</h1>
+        <p className="mt-1 text-body-lg text-muted-foreground">Hanya tipe yang masih tersedia yang ditampilkan.</p>
+      </div>
+
+      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2" role="radiogroup" aria-label={`Tipe kavling di ${grup.lokasiName}`}>
+        {grup.pilihan.map((kartu) => (
+          <KartuKavling
+            key={kartu.jenisMakamId}
+            kartu={kartu}
+            dipilih={terpilih?.kind === "lokasi_mitra" && terpilih.kartu.jenisMakamId === kartu.jenisMakamId}
+            onPilih={onPilih}
+          />
+        ))}
+      </ul>
+
+      <KonfirmasiPromise grup={grup} />
+
+      {csContact ? (
+        <a
+          href={csWhatsAppLink(csContact, `Halo, saya ingin menanyakan stok kavling di ${grup.lokasiName}.`)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 self-start text-body font-medium text-brand underline underline-offset-4"
+        >
+          <MessageCircle className="size-4" aria-hidden /> Tanya stok kavling lewat WhatsApp CS
+        </a>
+      ) : null}
+    </div>
+  );
+}
+
+/** One tipe kavling: its name, size and capacity from the brosur, Masa Hak Pakai, count and all-in price; a radio. */
+function KartuKavling({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: boolean; onPilih: (kartu: KartuView) => void }) {
+  return (
+    <li className="flex">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={dipilih}
+        aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
+        onClick={() => onPilih(kartu)}
+        className={cn(
+          "flex w-full flex-col gap-2 rounded-2xl border-2 bg-card p-5 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+          dipilih ? "border-primary bg-brand-soft" : "border-border hover:bg-accent",
+        )}
+      >
+        <span className="flex items-start justify-between gap-3">
+          <span className="text-title-3 font-extrabold text-foreground">{kartu.jenisMakamName}</span>
+          <RadioDot dipilih={dipilih} />
+        </span>
+        {kartu.deskripsi ? <span className="text-body text-foreground">{kartu.deskripsi}</span> : null}
+        <span className="text-small text-muted-foreground">
+          {kartu.masaHakPakai} · {kartu.tersedia} tersedia
+        </span>
+        <span className="mt-1 text-title-2 font-extrabold tabular-nums text-foreground">
+          {formatRupiah(kartu.total)} <span className="text-caption font-normal text-muted-foreground">semua biaya</span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * The choice the screen starts on: on a Lokasi Mitra's Pilih Tipe Kavling
+ * step, the card the Pemesanan module chose for it, else its cheapest; on the
+ * grid with the chip on TPU DKI, the first TPU; otherwise nothing, since a card
+ * on the grid is not yet a choice.
+ */
+function pilihanAwal(dipilih: GrupView | null, tpu: TpuKartuView[], jenis: JenisPilihan, awal: KartuAwal): Terpilih | null {
+  if (dipilih) {
+    const kartu = dipilih.pilihan.find((satu) => satu.jenisMakamId === awal?.jenisMakamId) ?? dipilih.pilihan[0];
+    return kartu ? { kind: "lokasi_mitra", lokasiId: dipilih.lokasiId, kartu } : null;
+  }
+  if (jenis === "tpu_dki") return tpu[0] ? { kind: "tpu_dki", kartu: tpu[0] } : null;
+  return null;
 }
 
 /** The next step's URL for a choice: a Lokasi Mitra card's own, a TPU's own submission screen. */
@@ -303,24 +476,11 @@ function BannerTolakSaatDuka({ banner }: { banner: BannerTolak }) {
 }
 
 /**
- * The card the screen starts on: a Lokasi Mitra card when the list offers one and
- * the chip has not narrowed the list to the TPUs, else the first TPU. A visitor
- * who filtered to TPU DKI is offered a TPU, never a Lokasi Mitra card they
- * cannot see.
- */
-function pilihanAwal(grup: GrupView[], tpu: TpuKartuView[], jenis: JenisPilihan, awal: KartuAwal): Terpilih | null {
-  if (jenis === "tpu_dki") return tpu[0] ? { kind: "tpu_dki", kartu: tpu[0] } : null;
-  const group = grup.find((satu) => satu.lokasiId === awal?.lokasiId) ?? grup[0];
-  const kartu = group?.pilihan.find((satu) => satu.jenisMakamId === awal?.jenisMakamId) ?? group?.pilihan[0];
-  return group && kartu ? { kind: "lokasi_mitra", lokasiId: group.lokasiId, kartu } : null;
-}
-
-/**
  * The type chip (spec, story 19): Semua / Lokasi Mitra / TPU DKI over the
  * combined list. It is a plain link with the city's own filter kept in the URL,
  * so choosing a type changes the list and nothing else — no cookie, no data.
  */
-function JenisFilter({ jenis, kembali, kota }: { jenis: JenisPilihan; kembali: string; kota: string | null }) {
+function JenisFilter({ jenis, kembali }: { jenis: JenisPilihan; kembali: string }) {
   const pilihan: [JenisPilihan, string][] = [
     ["semua", "Semua"],
     ["lokasi_mitra", "Lokasi Mitra"],
@@ -329,7 +489,7 @@ function JenisFilter({ jenis, kembali, kota }: { jenis: JenisPilihan; kembali: s
   return (
     <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Jenis makam">
       {pilihan.map(([value, label]) => (
-        <FilterChip key={value} href={hrefJenis(value, kembali, kota)} selected={jenis === value} scroll={false}>
+        <FilterChip key={value} href={hrefJenis(value, kembali)} selected={jenis === value} scroll={false}>
           {label}
         </FilterChip>
       ))}
@@ -338,32 +498,12 @@ function JenisFilter({ jenis, kembali, kota }: { jenis: JenisPilihan; kembali: s
 }
 
 /** One chip's own URL: the screen it came back to, with the type and the city filter it already had. */
-function hrefJenis(value: JenisPilihan, kembali: string, kota: string | null): string {
+function hrefJenis(value: JenisPilihan, kembali: string): string {
   const asal = new URLSearchParams(kembali.split("?")[1] ?? "");
   if (value === "semua") asal.delete("jenis");
   else asal.set("jenis", value);
-  if (kota) asal.set("kota", kota);
   const query = asal.toString();
   return query === "" ? "/pesan-makam/saat-duka" : `/pesan-makam/saat-duka?${query}`;
-}
-
-/**
- * The city filter, one dropdown (owner, 6 Nov 2026): choosing a city submits
- * `ingatKota` (AGENTS.md's own exception — it writes the visitor's
- * city-preference cookie) with the screen and type chip to come back to.
- */
-function KotaFilter({ semuaKota, kota, kembali, jenis }: { semuaKota: string[]; kota: string | null; kembali: string; jenis: JenisPilihan }) {
-  return (
-    <KotaPickerAksi
-      kota={kota}
-      semuaKota={semuaKota}
-      aksi={ingatKota}
-      tetap={[
-        ["kembali", kembali],
-        ["jenis", jenis],
-      ]}
-    />
-  );
 }
 
 /**
@@ -450,16 +590,6 @@ function RadioDot({ dipilih, className }: { dipilih: boolean; className?: string
   );
 }
 
-/** A Lokasi Mitra's Kunjungan Verifikasi photo; nothing when it has none yet. */
-function FotoLokasi({ url }: { url: string | null }) {
-  if (!url) return null;
-  return (
-    // Kunjungan Verifikasi photo, a short-lived signed URL: plain <img>, next/image cannot cache a URL that expires.
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt="" className="size-16 shrink-0 rounded-xl object-cover sm:size-20" />
-  );
-}
-
 /** One TPU: its name, where it is, what the burial costs all-in, and when it will be confirmed. */
 function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: boolean; onPilih: (kartu: TpuKartuView) => void }) {
   return (
@@ -487,181 +617,6 @@ function KartuTpu({ kartu, dipilih, onPilih }: { kartu: TpuKartuView; dipilih: b
           </span>
         </span>
         <RadioDot dipilih={dipilih} className="mt-0.5" />
-      </button>
-    </li>
-  );
-}
-
-/**
- * One Lokasi Mitra: the prototype's single flattened row when it has exactly
- * one Jenis Makam tersedia, else its photo and promise said once above each
- * of its Jenis Makam. The value a choice carries and the URL the next step
- * builds are the same either way — `bentukKartu` only picks which markup
- * shows the same `grup`/`kartu` pair.
- */
-function GrupKartu({
-  grup,
-  terpilih,
-  onPilih,
-}: {
-  grup: GrupView;
-  terpilih: Terpilih | null;
-  onPilih: (kartu: KartuView) => void;
-}) {
-  if (bentukKartu(grup) === "tunggal") {
-    const kartu = grup.pilihan[0];
-    const dipilih = terpilih?.kind === "lokasi_mitra" && terpilih.kartu.jenisMakamId === kartu.jenisMakamId;
-    return <GrupKartuTunggal grup={grup} kartu={kartu} dipilih={dipilih} onPilih={onPilih} />;
-  }
-
-  const adaTerpilih = terpilih?.kind === "lokasi_mitra" && terpilih.lokasiId === grup.lokasiId;
-  return (
-    <li id={idGrup(grup.lokasiId)} className={cn("flex scroll-mb-40", LEBAR_KARTU)}>
-      <div
-        className={cn(
-          "flex w-full flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5",
-          adaTerpilih ? "border-primary ring-1 ring-primary" : "border-border",
-        )}
-      >
-        <div className="flex gap-4">
-          <FotoLokasi url={grup.photoUrl} />
-          <div className="min-w-0 flex-1">
-            <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
-            <p className="text-small text-muted-foreground">
-              {grup.kota} · {grup.pilihan.length} Jenis Makam tersedia
-            </p>
-            <Link href={`/lokasi/${grup.lokasiId}`} className="mt-1 inline-block text-small font-medium text-brand underline-offset-2 hover:underline">
-              Lihat lokasi
-            </Link>
-          </div>
-        </div>
-
-        <KonfirmasiPromise grup={grup} />
-
-        <ul
-          className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border"
-          role="radiogroup"
-          aria-label={`Jenis Makam di ${grup.lokasiName}`}
-        >
-          {grup.pilihan.map((kartu) => (
-            <KartuJenis
-              key={kartu.jenisMakamId}
-              kartu={kartu}
-              dipilih={terpilih?.kind === "lokasi_mitra" && terpilih.kartu.jenisMakamId === kartu.jenisMakamId}
-              onPilih={onPilih}
-            />
-          ))}
-        </ul>
-      </div>
-    </li>
-  );
-}
-
-/**
- * A Lokasi Mitra with exactly one Jenis Makam tersedia, as one selectable row
- * (spec, the prototype's own shape): photo, name, that one Jenis Makam and its
- * price together, radio on the card itself — no inner list to open.
- */
-function GrupKartuTunggal({
-  grup,
-  kartu,
-  dipilih,
-  onPilih,
-}: {
-  grup: GrupView;
-  kartu: KartuView;
-  dipilih: boolean;
-  onPilih: (kartu: KartuView) => void;
-}) {
-  return (
-    <li id={idGrup(grup.lokasiId)} className={cn("flex scroll-mb-40", LEBAR_KARTU)}>
-      {/*
-        The same radiogroup semantics its "banyak" sibling gives its Jenis
-        Makam list, just with the one option this Lokasi Mitra has: a named
-        group, one radio inside it. `contents` on both wrappers keeps them
-        out of the box model entirely, so the card looks exactly as it did.
-      */}
-      <ul role="radiogroup" aria-label={`Jenis Makam di ${grup.lokasiName}`} className="contents">
-        <li className="contents">
-          <div
-            role="radio"
-            aria-checked={dipilih}
-            // Named explicitly, not from its whole subtree's content: that subtree also
-            // carries "Lihat lokasi" and a Kontak Siaga phone number, neither of them
-            // part of what this radio is choosing.
-            aria-label={`${kartu.jenisMakamName}, ${formatRupiah(kartu.total)} semua biaya`}
-            tabIndex={0}
-            onClick={() => onPilih(kartu)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onPilih(kartu);
-              }
-            }}
-            className={cn(
-              "flex w-full cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
-              dipilih ? "border-primary ring-1 ring-primary" : "border-border",
-            )}
-          >
-            <div className="flex gap-4">
-              <FotoLokasi url={grup.photoUrl} />
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="min-w-0">
-                  <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
-                  <p className="text-body text-foreground">{kartu.jenisMakamName}</p>
-                  <p className="text-small text-muted-foreground">
-                    {grup.kota} · {kartu.masaHakPakai} · {kartu.tersedia} tersedia
-                  </p>
-                </div>
-                <div>
-                  <p className="text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</p>
-                  <p className="text-caption text-muted-foreground">semua biaya</p>
-                </div>
-              </div>
-              <RadioDot dipilih={dipilih} />
-            </div>
-
-            <KonfirmasiPromise grup={grup} />
-
-            <Link
-              href={`/lokasi/${grup.lokasiId}`}
-              onClick={(event) => event.stopPropagation()}
-              className="inline-block self-start text-small font-medium text-brand underline-offset-2 hover:underline"
-            >
-              Lihat lokasi
-            </Link>
-          </div>
-        </li>
-      </ul>
-    </li>
-  );
-}
-
-/** One Jenis Makam card: the all-in total and the Tersedia count, selectable by keyboard as well as by tap. */
-function KartuJenis({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: boolean; onPilih: (kartu: KartuView) => void }) {
-  return (
-    <li>
-      <button
-        type="button"
-        role="radio"
-        aria-checked={dipilih}
-        onClick={() => onPilih(kartu)}
-        className={cn(
-          "flex w-full items-start gap-3 px-3 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4",
-          dipilih ? "bg-brand-soft" : "hover:bg-accent",
-        )}
-      >
-        {/* Stacked, not side by side: the card is a phone-width column in the horizontal row. */}
-        <span className="min-w-0 flex-1">
-          <span className="block text-body font-semibold text-foreground">{kartu.jenisMakamName}</span>
-          <span className="block text-small text-muted-foreground">
-            {kartu.masaHakPakai} · {kartu.tersedia} tersedia
-          </span>
-          <span className="mt-1 block text-body-lg font-semibold tabular-nums text-foreground">
-            {formatRupiah(kartu.total)} <span className="text-caption font-normal text-muted-foreground">semua biaya</span>
-          </span>
-        </span>
-        <RadioDot dipilih={dipilih} />
       </button>
     </li>
   );

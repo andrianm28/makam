@@ -15,19 +15,17 @@ export const metadata: Metadata = {
 };
 
 /**
- * Screen 1 of the Saat Duka wizard, "Pilih makam" (spec, stories 17–20): the
- * Lokasi Mitra the visitor came from preselects itself, the list is filtered by
- * the city they last chose (or the deep-linked Lokasi's own city), each card
- * carries its all-in total, its Tersedia count and when it will be confirmed —
- * and below them the TPU section (story 19: "dimakamkan lewat Pengurusan",
- * only the TPUs taking new plots), with the type chip over the combined list.
+ * Screen 1 of the Saat Duka wizard, "Pilih makam" (rapat Ira, 6 Nov 2026,
+ * Opsi A): the grid of big Lokasi Mitra cards under their city headings with
+ * the agama filter, then, at `?lokasiId=`, that Lokasi Mitra's Pilih Tipe
+ * Kavling step with each tipe's all-in total, Tersedia count and when it will
+ * be confirmed; the TPU section below the grid while TPU DKI is open.
  */
 export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan-makam/saat-duka">) {
-  const { lokasiId, kota, jenis, dari } = await searchParams;
+  const { lokasiId, jenis, dari } = await searchParams;
   const { operatorSettings } = serverRuntime();
   const [layar, pengaturan] = await Promise.all([
     layarPilihMakam({
-      kota: satuNilai(kota),
       lokasiId: satuNilai(lokasiId),
       jenis: satuNilai(jenis),
       dari: dariDari(satuNilai(dari)),
@@ -41,8 +39,6 @@ export default async function PilihMakamPage({ searchParams }: PageProps<"/pesan
       grup={layar.grup.map((satu) => grupView(satu, layar.foto[satu.lokasi.id] ?? null))}
       tpu={rilisTerbuka("tpu") ? layar.tpu : []}
       tpuTerbuka={rilisTerbuka("tpu")}
-      semuaKota={layar.semuaKota}
-      kota={layar.kota}
       jenis={rilisTerbuka("tpu") ? layar.jenis : "semua"}
       kembali={kembaliKe(layar.asal?.id ?? null, layar.dari)}
       dari={layar.dari}

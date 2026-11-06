@@ -21,7 +21,7 @@ describe("the Saat Duka list of Lokasi Mitra × Jenis Makam", () => {
     const grup = await setup.pemesanan.pilihanSaatDuka();
 
     expect(grup).toHaveLength(1);
-    expect(grup[0].lokasi).toEqual({ id: lokasi.lokasiMitra.id, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur" });
+    expect(grup[0].lokasi).toMatchObject({ id: lokasi.lokasiMitra.id, name: "Makam Wakaf Al-Ikhlas", city: "Kota Jakarta Timur" });
     expect(grup[0].pilihan).toHaveLength(1);
     expect(grup[0].pilihan[0]).toMatchObject({
       jenisMakamId: lokasi.jenisMakam.id,
@@ -32,6 +32,20 @@ describe("the Saat Duka list of Lokasi Mitra × Jenis Makam", () => {
     // Harga Hak Pakai 7.500.000 + Biaya Pemakaman 2.000.000 + one Biaya Layanan Platform 150.000.
     expect(grup[0].pilihan[0].harga.total).toBe(9_650_000);
     expect(grup[0].pilihan[0].harga.lines.map((line) => line.kind)).toEqual(["harga_hak_pakai", "biaya_pemakaman", "biaya_layanan_platform"]);
+  });
+
+  it("carries the Lokasi Mitra's address and Info Kartu, and each Jenis Makam's own description, for the Pilih makam card", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const lokasi = await terverifikasiLokasi(setup);
+    const info = { agama: ["islam" as const], deskripsi: "Pemakaman muslim dengan musala.", luasLahan: "± 2 ha", krematorium: false };
+    const saved = await setup.lokasi.setInfoKartu(lokasi.admin, lokasi.lokasiMitra.id, info);
+    if (!saved.ok) throw new Error(`setInfoKartu refused: ${saved.reason}`);
+
+    const [grup] = await setup.pemesanan.pilihanSaatDuka();
+
+    expect(grup.lokasi.address).toBe("Jl. Raya Pondok Rangon No. 1");
+    expect(grup.lokasi.infoKartu).toEqual(info);
+    expect(typeof grup.pilihan[0].jenisMakamDescription).toBe("string");
   });
 
   it("leaves out a Lokasi Mitra that is not Terverifikasi, and one with no cleared Tersedia unit", async () => {
@@ -98,8 +112,8 @@ describe("the Saat Duka list of Lokasi Mitra × Jenis Makam", () => {
   it("starts on the Lokasi Mitra the visitor came from, and on the list's first card otherwise", () => {
     // The read's own order: cheapest all-in total first, Lokasi Mitra by Lokasi Mitra.
     const grup: GrupSaatDuka[] = [
-      { lokasi: { id: "lokasi-murah", name: "Makam Murah", city: "Kota Jakarta Barat" }, konfirmasi: belum, pilihan: [kartu("jenis-murah-a", 9_650_000), kartu("jenis-murah-b", 9_700_000)] },
-      { lokasi: { id: "lokasi-mahal", name: "Makam Mahal", city: "Kota Jakarta Timur" }, konfirmasi: belum, pilihan: [kartu("jenis-mahal", 9_900_000)] },
+      { lokasi: { id: "lokasi-murah", name: "Makam Murah", city: "Kota Jakarta Barat", ...tanpaInfo }, konfirmasi: belum, pilihan: [kartu("jenis-murah-a", 9_650_000), kartu("jenis-murah-b", 9_700_000)] },
+      { lokasi: { id: "lokasi-mahal", name: "Makam Mahal", city: "Kota Jakarta Timur", ...tanpaInfo }, konfirmasi: belum, pilihan: [kartu("jenis-mahal", 9_900_000)] },
     ];
 
     // The deep link decides which Lokasi Mitra, and that one's cheapest card.
@@ -192,6 +206,9 @@ async function cellsOfPetak(setup: ReturnType<typeof pemesananOnTestDatabase>, l
   return denah.cells;
 }
 
+/** A Lokasi Mitra with no address or Info Kartu recorded: the order under test reads neither. */
+const tanpaInfo = { address: "", infoKartu: { agama: [], deskripsi: "", luasLahan: "", krematorium: false } };
+
 /** One group of the list a hand picks, so the cheapest-first order is the fixture's, not the read's. */
 const belum = { bukaSekarang: true, batas: { ok: true as const, at: new Date(0) }, kontakSiaga: null };
 
@@ -199,6 +216,7 @@ function kartu(jenisMakamId: string, total: number): PilihanSaatDuka {
   return {
     jenisMakamId,
     jenisMakamName: jenisMakamId,
+    jenisMakamDescription: "",
     tenure: { kind: "tahun", years: 5 },
     tersedia: 4,
     harga: { total, lines: [], inForceSince: "2026-10-01", scheduledChange: null },
