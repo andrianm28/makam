@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import {
   lokasiFacilities,
   publishGate,
+  wajibUntukTayangBelumTerverifikasi,
   terencanaSwitchGate,
   type PublishGateFacts,
   type PublishGateItem,
@@ -79,14 +80,17 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
     kunjunganVerifikasiSelesai,
     tariffsChecked: tariffsChecked && { changedSinceCheck: tariffsChecked.changedSinceCheck },
     jamOperasionalDiisi: jam.jamOperasional !== null,
-    kontakSiagaDipilih: siaga.kontakSiaga !== null,
+    // A Kontak Siaga a family can actually phone, as the domain's publish checks it (ADR 0009).
+    kontakSiagaDipilih: siaga.kontakSiaga !== null && siaga.kontakSiaga.phoneNumber !== null,
   };
   const gate = publishGate(facts);
   const status = read.lokasiMitra.status;
   // Listed without verification still waits for the full gate (owner, 2026-11-05).
   const sudahTerbit = status !== "belum_tayang" && status !== "tayang_belum_terverifikasi";
   const belumVerifikasi = status === "tayang_belum_terverifikasi";
-  const minimumTerpenuhi = facts.jamOperasionalDiisi && siaga.kontakSiaga !== null && siaga.kontakSiaga.phoneNumber !== null;
+  const minimumTerpenuhi = gate.items.filter((item) => wajibUntukTayangBelumTerverifikasi(item.key)).every((item) => item.met);
+  // While it can still be listed Belum Terverifikasi (or already is), each item says whether that listing needs it.
+  const tandaiOpsional = !sudahTerbit;
 
   return (
     <Section
@@ -115,6 +119,13 @@ async function PublishGateChecklist({ lokasiId }: { lokasiId: string }) {
               <div className="flex flex-col gap-0.5">
                 <p className={cn("text-body", item.met ? "text-foreground" : "text-foreground font-medium")}>{copy.label}</p>
                 <p className="text-small text-muted-foreground">{copy.hint(item)}</p>
+                {tandaiOpsional ? (
+                  <p className="text-caption text-muted-foreground" data-testid={`syarat-${item.key}`}>
+                    {wajibUntukTayangBelumTerverifikasi(item.key)
+                      ? "Wajib, juga untuk tayang Belum Terverifikasi"
+                      : "Opsional untuk tayang Belum Terverifikasi, wajib untuk Terverifikasi"}
+                  </p>
+                ) : null}
               </div>
             </li>
           );

@@ -52,43 +52,43 @@ export function FormKedukaan({
       }}
     >
       <Medan id="nama" label="Nama Anda">
-        <Input id="nama" value={isi.nama} onChange={ubah("nama")} autoComplete="name" className="h-11" required />
+        <Input id="nama" value={isi.nama} onChange={ubah("nama")} autoComplete="name" className="h-12 text-lg" required />
       </Medan>
       <Medan id="telepon" label="Nomor telepon" hint="Tim kami menelepon ke nomor ini.">
-        <Input id="telepon" type="tel" value={isi.telepon} onChange={ubah("telepon")} autoComplete="tel" className="h-11" required />
+        <Input id="telepon" type="tel" value={isi.telepon} onChange={ubah("telepon")} autoComplete="tel" className="h-12 text-lg" required />
       </Medan>
       <Medan id="kab-kota" label="Kota/kabupaten Anda">
-        <Input id="kab-kota" value={isi.kabKota} onChange={ubah("kabKota")} className="h-11" required />
+        <Input id="kab-kota" value={isi.kabKota} onChange={ubah("kabKota")} className="h-12 text-lg" required />
       </Medan>
 
       {perjalanan.has(jenis) ? (
         <>
           <Medan id="asal" label={jenis === "mobil_jenazah" ? "Lokasi penjemputan" : "Kota asal"}>
-            <Input id="asal" value={isi.asal} onChange={ubah("asal")} className="h-11" required />
+            <Input id="asal" value={isi.asal} onChange={ubah("asal")} className="h-12 text-lg" required />
           </Medan>
           <Medan id="tujuan" label={jenis === "mobil_jenazah" ? "Tujuan" : "Kota tujuan"}>
-            <Input id="tujuan" value={isi.tujuan} onChange={ubah("tujuan")} className="h-11" required />
+            <Input id="tujuan" value={isi.tujuan} onChange={ubah("tujuan")} className="h-12 text-lg" required />
           </Medan>
         </>
       ) : null}
       {jenis === "repatriasi_jenazah" ? (
         <>
           <Medan id="negara-asal" label="Negara asal">
-            <Input id="negara-asal" value={isi.negaraAsal} onChange={ubah("negaraAsal")} className="h-11" required />
+            <Input id="negara-asal" value={isi.negaraAsal} onChange={ubah("negaraAsal")} className="h-12 text-lg" required />
           </Medan>
           <Medan id="tujuan" label="Kota tujuan di Indonesia">
-            <Input id="tujuan" value={isi.tujuan} onChange={ubah("tujuan")} className="h-11" required />
+            <Input id="tujuan" value={isi.tujuan} onChange={ubah("tujuan")} className="h-12 text-lg" required />
           </Medan>
         </>
       ) : null}
       {jenis !== "konsultasi" ? (
         <Medan id="tanggal" label={jenis === "repatriasi_jenazah" ? "Perkiraan tanggal" : "Tanggal dibutuhkan"}>
-          <Input id="tanggal" type="date" value={isi.tanggal} onChange={ubah("tanggal")} className="h-11" required />
+          <Input id="tanggal" type="date" value={isi.tanggal} onChange={ubah("tanggal")} className="h-12 text-lg" required />
         </Medan>
       ) : null}
       {jenis === "bunga_duka_cita" ? (
         <Medan id="teks-ucapan" label="Teks ucapan (opsional)" hint="Paling banyak 200 huruf.">
-          <Input id="teks-ucapan" value={isi.teksUcapan} onChange={ubah("teksUcapan")} maxLength={200} className="h-11" />
+          <Input id="teks-ucapan" value={isi.teksUcapan} onChange={ubah("teksUcapan")} maxLength={200} className="h-12 text-lg" />
         </Medan>
       ) : null}
       {jenis === "konsultasi" ? (
@@ -103,7 +103,7 @@ export function FormKedukaan({
             </select>
           </Medan>
           <Medan id="lokasi" label="Lokasi makam yang diminati (opsional)">
-            <Input id="lokasi" value={isi.lokasiDiminati} onChange={ubah("lokasiDiminati")} className="h-11" />
+            <Input id="lokasi" value={isi.lokasiDiminati} onChange={ubah("lokasiDiminati")} className="h-12 text-lg" />
           </Medan>
         </>
       ) : null}
@@ -112,14 +112,14 @@ export function FormKedukaan({
       </Medan>
 
       {hasil.status === "gagal" ? (
-        <p role="alert" className="text-body text-destructive">
+        <p role="alert" className="text-lg text-destructive">
           {hasil.message}
         </p>
       ) : null}
 
       {hasil.status === "perlu_kode_masuk" ? (
         <div className="flex flex-col gap-4 rounded-2xl border-2 border-primary bg-card p-5">
-          <h3 className="text-title-3 text-foreground">Masukkan Kode Masuk</h3>
+          <h3 className="font-heading text-2xl font-extrabold text-foreground">Masukkan Kode Masuk</h3>
           <KodeMasukForm
             requestAction={mintaKodeMasuk}
             verifyAction={(state, formData) => verifikasiKodeMasukDanAjukanKedukaan(isi, state, formData)}
@@ -130,11 +130,11 @@ export function FormKedukaan({
         </div>
       ) : (
         <>
-          <Button type="submit" size="lg" disabled={mengirim}>
+          <Button type="submit" size="lg" disabled={mengirim} className="h-14 rounded-xl px-8 text-lg font-bold">
             {mengirim ? "Mengirim…" : "Kirim permintaan"}
           </Button>
           {!sudahMasuk ? (
-            <p className="text-center text-small text-muted-foreground">Kami mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda.</p>
+            <p className="text-center text-body text-muted-foreground">Kami mengirim Kode Masuk ke email Anda untuk memastikan email itu milik Anda.</p>
           ) : null}
         </>
       )}
@@ -148,10 +148,10 @@ const areaClass = "rounded-lg border border-input bg-background px-3 py-2 outlin
 function Medan({ id, label, hint, children }: { id: string; label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="text-body font-semibold">
+      <label htmlFor={id} className="text-lg font-bold">
         {label}
       </label>
-      {hint ? <p className="text-small text-muted-foreground">{hint}</p> : null}
+      {hint ? <p className="text-body text-muted-foreground">{hint}</p> : null}
       {children}
     </div>
   );

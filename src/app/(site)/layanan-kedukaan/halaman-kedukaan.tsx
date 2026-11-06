@@ -22,14 +22,14 @@ export async function HalamanKedukaan({ konten, nomor }: { konten: KontenKedukaa
     if (permintaan) {
       return (
         <ContentPage title="Permintaan diterima" lead={`Nomor Permintaan Anda ${permintaan.nomor}.`}>
-          <p className="text-body-lg">
-            <span className="font-semibold">Status: {labelStatusKedukaan[permintaan.status]}.</span>{" "}
+          <p className="text-xl">
+            <span className="font-bold">Status: {labelStatusKedukaan[permintaan.status]}.</span>{" "}
             {konten.jenis === "konsultasi"
               ? "Tim kami menelepon Anda pada waktu yang Anda pilih, paling lambat satu hari kerja."
               : "Tim kami segera menelepon Anda untuk mengatur layanan dan menyampaikan biayanya."}
           </p>
-          <p className="text-body-lg">Kami mengirim kabar ke {actor.email} setiap kali statusnya berubah.</p>
-          <Link href="/akun/kedukaan" className="font-semibold text-primary underline underline-offset-2">
+          <p className="text-xl">Kami mengirim kabar ke {actor.email} setiap kali statusnya berubah.</p>
+          <Link href="/akun/kedukaan" className="inline-flex h-14 w-fit items-center rounded-xl bg-primary px-8 text-lg font-bold text-primary-foreground hover:bg-primary/90">
             Lihat di Akun Saya
           </Link>
         </ContentPage>
@@ -40,31 +40,31 @@ export async function HalamanKedukaan({ konten, nomor }: { konten: KontenKedukaa
   const pengaturan = await operatorSettings.current();
   return (
     <ContentPage title={konten.judul} lead={konten.lead}>
-      <div className="flex items-start gap-4">
+      <div className="flex items-start gap-5 rounded-2xl bg-forest p-7 text-ivory md:p-9">
         <IkonKedukaanBulat nama={konten.ikon} besar />
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-body-lg">
+        <ul className="flex list-disc flex-col gap-2 pl-5 text-lg font-medium md:text-xl">
           {konten.cakupan.map((satu) => (
             <li key={satu}>{satu}</li>
           ))}
         </ul>
       </div>
       <section aria-labelledby="cara" className="flex flex-col gap-3">
-        <h2 id="cara" className="font-serif text-title-2 font-semibold">
+        <h2 id="cara" className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-5xl">
           Caranya
         </h2>
-        <ol className="flex list-decimal flex-col gap-2 pl-6 text-body-lg">
+        <ol className="flex list-decimal flex-col gap-3 pl-6 text-lg">
           <li>Isi permintaan di bawah. Yang kami tanyakan: {konten.ditanyakan.join(", ").toLowerCase()}.</li>
           <li>Tim kami menelepon Anda, memastikan kebutuhan, dan menyampaikan biayanya sebelum apa pun diatur.</li>
           <li>Setelah Anda setuju, kami atur layanannya dan kabarnya tampil di Akun Saya.</li>
         </ol>
         {pengaturan ? (
-          <p className="text-body">
+          <p className="text-lg font-semibold">
             Butuh bantuan segera? Hubungi kami lewat WhatsApp {pengaturan.csWhatsApp}.
           </p>
         ) : null}
       </section>
       <section aria-labelledby="minta" className="flex flex-col gap-4">
-        <h2 id="minta" className="font-serif text-title-2 font-semibold">
+        <h2 id="minta" className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-5xl">
           {konten.jenis === "konsultasi" ? "Minta dihubungi" : "Minta layanan ini"}
         </h2>
         <FormKedukaan
