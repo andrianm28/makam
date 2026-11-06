@@ -23,9 +23,11 @@ describe("the top bar", () => {
     expect(markup).toMatch(/aria-label="Buka menu"/);
   });
 
-  it("is green with white lettering", () => {
+  it("is a white bar with Pesan Sekarang as its solid pill", () => {
     const markup = header({ items, contact });
-    expect(markup).toMatch(/<header[^>]*class="[^"]*bg-forest[^"]*text-ivory/);
+    expect(markup).toMatch(/<header[^>]*class="[^"]*bg-card/);
+    expect(markup).toContain('href="/pesan-makam/saat-duka"');
+    expect(markup).toContain("Pesan Sekarang");
   });
 
   it("lists every menu item, the signed-out one included", () => {

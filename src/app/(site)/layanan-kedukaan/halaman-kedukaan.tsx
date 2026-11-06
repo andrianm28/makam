@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { ContentPage } from "@/components/site/content-page";
+import { ContentPage, Eyebrow, PageHero } from "@/components/site/content-page";
+import { judulBagian, pilUtama } from "@/components/site/gaya";
+import { KartuCs } from "@/components/site/kartu-cs";
+import { cn } from "@/lib/utils";
 import { IkonKedukaanBulat } from "@/components/site/ikon-kedukaan";
 import { labelStatusKedukaan } from "@/domain/kedukaan/skema";
 import { hrefKedukaan, type KontenKedukaan } from "@/lib/kedukaan-konten";
@@ -29,7 +32,7 @@ export async function HalamanKedukaan({ konten, nomor }: { konten: KontenKedukaa
               : "Tim kami segera menelepon Anda untuk mengatur layanan dan menyampaikan biayanya."}
           </p>
           <p className="text-xl">Kami mengirim kabar ke {actor.email} setiap kali statusnya berubah.</p>
-          <Link href="/akun/kedukaan" className="inline-flex h-14 w-fit items-center rounded-xl bg-primary px-8 text-lg font-bold text-primary-foreground hover:bg-primary/90">
+          <Link href="/akun/kedukaan" className={cn(pilUtama, "w-fit")}>
             Lihat di Akun Saya
           </Link>
         </ContentPage>
@@ -38,44 +41,64 @@ export async function HalamanKedukaan({ konten, nomor }: { konten: KontenKedukaa
   }
 
   const pengaturan = await operatorSettings.current();
+  const csContact = pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null;
+  const langkah = [
+    `Isi permintaan di bawah. Yang kami tanyakan: ${konten.ditanyakan.join(", ").toLowerCase()}.`,
+    "Tim kami menelepon Anda, memastikan kebutuhan, dan menyampaikan biayanya sebelum apa pun diatur.",
+    "Setelah Anda setuju, kami atur layanannya dan kabarnya tampil di Akun Saya.",
+  ];
   return (
-    <ContentPage title={konten.judul} lead={konten.lead}>
-      <div className="flex items-start gap-5 rounded-2xl bg-forest p-7 text-ivory md:p-9">
-        <IkonKedukaanBulat nama={konten.ikon} besar />
-        <ul className="flex list-disc flex-col gap-2 pl-5 text-lg font-medium md:text-xl">
-          {konten.cakupan.map((satu) => (
-            <li key={satu}>{satu}</li>
-          ))}
-        </ul>
-      </div>
-      <section aria-labelledby="cara" className="flex flex-col gap-3">
-        <h2 id="cara" className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-5xl">
-          Caranya
-        </h2>
-        <ol className="flex list-decimal flex-col gap-3 pl-6 text-lg">
-          <li>Isi permintaan di bawah. Yang kami tanyakan: {konten.ditanyakan.join(", ").toLowerCase()}.</li>
-          <li>Tim kami menelepon Anda, memastikan kebutuhan, dan menyampaikan biayanya sebelum apa pun diatur.</li>
-          <li>Setelah Anda setuju, kami atur layanannya dan kabarnya tampil di Akun Saya.</li>
-        </ol>
-        {pengaturan ? (
-          <p className="text-lg font-semibold">
-            Butuh bantuan segera? Hubungi kami lewat WhatsApp {pengaturan.csWhatsApp}.
-          </p>
-        ) : null}
-      </section>
-      <section aria-labelledby="minta" className="flex flex-col gap-4">
-        <h2 id="minta" className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-5xl">
+    <main className="flex w-full flex-1 flex-col">
+      <PageHero
+        eyebrow={konten.jenis === "konsultasi" ? "Rencanakan lebih awal" : "Layanan Kedukaan"}
+        title={konten.judul}
+        lead={konten.lead}
+        poin={konten.cakupan}
+        samping={<KartuCs contact={csContact} />}
+      >
+        <a href="#minta" className={pilUtama}>
           {konten.jenis === "konsultasi" ? "Minta dihubungi" : "Minta layanan ini"}
-        </h2>
-        <FormKedukaan
-          jenis={konten.jenis}
-          halaman={halaman}
-          sudahMasuk={actor !== null}
-          emailMasuk={actor?.email ?? ""}
-          mintaKodeMasuk={kirimKodeMasuk}
-          csContact={pengaturan ? { whatsApp: pengaturan.csWhatsApp, replyHours: pengaturan.csReplyHours } : null}
-        />
-      </section>
-    </ContentPage>
+        </a>
+      </PageHero>
+      <div className="mx-auto flex w-full max-w-(--page-max-width) flex-col gap-16 px-(--page-gutter) py-14 md:py-20">
+        <section aria-labelledby="cara" className="flex flex-col gap-8">
+          <div className="flex items-center gap-5">
+            <IkonKedukaanBulat nama={konten.ikon} besar />
+            <div className="flex flex-col gap-2">
+              <Eyebrow>Langkahnya</Eyebrow>
+              <h2 id="cara" className={judulBagian}>
+                Caranya
+              </h2>
+            </div>
+          </div>
+          <ol className="grid gap-6 md:grid-cols-3">
+            {langkah.map((satu, index) => (
+              <li key={satu} className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-7 shadow-md">
+                <span className="inline-flex size-12 items-center justify-center rounded-full bg-brand-soft font-heading text-xl font-extrabold text-forest" aria-hidden>
+                  {index + 1}
+                </span>
+                <p className="text-lg text-foreground">{satu}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+        <section aria-labelledby="minta-judul" id="minta" className="mx-auto flex w-full max-w-3xl scroll-mt-28 flex-col gap-6 rounded-3xl border border-border bg-card p-7 shadow-lg md:p-10">
+          <div className="flex flex-col gap-2">
+            <Eyebrow>Permintaan</Eyebrow>
+            <h2 id="minta-judul" className={judulBagian}>
+              {konten.jenis === "konsultasi" ? "Minta dihubungi" : "Minta layanan ini"}
+            </h2>
+          </div>
+          <FormKedukaan
+            jenis={konten.jenis}
+            halaman={halaman}
+            sudahMasuk={actor !== null}
+            emailMasuk={actor?.email ?? ""}
+            mintaKodeMasuk={kirimKodeMasuk}
+            csContact={csContact}
+          />
+        </section>
+      </div>
+    </main>
   );
 }
