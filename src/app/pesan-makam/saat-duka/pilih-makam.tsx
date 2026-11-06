@@ -100,9 +100,12 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner
         />
       ) : (
         <div className="mt-6 flex flex-col gap-8">
-          <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
-            <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pilih makam</h1>
-            <p className="mt-3 max-w-2xl text-lg text-ivory/85">
+          <div className="rounded-3xl border border-border bg-brand-soft px-6 py-8 md:px-10 md:py-12">
+            <p className="flex items-center gap-3 text-small font-bold tracking-widest text-forest uppercase">
+              <span className="h-px w-6 bg-forest" aria-hidden /> Langkah 1 dari 2
+            </p>
+            <h1 className="mt-3 font-heading text-4xl font-extrabold leading-tight tracking-tight text-foreground md:text-6xl">Pilih makam</h1>
+            <p className="mt-3 max-w-2xl text-lg text-muted-foreground">
               Semua lokasi sudah bermitra dengan Makam.co.id. Hanya makam yang masih tersedia yang ditampilkan, dengan harga lengkap
               sebelum memesan.
             </p>
@@ -172,7 +175,7 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner
                 size="lg"
                 disabled={!terpilih}
                 onClick={() => terpilih && router.push(langkahBerikut(terpilih, dari))}
-                className="h-14 shrink-0 rounded-xl px-8 text-lg font-bold"
+                className="h-14 shrink-0 rounded-full px-8 text-lg font-bold shadow-md"
               >
                 Lanjut <ArrowRight aria-hidden />
               </Button>
@@ -221,7 +224,7 @@ function GridPerKota({
           id="filter-agama"
           value={agama}
           onChange={(event) => onAgama(event.target.value as Agama | "semua")}
-          className="h-14 rounded-xl border-2 border-border-strong bg-card px-4 pr-10 text-lg font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+          className="h-14 rounded-full border-2 border-border-strong bg-card px-5 pr-10 text-lg font-semibold text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
         >
           <option value="semua">Semua agama</option>
           {agamaDiterima.map((satu) => (
@@ -247,7 +250,7 @@ function GridPerKota({
           <section key={kelompok.kota} className="flex flex-col gap-6" aria-labelledby={`kota-${kelompok.kota}`}>
             <h2
               id={`kota-${kelompok.kota}`}
-              className="flex items-center gap-4 font-heading text-3xl font-extrabold tracking-tight text-forest after:h-1 after:flex-1 after:rounded-full after:bg-forest md:text-5xl"
+              className="flex items-center gap-4 font-heading text-3xl font-extrabold tracking-tight text-foreground after:h-px after:flex-1 after:bg-border-strong md:text-5xl"
             >
               {kelompok.kota}
             </h2>
@@ -277,26 +280,26 @@ function GridPerKota({
 function KartuBesar({ grup, href, lebar }: { grup: GrupView; href: string; lebar: boolean }) {
   return (
     <li className={cn("flex", lebar && "md:col-span-2")}>
-      <article className={cn("flex w-full flex-col overflow-hidden rounded-3xl bg-forest text-ivory", lebar && "md:grid md:grid-cols-[1.2fr_1fr]")}>
+      <article className={cn("flex w-full flex-col overflow-hidden rounded-3xl border border-border bg-card text-foreground shadow-md", lebar && "md:grid md:grid-cols-[1.2fr_1fr]")}>
         <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} isi={lebar} />
         <div className="flex flex-1 flex-col gap-4 p-6 md:p-8">
           <div>
             <h3 className="font-heading text-2xl font-extrabold leading-tight tracking-tight md:text-3xl">{grup.lokasiName}</h3>
             {grup.alamat ? (
-              <p className="mt-2 flex items-start gap-2 text-lg text-ivory/85">
-                <MapPin className="mt-1 size-5 shrink-0 text-sand" aria-hidden />
+              <p className="mt-2 flex items-start gap-2 text-lg text-muted-foreground">
+                <MapPin className="mt-1 size-5 shrink-0 text-forest" aria-hidden />
                 {grup.alamat}
               </p>
             ) : null}
           </div>
-          <TagInfo grup={grup} diAtasHijau />
-          {grup.deskripsi ? <p className="text-lg text-ivory/90">{grup.deskripsi}</p> : null}
-          <p className="text-lg text-ivory/80">{grup.pilihan.length} tipe kavling tersedia</p>
+          <TagInfo grup={grup} />
+          {grup.deskripsi ? <p className="text-lg text-foreground">{grup.deskripsi}</p> : null}
+          <p className="text-lg text-muted-foreground">{grup.pilihan.length} tipe kavling tersedia</p>
           <div className="mt-auto flex justify-end pt-2">
             <Link
               href={href}
               aria-label={`Pilih ${grup.lokasiName}`}
-              className="inline-flex h-14 shrink-0 items-center gap-2 rounded-xl bg-ivory px-8 text-lg font-bold text-forest outline-none hover:bg-ivory/90 focus-visible:ring-3 focus-visible:ring-sand"
+              className="inline-flex h-14 shrink-0 items-center gap-2 rounded-full bg-primary px-8 text-lg font-bold text-primary-foreground shadow-md outline-none hover:bg-primary/90 focus-visible:ring-3 focus-visible:ring-ring/50"
             >
               Pilih <ArrowRight className="size-5" aria-hidden />
             </Link>
@@ -308,12 +311,9 @@ function KartuBesar({ grup, href, lebar }: { grup: GrupView; href: string; lebar
 }
 
 /** The agama it accepts, krematorium and luas lahan, as small tags; nothing for what is not recorded. */
-function TagInfo({ grup, diAtasHijau = false }: { grup: GrupView; diAtasHijau?: boolean }) {
+function TagInfo({ grup }: { grup: GrupView }) {
   if (!grup.agamaLabel && !grup.krematorium && !grup.luasLahan) return null;
-  const tag = cn(
-    "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-body font-semibold",
-    diAtasHijau ? "bg-ivory/15 text-ivory" : "bg-brand-soft text-forest",
-  );
+  const tag = "inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-4 py-1.5 text-body font-semibold text-forest";
   return (
     <ul className="flex flex-wrap gap-2" aria-label="Info lokasi">
       {grup.agamaLabel ? <li className={tag}>{grup.agamaLabel}</li> : null}
@@ -371,16 +371,16 @@ function LangkahKavling({
 }) {
   return (
     <div className="mx-auto mt-6 flex max-w-5xl flex-col gap-8">
-      <div className={cn("grid overflow-hidden rounded-3xl bg-forest text-ivory", grup.photoUrl && "md:grid-cols-[320px_1fr]")}>
+      <div className={cn("grid overflow-hidden rounded-3xl border border-border bg-brand-soft text-foreground", grup.photoUrl && "md:grid-cols-[320px_1fr]")}>
         {/* Without a gate photo the band is the name itself; a placeholder panel would only repeat it. */}
         {grup.photoUrl ? <FotoGerbang url={grup.photoUrl} nama={grup.lokasiName} /> : null}
         <div className="flex flex-col gap-3 p-6 md:p-10">
-          <p className="text-body font-semibold tracking-wide text-sand uppercase">{grup.kota}</p>
+          <p className="flex items-center gap-3 text-small font-bold tracking-widest text-forest uppercase"><span className="h-px w-6 bg-forest" aria-hidden />{grup.kota}</p>
           <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pilih tipe kavling</h1>
-          <p className="font-heading text-2xl font-extrabold md:text-3xl">{grup.lokasiName}</p>
-          {grup.alamat ? <p className="text-lg text-ivory/85">{grup.alamat}</p> : null}
-          <TagInfo grup={grup} diAtasHijau />
-          {grup.deskripsi ? <p className="text-lg text-ivory/90">{grup.deskripsi}</p> : null}
+          <p className="font-heading text-2xl font-extrabold text-forest md:text-3xl">{grup.lokasiName}</p>
+          {grup.alamat ? <p className="text-lg text-muted-foreground">{grup.alamat}</p> : null}
+          <TagInfo grup={grup} />
+          {grup.deskripsi ? <p className="text-lg text-foreground">{grup.deskripsi}</p> : null}
         </div>
       </div>
 

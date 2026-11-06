@@ -132,26 +132,29 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
         backLabel="Pilih makam"
       />
       <div className="mt-6 flex flex-col gap-6">
-        <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
-          <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Data &amp; kirim</h1>
-          <p className="mt-3 max-w-2xl text-lg text-ivory/85">
+        <div className="rounded-3xl border border-border bg-brand-soft px-6 py-8 md:px-10 md:py-12">
+          <p className="flex items-center gap-3 text-small font-bold tracking-widest text-forest uppercase">
+            <span className="h-px w-6 bg-forest" aria-hidden /> Langkah 2 dari 2
+          </p>
+          <h1 className="mt-3 font-heading text-4xl font-extrabold leading-tight tracking-tight text-foreground md:text-6xl">Data &amp; kirim</h1>
+          <p className="mt-3 max-w-2xl text-lg text-muted-foreground">
             Cukup yang kami perlukan untuk menyiapkan pemakaman. Sisanya bisa menyusul.
           </p>
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-ivory/15 px-5 py-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-sm">
             {/* The tipe's detail and its total are read here, not on Pilih makam (dri, 6 Nov 2026). */}
             <div className="min-w-0" data-testid="detail-tipe">
               <p className="text-lg">
-                <span className="font-bold text-sand">{kartu.jenisMakamName}</span> · {lokasi.name}
+                <span className="font-bold text-forest">{kartu.jenisMakamName}</span> · {lokasi.name}
               </p>
-              {kartu.deskripsi ? <p className="text-body-lg text-ivory/85">{kartu.deskripsi}</p> : null}
-              <p className="text-body-lg text-ivory/85">{kartu.masaHakPakai}</p>
-              <p className="mt-1 font-heading text-2xl font-extrabold tabular-nums text-ivory">
-                {formatRupiah(kartu.total)} <span className="text-body font-normal text-ivory/80">semua biaya</span>
+              {kartu.deskripsi ? <p className="text-body-lg text-muted-foreground">{kartu.deskripsi}</p> : null}
+              <p className="text-body-lg text-muted-foreground">{kartu.masaHakPakai}</p>
+              <p className="mt-1 font-heading text-2xl font-extrabold tabular-nums text-foreground">
+                {formatRupiah(kartu.total)} <span className="text-body font-normal text-muted-foreground">semua biaya</span>
               </p>
             </div>
             <Link
               href={`/pesan-makam/saat-duka?lokasiId=${encodeURIComponent(lokasi.id)}`}
-              className="shrink-0 text-lg font-bold text-ivory underline underline-offset-4"
+              className="inline-flex h-12 shrink-0 items-center rounded-full border-2 border-forest/25 px-5 text-lg font-bold text-forest hover:border-forest"
             >
               Ganti
             </Link>
@@ -368,7 +371,7 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
               size="lg"
               disabled={mengirim || sudahDikirim}
               onClick={kirimPesananSekarang}
-              className="h-14 rounded-xl px-8 text-lg font-bold"
+              className="h-14 rounded-full px-8 text-lg font-bold shadow-md"
             >
               {mengirim ? "Mengirim…" : "Kirim pesanan"} <ArrowRight aria-hidden />
             </Button>
