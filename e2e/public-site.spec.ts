@@ -39,14 +39,15 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
     "/pesan-makam/terencana",
   );
 
-  // The tile row, then the trust strip below it. Perpanjang Makam and Layanan Makam are
-  // arranged at the Makam keluarga hub, so those two tiles open it with the action chosen.
-  await expect(page.getByRole("heading", { name: "Perpanjang Makam" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Wakaf Tanah" })).toBeVisible();
-  // DKI TPU is taken out of the product (ADR 0012): no tile for it, not even "Segera hadir".
-  await expect(page.getByRole("heading", { name: "Urus di TPU DKI" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Perpanjang Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=perpanjang");
-  await expect(page.getByRole("link", { name: "Layanan Makam" })).toHaveAttribute("href", "/makam-keluarga?aksi=layanan");
+  // The tile row (rapat Ira, 6 Nov 2026): the menu's services; Makam Keluarga and Wakaf Tanah are hidden, and DKI TPU
+  // is taken out of the product (ADR 0012).
+  const main = page.getByRole("main");
+  await expect(main.getByRole("heading", { name: "Layanan kami" })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Layanan Kedukaan" })).toHaveAttribute("href", "/layanan-kedukaan");
+  await expect(main.getByRole("heading", { name: "Proteksi Kedukaan" })).toBeVisible();
+  for (const hilang of ["Perpanjang Makam", "Wakaf Tanah", "Urus di TPU DKI"]) {
+    await expect(main.getByRole("heading", { name: hilang })).toHaveCount(0);
+  }
   await expect(page.getByRole("heading", { name: "Dibantu, jelas, aman" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Cara Kami Bekerja" }).first()).toHaveAttribute("href", "/cara-kami-bekerja");
 });

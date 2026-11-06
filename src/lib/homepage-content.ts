@@ -15,7 +15,6 @@
  */
 import type { LucideIcon } from "lucide-react";
 import { BadgeCheckIcon, HandHeartIcon, ReceiptTextIcon } from "lucide-react";
-import { tileKeHub } from "@/lib/makam-keluarga-content";
 import { dikeluarkanDi, terbukaDi, type Fitur, type Rilis } from "@/lib/rilis-peta";
 
 export interface HomepageTile {
@@ -69,40 +68,40 @@ export const homepageHero: HomepageHero = {
   photoAlt: "Tiga bersaudara berdiri berdampingan dengan tenang di taman yang berkabut.",
 };
 
-/** The tile row's heading and line (public-site prototype). */
+/**
+ * The tile row's heading and line. Rapat Ira, 6 Nov 2026: the Makam Keluarga tiles (Perpanjang, Layanan Makam) and
+ * Wakaf Tanah are hidden with the menu entries they mirrored; the row now shows the same services as the menu.
+ */
 export const homepageTilesIntro = {
-  heading: "Untuk makam keluarga",
-  line: "Setelah pemakaman, kami tetap menemani: merawat dan memperpanjang.",
+  heading: "Layanan kami",
+  line: "Dari memilih makam sampai mendampingi keluarga yang berduka.",
 };
 
 export const homepageTiles: HomepageTile[] = [
   {
-    label: "Perpanjang Makam",
-    // The tile opens the Makam keluarga hub with Perpanjang already chosen (spec, Public site
-    // and routing decisions): the hub owns the branch.
-    href: tileKeHub.perpanjang,
-    summary: "Perpanjang masa Hak Pakai makam keluarga sebelum berakhir.",
+    label: "Pesan Sekarang",
+    href: "/pesan-makam/saat-duka",
+    summary: "Pilih makam di Lokasi Mitra terverifikasi, dengan harga jelas sebelum Anda mengirim.",
     image: "/content/beranda-tile-perpanjang.jpg",
     imageAlt: "Jalan setapak teduh di bawah pepohonan, diapit bunga dan dinding batu.",
   },
   {
-    label: "Layanan Makam",
-    href: tileKeHub.layanan,
-    summary: "Bunga, nisan, pembersihan dan perawatan makam, dengan foto bukti.",
+    label: "Konsultasi Rencana Pemakaman",
+    href: "/konsultasi-rencana-pemakaman",
+    summary: "Bicara dengan tim kami sebelum memilih makam untuk keluarga.",
     image: "/content/beranda-tile-layanan.jpg",
     imageAlt: "Jalan setapak berbatu di taman tropis yang hijau dan terawat.",
   },
   {
-    label: "Urus di TPU DKI",
-    hrefBilaTerbuka: { fitur: "tpu", href: "/pengurusan-tpu" },
-    summary: "Panduan gratis mengurus sendiri, atau kami bantu urus izinnya.",
+    label: "Layanan Kedukaan",
+    href: "/layanan-kedukaan",
+    summary: "Rumah duka dan layanan pendamping saat keluarga berduka.",
     image: "/content/beranda-tile-tpu.jpg",
-    imageAlt: "Pemakaman umum di Jakarta yang hijau dengan gedung di kejauhan.",
+    imageAlt: "Pemakaman yang hijau dengan gedung di kejauhan.",
   },
   {
-    label: "Wakaf Tanah",
-    hrefBilaTerbuka: { fitur: "wakaf", href: "/wakaf-tanah" },
-    summary: "Ajukan wakaf tanah untuk pemakaman; kami hubungkan dengan Nazhir.",
+    label: "Proteksi Kedukaan",
+    summary: "Iuran bersama untuk meringankan biaya keluarga saat duka datang.",
     image: "/content/beranda-tile-wakaf.jpg",
     imageAlt: "Hamparan sawah hijau dengan rumah di kejauhan.",
   },

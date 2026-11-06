@@ -79,7 +79,8 @@ export function GlobalTariffForm({ tariffKey, label, today }: { tariffKey: Globa
 
 /** Harga Hak Pakai, tenure (Selamanya or N years) and the Perpanjangan price per term (optional for Selamanya). */
 function JenisMakamTariffFields() {
-  const [tenure, setTenure] = useState<"tahun" | "selamanya">("tahun");
+  // Rapat Ira, 6 Nov 2026: every partner's Hak Pakai is permanent, so a new tariff starts at Selamanya.
+  const [tenure, setTenure] = useState<"tahun" | "selamanya">("selamanya");
   return (
     <>
       <RupiahField label="Harga Hak Pakai (Rp)" name="hargaHakPakai" required placeholder="7.500.000" />

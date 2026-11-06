@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
 import { formatRupiah } from "@/lib/rupiah";
-import { jawabAlternatifAction, batalkanPesananAction, type PesananActionState } from "./actions";
+import { jawabAlternatifAction, type PesananActionState } from "./actions";
 
 const idle: PesananActionState = { status: "idle" };
 
@@ -118,43 +118,5 @@ function TanyaCS({ csContact }: { csContact: CsContact | null }) {
     >
       Tanya CS
     </a>
-  );
-}
-
-/**
- * Cancelling the order (spec, story 34): a free field, and it is required once
- * the order is confirmed because by then a plot and a bill are being given up.
- * The screen never says what will be refunded — the module knows, and the answer
- * says it after the fact.
- */
-export function BatalkanForm({ nomor, wajibAlasan }: { nomor: string; wajibAlasan: boolean }) {
-  const [state, action, pending] = useActionState(batalkanPesananAction, idle);
-  return (
-    <form action={action} className="flex flex-col gap-3">
-      <input type="hidden" name="nomor" value={nomor} />
-      <div className="flex flex-col gap-2">
-        <label htmlFor="alasan-pembatalan" className="text-body font-medium text-foreground">
-          Alasan pembatalan
-        </label>
-        <Input id="alasan-pembatalan" name="alasan" maxLength={500} required={wajibAlasan} placeholder="boleh dikosongkan sebelum pesanan dikonfirmasi" />
-        {wajibAlasan ? (
-          <p className="text-small text-muted-foreground">
-            Pesanan sudah dikonfirmasi, jadi petak sudah Dialokasikan. Alasan ini kami catat supaya Lokasi Mitra tahu sebabnya.
-          </p>
-        ) : (
-          <p className="text-small text-muted-foreground">Belum ada apa pun yang dibayar, jadi membatalkan tidak membebaskan biaya apa pun.</p>
-        )}
-      </div>
-      <div className="flex items-center gap-3">
-        <Button type="submit" variant="outline" disabled={pending}>
-          {pending ? "Membatalkan…" : "Batalkan pesanan ini"}
-        </Button>
-        {state.status !== "idle" ? (
-          <p role={state.status === "gagal" ? "alert" : "status"} className="text-small text-muted-foreground">
-            {state.message}
-          </p>
-        ) : null}
-      </div>
-    </form>
   );
 }

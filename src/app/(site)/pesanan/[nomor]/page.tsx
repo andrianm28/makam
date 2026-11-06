@@ -9,15 +9,16 @@ import { buttonVariants } from "@/components/ui/button";
 import { authorize, pemesananResource } from "@/domain/identity";
 import type { PemesananOrder, PemesananTerencanaOrder, RebookPesanan } from "@/domain/pemesanan";
 import { TerencanaPesanan } from "./terencana-pesanan";
-import type { CsContact } from "@/components/kode-masuk/state";
+import { csWhatsAppLink, type CsContact } from "@/components/kode-masuk/state";
 import { tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath } from "@/lib/document-links";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+import { SisaWaktuKonfirmasi } from "./sisa-waktu-konfirmasi";
 import { UnggahBerkasTertunda } from "./unggah-berkas-tertunda";
 import { UnggahDokumenForm } from "./unggah-dokumen-form";
 import { RekeningPengembalianForm } from "./rekening-pengembalian-form";
 import { formatRupiah } from "@/lib/rupiah";
-import { AlternatifForm, BatalkanForm } from "./keluar-pesanan";
+import { AlternatifForm } from "./keluar-pesanan";
 import { cn } from "@/lib/utils";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
@@ -56,7 +57,8 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
   // The CS a family is pointed at when the alternative on the table can no longer
   // be priced, so that screen has a person to go to rather than a figure it
   // cannot show (see `AlternatifForm`).
-  const settings = order.alternatif ? await serverRuntime().operatorSettings.current() : null;
+  const settings =
+    order.alternatif || order.status === "diajukan" || order.status === "dikonfirmasi" ? await serverRuntime().operatorSettings.current() : null;
   const csContact: CsContact | null = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
   // The confirmation's own facts: the Tagihan it was issued with, whom the family may call, and the
   // payment window that Lokasi Mitra itself sets (so the note names the order's own deadline).
@@ -150,8 +152,15 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
 
       {order.pemakaman ? <Dikonfirmasi order={order} tagihan={tagihan} kontak={kontak} /> : order.konfirmasiDueAt ? (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground" data-testid="konfirmasi-paling-lambat">
-          <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat {formatTanggalJam(order.konfirmasiDueAt)}.
-          Statusnya bisa Anda ikuti di halaman ini, dan kabar ini datang ke email Anda.
+          Pesanan sedang diproses. <span className="font-semibold">{order.lokasi.name}</span> mengonfirmasi paling lambat{" "}
+          {formatTanggalJam(order.konfirmasiDueAt)}
+          {order.status === "diajukan" ? (
+            <>
+              {" "}
+              (<SisaWaktuKonfirmasi dueAtIso={order.konfirmasiDueAt.toISOString()} nowIso={serverRuntime().adapters.clock.now().toISOString()} />)
+            </>
+          ) : null}
+          . Statusnya bisa Anda ikuti di halaman ini, dan kabar ini datang ke email Anda.
         </p>
       ) : (
         <p className="rounded-xl bg-info-soft px-4 py-3 text-body text-info-soft-foreground">
@@ -164,16 +173,16 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
 
       <Timeline order={order} />
 
-      {order.status === "diajukan" || order.status === "dikonfirmasi" ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-title-3 text-foreground">Berpindah pikiran?</h2>
-          <p className="text-small text-muted-foreground">
-            {order.status === "dikonfirmasi"
-              ? "Petak sudah Dialokasikan dan Tagihan terbit. Kalau dibatalkan, petak kembali ke Lokasi Mitra dan Tagihan dibatalkan; tidak ada biaya pembatalan."
-              : "Belum ada yang dibayar dan petak belum Dialokasikan, jadi membatalkan tidak membawa biaya apa pun."}
-          </p>
-          <BatalkanForm nomor={order.nomor} wajibAlasan={order.status === "dikonfirmasi"} />
-        </section>
+      {(order.status === "diajukan" || order.status === "dikonfirmasi") && csContact ? (
+        // Rapat Ira, 6 Nov 2026: no "Berpindah pikiran?" cancel button on this page; a family that wants to cancel
+        // talks to CS, who cancels it from the staff screens.
+        <p className="text-small text-muted-foreground" data-testid="pembatalan-lewat-cs">
+          Ada perubahan rencana?{" "}
+          <a href={csWhatsAppLink(csContact, `Pesanan ${order.nomor}`)} className="font-medium text-primary underline underline-offset-2">
+            Hubungi CS lewat WhatsApp
+          </a>
+          .
+        </p>
       ) : null}
 
       {order.dokumen.length > 0 ? (
@@ -204,14 +213,6 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
           <Baris label="Lokasi Mitra" value={order.lokasi.name} href={`/lokasi/${order.lokasi.id}`} />
           {order.jenisMakam ? <Baris label="Jenis Makam" value={order.jenisMakam.name} /> : null}
           <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} />
-          <Baris
-            label="Pemegang Hak"
-            value={
-              order.pemegangHak.mode === "pemesan"
-                ? `${order.pemegangHak.name} (Pemesan)`
-                : `${order.pemegangHak.name}${order.pemegangHak.phoneNumber ? ` · ${order.pemegangHak.phoneNumber}` : ""}`
-            }
-          />
           <Baris label="Pemesan" value={`${order.pemesan.name}${order.pemesan.email ? ` · ${order.pemesan.email}` : ""}`} />
           {order.pemesan.phoneNumber ? <Baris label="Telepon Pemesan" value={order.pemesan.phoneNumber} /> : null}
           {order.rencanaPemakamanAt ? <Baris label="Rencana pemakaman" value={formatTanggalJam(order.rencanaPemakamanAt)} /> : null}
