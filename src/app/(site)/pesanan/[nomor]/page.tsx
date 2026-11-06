@@ -5,7 +5,8 @@ import { z } from "zod";
 import { Check } from "lucide-react";
 import { CatatanPembayaran } from "@/components/makam/catatan-pembayaran";
 import { StatusBadge, statusVocabulary } from "@/components/makam/status-badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Eyebrow } from "@/components/site/content-page";
+import { pilGaris, pilUtama } from "@/components/site/gaya";
 import { authorize, pemesananResource } from "@/domain/identity";
 import type { PemesananOrder, PemesananTerencanaOrder, RebookPesanan } from "@/domain/pemesanan";
 import { TerencanaPesanan } from "./terencana-pesanan";
@@ -76,13 +77,14 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-8 px-4 py-8">
-      <header className="flex flex-col gap-4 rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
-        <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">
+      <header className="flex flex-col gap-4 rounded-3xl bg-brand-soft px-6 py-8 md:px-10 md:py-12">
+        <Eyebrow>Pesanan Makam</Eyebrow>
+        <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight text-foreground text-balance md:text-6xl">
           {order.status === "diajukan" ? "Pesanan terkirim" : "Pesanan Anda"}
         </h1>
-        <p className="text-xl text-ivory/85">
+        <p className="text-xl text-muted-foreground">
           Nomor Pemesanan{" "}
-          <span className="font-mono font-bold text-sand" data-testid="nomor-pemesanan">
+          <span className="font-mono font-bold text-foreground" data-testid="nomor-pemesanan">
             {order.nomor}
           </span>
         </p>
@@ -91,21 +93,21 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
           {tagihan ? (
             // The order and the money are two separate clocks (AC 5): a burial can
             // be Dimakamkan while its Tagihan is still Belum Dibayar.
-            <span className="text-body text-ivory/85">
+            <span className="text-body text-muted-foreground">
               Tagihan{" "}
-              <span className="font-bold text-ivory" data-testid="status-tagihan">
+              <span className="font-bold text-foreground" data-testid="status-tagihan">
                 {tagihanStatusText(tagihan.status)}
               </span>
             </span>
           ) : null}
-          <span className="text-body text-ivory/85">Diajukan {formatTanggalJam(order.diajukanAt)}</span>
+          <span className="text-body text-muted-foreground">Diajukan {formatTanggalJam(order.diajukanAt)}</span>
         </div>
       </header>
 
       {order.status === "ditolak" && pemesanUlang ? <Ditolak order={order} pemesanUlang={pemesanUlang} /> : null}
       {order.status === "ditolak" && order.kind === "tumpang" ? (
         <section className="flex flex-col gap-3" data-testid="tumpang-ditolak">
-          <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Permintaan pemakaman tidak dapat dilaksanakan</h2>
+          <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Permintaan pemakaman tidak dapat dilaksanakan</h2>
           <p className="text-body text-muted-foreground">
             Hak Pakai makam itu tidak berubah dan tidak ada yang perlu dibayar. Hubungi {order.lokasi.name} untuk membicarakan langkah berikutnya.
           </p>
@@ -125,13 +127,13 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
 
       {order.buktiPemesanan ? (
         <section className="flex flex-col gap-3" data-testid="bukti-pemesanan">
-          <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Bukti Pemesanan</h2>
+          <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Bukti Pemesanan</h2>
           <p className="rounded-xl bg-success-soft px-4 py-3 text-body text-success-soft-foreground">
             Pembayaran sudah kami terima dan hak makamnya resmi. Simpan Bukti Pemesanan {order.buktiPemesanan.nomor} sebagai
             bukti hak Anda.
           </p>
           <div>
-            <Link href={documentPagePath(order.buktiPemesanan.link)} className={cn(buttonVariants({ variant: "outline", size: "lg" }), "inline-flex h-14 rounded-xl px-8 text-lg font-bold")}>
+            <Link href={documentPagePath(order.buktiPemesanan.link)} className={pilGaris}>
               Buka Bukti Pemesanan
             </Link>
           </div>
@@ -189,13 +191,13 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
 
       {order.dokumen.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Dokumen yang diminta</h2>
+          <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Dokumen yang diminta</h2>
           <UnggahBerkasTertunda nomor={order.nomor} />
           <p className="text-small text-muted-foreground">
             Dokumen boleh menyusul, bahkan setelah pemakaman. Yang tidak boleh menunda pemakaman adalah pembayaran, dan
             Tagihan pun tidak menahannya.
           </p>
-          <ul className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
+          <ul className="flex flex-col gap-2 rounded-3xl border border-border bg-card p-6 text-body shadow-sm">
             {order.dokumen.map((dokumen) => (
               <li key={dokumen.nama} className="flex flex-wrap items-center justify-between gap-2">
                 <span className="font-medium text-foreground">{dokumen.nama}</span>
@@ -210,8 +212,8 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Yang dipesan</h2>
-        <dl className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
+        <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Yang dipesan</h2>
+        <dl className="flex flex-col gap-2 rounded-3xl border border-border bg-card p-6 text-body shadow-sm">
           <Baris label="Lokasi Mitra" value={order.lokasi.name} href={`/lokasi/${order.lokasi.id}`} />
           {order.jenisMakam ? <Baris label="Jenis Makam" value={order.jenisMakam.name} /> : null}
           <Baris label="Almarhum" value={`${order.almarhum.name}, wafat ${formatTanggal(order.almarhum.tanggalWafat)}`} />
@@ -222,7 +224,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
         </dl>
       </section>
 
-      <Link href="/akun" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "h-14 self-start rounded-xl px-8 text-lg font-bold")}>
+      <Link href="/akun" className={cn(pilGaris, "self-start")}>
         Lihat pesanan saya di Akun Saya
       </Link>
     </main>
@@ -270,8 +272,8 @@ function Dikonfirmasi({
 }) {
   return (
     <section className="flex flex-col gap-3" data-testid="pesanan-dikonfirmasi">
-      <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Pesanan sudah dikonfirmasi</h2>
-      <dl className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 text-body">
+      <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Pesanan sudah dikonfirmasi</h2>
+      <dl className="flex flex-col gap-2 rounded-3xl border border-border bg-card p-6 text-body shadow-sm">
         <Baris label="Petak Makam" value={order.pemakaman?.petakNomor ?? "menyusul"} />
         <Baris label="Pemakaman" value={order.pemakaman ? formatTanggalJam(order.pemakaman.at) : "menyusul"} />
         {order.pemakamanTanggal ? <Baris label="Pemakaman dilaksanakan" value={formatTanggal(order.pemakamanTanggal)} /> : null}
@@ -305,7 +307,7 @@ function Dikonfirmasi({
 function Ditolak({ order, pemesanUlang }: { order: PemesananOrder; pemesanUlang: RebookPesanan }) {
   return (
     <section className="flex flex-col gap-3" data-testid="pesanan-ditolak">
-      <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Pesanan belum bisa dilayani</h2>
+      <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Pesanan belum bisa dilayani</h2>
       <p className="rounded-xl bg-warning-soft px-4 py-3 text-body text-warning-soft-foreground">
         <span className="font-semibold">{pemesanUlang.banner.lokasi.name}</span> belum bisa melayani pesanan ini. Alasannya:{" "}
         {pemesanUlang.banner.alasan}.
@@ -315,7 +317,7 @@ function Ditolak({ order, pemesanUlang }: { order: PemesananOrder; pemesanUlang:
       </p>
       <Link
         href={`/pesan-makam/saat-duka?dari=${encodeURIComponent(order.nomor)}`}
-        className={cn(buttonVariants({ variant: "default", size: "lg" }), "h-14 self-start rounded-xl px-8 text-lg font-bold")}
+        className={cn(pilUtama, "self-start")}
       >
         Pilih makam lain
       </Link>
@@ -331,7 +333,7 @@ function Ditolak({ order, pemesanUlang }: { order: PemesananOrder; pemesanUlang:
 function Timeline({ order }: { order: PemesananOrder }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-4xl">Status pesanan</h2>
+      <h2 className="font-heading text-3xl font-extrabold tracking-tight text-foreground md:text-4xl">Status pesanan</h2>
       <ol className="flex flex-col gap-2">
         {order.langkah.map((step) => (
           <li key={step.status} className="flex items-center gap-3 text-body">
