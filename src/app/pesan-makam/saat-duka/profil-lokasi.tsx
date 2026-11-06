@@ -142,7 +142,7 @@ export async function profilLokasi(lokasiId: string): Promise<ProfilLokasi | nul
                 href={directionsUrl(peta)}
                 target="_blank"
                 rel="noreferrer"
-                className="mt-4 inline-flex h-14 items-center gap-2 rounded-xl border-2 border-forest px-6 text-lg font-bold text-forest hover:bg-accent"
+                className="mt-4 inline-flex h-14 items-center gap-2 rounded-full border-2 border-forest/25 bg-card px-6 text-lg font-bold text-forest hover:border-forest"
               >
                 <NavigationIcon className="size-5" aria-hidden /> Petunjuk arah
               </a>
@@ -156,8 +156,8 @@ export async function profilLokasi(lokasiId: string): Promise<ProfilLokasi | nul
 
 function Bagian({ judul, children }: { judul: string; children: ReactNode }) {
   return (
-    <section className="flex flex-col gap-4 border-t-4 border-forest pt-6">
-      <h2 className="font-heading text-2xl font-extrabold tracking-tight text-forest md:text-3xl">{judul}</h2>
+    <section className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-sm md:p-8">
+      <h2 className="font-heading text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">{judul}</h2>
       {children}
     </section>
   );

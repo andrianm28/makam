@@ -41,6 +41,8 @@ export interface HomepageHero {
   headline: string;
   tagline: string;
   /** Saat Duka: the button. */
+  /** The phrase of the headline set in the accent colour (dri, 6 Nov 2026: the reference site's layout). */
+  aksen: string;
   urgent: { label: string; caption: string; href: string };
   /** Terencana: the text link, never a second button. */
   planned: { label: string; href: string; prefetch?: boolean };
@@ -54,6 +56,7 @@ export interface HomepageHero {
 export const homepageHero: HomepageHero = {
   headline: "Urus Pemakaman dengan Tenang, dalam Satu Platform.",
   tagline: "Menemani Keluarga, Menjaga Kenangan.",
+  aksen: "dengan Tenang",
   urgent: {
     label: "Pesan makam sekarang",
     caption: "untuk keluarga yang baru saja kehilangan",
@@ -73,7 +76,8 @@ export const homepageHero: HomepageHero = {
  * Wakaf Tanah are hidden with the menu entries they mirrored; the row now shows the same services as the menu.
  */
 export const homepageTilesIntro = {
-  heading: "Layanan kami",
+  eyebrow: "Layanan kami",
+  heading: "Semua kebutuhan pemakaman dalam satu tempat",
   line: "Dari memilih makam sampai mendampingi keluarga yang berduka.",
 };
 
@@ -151,6 +155,42 @@ export const homepageTrust: HomepageTrustColumn[] = [
 ];
 
 export const homepageTrustHeading = "Dibantu, jelas, aman";
+
+/**
+ * The two doors under the hero (dri, 6 Nov 2026, after the reference site's "now / plan" pair): the family that has
+ * just lost someone, and the family preparing ahead. Each opens Makam's own wizard.
+ */
+export const homepagePintu = [
+  {
+    kunci: "sekarang",
+    judul: "Keluarga baru saja kehilangan",
+    ringkas: "Pilih makam di Lokasi Mitra terverifikasi hari ini. Tidak ada yang dibayar saat mengirim pesanan.",
+    tautan: "Pilih makam",
+    href: "/pesan-makam/saat-duka",
+  },
+  {
+    kunci: "nanti",
+    judul: "Menyiapkan untuk nanti",
+    ringkas: "Pilih lokasi dan tipe kavling dengan tenang, jauh sebelum dibutuhkan.",
+    tautan: "Siapkan makam untuk nanti",
+    href: "/pesan-makam/terencana",
+  },
+] as const;
+
+/** The Lokasi Mitra directory band: the partners' cities, each opening Pilih makam at that city. */
+export const homepageDirektori = {
+  eyebrow: "Lokasi mitra",
+  heading: "Cari makam mitra di kota Anda",
+  line: "Setiap Lokasi Mitra sudah bekerja sama dengan Makam.co.id. Lokasi, tipe kavling dan harga lengkapnya terlihat sebelum Anda mengirim pesanan.",
+};
+
+/** The FAQ band: the first questions of /faq, numbered, with the CS beside them. */
+export const homepageFaq = {
+  eyebrow: "Pertanyaan umum",
+  heading: "Yang sering ditanyakan keluarga",
+  line: "Belum menemukan jawabannya? Tim kami siap membantu lewat WhatsApp.",
+  jumlah: 5,
+};
 export const homepageTrustLink = { label: "Cara Kami Bekerja", href: "/cara-kami-bekerja" };
 
 /** The CS band near the foot of the Beranda. */

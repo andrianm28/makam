@@ -42,7 +42,7 @@ test("the Beranda leads with the urgent entry, and offers the planned one beside
   // The tile row (rapat Ira, 6 Nov 2026): the menu's services; Makam Keluarga and Wakaf Tanah are hidden, and DKI TPU
   // is taken out of the product (ADR 0012).
   const main = page.getByRole("main");
-  await expect(main.getByRole("heading", { name: "Layanan kami" })).toBeVisible();
+  await expect(main.getByRole("heading", { name: "Semua kebutuhan pemakaman dalam satu tempat" })).toBeVisible();
   await expect(main.getByRole("link", { name: "Layanan Kedukaan" })).toHaveAttribute("href", "/layanan-kedukaan");
   await expect(main.getByRole("heading", { name: "Proteksi Kedukaan" })).toBeVisible();
   for (const hilang of ["Perpanjang Makam", "Wakaf Tanah", "Urus di TPU DKI"]) {
