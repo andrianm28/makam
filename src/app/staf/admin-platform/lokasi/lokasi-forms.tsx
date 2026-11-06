@@ -5,6 +5,7 @@ import { PinPicker } from "@/components/map/pin-picker";
 import { ConfirmDialog } from "@/components/makam/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import type { LokasiFlags, LokasiMitra, LokasiPolicies } from "@/domain/lokasi";
+import { agamaDiterima, labelAgama, type InfoKartu } from "@/domain/lokasi/skema-info-kartu";
 import type { FormState } from "../../form-state";
 import {
   aktifkanTerencana,
@@ -16,6 +17,7 @@ import {
   tayangkanBelumTerverifikasi,
   lepasAdminLokasi,
   simpanDokumen,
+  simpanInfoKartu,
   simpanKebijakan,
   simpanProfil,
   simpanRekening,
@@ -184,6 +186,41 @@ export function DocumentsForm({ lokasiId, documents }: { lokasiId: string; docum
         />
       </label>
       <Submit pending={pending}>Simpan daftar dokumen</Submit>
+      <Feedback state={state} />
+    </form>
+  );
+}
+
+/** Info Kartu: what the Lokasi Mitra's big card on Pilih makam says, from the mitra's brosur (rapat Ira, 6 Nov 2026). */
+export function InfoKartuForm({ lokasiId, info }: { lokasiId: string; info: InfoKartu }) {
+  const [state, action, pending] = useActionState(simpanInfoKartu, idle);
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <input type="hidden" name="lokasiId" value={lokasiId} />
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-sm font-medium">Agama yang diterima (untuk filter agama di Pilih makam)</legend>
+        <div className="flex flex-wrap gap-x-4 gap-y-2">
+          {agamaDiterima.map((agama) => (
+            <label key={agama} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="agama" value={agama} defaultChecked={info.agama.includes(agama)} />
+              {labelAgama[agama]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
+      <label className={labelClass}>
+        Deskripsi singkat di kartu
+        <textarea
+          name="deskripsi"
+          defaultValue={info.deskripsi}
+          rows={3}
+          maxLength={600}
+          className="rounded-lg border border-input bg-background px-3 py-2"
+        />
+      </label>
+      <Field label="Luas lahan (mis. ± 60 ha)" name="luasLahan" defaultValue={info.luasLahan} maxLength={60} />
+      <Checkbox label="Ada krematorium" name="krematorium" checked={info.krematorium} />
+      <Submit pending={pending}>Simpan info kartu</Submit>
       <Feedback state={state} />
     </form>
   );

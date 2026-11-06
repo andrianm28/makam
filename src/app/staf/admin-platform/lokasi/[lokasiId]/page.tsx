@@ -19,6 +19,7 @@ import {
   AgreementForm,
   BankAccountForm,
   DocumentsForm,
+  InfoKartuForm,
   PoliciesForm,
   ProfileForm,
   PublishForm,
@@ -251,6 +252,10 @@ export default async function LokasiMitraRingkasanPage({ params }: PageProps<"/s
         description="Rekening tujuan Pencairan. Hanya Admin Platform yang bisa mengubahnya; setiap perubahan tercatat di Audit Log."
       >
         <BankAccountForm lokasiMitra={lokasiMitra} />
+      </Section>
+
+      <Section id="info-kartu" title="Info kartu Pilih makam" description="Agama yang diterima, deskripsi, luas lahan dan krematorium, dari brosur mitra. Tampil di kartu Pilih makam.">
+        <InfoKartuForm lokasiId={lokasiMitra.id} info={lokasiMitra.infoKartu} />
       </Section>
 
       <Section id="dokumen" title="Dokumen" description="Dokumen yang dibawa keluarga untuk Pemakaman di Lokasi ini.">

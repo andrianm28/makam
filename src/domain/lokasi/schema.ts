@@ -4,6 +4,7 @@ import type { LokasiFacility } from "./profile";
 import type { JamOperasional } from "./jam-operasional-schema";
 import { lokasiMitraStatuses } from "./skema-klien";
 import { kategoriFotoGaleri } from "./skema-galeri";
+import type { InfoKartu } from "./skema-info-kartu";
 
 const at = (name: string) => timestamp(name, { withTimezone: true, mode: "date" });
 
@@ -36,6 +37,8 @@ export const lokasiMitra = pgTable("lokasi_mitra", {
   /** Keys of `lokasiFacilities` (./profile.ts), in checklist order. */
   facilities: jsonb("facilities").$type<LokasiFacility[]>().notNull(),
   facilitiesNote: text("facilities_note").notNull(),
+  /** Info Kartu (./skema-info-kartu.ts): agama, description, luas lahan, krematorium for the Pilih makam card; set only by Admin Platform. */
+  infoKartu: jsonb("info_kartu").$type<InfoKartu>().notNull().default({ agama: [], deskripsi: "", luasLahan: "", krematorium: false }),
   /** The account Pencairan go to; set and changed only by Admin Platform. All three are set together or none. */
   bankName: text("bank_name"),
   bankAccountNumber: text("bank_account_number"),

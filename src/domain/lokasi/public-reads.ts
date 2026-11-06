@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import type { FileStore } from "@/ports/file-store";
 import { isLokasiId } from "./lokasi-mitra";
 import type { LokasiFacility } from "./profile";
+import type { InfoKartu } from "./skema-info-kartu";
 import { lokasiMitra as lokasiMitraTable, tpuDki as tpuDkiTable } from "./schema";
 import { publicTpuDkiList, type PublicTpuDki } from "./tpu";
 
@@ -48,6 +49,8 @@ export interface PublicLokasiMitra {
   kunjunganVerifikasi: { photos: string[]; visitedOn: string } | null;
   /** Null until its Admin Lokasi saves one (never invented). */
   jamOperasional: Row["jamOperasional"] | null;
+  /** Agama accepted, description, luas lahan, krematorium (empty until Admin Platform records it). */
+  infoKartu: InfoKartu;
 }
 
 function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
@@ -75,6 +78,7 @@ function toPublicLokasiMitra(row: Row): PublicLokasiMitra {
     paketLengkap: row.flags.paketLengkap === true,
     kunjunganVerifikasi: row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     jamOperasional: row.jamOperasional,
+    infoKartu: row.infoKartu,
   };
 }
 
@@ -165,6 +169,8 @@ export interface PublicLokasiMitraCard {
   hargaTampil: boolean;
   /** Listed without verification (owner, 2026-11-05): the card carries the "Belum Terverifikasi" mark and offers no order. */
   belumTerverifikasi: boolean;
+  /** Agama accepted, description, luas lahan, krematorium: what the Pilih makam card says (empty until Admin Platform records it). */
+  infoKartu: InfoKartu;
 }
 
 export interface PublicLokasiMitraQuery {
@@ -193,6 +199,7 @@ function toCard(row: Row): PublicLokasiMitraCard {
     terencanaAktif: row.flags.pemesananTerencanaAktif,
     hargaTampil: hargaTampilOf(row),
     belumTerverifikasi: row.status === "tayang_belum_terverifikasi",
+    infoKartu: row.infoKartu,
   };
 }
 

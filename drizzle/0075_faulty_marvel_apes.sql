@@ -1,0 +1,1 @@
+ALTER TABLE "lokasi_mitra" ADD COLUMN "info_kartu" jsonb DEFAULT '{"agama":[],"deskripsi":"","luasLahan":"","krematorium":false}'::jsonb NOT NULL;
