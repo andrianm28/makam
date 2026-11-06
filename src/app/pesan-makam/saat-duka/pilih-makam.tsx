@@ -97,9 +97,9 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, jenis, kembali, dari, banner
         />
       ) : (
         <div className="mt-6 flex flex-col gap-8">
-          <div>
-            <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-forest md:text-5xl">Pilih makam</h1>
-            <p className="mt-2 max-w-2xl text-body-lg text-muted-foreground">
+          <div className="rounded-3xl bg-forest px-6 py-8 text-ivory md:px-10 md:py-12">
+            <h1 className="font-heading text-4xl font-extrabold leading-tight tracking-tight md:text-6xl">Pilih makam</h1>
+            <p className="mt-3 max-w-2xl text-lg text-ivory/85">
               Semua lokasi sudah bermitra dengan Makam.co.id. Hanya makam yang masih tersedia yang ditampilkan, dengan harga lengkap
               sebelum memesan.
             </p>
