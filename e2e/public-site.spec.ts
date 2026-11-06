@@ -101,7 +101,7 @@ test.describe("on a phone", () => {
       await expect(drawer.getByText(label, { exact: true })).toBeVisible();
     }
     // An item whose page is not here says so in full, and names no date.
-    await expect(drawer.getByText("Segera hadir.")).toHaveCount(belumHadir.length);
+    await expect(drawer.getByText("Segera hadir.", { exact: true })).toHaveCount(belumHadir.length);
     await expect(drawer).not.toContainText("2026");
   });
 });

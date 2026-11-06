@@ -24,9 +24,9 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   const email = coldEmail();
   const telepon = coldNumber();
 
-  // Screen 1: one list of cards, each with its own total, and the sticky bar.
+  // Screen 1: the grid of Lokasi Mitra cards; at ?lokasiId= its Pilih Tipe Kavling step, each tipe with its own total, and the sticky bar.
   await page.goto(lokasi ? `/pesan-makam/saat-duka?lokasiId=${lokasi.split("/").pop()}` : "/pesan-makam/saat-duka");
-  await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: lokasi ? "Pilih tipe kavling" : "Pilih makam" })).toBeVisible();
   await expect(page.getByRole("radio", { name: /Reguler 1 × 2 m/ })).toBeVisible();
   await expect(page.getByTestId("total-semua-biaya")).not.toHaveText("Pilih makam dulu");
 
