@@ -32,10 +32,10 @@ export function PublicNavList({
             <details className="group">
               <summary
                 className={cn(
-                  "flex h-11 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-lg font-bold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ivory/60 [&::-webkit-details-marker]:hidden",
+                  "flex h-11 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-lg font-bold outline-none transition-colors focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden",
                   item.children.some((child) => child.href === pathname) || item.href === pathname
-                    ? "font-extrabold text-ivory underline underline-offset-8"
-                    : "text-ivory/90 hover:bg-ivory/10 hover:text-ivory",
+                    ? "font-extrabold text-forest underline underline-offset-8"
+                    : "text-foreground hover:bg-accent hover:text-forest",
                 )}
               >
                 <span>{item.label}</span>
@@ -75,14 +75,14 @@ export function PublicNavList({
 function MenuLink({ item, pathname, variant }: { item: PublicMenuItem; pathname: string; variant: "bar" | "drawer" | "drawer-child" | "dropdown" }) {
   const current = item.href !== undefined && pathname === item.href;
   const inDrawer = variant === "drawer";
-  const onLight = variant !== "bar";
+  const inBar = variant === "bar";
   // The drawer has room for the line that says what the page is for, or that
   // it is not there yet; the top bar only carries the short "Segera" on the
   // items that open nothing, so a person knows before tapping.
   const caption = inDrawer ? (
     <span className="text-caption text-muted-foreground">{item.description}</span>
   ) : !item.href ? (
-    <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-caption font-medium", onLight ? "bg-muted text-muted-foreground" : "bg-ivory/15 text-ivory")}>Segera</span>
+    <span className={cn("ml-1.5 rounded-full px-1.5 py-0.5 text-caption font-medium", "bg-muted text-muted-foreground")}>Segera</span>
   ) : null;
   const body = (
     <>
@@ -99,7 +99,7 @@ function MenuLink({ item, pathname, variant }: { item: PublicMenuItem; pathname:
         ? "min-h-12 flex-col items-start gap-0 px-4 py-2 text-body-lg"
         : "min-h-11 px-3 py-2";
   if (!item.href) {
-    return <span className={cn("flex items-center text-body font-medium", onLight ? "text-muted-foreground" : "text-ivory/70", shape)}>{body}</span>;
+    return <span className={cn("flex items-center text-body font-medium", "text-muted-foreground", shape)}>{body}</span>;
   }
   return (
     <Link
@@ -107,15 +107,15 @@ function MenuLink({ item, pathname, variant }: { item: PublicMenuItem; pathname:
       aria-current={current ? "page" : undefined}
       className={cn(
         "flex items-center rounded-lg text-body outline-none transition-colors focus-visible:ring-3",
-        onLight ? "focus-visible:ring-ring/50" : "focus-visible:ring-ivory/60",
+        "focus-visible:ring-ring/50",
         shape,
         current
-          ? onLight
-            ? "bg-brand-soft font-semibold text-brand-soft-foreground"
-            : "font-extrabold text-ivory underline underline-offset-8"
-          : onLight
-            ? "font-medium text-foreground hover:bg-accent hover:text-accent-foreground"
-            : "font-bold text-ivory/90 hover:bg-ivory/10 hover:text-ivory",
+          ? inBar
+            ? "font-extrabold text-forest underline underline-offset-8"
+            : "bg-brand-soft font-semibold text-brand-soft-foreground"
+          : inBar
+            ? "font-bold text-foreground hover:bg-accent hover:text-forest"
+            : "font-medium text-foreground hover:bg-accent hover:text-accent-foreground",
       )}
     >
       {body}

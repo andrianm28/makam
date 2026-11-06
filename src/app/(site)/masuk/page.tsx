@@ -3,7 +3,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { KodeMasukForm } from "@/components/kode-masuk/kode-masuk-form";
 import { PageHero } from "@/components/site/content-page";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { serverRuntime } from "@/server/runtime";
 import { currentActor } from "@/server/session";
 import { homeFor } from "@/server/staff-area";
@@ -24,28 +23,26 @@ export default async function MasukPage() {
   return (
     <main className="flex w-full flex-1 flex-col">
       <PageHero
+        eyebrow="Akun Saya"
         title="Masuk"
         lead="Masukkan email Anda. Kami mengirim Kode Masuk ke email itu. Tidak perlu daftar: bila email ini belum punya akun, akun dibuat saat kodenya dimasukkan."
+        poin={["Tanpa kata sandi, cukup Kode Masuk dari email", "Pesanan, Tagihan dan dokumen keluarga ada di Akun Saya"]}
+        samping={
+          <div className="flex flex-col gap-5 rounded-3xl border border-border bg-card p-7 shadow-lg md:p-8">
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">Email Anda</h2>
+            <div className="text-lg">
+              <KodeMasukForm requestAction={kirimKodeMasuk} verifyAction={masukDenganKodeMasuk} csContact={csContact} />
+            </div>
+            <p className="text-body text-muted-foreground">
+              Dengan masuk, Anda menyetujui pemakaian data Anda seperti dijelaskan di{" "}
+              <Link href="/kebijakan-privasi" className="font-semibold text-forest underline underline-offset-4">
+                Kebijakan Privasi
+              </Link>
+              .
+            </p>
+          </div>
+        }
       />
-      <div className="mx-auto flex w-full max-w-lg flex-col px-(--page-gutter) py-10 md:py-14">
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              <h2 className="font-heading text-3xl font-extrabold tracking-tight text-forest">Email Anda</h2>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-lg">
-            <KodeMasukForm requestAction={kirimKodeMasuk} verifyAction={masukDenganKodeMasuk} csContact={csContact} />
-          </CardContent>
-        </Card>
-        <p className="mt-5 text-center text-body text-muted-foreground">
-          Dengan masuk, Anda menyetujui pemakaian data Anda seperti dijelaskan di{" "}
-          <Link href="/kebijakan-privasi" className="font-semibold underline underline-offset-4">
-            Kebijakan Privasi
-          </Link>
-          .
-        </p>
-      </div>
     </main>
   );
 }

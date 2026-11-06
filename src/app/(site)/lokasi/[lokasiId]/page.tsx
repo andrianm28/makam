@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { GambarTipeKavlingFigure } from "@/components/site/gambar-tipe-kavling";
 import Link from "next/link";
 import { PageHero } from "@/components/site/content-page";
+import { judulBagian, pilGaris, pilUtama } from "@/components/site/gaya";
+import { KartuCs } from "@/components/site/kartu-cs";
+import { cn } from "@/lib/utils";
 import {
   ArrowRightIcon,
   CalendarClockIcon,
@@ -64,7 +67,7 @@ function tenureLabel(tenure: Tenure): string {
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
   return (
     <section aria-labelledby={id} className="border-t border-border pt-8">
-      <h2 id={id} className="font-heading text-3xl font-extrabold tracking-tight text-forest md:text-5xl">
+      <h2 id={id} className={judulBagian}>
         {title}
       </h2>
       <div className="mt-4">{children}</div>
@@ -163,7 +166,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
   const [mainPhoto, ...restPhotos] = photos;
 
   const ctaHarga = (
-    <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-xs">
+    <div className="flex flex-col gap-4 rounded-3xl border border-border bg-card p-6 shadow-lg">
       {hargaTampil ? (
         <div>
           <p className="text-caption text-muted-foreground">mulai</p>
@@ -190,7 +193,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
         <>
       <Link
         href={pesanHref}
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-body-lg font-semibold text-primary-foreground hover:bg-primary/90"
+        className={pilUtama}
       >
         Pesan makam sekarang <ArrowRightIcon className="size-5" aria-hidden />
       </Link>
@@ -250,22 +253,27 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
 
   return (
     <>
-    <PageHero title={profile.name} lead={profile.address}>
-      <p className="w-full text-lg text-ivory/85">
-        Dikelola oleh <span className="font-bold text-ivory">{profile.pengelolaName}</span>, yang memberikan Hak Pakai kepada keluarga.
+    <PageHero
+      eyebrow={belumTerverifikasi ? "Lokasi" : "Lokasi Mitra"}
+      title={profile.name}
+      lead={profile.address}
+      samping={<KartuCs contact={cs} judul="Ada yang ingin ditanyakan?" isi="CS kami membantu menjawab soal lokasi ini. Pemesanan dan pembayaran tetap di Makam.co.id." pesan={pesanWhatsApp} />}
+    >
+      <p className="w-full text-lg text-foreground">
+        Dikelola oleh <span className="font-bold">{profile.pengelolaName}</span>, yang memberikan Hak Pakai kepada keluarga.
       </p>
       {mapsQuery ? (
         <a
           href={directionsUrl(mapsQuery)}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex h-14 items-center gap-2 rounded-xl bg-ivory px-8 text-lg font-bold text-forest hover:bg-ivory/90"
+          className={pilGaris}
         >
           <NavigationIcon className="size-5" aria-hidden /> Petunjuk arah
         </a>
       ) : null}
       {belumTerverifikasi ? (
-        <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-sand px-4 py-1.5 text-lg font-bold text-forest">
+        <p className="inline-flex w-fit items-center gap-1.5 rounded-full bg-warning-soft px-4 py-1.5 text-lg font-bold text-warning-soft-foreground">
           <CircleAlertIcon className="size-5 shrink-0" aria-hidden /> Belum Terverifikasi
         </p>
       ) : (
@@ -339,15 +347,15 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                 {pricing.jenisMakam.map((card) => {
                   const tersedia = tersediaByJenisMakam.get(card.jenisMakam.id) ?? 0;
                   return (
-                    <li key={card.jenisMakam.id} className="rounded-2xl bg-forest p-6 text-ivory md:p-8">
+                    <li key={card.jenisMakam.id} className="rounded-3xl border border-border bg-card p-6 shadow-md md:p-8">
                       {gambarTipe[card.jenisMakam.id] ? <GambarTipeKavlingFigure gambar={gambarTipe[card.jenisMakam.id]} /> : null}
-                      <h3 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">{card.jenisMakam.name}</h3>
-                      <p className="text-lg text-ivory/80">
+                      <h3 className="font-heading text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">{card.jenisMakam.name}</h3>
+                      <p className="text-lg text-muted-foreground">
                         {card.jenisMakam.description ? `${card.jenisMakam.description} · ` : ""}Masa Hak Pakai{" "}
                         {tenureLabel(card.tenure).toLowerCase()}
                       </p>
                       {belumTerverifikasi ? null : (
-                        <p className={tersedia === 0 ? "text-lg font-bold text-sand" : "text-lg font-semibold text-ivory"}>
+                        <p className={tersedia === 0 ? "text-lg font-bold text-warning-soft-foreground" : "text-lg font-semibold text-success-soft-foreground"}>
                           {tersedia === 0 ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
                         </p>
                       )}
@@ -369,27 +377,27 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                   const tersedia = tersediaByJenisMakam.get(card.jenisMakam.id) ?? 0;
                   const habis = tersedia === 0;
                   return (
-                    <li key={card.jenisMakam.id} className="rounded-2xl bg-forest p-6 text-ivory md:p-8">
+                    <li key={card.jenisMakam.id} className="rounded-3xl border border-border bg-card p-6 shadow-md md:p-8">
                       {gambarTipe[card.jenisMakam.id] ? <GambarTipeKavlingFigure gambar={gambarTipe[card.jenisMakam.id]} /> : null}
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
-                          <h3 className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">{card.jenisMakam.name}</h3>
-                          <p className="text-lg text-ivory/80">
+                          <h3 className="font-heading text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">{card.jenisMakam.name}</h3>
+                          <p className="text-lg text-muted-foreground">
                             {card.jenisMakam.description ? `${card.jenisMakam.description} · ` : ""}Masa Hak Pakai{" "}
                             {tenureLabel(card.tenure).toLowerCase()}
                           </p>
-                          <p className="mt-1 text-lg text-ivory/80">
+                          <p className="mt-1 text-lg text-muted-foreground">
                             {card.perpanjangan
                               ? `Perpanjangan ${formatRupiah(card.perpanjangan.total)} per ${tenureLabel(card.tenure)}`
                               : "Tidak perlu diperpanjang"}
                           </p>
                         </div>
                         <div className="sm:text-right">
-                          <p className="font-heading text-3xl font-extrabold tabular-nums md:text-4xl">{formatRupiah(card.hakPakai.total)}</p>
+                          <p className="font-heading text-3xl font-extrabold tabular-nums text-forest md:text-4xl">{formatRupiah(card.hakPakai.total)}</p>
                           {belumTerverifikasi ? null : (
                             <p
                               className={
-                                habis ? "text-lg font-bold text-sand" : "text-lg font-semibold text-ivory"
+                                habis ? "text-lg font-bold text-warning-soft-foreground" : "text-lg font-semibold text-success-soft-foreground"
                               }
                             >
                               {habis ? "Belum tersedia saat ini" : `${tersedia} makam tersedia`}
@@ -397,10 +405,10 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                           )}
                         </div>
                       </div>
-                      <p className="mt-3 border-t border-ivory/20 pt-3 text-body text-ivory/75 tabular-nums">
+                      <p className="mt-3 border-t border-border pt-3 text-body text-muted-foreground tabular-nums">
                         {allInBreakdown(card.hakPakai)}
                       </p>
-                      <p className="mt-1 text-body text-ivory/75">
+                      <p className="mt-1 text-body text-muted-foreground">
                         Harga berlaku sejak {formatTanggalPanjang(card.hakPakai.inForceSince)}
                         {card.hakPakai.scheduledChange
                           ? ` · harga baru ${formatRupiah(card.hakPakai.scheduledChange.total)} mulai ${formatTanggalPanjang(card.hakPakai.scheduledChange.effectiveOn)}`
@@ -445,22 +453,22 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
               </p>
               <ul className="mt-5 flex flex-col gap-4">
                 {penawaran.map((entry) => (
-                  <li key={entry.layanan.id} className="rounded-2xl bg-forest p-6 text-ivory md:p-8">
-                    <p className="font-heading text-2xl font-extrabold tracking-tight md:text-3xl">
+                  <li key={entry.layanan.id} className="rounded-3xl border border-border bg-card p-6 shadow-md md:p-8">
+                    <p className="font-heading text-2xl font-extrabold tracking-tight text-foreground md:text-3xl">
                       {entry.layanan.name}
                       {entry.layanan.bisaHariH ? (
-                        <span className="text-lg font-normal text-sand"> · bisa diberikan hari pemakaman</span>
+                        <span className="text-lg font-normal text-muted-foreground"> · bisa diberikan hari pemakaman</span>
                       ) : null}
                     </p>
-                    {entry.layanan.description ? <p className="text-lg text-ivory/80">{entry.layanan.description}</p> : null}
-                    <ul className="mt-3 flex flex-col gap-3 border-t border-ivory/20 pt-3">
+                    {entry.layanan.description ? <p className="text-lg text-muted-foreground">{entry.layanan.description}</p> : null}
+                    <ul className="mt-3 flex flex-col gap-3 border-t border-border pt-3">
                       {entry.varian.map((varian) => (
                         <li key={varian.id} className="flex flex-col gap-1">
                           <div className="flex items-baseline justify-between gap-2">
-                            <span className="text-lg font-bold">{varian.name}</span>
-                            <span className="font-heading text-2xl font-extrabold tabular-nums">{formatRupiah(varian.harga.total)}</span>
+                            <span className="text-lg font-bold text-foreground">{varian.name}</span>
+                            <span className="font-heading text-2xl font-extrabold tabular-nums text-forest">{formatRupiah(varian.harga.total)}</span>
                           </div>
-                          <p className="text-body text-ivory/75 tabular-nums">
+                          <p className="text-body text-muted-foreground tabular-nums">
                             {labelledPartsBreakdown(varian.harga.parts)}
                           </p>
                         </li>
@@ -604,7 +612,7 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
             </p>
           </div>
           {menerimaPesanan ? (
-            <Link href={pesanHref} className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-5 text-body font-semibold text-primary-foreground">
+            <Link href={pesanHref} className={cn(pilUtama, "h-12 px-5 text-body-lg")}>
               Pesan makam sekarang
             </Link>
           ) : (

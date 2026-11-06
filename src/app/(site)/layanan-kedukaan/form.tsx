@@ -130,7 +130,7 @@ export function FormKedukaan({
         </div>
       ) : (
         <>
-          <Button type="submit" size="lg" disabled={mengirim} className="h-14 rounded-xl px-8 text-lg font-bold">
+          <Button type="submit" size="lg" disabled={mengirim} className="h-14 rounded-full px-8 text-lg font-bold shadow-md">
             {mengirim ? "Mengirim…" : "Kirim permintaan"}
           </Button>
           {!sudahMasuk ? (
