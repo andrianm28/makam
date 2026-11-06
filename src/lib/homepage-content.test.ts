@@ -29,27 +29,23 @@ describe("the Beranda's hero", () => {
 });
 
 describe("the Beranda's tile row", () => {
-  it("is the four services from the spec", () => {
+  it("shows the services of the menu: Pesan Sekarang, Konsultasi, Layanan Kedukaan and Proteksi Kedukaan (rapat Ira, 6 Nov 2026)", () => {
     expect(homepageTiles.map((tile) => tile.label)).toEqual([
-      "Perpanjang Makam",
-      "Layanan Makam",
-      "Urus di TPU DKI",
-      "Wakaf Tanah",
+      "Pesan Sekarang",
+      "Konsultasi Rencana Pemakaman",
+      "Layanan Kedukaan",
+      "Proteksi Kedukaan",
     ]);
   });
 
-  it("opens the Makam keluarga hub with the action preselected, and leaves the two that are not there yet alone", () => {
-    // Perpanjang Makam and Layanan Makam are arranged at the hub (spec, Public site and
-    // routing decisions), so their tiles open it with that action chosen; Urus di TPU DKI
-    // and Wakaf Tanah are still later releases and say so, with no link to a page that is
-    // not there and no date.
-    const byLabel = new Map(homepageTiles.map((tile) => [tile.label, tile]));
-    expect(byLabel.get("Perpanjang Makam")?.href).toBe("/makam-keluarga?aksi=perpanjang");
-    expect(byLabel.get("Layanan Makam")?.href).toBe("/makam-keluarga?aksi=layanan");
-    for (const label of ["Urus di TPU DKI", "Wakaf Tanah"]) {
-      expect(byLabel.get(label)?.href, label).toBeUndefined();
-    }
-    expect(homepageTiles.map((tile) => tile.summary).join(" ")).not.toMatch(/\d{4}/);
+  it("hides Makam Keluarga and Wakaf Tanah, and Proteksi Kedukaan says Segera hadir with no link", () => {
+    const byLabel = new Map(homepageTilesUntuk(3).map((tile) => [tile.label, tile]));
+    expect(byLabel.get("Pesan Sekarang")?.href).toBe("/pesan-makam/saat-duka");
+    expect(byLabel.get("Konsultasi Rencana Pemakaman")?.href).toBe("/konsultasi-rencana-pemakaman");
+    expect(byLabel.get("Layanan Kedukaan")?.href).toBe("/layanan-kedukaan");
+    expect(byLabel.get("Proteksi Kedukaan")?.href).toBeUndefined();
+    const hrefs = homepageTiles.map((tile) => tile.href ?? tile.hrefBilaTerbuka?.href ?? "");
+    expect(hrefs.join(" ")).not.toMatch(/makam-keluarga|wakaf/);
   });
 
   it("carries a photograph with alt text and one line each, in Bahasa Indonesia", () => {

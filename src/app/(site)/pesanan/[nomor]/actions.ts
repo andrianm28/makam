@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { pemesananResource } from "@/domain/identity";
-import { DOKUMEN_MAX_BYTES, batalkanSaatDukaSchema, tarikTerencanaSchema, unggahDokumenSchema } from "@/domain/pemesanan";
+import { DOKUMEN_MAX_BYTES, tarikTerencanaSchema, unggahDokumenSchema } from "@/domain/pemesanan";
 import { rekeningSchema } from "@/domain/refunds";
 import { pemesananMessage } from "@/lib/pemesanan-labels";
 import { guarded } from "@/server/guard";
@@ -84,31 +84,6 @@ export async function jawabAlternatifAction(_previous: PesananActionState, formD
     : { status: "berhasil", message: "Pilihan lain ditolak. Tim kami menelepon Anda untuk mencarikan makam yang bisa dilayani." };
 }
 
-/** The family cancels its own order (story 34): a reason once it is confirmed, because a plot and a bill are given up. */
-export async function batalkanPesananAction(_previous: PesananActionState, formData: FormData): Promise<PesananActionState> {
-  const nomor = String(formData.get("nomor") ?? "");
-  const result = await guarded({
-    fitur: "inti",
-    action: "pemesanan.lihat",
-    resource: (actor) => pemesananResource(actor.accountId),
-    schema: batalkanSaatDukaSchema,
-    input: { nomor, alasan: formData.get("alasan") ?? "" },
-    run: (actor, data) =>
-      serverRuntime().pemesanan.batalkanSaatDuka({ accountId: actor.accountId, email: actor.email }, data),
-  });
-  if (!result.ok) return { status: "gagal", message: guardMessage(result.error) };
-  revalidatePath(`/pesanan/${nomor}`);
-  if (!result.value.ok) return { status: "gagal", message: jawabMessage(result.value.reason) };
-  const tagihan = result.value.tagihan;
-  return {
-    status: "berhasil",
-    message:
-      tagihan && tagihan.jumlahDikembalikan > 0
-        ? `Pesanan dibatalkan. Tagihan ${tagihan.nomorTagihan} dibatalkan dan ${rupiah(tagihan.jumlahDikembalikan)} sedang dikembalikan.`
-        : "Pesanan dibatalkan. Tidak ada biaya pembatalan.",
-  };
-}
-
 /**
  * The Pemesan withdraws its own Pemesanan Terencana before paying (spec, Pemesanan >
  * Terencana; ticket 37): free, any time until the Tagihan is paid. A paid order is not
@@ -161,10 +136,6 @@ export async function isiRekeningPengembalianAction(_previous: PesananActionStat
 function guardMessage(error: string): string {
   if (error === "belum_masuk") return "Silakan masuk lagi untuk melanjutkan.";
   return pemesananMessage(error as Parameters<typeof pemesananMessage>[0]);
-}
-
-function rupiah(jumlah: number): string {
-  return `Rp ${jumlah.toLocaleString("id-ID")}`;
 }
 
 /** What a refusal from the module's own exits says, in the family's words. */

@@ -18,7 +18,6 @@ vi.mock("server-only", () => ({}));
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {} }) }));
 vi.mock("./actions", () => ({
   jawabAlternatifAction: async () => ({ status: "gagal" as const, message: "" }),
-  batalkanPesananAction: async () => ({ status: "gagal" as const, message: "" }),
 }));
 
 const { AlternatifForm } = await import("./keluar-pesanan");
