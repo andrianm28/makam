@@ -21,7 +21,11 @@ describe("the name of a quote line, as a page or a Tagihan shows it", () => {
     [{ ...base, ...operator, kind: "biaya_pengurusan", pengurusan: "pemakaman" }, "Biaya Pengurusan"],
     [{ ...base, ...operator, kind: "biaya_pengurusan", pengurusan: "berkas" }, "Biaya Pengurusan (hanya berkas)"],
     [{ ...base, provider: { kind: "pemda" }, kind: "retribusi_pemda", retribusi: "iptm", setorRetribusi: false }, "Retribusi Pemda (IPTM)"],
-    [{ ...base, ...operator, kind: "biaya_layanan_platform" }, "Biaya Layanan Platform"],
+    [{ ...base, ...operator, kind: "biaya_layanan_platform", bagian: { platform: 150_000, administrasi: 0 } as never }, "Biaya Layanan Platform"],
+    [
+      { ...base, ...operator, kind: "biaya_layanan_platform", bagian: { platform: 100_000, administrasi: 150_000 } as never },
+      "Biaya Layanan Platform (platform Rp 100.000, administrasi Rp 150.000)",
+    ],
   ])("%j → %s", (line, label) => {
     expect(quoteLineLabel(line)).toBe(label);
   });

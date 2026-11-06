@@ -1,13 +1,15 @@
 import type { Database } from "@/db/client";
 import { biayaPemakamanVersions } from "./biaya-pemakaman";
-import { globalTariffVersions, type GlobalTariffKey } from "./global-tariffs";
+import { globalTariffVersions, type GlobalTariffKey, type GlobalTariffVersion } from "./global-tariffs";
 import { hargaLayananLokasiHistory, layananDkiVersionList } from "./layanan-harga";
 import { z } from "zod";
 import { findJenisMakam, jenisMakamVersions, tenureSchema, type JenisMakam, type Tenure } from "./jenis-makam";
 import { idSchema } from "./ids";
 import type { Visibility } from "./reads";
 import { inForceAt, nextAfter, type VersionTimes } from "./versions";
-import { sumRupiah, timesRupiah, type Rupiah } from "@/lib/rupiah";
+import { rupiahSchema, sumRupiah, timesRupiah, type Rupiah } from "@/lib/rupiah";
+
+const NOL: Rupiah = rupiahSchema.parse(0);
 
 /** One line to price. */
 export type QuoteLine =
@@ -63,7 +65,11 @@ export type QuotedLine =
   | (QuotedLineBase & { kind: "biaya_pengurusan"; pengurusan: "pemakaman" | "berkas" })
   /** `setorRetribusi`: a non-zero Retribusi Pemda must be paid on to the Pemda (a Setor Retribusi row); Rp 0 needs none. */
   | (QuotedLineBase & { kind: "retribusi_pemda"; retribusi: "iptm"; setorRetribusi: boolean })
-  | (QuotedLineBase & { kind: "biaya_layanan_platform" })
+  /**
+   * One per Tagihan, the Operator's. `bagian` is its two parts (rapat Ira, 6 Nov 2026): the platform part
+   * and the Biaya Administrasi (Rp 0 while none is entered); `amount` is their exact sum.
+   */
+  | (QuotedLineBase & { kind: "biaya_layanan_platform"; bagian: { platform: Rupiah; administrasi: Rupiah } })
   | (QuotedLineBase & { kind: "layanan_lokasi"; lokasiId: string; layananVariantId: string })
   | (QuotedLineBase & { kind: "layanan_dki"; layananVariantId: string });
 
@@ -167,14 +173,9 @@ async function priceLines(pricing: Pricing, lines: readonly QuoteLine[], at: Dat
   const lokasiIds = new Set(priced.flatMap(({ line }) => (line.provider.kind === "lokasi_mitra" ? [line.provider.lokasiId] : [])));
   const atTpu = priced.some(({ line }) => line.kind === "biaya_pengurusan" || line.kind === "retribusi_pemda" || line.kind === "layanan_dki");
   if (lokasiIds.size > 1 || (lokasiIds.size === 1 && atTpu)) return { ok: false, reason: "lokasi_campur" };
-  // One Biaya Layanan Platform per Tagihan, and only on a Lokasi Mitra order.
+  // One Biaya Layanan Platform per Tagihan, and only on a Lokasi Mitra order: its platform part and its Biaya Administrasi.
   if (lokasiIds.size === 1) {
-    const platform = await globalLine(pricing.db, "biaya_layanan_platform", "biaya_layanan_platform", at, (amount, schedule) => ({
-      kind: "biaya_layanan_platform",
-      amount,
-      provider: { kind: "operator" },
-      ...schedule,
-    }));
+    const platform = await biayaLayananPlatform(pricing.db, at);
     if (!platform.ok) return platform;
     priced.push(platform.value);
   }
@@ -223,6 +224,47 @@ async function globalLine(
     (version) => priced(version.amount),
     (amount, _version, schedule) => build(amount, schedule),
   );
+}
+
+/**
+ * The Biaya Layanan Platform at `at`: the platform part (required, as before) plus
+ * the Biaya Administrasi (optional: none entered, or none in force yet, is Rp 0),
+ * as one Operator line. It holds since the later of the two parts' versions, and
+ * changes on the first date either part does, to the sum of both parts then.
+ */
+async function biayaLayananPlatform(db: Database, at: Date): Promise<Step<Priced>> {
+  const platformVersions = await globalTariffVersions(db, "biaya_layanan_platform");
+  const platform = inForceAt(platformVersions, at);
+  if (!platform) return { ok: false, reason: "tarif_belum_ada", kind: "biaya_layanan_platform" };
+  const adminVersions = await globalTariffVersions(db, "biaya_administrasi");
+  const administrasi = inForceAt(adminVersions, at);
+  const amount = sumRupiah([platform.amount, administrasi?.amount ?? NOL]);
+  if (!amount.ok) return amount;
+  const since = administrasi && administrasi.inForceFrom > platform.inForceFrom ? administrasi : platform;
+  const nexts = [nextAfter(platformVersions, at), nextAfter(adminVersions, at)].filter((next): next is GlobalTariffVersion => next !== null);
+  const next = nexts.length === 0 ? null : nexts.reduce((earliest, one) => (one.inForceFrom < earliest.inForceFrom ? one : earliest));
+  let scheduledChange: QuotedLineBase["scheduledChange"] = null;
+  if (next) {
+    const platformThen = inForceAt(platformVersions, next.inForceFrom);
+    const adminThen = inForceAt(adminVersions, next.inForceFrom);
+    const amountThen = platformThen ? sumRupiah([platformThen.amount, adminThen?.amount ?? NOL]) : null;
+    scheduledChange = amountThen?.ok ? { effectiveOn: next.effectiveOn, amount: amountThen.amount } : null;
+  }
+  return {
+    ok: true,
+    value: {
+      line: {
+        kind: "biaya_layanan_platform",
+        amount: amount.amount,
+        bagian: { platform: platform.amount, administrasi: administrasi?.amount ?? NOL },
+        provider: { kind: "operator" },
+        inForceSince: since.effectiveOn,
+        scheduledChange,
+      },
+      since,
+      next,
+    },
+  };
 }
 
 /** A Jenis Makam of a Lokasi Mitra the reader may see, or tidak_ditemukan. */

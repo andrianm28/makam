@@ -3,7 +3,7 @@ import type { KartuTpu } from "@/domain/pengurusan";
 import { labelAgama, agamaDiterima, type Agama } from "@/domain/lokasi/skema-info-kartu";
 import { konfirmasiTpuLabel } from "@/lib/pengurusan-labels";
 import { konfirmasiLabel, tenureLabel } from "@/lib/pemesanan-labels";
-import { quoteLineLabel } from "@/lib/quote-line-label";
+import { quoteLineRows } from "@/lib/quote-line-label";
 
 /**
  * What the wizard's screens show, as plain values: the module's groups turned
@@ -58,7 +58,7 @@ export function kartuView(kartu: PilihanSaatDuka): KartuView {
     masaHakPakai: `Masa Hak Pakai ${tenureLabel(kartu.tenure)}`,
     tersedia: kartu.tersedia,
     total: kartu.harga.total,
-    rincian: kartu.harga.lines.map((line) => ({ label: quoteLineLabel(line), amount: line.amount })),
+    rincian: kartu.harga.lines.flatMap(quoteLineRows),
   };
 }
 
@@ -136,7 +136,7 @@ export function tpuKartuView(kartu: KartuTpu): TpuKartuView {
     kota: kartu.tpu.city,
     alamat: kartu.tpu.address,
     total: kartu.harga.total,
-    rincian: kartu.harga.lines.map((line) => ({ label: quoteLineLabel(line), amount: line.amount })),
+    rincian: kartu.harga.lines.flatMap(quoteLineRows),
     konfirmasi: konfirmasiTpuLabel(kartu.konfirmasi.batas),
     bukaSekarang: kartu.konfirmasi.bukaSekarang,
   };

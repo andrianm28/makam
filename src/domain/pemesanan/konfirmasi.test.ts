@@ -94,6 +94,33 @@ describe("the Admin Lokasi confirms a Saat Duka order", () => {
     expect(tagihan?.total).toBe(9_650_000);
   });
 
+  it("issues the Biaya Administrasi inside the one Biaya Layanan Platform line, the Operator's, with both parts in its wording (rapat Ira, 6 Nov 2026)", async () => {
+    const setup = pemesananOnTestDatabase(db);
+    const fixture = await saatDukaFixture(setup);
+    await siapkanOperatorPemesanan(setup);
+    const set = await setup.tariffs.setGlobalTariff(fixture.admin, { key: "biaya_administrasi", amount: 100_000, effectiveOn: "2026-10-01", reason: null });
+    if (!set.ok) throw new Error(`setGlobalTariff refused: ${set.reason}`);
+    const placed = await setup.pemesanan.placeSaatDuka({ ...orderSaatDuka(fixture), rencanaPemakamanAt: "2026-10-02T10:00" });
+    if (!placed.ok) throw new Error(`order refused: ${placed.reason}`);
+
+    const hasil = await setup.pemesanan.konfirmasiSaatDuka(fixture.adminLokasi, {
+      nomor: placed.pemesanan.nomor,
+      petakId: await fixturePetak(setup, fixture),
+      pemakamanAt: "2026-10-02T10:00",
+    });
+
+    expect(hasil).toMatchObject({ ok: true, tagihan: { total: 9_750_000 } });
+    const order = await setup.pemesanan.orderOf(placed.pemesanan.nomor, fixture.pemesan);
+    const tagihan = order?.tagihanId ? await setup.billing.tagihan(order.tagihanId) : null;
+    expect(tagihan?.lines.filter((line) => line.kind === "biaya_layanan_platform")).toEqual([
+      expect.objectContaining({
+        amount: 250_000,
+        provider: { kind: "operator" },
+        label: "Biaya Layanan Platform (platform Rp 150.000, administrasi Rp 100.000)",
+      }),
+    ]);
+  });
+
   it("follows the Lokasi's own Saat Duka payment window, not the default", async () => {
     const setup = pemesananOnTestDatabase(db);
     const fixture = await pesananSiapDikonfirmasi(setup);

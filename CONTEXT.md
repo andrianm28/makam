@@ -376,7 +376,11 @@ _Avoid_: Biaya gali, ongkos kubur
 
 **Biaya Layanan Platform**:
 The Operator's own flat fee on a Lokasi Mitra order, shown to the Pemesan as a separate line on top of the Lokasi Mitra's tariff. It exists because the Operator is the seller of record and disburses the partner itself, so it never appears on a TPU order — there the Operator's income is the Biaya Pengurusan and the Margin Layanan TPU.
+Since the rapat with the client of 6 Nov 2026 it has two parts, each its own global tariff Admin Platform sets: the platform part ("Biaya platform") and the **Biaya Administrasi** ("Biaya administrasi"). They stay one line of one kind on the Tagihan, so every rule about the fee (it is the Operator's, never paid out to the Lokasi Mitra, refunded only when the fault rule says so) holds for both; pages show the two parts as two rows, and the Tagihan line names both amounts.
 _Avoid_: Komisi, admin fee, markup
+
+**Biaya Administrasi**:
+The administration part of the Biaya Layanan Platform (see there); Rp 0 while none is entered. Never a line or a fee of its own.
 
 **Margin Layanan TPU**:
 The Operator's own income from a Layanan the family buys at a TPU, already inside that Layanan's price and never shown as a line of its own. It is not a Biaya Layanan Platform: the fee rides on top of a partner's tariff, while the margin is part of the price the family pays a TPU.
