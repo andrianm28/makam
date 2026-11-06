@@ -57,8 +57,6 @@ export interface PesananDikonfirmasiEmailInput {
   pemakamanAt: Date;
   /** The Petak Makam assigned to this order; null while the Lokasi has none to give (a Kavling Keluarga, ticket 36). */
   petakNomor: string | null;
-  /** The Admin Lokasi to call, by name; the phone number is a contact, never verified. */
-  kontakLokasi: { name: string; phoneNumber: string | null };
   /** The Lokasi Mitra's document checklist, as the family should bring it. */
   dokumen: string[];
   /** The pay-after Tagihan issued with the confirmation. */
@@ -70,10 +68,7 @@ export interface PesananDikonfirmasiEmailInput {
 export function pesananDikonfirmasiEmail(input: PesananDikonfirmasiEmailInput): { subject: string; body: string } {
   const petak = input.petakNomor
     ? `Petak Makam: ${input.petakNomor}.`
-    : "Petak Makam menyusul; hubungi Lokasi Mitra untuk jadwalnya.";
-  const telepon = input.kontakLokasi.phoneNumber
-    ? `${input.kontakLokasi.name}, ${input.kontakLokasi.phoneNumber}.`
-    : `${input.kontakLokasi.name}.`;
+    : "Petak Makam menyusul; CS makam.co.id mengabarkan jadwalnya.";
   return {
     subject: `Pesanan ${input.nomor} dikonfirmasi: ${input.petakNomor ?? "petak menyusul"} di ${input.lokasiName}`,
     body: [
@@ -82,7 +77,7 @@ export function pesananDikonfirmasiEmail(input: PesananDikonfirmasiEmailInput): 
       `Pesanan saat duka untuk ${input.almarhumName} sudah dikonfirmasi ${input.lokasiName}.`,
       petak,
       `Pemakaman: ${formatTanggalJam(input.pemakamanAt)}.`,
-      `Jika ada yang perlu ditanyakan, hubungi Lokasi Mitra: ${telepon}`,
+      "Jika ada yang perlu ditanyakan, hubungi CS makam.co.id lewat halaman pesanan Anda; kami yang berbicara dengan Lokasi Mitra.",
       `Dokumen yang sebaiknya dibawa: ${input.dokumen.length > 0 ? input.dokumen.join(", ") : "belum ada daftar"}.`,
       `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}.`,
       "Pemakaman tetap berjalan walaupun pembayaran belum masuk. Dokumen boleh menyusul setelah pemakaman.",
@@ -142,8 +137,6 @@ export interface PengurusanDikonfirmasiEmailInput {
   pemakamanAt: Date;
   /** The Admin Platform who took the order, the person the family may write to. */
   adminPlatform: { name: string; phoneNumber: string | null };
-  /** The TPU office's own contact, as Admin Platform arranged the burial through it. */
-  kontakTpu: { name: string; phoneNumber: string };
   /** The one line Admin Platform added for this family; null while none. */
   catatan: string | null;
   /** Both document sets, as the order carries them. */
@@ -191,7 +184,6 @@ export function pengurusanDikonfirmasiEmail(input: PengurusanDikonfirmasiEmailIn
       `Pengurusan untuk ${input.almarhum.name} (wafat ${formatTanggal(input.almarhum.tanggalWafat)}) sudah kami konfirmasi`,
       `dengan ${input.tpu.name}, ${input.tpu.address}.`,
       `Pemakaman: ${formatTanggalJam(input.pemakamanAt)}.`,
-      `Kantor TPU: ${input.kontakTpu.name}, ${input.kontakTpu.phoneNumber}.`,
       `Admin Platform yang menangani: ${admin}.`,
       ...(input.catatan ? [`Catatan: ${input.catatan}`] : []),
       "",
@@ -899,18 +891,15 @@ export interface TumpangDitolakEmailInput {
   almarhumName: string;
   alasan: string;
   tautan: string;
-  /** The Lokasi's Kontak Siaga, the person to call; null while none is picked. */
-  kontakSiaga: { name: string; phoneNumber: string | null } | null;
 }
 
 /**
  * A further burial refused, by the Lokasi or by the Pemegang Hak (ticket 35). Not the Saat Duka refusal: there is no plot
- * to choose elsewhere, the Hak Pakai is unaffected and nothing is due, so it names the reason and whom to call.
+ * to choose elsewhere, the Hak Pakai is unaffected and nothing is due, so it names the reason and that the CS helps
+ * further: a family never contacts the Lokasi Mitra directly (dri, 6 Nov 2026).
  */
 export function tumpangDitolakEmail(input: TumpangDitolakEmailInput): { subject: string; body: string } {
-  const kontak = input.kontakSiaga
-    ? `Silakan hubungi ${input.kontakSiaga.name || `Admin ${input.lokasiName}`}${input.kontakSiaga.phoneNumber ? ` di ${input.kontakSiaga.phoneNumber}` : ""} untuk membicarakan langkah berikutnya.`
-    : `Silakan hubungi ${input.lokasiName} untuk membicarakan langkah berikutnya.`;
+  const kontak = `Silakan hubungi CS makam.co.id lewat halaman pesanan Anda untuk membicarakan langkah berikutnya; kami yang berbicara dengan ${input.lokasiName}.`;
   return {
     subject: `Permintaan pemakaman ${input.nomor} tidak dapat dilaksanakan`,
     body: [

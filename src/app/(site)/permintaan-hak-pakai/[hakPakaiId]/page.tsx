@@ -75,7 +75,7 @@ export default async function PermintaanHakPakaiPage({ params }: PageProps<"/per
               <Link href="/makam-keluarga" className="font-medium underline underline-offset-4">
                 pencarian Makam Keluarga
               </Link>{" "}
-              untuk menemukan makam dan menghubungi Lokasi Mitra.
+              untuk menemukan makam; CS makam.co.id membantu selanjutnya.
             </p>
             <GantiForm hakPakaiId={makam.hakPakaiId} jualDiizinkan={aturan?.saleTransfersAllowed ?? false} />
           </section>

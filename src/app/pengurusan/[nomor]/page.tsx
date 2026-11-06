@@ -104,7 +104,6 @@ export default async function PengurusanPage({ params }: PageProps<"/pengurusan/
             <Baris label="Waktu pemakaman" value={formatTanggalJam(order.pemakamanAt!)} />
             <Baris label="TPU" value={order.tpu.name} href={`/tpu/${order.tpu.id}`} />
             <Baris label="Alamat TPU" value={order.tpu.address} />
-            {order.kontakTpu ? <Baris label="Kontak TPU" value={`${order.kontakTpu.name}, ${order.kontakTpu.phoneNumber}`} /> : null}
             {order.adminPlatform ? (
               <Baris
                 label="Admin Platform"

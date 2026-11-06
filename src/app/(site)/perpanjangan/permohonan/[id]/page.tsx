@@ -113,7 +113,7 @@ export default async function PermohonanPerpanjanganPage({ params }: PageProps<"
               }))}
             />
           ) : (
-            <p className="text-body">Perpanjangan ini belum bisa dipesan lewat situs sekarang. Silakan hubungi Admin Lokasi.</p>
+            <p className="text-body">Perpanjangan ini belum bisa dipesan lewat situs sekarang. Silakan hubungi CS makam.co.id.</p>
           )}
         </section>
       ) : null}

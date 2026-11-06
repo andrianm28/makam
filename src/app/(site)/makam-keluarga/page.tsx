@@ -236,7 +236,7 @@ function MakamDitemukan({ satu, aksiTerpilih, contact }: { satu: MakamTerbaca; a
           : null}
         {aksiTerpilih === "layanan" && satu.petak.every((petak) => petak.status.key !== "aktif" && petak.status.key !== "kedaluwarsa") ? (
           <p className="text-body text-muted-foreground">
-            Hak Pakai di petak ini tidak aktif, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra.
+            Hak Pakai di petak ini tidak aktif, jadi layanan tidak bisa dipesan. Hubungi CS makam.co.id.
           </p>
         ) : null}
         <CsLink contact={contact} className="text-body" label="Tanya CS soal makam ini" />

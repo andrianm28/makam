@@ -127,9 +127,7 @@ export default async function AkunMakamPage() {
           {satu.hanyaBaca ? (
             <p className="text-small text-muted-foreground">
               Kemitraan Lokasi ini sudah berakhir. Catatan dan dokumen tetap bisa dilihat di sini; Perpanjang Makam dan Layanan tidak lagi tersedia.
-              {satu.pengelola
-                ? ` Untuk hal lain, hubungi pengelola: ${[satu.pengelola.name, satu.pengelola.address, satu.pengelola.telepon, satu.pengelola.email].filter(Boolean).join(", ")}.`
-                : ""}
+              {" Untuk hal lain, hubungi CS makam.co.id."}
             </p>
           ) : null}
           {!satu.hanyaBaca && satu.tanggalBerakhir && satu.status.label !== "Berakhir" && satu.status.label !== "Dibatalkan" ? (

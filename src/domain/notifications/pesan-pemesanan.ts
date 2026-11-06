@@ -225,7 +225,6 @@ export async function pesananDikonfirmasi(
     almarhumName: data.almarhum.name,
     pemakamanAt: data.pemakamanAt,
     petakNomor: data.petak?.nomor ?? null,
-    kontakLokasi: data.kontakLokasi,
     dokumen: data.dokumen,
     tagihan: { ...data.tagihan, tautan: deps.dokumenUrl(data.tagihan.link) },
     tautan: deps.pesananUrl(data.nomor),
@@ -770,7 +769,6 @@ export async function tumpangDitolak(deps: PesanKeluargaDeps, input: TumpangDito
     almarhumName: data.almarhum.name,
     alasan: data.alasan,
     tautan: deps.pesananUrl(data.nomor),
-    kontakSiaga: data.kontakSiaga,
   });
   await queueFamilyEmail(deps.db, now, {
     template: "tumpang_ditolak",

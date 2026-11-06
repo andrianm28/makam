@@ -132,7 +132,7 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
     await manual(admin, "Tugas dibuat hanya sekali per pesanan; baris Tier 2 saat belum ditugaskan atau terlambat; tawaran TPU lain (keluarga menerima atau menolak); eskalasi 30 dan 90 menit, baris malam 06:00", "dibaca owner di Antrean Admin Platform dan halaman pesanan; eskalasi butuh waktu");
   });
 
-  test("R3-45.3 Halaman konfirmasi: waktu pemakaman, alamat TPU, kontak Admin Platform dan petugas TPU, daftar dokumen, baris harga", async ({ sebagai }) => {
+  test("R3-45.3 Halaman konfirmasi: waktu pemakaman, alamat TPU, kontak Admin Platform (tanpa kontak petugas TPU), daftar dokumen, baris harga", async ({ sebagai }) => {
     const nomor = wajib("tpu.saatduka.nomor", "R3-45.2");
     const pemesan = await sebagai("pemesan");
     await langkah(pemesan, "Halaman pengurusan setelah konfirmasi: yang dibaca keluarga", async () => {
@@ -140,8 +140,9 @@ test.describe("Rilis 3 TPU [TANPA-BAYAR]", { tag: ["@rilis3", "@tanpabayar"] }, 
       await expect(pemesan.getByText("Waktu pemakaman")).toBeVisible();
       // The row is on the page twice (the confirmation and "Yang dipesan").
       await expect(pemesan.getByText("Alamat TPU").first()).toBeVisible();
-      await expect(pemesan.getByText("Kontak TPU")).toBeVisible();
-      await expect(pemesan.getByText("Petugas TPU Uji, 081234500002")).toBeVisible();
+      // The family never contacts the TPU office directly (dri, 6 Nov 2026): its contact is not on the page.
+      await expect(pemesan.getByText("Kontak TPU")).toHaveCount(0);
+      await expect(pemesan.getByText("Petugas TPU Uji, 081234500002")).toHaveCount(0);
       await expect(pemesan.getByRole("heading", { name: "Dokumen" })).toBeVisible();
       await expect(pemesan.getByTestId("tagihan-konfirmasi")).toContainText("Tagihan");
     });

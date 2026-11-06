@@ -119,8 +119,6 @@ export interface DenahView {
   nanti: { total: number; baris: BarisView[] } | null;
   /** The Syarat to be shown before Kirim, as the Lokasi Mitra's policy reads now. */
   syarat: SyaratView;
-  /** The Admin Lokasi to reach about a plot that can only be a tumpang; null before one is picked. */
-  kontakSiaga: { nama: string; telepon: string } | null;
 }
 
 export interface SyaratView {
@@ -176,8 +174,6 @@ export function denahView(denah: DenahTerencana): DenahView {
       refundPercent: denah.syarat.refundAfterMasaPembatalanPercent,
       lokasiNama: denah.syarat.lokasiNama,
     },
-    // The Kontak Siaga is an Akun; its email is the only name it carries.
-    kontakSiaga: denah.kontakSiaga ? { nama: denah.kontakSiaga.email ?? "Admin Lokasi", telepon: denah.kontakSiaga.phoneNumber } : null,
   };
 }
 

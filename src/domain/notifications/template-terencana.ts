@@ -27,7 +27,6 @@ export interface TerencanaDikonfirmasiEmailInput {
   calonName: string;
   /** When the hold on the plots ends: the instant the Tagihan is due. */
   tahanSampai: Date;
-  kontakLokasi: { name: string; phoneNumber: string | null };
   /** The pay-first Tagihan issued with the confirmation. */
   tagihan: { nomorTagihan: string; total: number; dueAt: Date; tautan: string };
   tautan: string;
@@ -39,7 +38,6 @@ export interface TerencanaDikonfirmasiEmailInput {
  * until the deadline, and paying by then is what makes them the family's.
  */
 export function terencanaDikonfirmasiEmail(input: TerencanaDikonfirmasiEmailInput): { subject: string; body: string } {
-  const telepon = input.kontakLokasi.phoneNumber ? `${input.kontakLokasi.name}, ${input.kontakLokasi.phoneNumber}.` : `${input.kontakLokasi.name}.`;
   return {
     subject: `Pesanan ${input.nomor} dikonfirmasi: bayar sebelum ${formatTanggalJam(input.tahanSampai)}`,
     body: [
@@ -50,7 +48,7 @@ export function terencanaDikonfirmasiEmail(input: TerencanaDikonfirmasiEmailInpu
       `Petak ditahan sampai ${formatTanggalJam(input.tahanSampai)}. Setelah itu petak dilepas dan pesanan dibatalkan.`,
       `Tagihan ${input.tagihan.nomorTagihan} sebesar ${formatRupiah(input.tagihan.total)} jatuh tempo ${formatTanggalJam(input.tagihan.dueAt)}. Begitu Tagihan dibayar, Hak Pakai atas petak resmi dan Bukti Pemesanan kami kirim.`,
       "Jika berubah pikiran sebelum membayar, Anda bisa membatalkan pesanan tanpa biaya.",
-      `Jika ada yang perlu ditanyakan, hubungi Lokasi Mitra: ${telepon}`,
+      "Jika ada yang perlu ditanyakan, hubungi CS makam.co.id lewat halaman pesanan Anda; kami yang berbicara dengan Lokasi Mitra.",
       "",
       `Lihat dan bayar Tagihan di: ${input.tagihan.tautan}`,
       `Ikuti pesanan Anda di: ${input.tautan}`,

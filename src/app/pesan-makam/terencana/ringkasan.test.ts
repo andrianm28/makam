@@ -54,7 +54,6 @@ const denah: DenahView = {
   total: { lines: [], total: 0, dalamBatas: true },
   nanti: null,
   syarat: { masaPembatalanDays: 14, refundPercent: 50, lokasiNama: "Contoh Lokasi" },
-  kontakSiaga: null,
 };
 
 describe("kavlingByNomor", () => {
