@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ArrowRight, Check, ChevronUp, Clock, MoonStar } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowRight, Check, ChevronLeft, ChevronRight, ChevronUp, Clock, MoonStar } from "lucide-react";
 import { FilterChip } from "@/components/makam/filter-chip";
+import { KotaPickerAksi } from "@/components/makam/kota-picker";
 import { Button } from "@/components/ui/button";
 import { Progress } from "./progress";
 import { ingatKota } from "./actions";
@@ -107,7 +108,7 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, semuaKota, kota, jenis, kemb
               Belum ada makam tersedia di kota ini. Coba kota lain, atau tanyakan kepada CS kami.
             </p>
           ) : (
-            <ul className="flex flex-col gap-3">
+            <DaftarGeser jumlah={grup.length} awalId={terpilih?.kind === "lokasi_mitra" ? idGrup(terpilih.lokasiId) : null}>
               {grup.map((satu) => (
                 <GrupKartu
                   key={satu.lokasiId}
@@ -119,7 +120,7 @@ export function PilihMakam({ grup, tpu, tpuTerbuka, semuaKota, kota, jenis, kemb
                   }}
                 />
               ))}
-            </ul>
+            </DaftarGeser>
           )
         ) : null}
 
@@ -195,8 +196,79 @@ function gulirKePilihan(id: string): void {
     const target = document.getElementById(id);
     if (!target) return;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    target.scrollIntoView({ block: "end", behavior: reduce ? "auto" : "smooth" });
+    target.scrollIntoView({ block: "end", inline: "nearest", behavior: reduce ? "auto" : "smooth" });
   });
+}
+
+/** The width every Lokasi Mitra card takes in the horizontal list: most of a phone's width, so the next card peeks in. */
+const LEBAR_KARTU = "w-[85%] max-w-sm shrink-0 snap-start sm:w-80";
+
+/**
+ * The Lokasi Mitra cards as one horizontal row (owner, 6 Nov 2026: "list
+ * mitra lokasi dibuat horizontal card"), cheapest first from the left. On a
+ * phone the next card peeks in at the edge and a swipe moves one card at a
+ * time; with a mouse, the arrows do. On arrival the row is already at the card
+ * chosen for the visitor, without moving the page itself.
+ */
+function DaftarGeser({ jumlah, awalId, children }: { jumlah: number; awalId: string | null; children: React.ReactNode }) {
+  const baris = useRef<HTMLUListElement>(null);
+  const [awal] = useState(awalId);
+
+  useEffect(() => {
+    const ul = baris.current;
+    const kartu = awal ? document.getElementById(awal) : null;
+    if (!ul || !kartu) return;
+    // The row is the cards' offset parent (`relative`); 16px is its own px-4 lead-in.
+    ul.scrollLeft = kartu.offsetLeft - 16;
+  }, [awal]);
+
+  const geser = (arah: 1 | -1) => {
+    const ul = baris.current;
+    if (!ul) return;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    ul.scrollBy({ left: arah * ul.clientWidth * 0.8, behavior: reduce ? "auto" : "smooth" });
+  };
+
+  return (
+    <section className="flex flex-col gap-2" aria-labelledby="mitra-judul">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 id="mitra-judul" className="text-title-3 text-foreground">
+            Lokasi Mitra
+          </h2>
+          <p className="text-small text-muted-foreground">
+            {jumlah} lokasi{jumlah > 1 ? " · geser untuk melihat lainnya" : ""}
+          </p>
+        </div>
+        {jumlah > 1 ? (
+          <div className="hidden gap-2 sm:flex">
+            <button
+              type="button"
+              onClick={() => geser(-1)}
+              className="inline-flex size-10 items-center justify-center rounded-full border border-border-strong bg-card text-forest hover:bg-accent"
+            >
+              <ChevronLeft className="size-5" aria-hidden />
+              <span className="sr-only">Lokasi sebelumnya</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => geser(1)}
+              className="inline-flex size-10 items-center justify-center rounded-full border border-border-strong bg-card text-forest hover:bg-accent"
+            >
+              <ChevronRight className="size-5" aria-hidden />
+              <span className="sr-only">Lokasi berikutnya</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
+      <ul
+        ref={baris}
+        className="relative -mx-4 flex snap-x snap-mandatory scroll-px-4 items-start gap-3 overflow-x-auto overscroll-x-contain px-4 pt-1 pb-3 [scrollbar-width:thin]"
+      >
+        {children}
+      </ul>
+    </section>
+  );
 }
 
 /** The next step's URL for a choice: a Lokasi Mitra card's own, a TPU's own submission screen. */
@@ -276,31 +348,21 @@ function hrefJenis(value: JenisPilihan, kembali: string, kota: string | null): s
 }
 
 /**
- * "Semua kota" and every city, as one filter: each a form submitting `ingatKota`
- * (AGENTS.md's own exception — it writes the visitor's city-preference cookie),
- * not a plain link, so it cannot be a `FilterChip` (a `<Link>` only); kept as its
- * own Button-in-form, styled to match FilterChip's look.
+ * The city filter, one dropdown (owner, 6 Nov 2026): choosing a city submits
+ * `ingatKota` (AGENTS.md's own exception — it writes the visitor's
+ * city-preference cookie) with the screen and type chip to come back to.
  */
 function KotaFilter({ semuaKota, kota, kembali, jenis }: { semuaKota: string[]; kota: string | null; kembali: string; jenis: JenisPilihan }) {
-  const pilihan = [null, ...semuaKota];
   return (
-    <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Kota">
-      {pilihan.map((satu) => (
-        <form key={satu ?? "semua"} action={ingatKota}>
-          <input type="hidden" name="kota" value={satu ?? ""} />
-          <input type="hidden" name="kembali" value={kembali} />
-          <input type="hidden" name="jenis" value={jenis} />
-          <Button
-            type="submit"
-            variant={kota === satu ? "default" : "outline"}
-            className={cn("h-10 rounded-full px-4", kota === satu ? "" : "border-border-strong bg-card hover:bg-accent")}
-          >
-            {kota === satu ? <Check aria-hidden /> : null}
-            {satu ?? "Semua kota"}
-          </Button>
-        </form>
-      ))}
-    </div>
+    <KotaPickerAksi
+      kota={kota}
+      semuaKota={semuaKota}
+      aksi={ingatKota}
+      tetap={[
+        ["kembali", kembali],
+        ["jenis", jenis],
+      ]}
+    />
   );
 }
 
@@ -454,10 +516,10 @@ function GrupKartu({
 
   const adaTerpilih = terpilih?.kind === "lokasi_mitra" && terpilih.lokasiId === grup.lokasiId;
   return (
-    <li id={idGrup(grup.lokasiId)} className="scroll-mb-40">
+    <li id={idGrup(grup.lokasiId)} className={cn("flex scroll-mb-40", LEBAR_KARTU)}>
       <div
         className={cn(
-          "flex flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5",
+          "flex w-full flex-col gap-3 rounded-2xl border bg-card p-4 sm:p-5",
           adaTerpilih ? "border-primary ring-1 ring-primary" : "border-border",
         )}
       >
@@ -512,7 +574,7 @@ function GrupKartuTunggal({
   onPilih: (kartu: KartuView) => void;
 }) {
   return (
-    <li id={idGrup(grup.lokasiId)} className="scroll-mb-40">
+    <li id={idGrup(grup.lokasiId)} className={cn("flex scroll-mb-40", LEBAR_KARTU)}>
       {/*
         The same radiogroup semantics its "banyak" sibling gives its Jenis
         Makam list, just with the one option this Lokasi Mitra has: a named
@@ -537,13 +599,13 @@ function GrupKartuTunggal({
               }
             }}
             className={cn(
-              "flex cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
+              "flex w-full cursor-pointer flex-col gap-3 rounded-2xl border bg-card p-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5",
               dipilih ? "border-primary ring-1 ring-primary" : "border-border",
             )}
           >
             <div className="flex gap-4">
               <FotoLokasi url={grup.photoUrl} />
-              <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <div className="min-w-0">
                   <p className="text-title-3 text-foreground">{grup.lokasiName}</p>
                   <p className="text-body text-foreground">{kartu.jenisMakamName}</p>
@@ -551,7 +613,7 @@ function GrupKartuTunggal({
                     {grup.kota} · {kartu.masaHakPakai} · {kartu.tersedia} tersedia
                   </p>
                 </div>
-                <div className="sm:text-right">
+                <div>
                   <p className="text-title-2 tabular-nums text-foreground">{formatRupiah(kartu.total)}</p>
                   <p className="text-caption text-muted-foreground">semua biaya</p>
                 </div>
@@ -585,19 +647,19 @@ function KartuJenis({ kartu, dipilih, onPilih }: { kartu: KartuView; dipilih: bo
         aria-checked={dipilih}
         onClick={() => onPilih(kartu)}
         className={cn(
-          "flex w-full items-center gap-3 px-3 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4",
+          "flex w-full items-start gap-3 px-3 py-3 text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4",
           dipilih ? "bg-brand-soft" : "hover:bg-accent",
         )}
       >
+        {/* Stacked, not side by side: the card is a phone-width column in the horizontal row. */}
         <span className="min-w-0 flex-1">
           <span className="block text-body font-semibold text-foreground">{kartu.jenisMakamName}</span>
           <span className="block text-small text-muted-foreground">
             {kartu.masaHakPakai} · {kartu.tersedia} tersedia
           </span>
-        </span>
-        <span className="text-right">
-          <span className="block text-body-lg font-semibold tabular-nums text-foreground">{formatRupiah(kartu.total)}</span>
-          <span className="block text-caption text-muted-foreground">semua biaya</span>
+          <span className="mt-1 block text-body-lg font-semibold tabular-nums text-foreground">
+            {formatRupiah(kartu.total)} <span className="text-caption font-normal text-muted-foreground">semua biaya</span>
+          </span>
         </span>
         <RadioDot dipilih={dipilih} />
       </button>

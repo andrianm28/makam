@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { z } from "zod";
 import { FilterChip } from "@/components/makam/filter-chip";
+import { KotaPickerTautan } from "@/components/makam/kota-picker";
 import { lokasiFacilities, type LokasiFacility, type LokasiMakamKind } from "@/domain/lokasi";
 import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
@@ -26,7 +27,7 @@ import { rilisTerbuka } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
 import { DAFTAR_INFO_MAKAM_SWASTA } from "../info-makam-swasta/daftar";
 import { daftarLokasi, type DaftarLokasiBaris } from "./daftar";
-import { fasilitasHref, hasActiveFilter, jenisHref, kotaHref, lokasiHref, type LokasiFilters } from "./filters";
+import { fasilitasHref, hasActiveFilter, jenisHref, lokasiHref, type LokasiFilters } from "./filters";
 
 export const metadata = { title: "Daftar Lokasi Makam — Makam.co.id" };
 
@@ -70,7 +71,7 @@ const searchParamsSchema = z.object({
   jenis: oneOrMany
     .transform((value) => (Array.isArray(value) ? value[0] : value))
     .refine((value): value is LokasiMakamKind => value === undefined || isKind(value)),
-  kota: oneOrMany.transform((value) => (Array.isArray(value) ? value[0] : value)),
+  kota: oneOrMany.transform((value) => (Array.isArray(value) ? value[0] : value) || undefined),
   fasilitas: oneOrMany.transform((value) => (Array.isArray(value) ? value : value ? [value] : []).filter(isFacility)),
 });
 
@@ -150,16 +151,16 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
 
       {/* City: always up front */}
       <div className="mt-8 flex flex-col gap-4">
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-wrap md:px-0" role="group" aria-label="Kota">
-          <FilterChip href={kotaHref(filters, undefined)} selected={filters.kota === undefined}>
-            Semua kota
-          </FilterChip>
-          {kota.map((one) => (
-            <FilterChip key={one} href={kotaHref(filters, one)} selected={filters.kota === one}>
-              {one}
-            </FilterChip>
-          ))}
-        </div>
+        <KotaPickerTautan
+          kota={filters.kota ?? null}
+          semuaKota={kota}
+          aksi="/lokasi"
+          tautan={Object.fromEntries([["", lokasiHref({ ...filters, kota: undefined })], ...kota.map((one) => [one, lokasiHref({ ...filters, kota: one })])])}
+          tetap={[
+            ...(filters.jenis ? [["jenis", filters.jenis] as [string, string]] : []),
+            ...filters.fasilitas.map((one) => ["fasilitas", one] as [string, string]),
+          ]}
+        />
         {/* Desktop: the other filters inline. Phone: behind one disclosure (no client JS needed). */}
         <div className="hidden gap-8 md:flex">{secondaryFilters}</div>
         <details className="group md:hidden" open={activeCount > 0}>

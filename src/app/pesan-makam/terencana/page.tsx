@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { kirimKodeMasuk } from "@/app/(site)/masuk/actions";
 import { FilterChip } from "@/components/makam/filter-chip";
+import { KotaPickerTautan } from "@/components/makam/kota-picker";
 import { buttonVariants } from "@/components/ui/button";
 import { lokasiFacilities, type LokasiFacility } from "@/domain/lokasi";
 import { HARGA_BANDS, type PilihanDitolak, type PilihanTerencana, type TerencanaQuery, type UnitTerencana } from "@/domain/pemesanan";
@@ -65,7 +66,7 @@ function satu(nilai: string | string[] | undefined): string | undefined {
 
 export default async function TerencanaPage({ searchParams }: PageProps<"/pesan-makam/terencana">) {
   const params = await searchParams;
-  const kota = satu(params.kota) ?? null;
+  const kota = satu(params.kota) || null;
   const harga = HARGA_BANDS.map((band) => band.key).find((nilai) => nilai === satu(params.harga)) ?? null;
   const fasilitas = (satu(params.fasilitas) ?? "")
     .split(",")
@@ -144,16 +145,16 @@ async function PilihLokasiScreen({ filter }: { filter: Filter }) {
         </p>
       </div>
       <div className="flex flex-col gap-3">
-        <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Kota">
-          <FilterChip href={terencanaPath({ ...filter, kota: null })} selected={filter.kota === null}>
-            Semua kota
-          </FilterChip>
-          {kotaList.map((nama) => (
-            <FilterChip key={nama} href={terencanaPath({ ...filter, kota: nama })} selected={filter.kota === nama}>
-              {nama}
-            </FilterChip>
-          ))}
-        </div>
+        <KotaPickerTautan
+          kota={filter.kota}
+          semuaKota={kotaList}
+          aksi="/pesan-makam/terencana"
+          tautan={Object.fromEntries([["", terencanaPath({ ...filter, kota: null })], ...kotaList.map((nama) => [nama, terencanaPath({ ...filter, kota: nama })])])}
+          tetap={[
+            ...(filter.harga ? [["harga", filter.harga] as [string, string]] : []),
+            ...(filter.fasilitas.length ? [["fasilitas", filter.fasilitas.join(",")] as [string, string]] : []),
+          ]}
+        />
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1" role="group" aria-label="Harga dan fasilitas">
           {HARGA_BANDS.map((band) => (
             <FilterChip
