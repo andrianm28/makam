@@ -20,6 +20,7 @@ export const auditActionLabels: Record<AuditAction, string> = {
   "staf.batalkan_undangan": "Undangan Staf dibatalkan",
   "lokasi.tambah_foto_galeri": "Foto Galeri Lokasi ditambahkan",
   "lokasi.hapus_foto_galeri": "Foto Galeri Lokasi dihapus",
+  "lokasi.ubah_info_makam_swasta": "Info Makam Swasta diubah",
   "staf.lepas_admin_lokasi": "Admin Lokasi dilepas",
   "akun.pemulihan": "Pemulihan Akun",
   "akun.ubah_telepon": "Ubah nomor telepon",

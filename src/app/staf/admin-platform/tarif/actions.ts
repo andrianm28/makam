@@ -20,7 +20,7 @@ import { optionalRupiahInput, rupiahInput } from "@/server/rupiah-input";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-import { formatRupiah } from "@/lib/rupiah";
+import { formatRupiah, RUPIAH_MAX } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 import { globalTariffLabels } from "./format";
 
@@ -62,7 +62,7 @@ function refusalMessage(refusal: TariffRefusal): string {
 }
 
 const rupiahBulat = (what: string, example: string) =>
-  `Isi ${what} dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000, misalnya ${example}.`;
+  `Isi ${what} dalam rupiah bulat tanpa sen, paling banyak ${formatRupiah(RUPIAH_MAX)}, misalnya ${example}.`;
 
 /** What each form field says when it is not valid, in Bahasa Indonesia. */
 const fieldMessages: Record<string, string> = {
@@ -71,7 +71,7 @@ const fieldMessages: Record<string, string> = {
   hargaPerpanjangan: rupiahBulat("Harga Perpanjangan per masa", "3.000.000"),
   biayaPemakaman: rupiahBulat("Biaya Pemakaman", "2.000.000"),
   biayaPemakamanTumpang:
-    "Isi Biaya Pemakaman tumpang dalam rupiah bulat tanpa sen (kosongkan bila sama), paling banyak Rp 100.000.000.000.",
+    `Isi Biaya Pemakaman tumpang dalam rupiah bulat tanpa sen (kosongkan bila sama), paling banyak ${formatRupiah(RUPIAH_MAX)}.`,
   effectiveOn: "Isi tanggal berlaku yang benar.",
   name: "Isi nama Jenis Makam (paling banyak 120 huruf).",
   description: "Keterangan paling banyak 500 huruf.",

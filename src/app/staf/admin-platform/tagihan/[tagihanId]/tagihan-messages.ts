@@ -4,6 +4,7 @@
  * Billing's and Payouts' own; the wording is the screen's. Beside `actions.ts`
  * because a "use server" file may export only async functions.
  */
+import { formatRupiah, RUPIAH_MAX } from "@/lib/rupiah";
 
 /** Why a manual payment was refused, saying what to do next. */
 export function pembayaranManualMessage(reason: string): string {
@@ -49,7 +50,7 @@ export function hargaKhususMessage(reason: string): string {
     case "jumlah_terlalu_besar":
       return "Jumlah ini terlalu besar.";
     case "melebihi_batas_tagihan":
-      return "Total Tagihan baru akan melebihi batas satu Tagihan (Rp 100.000.000.000).";
+      return `Total Tagihan baru akan melebihi batas satu Tagihan (${formatRupiah(RUPIAH_MAX)}).`;
     case "pengaturan_operator_belum_diisi":
       return "Pengaturan Operator belum diisi.";
     case "tidak_berwenang":

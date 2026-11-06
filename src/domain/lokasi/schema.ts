@@ -1,4 +1,4 @@
-import { boolean, date, doublePrecision, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, doublePrecision, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import type { LokasiFlags, LokasiPolicies } from "./policies";
 import type { LokasiFacility } from "./profile";
 import type { JamOperasional } from "./jam-operasional-schema";
@@ -157,4 +157,33 @@ export const lokasiFotoGaleri = pgTable(
     removedByAccountId: text("removed_by_account_id"),
   },
   (table) => [index("lokasi_foto_galeri_lokasi_idx").on(table.lokasiId, table.createdAt)],
+);
+
+/**
+ * Owned by the Lokasi module: Info Makam Swasta, what public sources say about a
+ * private cemetery that is not a Lokasi Mitra yet. Content Admin Platform keeps,
+ * not a Lokasi: nothing here is priced, ordered, paid or verified. `tampil`
+ * false takes an entry off the public pages (e.g. when it signs and becomes a
+ * Lokasi Mitra) while its row and Entri Audit stay.
+ */
+export const lokasiInfoMakamSwasta = pgTable(
+  "lokasi_info_makam_swasta",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The anchor of its card on /info-makam-swasta; set once from the name. */
+    slug: text("slug").notNull().unique(),
+    nama: text("nama").notNull(),
+    kota: text("kota").notNull(),
+    alamat: text("alamat").notNull(),
+    pengelola: text("pengelola").notNull(),
+    segmen: text("segmen").notNull(),
+    luas: text("luas"),
+    fasilitas: text("fasilitas"),
+    sumber: jsonb("sumber").$type<string[]>().notNull(),
+    urutan: integer("urutan").notNull().default(0),
+    tampil: boolean("tampil").notNull().default(true),
+    createdAt: at("created_at").notNull(),
+    updatedAt: at("updated_at").notNull(),
+  },
+  (table) => [index("lokasi_info_makam_swasta_urutan_idx").on(table.tampil, table.urutan)],
 );

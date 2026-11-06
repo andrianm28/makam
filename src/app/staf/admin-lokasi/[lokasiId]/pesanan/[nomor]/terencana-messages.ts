@@ -5,6 +5,7 @@
  * exhaustive over them: a reason the module adds fails the typecheck here.
  */
 import type { KonfirmasiTerencanaResult, TolakTerencanaResult } from "@/domain/pemesanan";
+import { formatRupiah, RUPIAH_MAX } from "@/lib/rupiah";
 
 type Refusal<R extends { ok: boolean }> = Extract<R, { ok: false; reason: string }>["reason"];
 
@@ -27,7 +28,7 @@ export function konfirmasiTerencanaMessage(reason: Refusal<KonfirmasiTerencanaRe
     case "harga_tidak_tersedia":
       return "Harga salah satu jenis makam pada pesanan ini belum tersedia atau sudah berubah. Periksa Tarif dulu.";
     case "melebihi_batas_tagihan":
-      return "Total Tagihan melebihi batas satu Tagihan (Rp 100.000.000.000). Tolak pesanan ini atau hubungi Admin Platform.";
+      return `Total Tagihan melebihi batas satu Tagihan (${formatRupiah(RUPIAH_MAX)}). Tolak pesanan ini atau hubungi Admin Platform.`;
     case "lokasi_tidak_terbuka":
       return "Lokasi Mitra ini tidak lagi tayang, jadi pesanan tidak bisa dikonfirmasi.";
     case "tagihan_tidak_terbit":

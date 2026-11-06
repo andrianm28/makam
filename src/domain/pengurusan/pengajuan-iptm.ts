@@ -34,8 +34,11 @@ export const HARI_BERKAS_PENGAJUAN = 7;
 /** A filing document or IPTM scan: a phone photo or a PDF of a few pages. */
 export const BERKAS_MAX_BYTES = 8 * 1024 * 1024;
 const JENIS_BERKAS = ["image/jpeg", "image/png", "application/pdf"] as const;
-/** PT Jaya Korpora Prima, the Operator: who the Surat Kuasa gives the authority to (spec, Surat Kuasa generator). */
-export const NAMA_OPERATOR_SURAT_KUASA = "PT Jaya Korpora Prima";
+/**
+ * Who the Surat Kuasa gives the authority to while Pengaturan Operator has no legal name yet (spec, Surat Kuasa
+ * generator); once it has one, the Operator's legal name from there is printed instead.
+ */
+export const NAMA_OPERATOR_SURAT_KUASA = "Operator Makam.co.id";
 
 const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 const berkasSchema = z.object({
@@ -191,18 +194,19 @@ export interface SuratKuasa {
   tanggal: string;
 }
 
-async function bangunSuratKuasa(deps: Pick<PengurusanDeps, "db">, order: Row, now: Date): Promise<SuratKuasa | null> {
+async function bangunSuratKuasa(deps: Pick<PengurusanDeps, "db" | "operatorSettings">, order: Row, now: Date): Promise<SuratKuasa | null> {
   // A filing-only order or a Perpanjangan TPU has no confirming staff member: the authority goes to the company alone.
   const berkas = order.kind !== "saat_duka_tpu";
   if (!order.adminPlatformName && !berkas) return null;
   // A Saat Duka TPU order has none before its confirmation; a Perpanjangan TPU needs it from Diajukan, the signed copy being one of its documents.
   if ((order.status === "diajukan" && order.kind !== "perpanjangan_tpu") || order.status === "dibatalkan" || order.status === "ditolak") return null;
   const blokMakam = await blokMakamOf(deps.db, order);
+  const perusahaan = (await deps.operatorSettings?.current())?.legalName ?? NAMA_OPERATOR_SURAT_KUASA;
   return {
     nomor: order.nomor,
     penerimaKuasa: {
-      perusahaan: NAMA_OPERATOR_SURAT_KUASA,
-      wakil: { name: order.adminPlatformName ?? NAMA_OPERATOR_SURAT_KUASA, phoneNumber: order.adminPlatformPhoneNumber },
+      perusahaan,
+      wakil: { name: order.adminPlatformName ?? perusahaan, phoneNumber: order.adminPlatformPhoneNumber },
     },
     pemberiKuasa: { name: order.pemegangHak.name, phoneNumber: order.pemegangHak.phoneNumber, email: order.pemegangHak.email },
     tpu: { name: order.tpuName, address: order.tpuAddress },

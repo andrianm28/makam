@@ -113,6 +113,7 @@ export const peraturanRute: ReadonlyArray<readonly [pattern: string, fitur: Fitu
     "antrean",
     "desain",
     "hari-libur",
+    "info-makam-swasta",
     "kedukaan",
     "keluhan",
     "laporan",

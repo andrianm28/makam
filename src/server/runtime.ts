@@ -269,6 +269,7 @@ export function serverRuntime(): ServerRuntime {
       pdf: adapters.pdf,
       suratKuasaPageUrl: (nomor, now) => `${env.documentPageOrigin}${suratKuasaRenderPath(env.AUTH_SECRET, nomor, now)}`,
       audit,
+      operatorSettings,
       lokasi,
       tariffs,
       billing,

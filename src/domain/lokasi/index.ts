@@ -161,6 +161,17 @@ export { FOTO_GALERI_MAKS, FOTO_GALERI_MAX_BYTES, KETERANGAN_FOTO_MAX };
 export type { FotoGaleri, HapusFotoGaleriResult, KategoriFotoGaleri, UnggahFotoGaleriResult };
 export { kategoriFotoGaleri, labelKategoriFotoGaleri } from "./skema-galeri";
 import {
+  aturTampilInfoMakamSwasta,
+  infoMakamSwastaTayang,
+  semuaInfoMakamSwasta,
+  simpanInfoMakamSwasta,
+  type AturTampilInfoMakamSwastaResult,
+  type InfoMakamSwasta,
+  type SimpanInfoMakamSwastaResult,
+} from "./info-makam-swasta";
+export type { AturTampilInfoMakamSwastaResult, InfoMakamSwasta, SimpanInfoMakamSwastaResult };
+export { infoMakamSwastaSchema, type InfoMakamSwastaFormInput, type InfoMakamSwastaInput } from "./skema-info-makam-swasta";
+import {
   aturanGantiPemegangHak,
   publicLokasiMitra,
   publicLokasiMitraTampil,
@@ -548,6 +559,14 @@ export interface Lokasi {
   fotoGaleri(by: Actor, lokasiId: string): Promise<{ ok: true; foto: FotoGaleri[] } | WriteRefusal>;
   /** The Galeri Lokasi of a Terverifikasi Lokasi Mitra, signed URLs, for the public page and the wizard (no actor). */
   publicFotoGaleri(lokasiId: string): Promise<FotoGaleri[]>;
+  /** Info Makam Swasta as the public pages show it: the entries not hidden, in Admin Platform's order (no actor). */
+  infoMakamSwastaTayang(): Promise<InfoMakamSwasta[]>;
+  /** Every Info Makam Swasta entry, shown or hidden, for Admin Platform. */
+  semuaInfoMakamSwasta(by: Actor): Promise<InfoMakamSwasta[]>;
+  /** Admin Platform adds an Info Makam Swasta entry (`id` null) or corrects one, audited; a partner, verification or price claim is refused. */
+  simpanInfoMakamSwasta(by: Actor, id: string | null, input: unknown): Promise<SimpanInfoMakamSwastaResult>;
+  /** Admin Platform shows or hides an Info Makam Swasta entry on the public pages, audited. */
+  aturTampilInfoMakamSwasta(by: Actor, id: string, tampil: boolean): Promise<AturTampilInfoMakamSwastaResult>;
 }
 
 export function createLokasi(deps: LokasiModuleDeps): Lokasi {
@@ -626,6 +645,10 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     hapusFotoGaleri: (by, lokasiId, fotoId) => hapusFotoGaleri(deps, by, lokasiId, fotoId),
     fotoGaleri: (by, lokasiId) => fotoGaleri(deps, by, lokasiId),
     publicFotoGaleri: (lokasiId) => publicFotoGaleri(deps, lokasiId),
+    infoMakamSwastaTayang: () => infoMakamSwastaTayang(deps),
+    semuaInfoMakamSwasta: (by) => semuaInfoMakamSwasta(deps, by),
+    simpanInfoMakamSwasta: (by, id, input) => simpanInfoMakamSwasta(deps, by, id, input),
+    aturTampilInfoMakamSwasta: (by, id, tampil) => aturTampilInfoMakamSwasta(deps, by, id, tampil),
   };
 }
 export {

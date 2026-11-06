@@ -18,6 +18,7 @@ import {
 } from "@/domain/billing";
 import { CsLink } from "@/components/site/cs-link";
 import type { CsContact } from "@/components/kode-masuk/state";
+import { QRIS_PAYMENT_CAP } from "@/domain/billing";
 import type { RekeningOperator } from "@/domain/operator-settings";
 import type { DokumenBuktiPencairan } from "@/domain/payouts";
 import type { DokumenBuktiPengembalianDana } from "@/domain/refunds";
@@ -272,7 +273,7 @@ function BayarForm({ link, total, cara, trial }: { link: string; total: number; 
       <p className="text-xs text-muted-foreground">
         {cara === "qris"
           ? "Bayar dengan QRIS."
-          : "Bayar dengan Virtual Account: pilih bank Anda di halaman pembayaran (nominal di atas batas QRIS Rp 10.000.000)."}{" "}
+          : `Bayar dengan Virtual Account: pilih bank Anda di halaman pembayaran (nominal di atas batas QRIS ${formatRupiah(QRIS_PAYMENT_CAP)}).`}{" "}
         Bila Anda baru saja membayar, status Tagihan ini berubah menjadi Lunas setelah pembayaran kami terima; muat ulang
         halaman ini sebentar lagi.
       </p>

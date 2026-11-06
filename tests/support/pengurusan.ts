@@ -32,6 +32,7 @@ function bangunPengurusan(db: Database) {
     files: setup.files,
     ...suratKuasa,
     audit: setup.audit,
+    operatorSettings: setup.operatorSettings,
     lokasi: setup.lokasi,
     tariffs: setup.tariffs,
     billing: setup.billing,

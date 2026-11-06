@@ -6,6 +6,7 @@ import type { Identity } from "@/domain/identity";
 import type { Layanan } from "@/domain/layanan";
 import type { Lokasi } from "@/domain/lokasi";
 import type { Notifications } from "@/domain/notifications";
+import type { OperatorSettings } from "@/domain/operator-settings";
 import type { Refunds } from "@/domain/refunds";
 import type { Tariffs } from "@/domain/tariffs";
 import type { Clock } from "@/ports/clock";
@@ -47,6 +48,8 @@ export interface PengurusanDeps {
   suratKuasaPageUrl: (nomor: string, now: Date) => string;
   /** Every staff write this module makes is recorded through it, in the same transaction. */
   audit: AuditLog;
+  /** The Operator's legal name the Surat Kuasa gives the authority to; without it, `NAMA_OPERATOR_SURAT_KUASA`. */
+  operatorSettings?: Pick<OperatorSettings, "current">;
   lokasi: Pick<Lokasi, "publicTpuDki" | "publicTpuDkiList" | "adminPlatformCalendar">;
   tariffs: Pick<Tariffs, "quote">;
   /** For the Nomor Pemesanan series and the Tagihan, both taken `within` the order's own transaction. */

@@ -55,7 +55,7 @@ export function PengajuanPemesan({ order, scanUrl }: { order: PengurusanOrder; s
             <p className="text-small text-muted-foreground">Unggah paling lambat {formatTanggalJam(pengajuan.dokumenDueAt)}.</p>
           ) : null}
           <p className="text-body">
-            Surat Kuasa untuk PT Jaya Korpora Prima:{" "}
+            Surat Kuasa pengurusan IPTM:{" "}
             <Link href={`/pengurusan/${order.nomor}/surat-kuasa`} className="font-medium text-brand underline underline-offset-4">
               buka dan cetak
             </Link>{" "}

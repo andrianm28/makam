@@ -557,7 +557,7 @@ describe("the Surat Kuasa of a Perpanjangan TPU", () => {
     setup.clock.set(wib("2026-12-20 10:00"));
     const nomor = await pesanan(setup, dasar);
     const surat = await setup.pengurusan.suratKuasa(dasar.pemesan, nomor);
-    expect(surat).toMatchObject({ nomor, penerimaKuasa: { perusahaan: "PT Jaya Korpora Prima" }, blokNomor: "Blok B-12 No. 34" });
+    expect(surat).toMatchObject({ nomor, blokNomor: "Blok B-12 No. 34" });
     await setup.pengurusan.mintaPerbaikan(dasar.admin, { nomor, alasan: "x", dokumen: ["KTP Pemegang Hak"] });
     expect(await setup.pengurusan.suratKuasa(dasar.pemesan, nomor)).not.toBeNull();
   });

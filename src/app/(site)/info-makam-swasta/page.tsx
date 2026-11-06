@@ -7,7 +7,7 @@ import { KartuCs } from "@/components/site/kartu-cs";
 import { cn } from "@/lib/utils";
 import { CsLink } from "@/components/site/cs-link";
 import { serverRuntime } from "@/server/runtime";
-import { DAFTAR_INFO_MAKAM_SWASTA, pesanKonsultasi } from "./daftar";
+import { pesanKonsultasi } from "./pesan";
 
 export const metadata: Metadata = {
   title: "Info Makam Swasta — Makam.co.id",
@@ -16,13 +16,14 @@ export const metadata: Metadata = {
 
 /**
  * Info Makam Swasta: public information on private cemeteries that are not
- * Lokasi Mitra yet (see ./daftar.ts). Every card says it is not a partner, has
+ * Lokasi Mitra yet, as Admin Platform keeps them (Lokasi module). Every card says it is not a partner, has
  * no price, no order and no pay button; the only action is a consultation with
  * the CS on WhatsApp (transactions stay on the platform, WhatsApp is CS only).
  */
 export default async function InfoMakamSwastaPage() {
   const settings = await serverRuntime().operatorSettings.current();
   const contact = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
+  const daftar = await serverRuntime().lokasi.infoMakamSwastaTayang();
 
   return (
     <main className="flex w-full flex-1 flex-col">
@@ -42,7 +43,7 @@ export default async function InfoMakamSwastaPage() {
         <p className="font-heading text-2xl font-extrabold text-forest">Belum bermitra dengan Makam.co.id</p>
         <p className="mt-2">
           Lokasi di halaman ini belum kami verifikasi dan tidak bisa dipesan atau dibayar lewat Makam.co.id. Keterangan
-          fasilitas berasal dari pengelola atau berita, bisa berubah; pastikan langsung ke pengelolanya. Lokasi yang sudah bisa dipesan ada di{" "}
+          fasilitas berasal dari pengelola atau berita, bisa berubah; tanyakan lewat CS kami. Lokasi yang sudah bisa dipesan ada di{" "}
           <Link href="/lokasi" className="font-bold text-forest underline underline-offset-4">
             Daftar Lokasi
           </Link>
@@ -50,8 +51,9 @@ export default async function InfoMakamSwastaPage() {
         </p>
       </div>
 
+      {daftar.length === 0 ? <p className="text-lg text-muted-foreground">Belum ada informasi pemakaman swasta untuk ditampilkan.</p> : null}
       <ul className="grid gap-6 lg:grid-cols-2">
-      {DAFTAR_INFO_MAKAM_SWASTA.map((lokasi) => (
+      {daftar.map((lokasi) => (
         <li key={lokasi.slug}>
         <section id={lokasi.slug} aria-labelledby={`${lokasi.slug}-nama`} className="flex h-full scroll-mt-28 flex-col gap-5 rounded-3xl border border-border bg-card p-7 shadow-md md:p-8">
             <span className="inline-flex size-14 items-center justify-center rounded-full bg-brand-soft text-forest" aria-hidden>

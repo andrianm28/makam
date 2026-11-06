@@ -17,6 +17,7 @@ import {
   LayoutDashboardIcon,
   type LucideIcon,
   LandmarkIcon,
+  InfoIcon,
   MapPinnedIcon,
   PaletteIcon,
   ReceiptIcon,
@@ -143,6 +144,12 @@ function semuaStaffMenu(role: StaffRole, scope: { lokasiId?: string }): NavGroup
               href: `${AP}/lokasi`,
               icon: MapPinnedIcon,
               description: "Onboarding Lokasi Mitra dan undangan Admin Lokasi.",
+            },
+            {
+              label: "Info Makam Swasta",
+              href: `${AP}/info-makam-swasta`,
+              icon: InfoIcon,
+              description: "Pemakaman swasta yang belum bermitra: isi, urutan dan tampil di situs.",
             },
             {
               label: "TPU DKI",

@@ -14,6 +14,10 @@ _Avoid_: Makam (when meaning the whole cemetery), TPU (as a generic term)
 A Lokasi Makam run by a partner (private, wakaf, yayasan or masjid cemetery) that has signed a partnership with the Operator; the platform holds its Petak Makam and Pemegang Hak records.
 _Avoid_: Mitra (alone), partner makam, TPS / Tempat Pemakaman Swasta (marketing copy only, never in the product)
 
+**Info Makam Swasta**:
+What public sources say about a private cemetery that is not a Lokasi Mitra yet, kept by Admin Platform (name, city, address, manager, who it serves, sources) and shown labelled "Belum bermitra" on /info-makam-swasta. Not a Lokasi: never priced, ordered, paid or called Terverifikasi or a partner; when the cemetery signs, it becomes a Lokasi Mitra and its entry is hidden.
+_Avoid_: prospek (on the site), mitra calon, Lokasi Mitra belum terverifikasi
+
 **Terverifikasi**:
 Said of a Lokasi Mitra that has passed the Operator's checks (signed agreement, a Kunjungan Verifikasi, tariffs entered) and may therefore be listed and ordered from. Never said of a TPU, which is shown as an official Pemda cemetery instead. Since 2026-11-05 a Lokasi Mitra may also be listed while not yet Terverifikasi: see **Tayang Belum Terverifikasi**.
 _Avoid_: Terdaftar, resmi (for a Lokasi Mitra)

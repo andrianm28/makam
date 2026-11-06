@@ -25,7 +25,8 @@ import { formatBulanTahun, formatTanggalPanjang } from "@/lib/format-tanggal";
 import { directionsUrl, mapsQueryFor } from "@/lib/maps";
 import { rilisTerbuka } from "@/lib/rilis";
 import { formatRupiah } from "@/lib/rupiah";
-import { DAFTAR_INFO_MAKAM_SWASTA } from "../info-makam-swasta/daftar";
+import { serverRuntime } from "@/server/runtime";
+import type { InfoMakamSwasta } from "@/domain/lokasi";
 import { daftarLokasi, type DaftarLokasiBaris } from "./daftar";
 import { fasilitasHref, hasActiveFilter, jenisHref, lokasiHref, type LokasiFilters } from "./filters";
 
@@ -100,6 +101,7 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
     kota: filters.kota,
     fasilitas: filters.fasilitas.length ? filters.fasilitas : undefined,
   });
+  const infoSwasta = baris.length === 0 ? await serverRuntime().lokasi.infoMakamSwastaTayang() : [];
   const activeCount = (filters.jenis ? 1 : 0) + filters.fasilitas.length;
 
   const secondaryFilters = (
@@ -195,7 +197,7 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
         </div>
       )}
 
-      {baris.length === 0 ? <BelumBermitra /> : null}
+      {baris.length === 0 ? <BelumBermitra daftar={infoSwasta} /> : null}
     </main>
   );
 }
@@ -205,7 +207,8 @@ export default async function DaftarLokasiPage({ searchParams }: PageProps<"/lok
  * each plainly "Belum bermitra" (not Terverifikasi, no price, no order), each
  * linking to its card there.
  */
-function BelumBermitra() {
+function BelumBermitra({ daftar }: { daftar: InfoMakamSwasta[] }) {
+  if (daftar.length === 0) return null;
   return (
     <section className="mt-10 flex flex-col gap-4" aria-labelledby="belum-bermitra-judul">
       <div>
@@ -218,7 +221,7 @@ function BelumBermitra() {
         </p>
       </div>
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {DAFTAR_INFO_MAKAM_SWASTA.map((lokasi) => (
+        {daftar.map((lokasi) => (
           <li key={lokasi.slug} className="relative flex flex-col gap-1 rounded-2xl border border-border bg-card p-5">
             <h3 className="text-title-3 text-foreground">
               <Link href={`/info-makam-swasta#${lokasi.slug}`} className="after:absolute after:inset-0">

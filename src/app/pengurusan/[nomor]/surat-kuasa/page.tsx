@@ -15,7 +15,7 @@ const nomorSchema = z.string().trim().regex(/^MKM-\d{4}-\d{6}$/);
 
 /**
  * The Surat Kuasa the Pemegang Hak signs (spec, Pengurusan > Surat Kuasa generator; ticket 46): authority to
- * PT Jaya Korpora Prima, represented by the filing staff member, to file the IPTM. A document page the
+ * the Operator (its legal name from Pengaturan Operator), represented by the filing staff member, to file the IPTM. A document page the
  * Pemesan prints (browser "Cetak") or downloads as a PDF (`./pdf`); its own Pemesan only.
  */
 export default async function SuratKuasaPage({ params }: PageProps<"/pengurusan/[nomor]/surat-kuasa">) {

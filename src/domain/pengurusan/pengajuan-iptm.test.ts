@@ -8,6 +8,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { chasingTpuTick } from "@/domain/pengurusan";
 import { scheduledTicks } from "@/domain/scheduler";
 import { wib } from "@/lib/time/jakarta";
+import { PENGATURAN_OPERATOR } from "../../../tests/support/billing";
 import { resetDatabase, testDatabase } from "../../../tests/support/database";
 import {
   fotoIptm,
@@ -286,15 +287,18 @@ describe("the order's timeline as its Pemesan reads it", () => {
 });
 
 describe("the Surat Kuasa", () => {
-  it("names PT Jaya Korpora Prima, the filing staff member and the Pemegang Hak who signs", async () => {
+  it("names the Operator's legal name from Pengaturan Operator, the filing staff member and the Pemegang Hak who signs", async () => {
     const setup = pengajuanOnTestDatabase(db);
     const dasar = await pesananDikonfirmasi(setup);
     await dimakamkan(setup, dasar);
+    expect(await setup.pengurusan.suratKuasa(dasar.pemesan, dasar.nomor)).toMatchObject({ penerimaKuasa: { perusahaan: PENGATURAN_OPERATOR.legalName } });
+    const diatur = await setup.operatorSettings.change(dasar.admin, { ...PENGATURAN_OPERATOR, legalName: "PT Operator Uji", reason: null });
+    expect(diatur).toMatchObject({ ok: true });
 
     const surat = await setup.pengurusan.suratKuasa(dasar.pemesan, dasar.nomor);
     expect(surat).toMatchObject({
       nomor: dasar.nomor,
-      penerimaKuasa: { perusahaan: "PT Jaya Korpora Prima", wakil: { name: dasar.admin.email } },
+      penerimaKuasa: { perusahaan: "PT Operator Uji", wakil: { name: dasar.admin.email } },
       pemberiKuasa: { name: "Budi Santoso" },
       tpu: { name: "TPU Kober" },
       almarhum: { name: "Siti Aminah" },

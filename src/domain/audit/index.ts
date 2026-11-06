@@ -80,6 +80,8 @@ export type AuditAction =
   | "lokasi.unggah_perjanjian"
   | "lokasi.tambah_foto_galeri"
   | "lokasi.hapus_foto_galeri"
+  /** Admin Platform adds, corrects, shows or hides an Info Makam Swasta entry (a private cemetery that is not a Lokasi Mitra). */
+  | "lokasi.ubah_info_makam_swasta"
   /** Admin Platform enters a new version of a global tariff (Biaya Layanan Platform, Biaya Pengurusan, Retribusi Pemda). */
   | "tarif.ubah_global"
   /** Admin Platform defines a Jenis Makam of a Lokasi Mitra with its first tariff version. */

@@ -22,7 +22,6 @@ import {
   homepageTrustLink,
 } from "@/lib/homepage-content";
 import { serverRuntime } from "@/server/runtime";
-import { DAFTAR_INFO_MAKAM_SWASTA } from "./info-makam-swasta/daftar";
 
 export const metadata: Metadata = {
   title: "Makam.co.id — Urus Pemakaman dengan Tenang, dalam Satu Platform",
@@ -38,7 +37,7 @@ export const metadata: Metadata = {
  */
 export default async function BerandaPage() {
   const { operatorSettings, lokasi } = serverRuntime();
-  const [settings, mitra] = await Promise.all([operatorSettings.current(), lokasi.publicLokasiMitraList()]);
+  const [settings, mitra, infoSwasta] = await Promise.all([operatorSettings.current(), lokasi.publicLokasiMitraList(), lokasi.infoMakamSwastaTayang()]);
   const contact = settings ? { whatsApp: settings.csWhatsApp, replyHours: settings.csReplyHours } : null;
   const kota = kotaMitra(mitra.map((satu) => satu.city));
   const faq = faqQuestions(settings?.legalName ?? null, rilisAktif()).slice(0, homepageFaq.jumlah);
@@ -210,6 +209,7 @@ export default async function BerandaPage() {
                 </ul>
               )}
             </div>
+            {infoSwasta.length > 0 ? (
             <div className="flex flex-col gap-3 border-t border-border pt-6" aria-labelledby="info-makam-swasta-title">
               <div className="flex flex-wrap items-center gap-3">
                 <h3 id="info-makam-swasta-title" className="text-title-2 text-foreground">
@@ -219,7 +219,7 @@ export default async function BerandaPage() {
               </div>
               <p className="text-body text-muted-foreground">{homepageInfoMakamSwasta.line}</p>
               <ul className="flex flex-wrap gap-2" aria-label="Pemakaman swasta yang belum bermitra">
-                {DAFTAR_INFO_MAKAM_SWASTA.map((satu) => (
+                {infoSwasta.map((satu) => (
                   <li key={satu.slug}>
                     <Link
                       href={`/info-makam-swasta#${satu.slug}`}
@@ -234,6 +234,7 @@ export default async function BerandaPage() {
                 {homepageInfoMakamSwasta.link.label} <ArrowRightIcon className="size-4" aria-hidden="true" />
               </Link>
             </div>
+            ) : null}
           </div>
         </div>
       </section>

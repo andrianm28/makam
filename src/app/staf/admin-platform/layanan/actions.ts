@@ -10,7 +10,7 @@ import { rupiahInput } from "@/server/rupiah-input";
 import { serverRuntime } from "@/server/runtime";
 import type { FormState } from "../../form-state";
 import { guardMessage } from "../../messages";
-import { formatRupiah } from "@/lib/rupiah";
+import { formatRupiah, RUPIAH_MAX } from "@/lib/rupiah";
 import { formatTanggal } from "@/lib/time/jakarta";
 
 /**
@@ -119,7 +119,7 @@ const fieldMessages: Record<string, string> = {
   varian: "Isi sedikit satu Pilihan, satu nama per baris dan tanpa duplikat.",
   frekuensi: "Pilih frekuensi: Sekali, Bulanan, 3-bulanan atau Tahunan.",
   itemIds: "Pilih sedikit satu Pilihan isi Paket Layanan.",
-  amount: "Isi jumlah dalam rupiah bulat tanpa sen, paling banyak Rp 100.000.000.000.",
+  amount: `Isi jumlah dalam rupiah bulat tanpa sen, paling banyak ${formatRupiah(RUPIAH_MAX)}.`,
   effectiveOn: "Isi tanggal berlaku yang benar.",
   reason: "Alasan paling banyak 500 huruf.",
 };

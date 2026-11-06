@@ -33,7 +33,7 @@ describe("the staff menu of each role", () => {
     expect(outline(staffMenu("admin_platform"))).toEqual([
       ["Kerja harian", ["Beranda", "Antrean", "Pekerjaan TPU", "Tagihan", "Wakaf Tanah"]],
       ["Keuangan", ["Laporan", "Transfer keluar"]],
-      ["Lokasi dan harga", ["Lokasi Mitra", "TPU DKI", "Tarif global", "Katalog Layanan", "Hari Libur Nasional"]],
+      ["Lokasi dan harga", ["Lokasi Mitra", "Info Makam Swasta", "TPU DKI", "Tarif global", "Katalog Layanan", "Hari Libur Nasional"]],
       ["Orang", ["Staf", "Mitra Jasa", "Pemulihan Akun", "Tugas Lapangan"]],
       ["Operator", ["Pengaturan Operator", "Audit Log", "Katalog Desain"]],
     ]);
@@ -70,6 +70,7 @@ describe("the staff menu of each role", () => {
       "Laporan",
       "Transfer keluar",
       "Lokasi Mitra",
+      "Info Makam Swasta",
       "TPU DKI",
       "Tarif global",
       "Katalog Layanan",
