@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { lokasiMitraResource, writeRefusal, type Actor, type Identity, type WriteRefusal } from "@/domain/identity";
 import { kontakSiagaOf } from "./kontak-siaga";
 import { actingRole, isLokasiId, writeLokasiMitra, type LokasiDeps, type LokasiMitraStatus, type NotFound, type WriteResult } from "./lokasi-mitra";
-import { publishGate, type PublishGate } from "./publish-gate";
+import { publishGate, type PublishGate, type SyaratTayangBelumTerverifikasi } from "./publish-gate";
 import { lokasiMitra as lokasiMitraTable } from "./schema";
 
 export interface PublishDeps extends LokasiDeps {
@@ -33,7 +33,7 @@ export type TayangkanBelumTerverifikasiResult =
   | { ok: true; status: "tayang_belum_terverifikasi" }
   | WriteRefusal
   | NotFound
-  | { ok: false; reason: "syarat_minimum_belum_terpenuhi"; belum: ("jam_operasional" | "kontak_siaga")[] }
+  | { ok: false; reason: "syarat_minimum_belum_terpenuhi"; belum: SyaratTayangBelumTerverifikasi[] }
   | { ok: false; reason: "status_tidak_bisa_diterbitkan" }
   | { ok: false; reason: "data_contoh_tidak_bisa_diterbitkan" };
 
@@ -53,7 +53,7 @@ export async function tayangkanBelumTerverifikasi(deps: PublishDeps, by: Actor, 
     if (!row) return { ok: false, reason: "tidak_ditemukan" } as const;
     if (row.status !== "belum_tayang") return { ok: false, reason: "status_tidak_bisa_diterbitkan" } as const;
     if (row.dataContoh) return { ok: false, reason: "data_contoh_tidak_bisa_diterbitkan" } as const;
-    const belum: ("jam_operasional" | "kontak_siaga")[] = [];
+    const belum: SyaratTayangBelumTerverifikasi[] = [];
     if (row.jamOperasional === null) belum.push("jam_operasional");
     if (kontakSiaga === null || kontakSiaga.phoneNumber === null) belum.push("kontak_siaga");
     if (belum.length > 0) return { ok: false, reason: "syarat_minimum_belum_terpenuhi", belum } as const;

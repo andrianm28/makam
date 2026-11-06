@@ -217,6 +217,8 @@ export type { AdminLokasiOfResult, InviteAdminLokasiResult, RemoveAdminLokasiFro
 export { DEFAULT_DOCUMENT_CHECKLIST } from "./lokasi-mitra";
 export {
   publishGate,
+  syaratTayangBelumTerverifikasi,
+  wajibUntukTayangBelumTerverifikasi,
   type PublishGate,
   type PublishGateFacts,
   type PublishGateItem,
