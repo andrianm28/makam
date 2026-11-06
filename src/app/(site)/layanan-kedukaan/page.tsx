@@ -13,14 +13,14 @@ export const metadata: Metadata = {
 export default function LayananKedukaanPage() {
   return (
     <ContentPage title="Layanan Kedukaan" lead="Kami bantu keluarga mengurus kebutuhan di hari-hari duka, dari penjemputan jenazah sampai bunga duka cita.">
-      <ul className="grid gap-4 sm:grid-cols-2">
+      <ul className="grid gap-5 sm:grid-cols-2">
         {kedukaanTampil().map((konten) => {
           const isi = (
             <>
               <IkonKedukaanBulat nama={konten.ikon} />
-              <span className="flex flex-col gap-1">
-                <span className="text-title-3 font-semibold">{konten.judul}</span>
-                <span className="text-body text-muted-foreground">{konten.ringkas}</span>
+              <span className="flex flex-col gap-2">
+                <span className="font-heading text-2xl font-extrabold tracking-tight">{konten.judul}</span>
+                <span className="text-lg text-ivory/85">{konten.ringkas}</span>
               </span>
             </>
           );
@@ -28,14 +28,14 @@ export default function LayananKedukaanPage() {
           return (
             <li key={konten.jenis}>
               {segera ? (
-                <div className="relative flex h-full items-start gap-4 rounded-2xl border bg-card p-5 opacity-80">
+                <div className="relative flex h-full items-start gap-5 rounded-2xl bg-forest p-7 text-ivory opacity-80">
                   {isi}
-                  <span className="absolute top-3 right-3 rounded-full bg-warning-soft px-2.5 py-0.5 text-caption font-semibold text-warning-soft-foreground">
+                  <span className="absolute top-4 right-4 rounded-full bg-sand px-3 py-1 text-small font-bold text-forest">
                     Segera hadir
                   </span>
                 </div>
               ) : (
-                <Link href={hrefKedukaan(konten.jenis)} className="flex h-full items-start gap-4 rounded-2xl border bg-card p-5 hover:border-primary focus-visible:ring-3 focus-visible:ring-ring/50">
+                <Link href={hrefKedukaan(konten.jenis)} className="flex h-full items-start gap-5 rounded-2xl bg-forest p-7 text-ivory transition-colors hover:bg-forest/90 focus-visible:ring-3 focus-visible:ring-ring/50">
                   {isi}
                 </Link>
               )}
@@ -43,9 +43,9 @@ export default function LayananKedukaanPage() {
           );
         })}
       </ul>
-      <p className="text-body-lg">
+      <p className="text-xl">
         Merencanakan lebih awal?{" "}
-        <Link href={hrefKedukaan("konsultasi")} className="font-semibold text-primary underline underline-offset-2">
+        <Link href={hrefKedukaan("konsultasi")} className="font-bold text-primary underline underline-offset-4">
           Minta Konsultasi Rencana Pemakaman
         </Link>
         .
