@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # makam-healthcheck: local watchdog, run every minute by makam-<env>-health.timer.
 #
-#   makam-healthcheck https://dev.makam.co.id/api/health
+#   makam-healthcheck https://stg.makam.co.id/api/health
 #
 # Goes through nginx and TLS like the external monitor does. A failure (no
 # answer, non-200, or "ok" not true: DB down or stale worker heartbeat) is

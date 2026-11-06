@@ -19,7 +19,7 @@ test.describe("§0 Prasyarat dan akun", { tag: ["@rilis1"] }, () => {
     });
     await langkah(publik, "Banner STAGING terlihat di staging", async () => {
       await publik.goto("/masuk");
-      if (new URL(publik.url()).hostname === "dev.makam.co.id") {
+      if (new URL(publik.url()).hostname === "stg.makam.co.id") {
         await expect(publik.getByRole("status").filter({ hasText: "STAGING" })).toBeVisible();
       }
     });

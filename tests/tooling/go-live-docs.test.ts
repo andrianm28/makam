@@ -246,9 +246,9 @@ describe('the runbook "Hari switch", for gate G3 of the go-live checklist', () =
     expect(step.indexOf("makam-switch --cek")).toBeLessThan(step.indexOf("makam-switch --ke v1"));
   });
 
-  it("moves the SumoPod webhook from dev.makam.co.id to makam.co.id and ends with Save & Test", () => {
+  it("moves the SumoPod webhook from stg.makam.co.id to makam.co.id and ends with Save & Test", () => {
     const step = stepTitled(/webhook/i);
-    expect(step).toContain("https://dev.makam.co.id/api/webhooks/pembayaran");
+    expect(step).toContain("https://stg.makam.co.id/api/webhooks/pembayaran");
     expect(step).toContain("https://makam.co.id/api/webhooks/pembayaran");
     expect(step).toContain("Save & Test");
     expect(step).toMatch(/staging[^\n]*(not confirmed|no longer)/i);
@@ -423,7 +423,7 @@ describe('the runbook "Promoting to production" and the host\'s automatic rollba
       'RELEASE_TAG_INPUT" != "$expected"',
       "^[0-9a-f]{40}$",
       '") healthy"',
-      "smoke test against dev.makam.co.id for",
+      "smoke test against stg.makam.co.id for",
     ].map((snippet) => workflow.indexOf(snippet));
     expect(inWorkflow.every((at) => at >= 0), `promote.yml no longer holds: ${inWorkflow}`).toBe(true);
     expect(inWorkflow).toEqual([...inWorkflow].sort((a, b) => a - b));

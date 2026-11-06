@@ -9,7 +9,7 @@ are not `makam-staging`, `makam-prod` or `glitchtip`**, and never run
 
 | What | Compose project | Listens on | Public URL |
 |---|---|---|---|
-| v1 staging (`web`, `worker`, `postgres`) | `makam-staging` | `127.0.0.1:3110` (web) | https://dev.makam.co.id (public, no basic auth) |
+| v1 staging (`web`, `worker`, `postgres`) | `makam-staging` | `127.0.0.1:3110` (web) | https://stg.makam.co.id (public, no basic auth) |
 | GlitchTip (`web`, `worker`, `postgres`, `valkey`) | `glitchtip` | `127.0.0.1:8130` (web) | https://errors.makam.co.id (live since 2026-09-25) |
 | v1 production (ticket 65) | `makam-prod` | `127.0.0.1:3100` | https://makam.co.id |
 
@@ -50,7 +50,7 @@ secret files 0600). None of it is in the repo.
 | `/opt/makam-v1/glitchtip/dsn-makam-{staging,prod}-{internal,public}.txt` | DSNs per project |
 | `/etc/systemd/system/makam-staging-{deploy,health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/` |
 | `/etc/systemd/system/makam-prod-{health,files-backup,db-backup,restore-test}.{service,timer}` | from `deploy/systemd/`: staging's mirrored with `--env prod`; `install-host.sh` enables them only once `/opt/makam-v1/prod/deployed.env` has a `MAKAM_DIGEST` (below, "Database backup and restore") |
-| `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for dev.makam.co.id (from `deploy/nginx/`) |
+| `/etc/nginx/snippets/makam-staging-proxy.conf` | proxy lines for stg.makam.co.id (from `deploy/nginx/`) |
 | `/opt/makam-v1/<env>/backups/files/files-<UTC timestamp>.tar.gz` | nightly FileStore tar, kept 7 days (`makam-backup-files`) |
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.dump.enc` | nightly encrypted `pg_dump`, kept 7 days (`makam-backup-db`) |
 | `/opt/makam-v1/<env>/backups/db/makam-<UTC timestamp>.counts.enc` | the row counts of that night, what a restore is checked against |
@@ -82,7 +82,7 @@ to run unless the first three match `--env`:
 | `MAKAM_ENV_FILE` | `/opt/makam-v1/staging/staging.env` | this file again, as the containers' `env_file` |
 | `MAKAM_WEB_PORT` | `3110` | web's port on 127.0.0.1 |
 | `POSTGRES_PASSWORD`, `DATABASE_URL` | secret | staging's own Postgres |
-| `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://dev.makam.co.id` | sessions and Kode Masuk codes |
+| `AUTH_SECRET`, `APP_BASE_URL` | secret, `https://stg.makam.co.id` | sessions and Kode Masuk codes |
 | `TOTP_ENCRYPTION_KEY` | retired (ADR 0008) | no longer read: optional and ignored in this release, so an existing env file still loads; remove it from `staging.env` / `production.env` after the release that drops it from `src/lib/env.ts` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | secret pair from `npx web-push generate-vapid-keys` (unpadded base64url), one pair per environment | signs web push to staff (ticket 21); **required from ticket 21 on**: without them `migrate`, `web` and `worker` refuse to start |
 | `VAPID_SUBJECT` | `mailto:<ops address>` or an https URL, never localhost | the contact push services see |
@@ -99,7 +99,7 @@ to run unless the first three match `--env`:
 | `FILES_ROOT` | not set (defaults to `/data/files`, the `files` volume's mount point) | where the live FileStore (ticket 60) reads and writes; only set it to something else if the volume is ever mounted elsewhere |
 
 `MAKAM_TAG` and `MAKAM_RELEASE` come from `deployed.env`, which the deploy
-script writes. `curl -s https://dev.makam.co.id/api/health | jq .environment`
+script writes. `curl -s https://stg.makam.co.id/api/health | jq .environment`
 shows the running `APP_ENV` (`staging`) without any secret. The same body names
 `release` (the commit the process runs: `SENTRY_RELEASE`, which `makam-deploy`
 sets from the image's revision) and `rilisTerbuka` (the release number the host
@@ -413,7 +413,7 @@ $S exec web sh -c 'touch /data/files/.tulis-uji && rm /data/files/.tulis-uji && 
 
 ## Seed the prototype's example data on staging (`seed-contoh-publik`)
 
-`dev.makam.co.id` (the beta for UAT) starts empty: no Lokasi Mitra of its own
+`stg.makam.co.id` (the beta for UAT) starts empty: no Lokasi Mitra of its own
 yet, real or example. `seed-contoh-publik` gives it the public-site
 prototype's five example Lokasi Mitra — the same ones a development stack
 gets — each taken through the real publish gate (Kunjungan Verifikasi with
@@ -999,7 +999,7 @@ description is held to 140 the same way.
 ## The staging smoke gate
 
 `.github/workflows/staging-smoke.yml` runs `e2e/smoke.spec.ts` (health, home,
-Masuk) from a hosted runner against the real `https://dev.makam.co.id`. It runs
+Masuk) from a hosted runner against the real `https://stg.makam.co.id`. It runs
 
 - when the host reports a staging deploy healthy (a `deployment_status` event for
   the `staging` environment with state `success`; the smoke test's own statuses
@@ -1009,7 +1009,7 @@ Masuk) from a hosted runner against the real `https://dev.makam.co.id`. It runs
 
 It runs for **the digest staging is actually running**: the newest staging
 Deployment that names one. It records the result as a status on that Deployment,
-naming the digest in the description (`smoke test against dev.makam.co.id for
+naming the digest in the description (`smoke test against stg.makam.co.id for
 <digest>: success` or `: failure`). A pass is recorded only when `/api/health`
 reports a `release` equal to that Deployment's `ref`: a deploy that failed and
 rolled back leaves a Deployment for a digest the site is *not* running, and the
@@ -1145,7 +1145,7 @@ gh api 'repos/andrianm28/makam/deployments?environment=production&per_page=1' \
   --jq '.[0] | {ref, digest: .payload.image_digest, statuses: [.statuses_url]}'
 gh release list
 # What staging reports about itself (the commit, and the release number it opened)
-curl -s https://dev.makam.co.id/api/health | jq '{release, rilisTerbuka}'
+curl -s https://stg.makam.co.id/api/health | jq '{release, rilisTerbuka}'
 ```
 
 The production host deploys on its own timer or by hand
@@ -1655,7 +1655,7 @@ docker run --rm -v makam-staging_pgdata-restore:/from -v makam-staging_pgdata:/t
   sh -c 'mv /to/18 /to/18.old && cp -a /from/18 /to/18'
 $S up -d --wait web worker
 $S run --rm migrate                                   # forward-only, to the current schema
-curl -s https://dev.makam.co.id/api/health | jq .ok    # true
+curl -s https://stg.makam.co.id/api/health | jq .ok    # true
 
 # 4. Only now: start the deploy timer and remove what is left of the old one.
 sudo systemctl start makam-staging-deploy.timer
@@ -1778,11 +1778,18 @@ with `openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -md sha256 -pass
 file:/opt/makam-v1/prod/backup-passphrase -in files-<UTC>.tar.gz.enc | tar -xz`
 into the new `makam-prod_files` volume.
 
-## dev.makam.co.id and its rollback
+## stg.makam.co.id and its rollback
+
+Staging was served at `dev.makam.co.id` until 2026-11-06, when the owner moved
+it to `stg.makam.co.id` ("dev" is now only a thread's local build). The site
+file keeps `dev.makam.co.id` as a 301 to `stg.makam.co.id`, except
+`= /api/webhooks/pembayaran`, which it still proxies to staging until the
+SumoPod sandbox webhook URL is changed. The 2026-09-25 history below is about
+that same block under its old name.
 
 On 2026-09-25 (ticket 07, approved by the user) the old Laravel app's dev block
-was replaced. The old block proxied to `127.0.0.1:8081`, with no auth at the
-time. The new block (`deploy/nginx/dev.makam.co.id.conf`) proxies to
+on `dev.makam.co.id` was replaced. The old block proxied to `127.0.0.1:8081`, with no auth at the
+time. The new block (`deploy/nginx/stg.makam.co.id.conf`) proxies to
 `makam-staging` web on `127.0.0.1:3110`, keeps the Certbot certificate lines
 and the 80 → 443 redirect, and adds HTTP basic auth. These stay open without
 auth: `/.well-known/acme-challenge/` (renewals), `= /api/health` (uptime
@@ -1809,10 +1816,10 @@ curl -sI https://dev.makam.co.id/ | head -5            # old app: 200 with an x-
 # Re-apply the staging block (from a checkout of this repo)
 sudo install -o root -g root -m 0644 deploy/nginx/makam-staging-proxy.conf \
   /etc/nginx/snippets/makam-staging-proxy.conf
-sudo install -o root -g root -m 0640 deploy/nginx/dev.makam.co.id.conf \
-  /etc/nginx/sites-available/dev.makam.co.id.conf
+sudo install -o root -g root -m 0640 deploy/nginx/stg.makam.co.id.conf \
+  /etc/nginx/sites-available/stg.makam.co.id.conf
 sudo nginx -t && sudo systemctl reload nginx
-curl -s -o /dev/null -w '%{http_code}\n' https://dev.makam.co.id/   # 401
+curl -s -o /dev/null -w '%{http_code}\n' https://stg.makam.co.id/   # 401
 ```
 
 Only ever `reload` nginx after `nginx -t` passes, never `restart`: other
@@ -1860,7 +1867,7 @@ Certbot reuses the host's existing ACME account. After that:
   inlined into the HTML: the home page is statically rendered, so a value read
   while building would be frozen into that HTML (and the build has no environment
   at all, so it would be empty forever). Browser events carry their environment
-  from the page's host at runtime (`dev.makam.co.id` → `staging`,
+  from the page's host at runtime (`stg.makam.co.id` → `staging`,
   `makam.co.id`/`www` → `production`, anything else → `development`;
   `browserSentryEnvironment` in `src/lib/env.ts`). Filter by environment in
   GlitchTip. The `@smoke` spec proves the served HTML carries no DSN and that the
@@ -2083,7 +2090,7 @@ the dashboard against the running app.
 
 1. In the SumoPod dashboard, switch to **sandbox mode** for the v1 project
    (staging always runs sandbox; ticket 61) and confirm the webhook URL is
-   `https://dev.makam.co.id/api/webhooks/pembayaran` (the route the app
+   `https://stg.makam.co.id/api/webhooks/pembayaran` (the route the app
    actually serves; ticket 04's checklist names `/api/webhooks/sumopod`,
    which this build does not use — register the real path instead) with its
    Svix secret stored as `SUMOPOD_WEBHOOK_SECRET` above.
@@ -2129,7 +2136,7 @@ Images built before ticket 18 have no Chromium; rebuild the image.
 
 ## Uptime alarm
 
-The monitor watches `https://dev.makam.co.id/api/health`. That path skips
+The monitor watches `https://stg.makam.co.id/api/health`. That path skips
 basic auth. It returns 200 only when the DB answers and the worker heartbeat
 is fresh; otherwise it returns 503 with `"ok":false`.
 
@@ -2139,7 +2146,7 @@ minutes):
 
 1. Sign up at https://uptimerobot.com with the ops email and confirm it.
 2. *Add New Monitor* → type **HTTP(s)**, name `makam staging /api/health`,
-   URL `https://dev.makam.co.id/api/health`, interval 5 minutes.
+   URL `https://stg.makam.co.id/api/health`, interval 5 minutes.
 3. Under *Advanced*, keep "alert when status is not 2xx". Optionally, make it a
    **Keyword** monitor instead: keyword `"ok":true`, alert when *not
    exists*.
@@ -2165,7 +2172,7 @@ the same UptimeRobot account:
    delete that monitor.
 
 **Local watchdog (installed).** `makam-staging-health.timer` runs
-`makam-healthcheck https://dev.makam.co.id/api/health` every minute, through
+`makam-healthcheck https://stg.makam.co.id/api/health` every minute, through
 nginx and TLS. Failures go to the journal at priority `err` with tag
 `makam-health`, and the unit is marked failed:
 
@@ -2278,7 +2285,7 @@ Never paste values into the repo, a ticket or chat.
 
 | Secret | Rotate |
 |---|---|
-| Basic auth (dev.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
+| Basic auth (stg.makam.co.id) | `P=$(openssl rand -base64 24 \| tr -d '/+=' \| cut -c1-24)`; write `user=makam` / `password=$P` to `/opt/makam-v1/staging-basic-auth.txt`; `printf 'makam:%s\n' "$(openssl passwd -apr1 "$P")" \| sudo tee /etc/nginx/makam-staging.htpasswd >/dev/null`; `sudo nginx -t && sudo systemctl reload nginx` |
 | `AUTH_SECRET` (staging) | new `openssl rand -hex 32` in `staging.env`, then `makam-deploy --env staging --force`. All sessions end, and pending Kode Masuk become invalid. |
 | `SMTP_PASSWORD` (staging) | create new SMTP credentials in the SumoPod dashboard, put them in `staging.env`, `makam-deploy --env staging --force`, run `email-check` (above), then revoke the old credentials |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` (staging) | Rotate only if the private key leaked. Put a new pair in `staging.env`, `makam-deploy --env staging --force`. Every stored Perangkat Push was made for the old public key and stops receiving pushes (push services refuse it, and the device is removed at the next Peringatan Staf); staff press *Aktifkan notifikasi push* again on each device. The email copy of each Peringatan Staf is unaffected. |
@@ -2383,7 +2390,7 @@ Values in `prod.env`, and the webhook:
 Webhook URL (owner decision 2026-10-03): a SumoPod project has two
 environments, sandbox and live, and each has exactly one webhook URL; makam uses
 one project. Until the switch, the sandbox webhook is
-`https://dev.makam.co.id/api/webhooks/pembayaran`, because makam.co.id still
+`https://stg.makam.co.id/api/webhooks/pembayaran`, because makam.co.id still
 serves the old app (test events reached it with HTTP 200 on 2026-10-03). At the
 switch, right after `makam-switch --ke v1`, the owner moves it to
 `https://makam.co.id/api/webhooks/pembayaran` and presses Save & Test ("Hari
@@ -2761,7 +2768,7 @@ has passed. The commands run in `/opt/makam-v1/prod`, with
 7. **Move the SumoPod webhook.** A SumoPod project has one sandbox webhook URL, so it
    moves now, after the switch: before it, `makam.co.id` still served the old app. In
    the SumoPod dashboard (sandbox mode, the project staging uses), Webhooks: change
-   `https://dev.makam.co.id/api/webhooks/pembayaran` to
+   `https://stg.makam.co.id/api/webhooks/pembayaran` to
    `https://makam.co.id/api/webhooks/pembayaran`, then **Save & Test**: the
    `payment.test` ping shows delivered (2xx) and puts nothing in "perlu ditinjau".
    From this moment staging's sandbox payments are not confirmed ("Production on
@@ -2805,7 +2812,7 @@ has passed. The commands run in `/opt/makam-v1/prod`, with
     coming back). `makam-switch --ke v1` puts v1 back. After the first release,
     rollback is the previous v1 digest ("Rolling back"). The webhook may stay where it
     is: SumoPod does not retry, and a failed delivery waits in its Webhooks tab for
-    Resend ("Test payment"). Move it back to `https://dev.makam.co.id/api/webhooks/pembayaran`
+    Resend ("Test payment"). Move it back to `https://stg.makam.co.id/api/webhooks/pembayaran`
     only to resume a staging UAT.
 11. **Delete the old app** the same day, once the checks pass:
     `sudo /opt/makam-v1/bin/makam-arsip-app-lama --container makam-nonprod-postgres-1 --hapus`
@@ -2828,7 +2835,7 @@ has passed. The commands run in `/opt/makam-v1/prod`, with
 
 ## Staging is public (2026-09-25)
 
-Basic auth on `dev.makam.co.id` was removed at the user's request: staging is reachable without a password. `X-Robots-Tag: noindex` keeps it out of search engines. `/etc/nginx/makam-staging.htpasswd` and `/opt/makam-v1/staging-basic-auth.txt` are no longer used. Staging never uses fakes and payments there are SumoPod sandbox, but treat anything entered on staging as visible to anyone with the URL.
+Basic auth on `stg.makam.co.id` was removed at the user's request: staging is reachable without a password. `X-Robots-Tag: noindex` keeps it out of search engines. `/etc/nginx/makam-staging.htpasswd` and `/opt/makam-v1/staging-basic-auth.txt` are no longer used. Staging never uses fakes and payments there are SumoPod sandbox, but treat anything entered on staging as visible to anyone with the URL.
 
 ## Builder worktrees on the host (ticket 83)
 

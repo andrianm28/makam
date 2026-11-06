@@ -6,7 +6,7 @@ import { showsStagingBanner } from "@/lib/env";
 const noSubscription = () => () => {};
 
 /**
- * Tells visitors of staging (dev.makam.co.id) that it is not the real service.
+ * Tells visitors of staging (stg.makam.co.id) that it is not the real service.
  * Decided in the browser from the page's host, because one image serves staging
  * and production and statically rendered pages can't read the runtime
  * environment. The server snapshot is "hidden", so the server HTML and the first

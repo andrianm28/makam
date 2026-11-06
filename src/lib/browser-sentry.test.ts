@@ -10,7 +10,7 @@ const productionDsn = "https://productionkey@errors.makam.co.id/3";
 
 describe("the browser GlitchTip DSN", () => {
   it("is the one the environment it runs in was started with", () => {
-    expect(browserSentryConfig({ NEXT_PUBLIC_SENTRY_DSN: stagingDsn }, "dev.makam.co.id")).toEqual({
+    expect(browserSentryConfig({ NEXT_PUBLIC_SENTRY_DSN: stagingDsn }, "stg.makam.co.id")).toEqual({
       dsn: stagingDsn,
       environment: "staging",
     });
@@ -27,14 +27,14 @@ describe("the browser GlitchTip DSN", () => {
   });
 
   it("is absent when the environment set none, which turns browser reporting off", () => {
-    expect(browserSentryConfig({ NEXT_PUBLIC_SENTRY_DSN: "" }, "dev.makam.co.id")).toEqual({
+    expect(browserSentryConfig({ NEXT_PUBLIC_SENTRY_DSN: "" }, "stg.makam.co.id")).toEqual({
       dsn: undefined,
       environment: "staging",
     });
   });
 
   it("refuses a DSN that is not a URL rather than reporting to nowhere", () => {
-    expect(() => browserSentryConfig({ NEXT_PUBLIC_SENTRY_DSN: "glitchtip" }, "dev.makam.co.id")).toThrow(
+    expect(() => browserSentryConfig({ NEXT_PUBLIC_SENTRY_DSN: "glitchtip" }, "stg.makam.co.id")).toThrow(
       /Invalid environment/,
     );
   });

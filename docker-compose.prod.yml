@@ -5,7 +5,7 @@
 # environment, and the env file decides which one:
 #
 #   project        env file                          APP_ENV     site
-#   makam-staging  /opt/makam-v1/staging/staging.env  staging     dev.makam.co.id (ticket 07, live)
+#   makam-staging  /opt/makam-v1/staging/staging.env  staging     stg.makam.co.id (ticket 07, live)
 #   makam-prod     /opt/makam-v1/prod/prod.env        production  makam.co.id (ticket 65)
 #
 # Nothing here defaults to production. MAKAM_PROJECT, MAKAM_APP_ENV,
@@ -23,7 +23,7 @@
 # env: MAKAM_PROJECT, MAKAM_APP_ENV, MAKAM_ENV_FILE, MAKAM_WEB_PORT,
 # POSTGRES_PASSWORD, DATABASE_URL, AUTH_SECRET, VAPID_PUBLIC_KEY,
 # VAPID_PRIVATE_KEY, VAPID_SUBJECT, APP_BASE_URL
-# (https://dev.makam.co.id / https://makam.co.id), SENTRY_DSN, ...
+# (https://stg.makam.co.id / https://makam.co.id), SENTRY_DSN, ...
 # deployed.env (written by the deploy script) supplies MAKAM_TAG, MAKAM_DIGEST,
 # MAKAM_DEPLOY_REF and MAKAM_RELEASE.
 name: ${MAKAM_PROJECT:?set MAKAM_PROJECT (makam-staging or makam-prod) in the env file}

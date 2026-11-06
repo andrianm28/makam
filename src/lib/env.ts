@@ -381,7 +381,7 @@ export function browserSentryDsn(source: EnvSource = process.env): string {
 }
 
 const browserEnvironmentByHost: Record<string, AppEnvironment> = {
-  "dev.makam.co.id": "staging",
+  "stg.makam.co.id": "staging",
   "makam.co.id": "production",
   "www.makam.co.id": "production",
 };

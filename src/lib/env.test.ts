@@ -311,7 +311,7 @@ describe("browser error monitoring DSN (NEXT_PUBLIC_*)", () => {
 
 describe("browser error monitoring environment (from the page's host, since one image serves staging and production)", () => {
   it.each([
-    ["dev.makam.co.id", "staging"],
+    ["stg.makam.co.id", "staging"],
     ["makam.co.id", "production"],
     ["www.makam.co.id", "production"],
     ["MAKAM.CO.ID", "production"],
@@ -327,14 +327,14 @@ describe("browser error monitoring environment (from the page's host, since one 
 
 describe("staging banner (from the page's host, since statically rendered pages can't read the runtime environment)", () => {
   it.each([
-    ["dev.makam.co.id", true],
-    ["DEV.MAKAM.CO.ID", true],
+    ["stg.makam.co.id", true],
+    ["STG.MAKAM.CO.ID", true],
     ["makam.co.id", false],
     ["www.makam.co.id", false],
     ["localhost", false],
     ["127.0.0.1", false],
     ["beta.makam.co.id", false],
-    ["dev.makam.co.id.evil.example", false],
+    ["stg.makam.co.id.evil.example", false],
     ["", false],
   ])("on %s the banner shows: %s", (hostname, shown) => {
     expect(showsStagingBanner(hostname)).toBe(shown);

@@ -2,15 +2,15 @@ import { expect, test, type Page } from "@playwright/test";
 
 /**
  * The staging banner is decided in the browser from the page's host. To serve
- * the local stack under the staging host, Chromium resolves dev.makam.co.id to
+ * the local stack under the staging host, Chromium resolves stg.makam.co.id to
  * the stack's address (plain http, as the local stack has no TLS).
  */
 const stack = new URL(process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3310");
-const stagingOrigin = `http://dev.makam.co.id:${stack.port || "80"}`;
+const stagingOrigin = `http://stg.makam.co.id:${stack.port || "80"}`;
 
-// Only remaps dev.makam.co.id, so the other tests still reach the stack by its own address.
+// Only remaps stg.makam.co.id, so the other tests still reach the stack by its own address.
 test.use({
-  launchOptions: { args: [`--host-resolver-rules=MAP dev.makam.co.id ${stack.hostname}`] },
+  launchOptions: { args: [`--host-resolver-rules=MAP stg.makam.co.id ${stack.hostname}`] },
 });
 
 const BANNER_TEXT =
@@ -31,7 +31,7 @@ test.describe("on the local stack (development)", () => {
   }
 });
 
-test.describe("on the staging host dev.makam.co.id", () => {
+test.describe("on the staging host stg.makam.co.id", () => {
   for (const path of pages) {
     test(`the staging banner shows on ${path}`, async ({ page }) => {
       await page.goto(`${stagingOrigin}${path}`);

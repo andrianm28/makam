@@ -8,7 +8,7 @@ import { wib } from "@/lib/time/jakarta";
 import { DiskFileStore } from "./disk-file-store";
 
 const SECRET = "test-only-secret-for-hmac-signing-not-real";
-const ORIGIN = "https://dev.makam.co.id";
+const ORIGIN = "https://stg.makam.co.id";
 
 /** What following a `signedUrl` gets, exactly as the app route (`/api/files/[...key]`) computes it: the key and query params it reads, handed to `readSigned`. */
 async function open(store: DiskFileStore, url: string) {

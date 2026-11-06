@@ -11,14 +11,14 @@ import {
 
 /*
  * The UAT runner (uat/, `npm run uat`) pays and logs in on a real stack, so the
- * first thing it settles is where it may run: staging (https://dev.makam.co.id)
+ * first thing it settles is where it may run: staging (https://stg.makam.co.id)
  * or a local stack, never production (ticket 110).
  */
 
 describe("the UAT runner refuses any base URL other than staging or local", () => {
   it("accepts staging, with or without a trailing slash", () => {
-    expect(pastikanBaseUrlBoleh("https://dev.makam.co.id")).toBe("https://dev.makam.co.id");
-    expect(pastikanBaseUrlBoleh("https://dev.makam.co.id/")).toBe("https://dev.makam.co.id");
+    expect(pastikanBaseUrlBoleh("https://stg.makam.co.id")).toBe("https://stg.makam.co.id");
+    expect(pastikanBaseUrlBoleh("https://stg.makam.co.id/")).toBe("https://stg.makam.co.id");
   });
 
   it("accepts a local stack on any port, over http", () => {
@@ -44,16 +44,16 @@ describe("the UAT runner refuses any base URL other than staging or local", () =
   });
 
   it.each([
-    "https://dev.makam.co.id.evil.test",
-    "https://evil.test/@dev.makam.co.id",
-    "https://dev.makam.co.id@evil.test",
-    "https://user:rahasia@dev.makam.co.id",
-    "http://dev.makam.co.id",
-    "https://dev.makam.co.id:8443",
-    "https://dev.makam.co.id/staf",
+    "https://stg.makam.co.id.evil.test",
+    "https://evil.test/@stg.makam.co.id",
+    "https://stg.makam.co.id@evil.test",
+    "https://user:rahasia@stg.makam.co.id",
+    "http://stg.makam.co.id",
+    "https://stg.makam.co.id:8443",
+    "https://stg.makam.co.id/staf",
     "https://localhost.evil.test",
     "http://127.0.0.1.nip.io",
-    "https://dev.makam.co.id./",
+    "https://stg.makam.co.id./",
     "http://10.0.0.5:3310",
     "not a url",
     "",
@@ -66,7 +66,7 @@ describe("the UAT runner refuses any base URL other than staging or local", () =
   });
 
   it("never asks for the password in the URL: basic auth comes from the environment", () => {
-    expect(() => pastikanBaseUrlBoleh("https://user:rahasia@dev.makam.co.id")).toThrow(/UAT_BASIC_AUTH/);
+    expect(() => pastikanBaseUrlBoleh("https://user:rahasia@stg.makam.co.id")).toThrow(/UAT_BASIC_AUTH/);
   });
 });
 
@@ -78,16 +78,16 @@ describe("a request the UAT runner's browser would make to production is caught,
   });
 
   it("lets staging, the local stack and the SumoPod sandbox checkout through", () => {
-    expect(permintaanKeProduksi("https://dev.makam.co.id/masuk")).toBe(false);
+    expect(permintaanKeProduksi("https://stg.makam.co.id/masuk")).toBe(false);
     expect(permintaanKeProduksi("http://127.0.0.1:3310/health")).toBe(false);
     expect(permintaanKeProduksi("https://pay-sandbox.sumopod.com/checkout/abc")).toBe(false);
     expect(permintaanKeProduksi("https://api-pay-sandbox.sumopod.com/v1/payments")).toBe(false);
   });
 
-  it("sees through a trailing dot, which is the same host: makam.co.id. is production, dev.makam.co.id. is staging", () => {
+  it("sees through a trailing dot, which is the same host: makam.co.id. is production, stg.makam.co.id. is staging", () => {
     expect(permintaanKeProduksi("https://makam.co.id./masuk")).toBe(true);
     expect(permintaanKeProduksi("https://www.makam.co.id./")).toBe(true);
-    expect(permintaanKeProduksi("https://dev.makam.co.id./masuk")).toBe(false);
+    expect(permintaanKeProduksi("https://stg.makam.co.id./masuk")).toBe(false);
   });
 
   it("does not mistake a look-alike for staging", () => {
@@ -97,7 +97,7 @@ describe("a request the UAT runner's browser would make to production is caught,
 });
 
 describe("the UAT run's folder and credentials", () => {
-  const staging = { UAT_BASE_URL: "https://dev.makam.co.id" };
+  const staging = { UAT_BASE_URL: "https://stg.makam.co.id" };
 
   it("puts a run in /home/ubuntu/uat-runs/<WIB date>-<sha>, with the sessions beside it, not inside it", () => {
     // 2026-10-04 18:30 UTC is already 5 October in WIB (UTC+7).
@@ -115,7 +115,7 @@ describe("the UAT run's folder and credentials", () => {
     const sekarang = new Date("2026-10-04T00:00:00Z");
     const dengan = bacaKonfigurasi({ ...staging, UAT_BASIC_AUTH_USER: "makam", UAT_BASIC_AUTH_PASSWORD: "rahasia" }, { sekarang, sha: "x" });
     // `origin` keeps the password for staging alone: a host that challenges later (the SumoPod checkout) never gets it.
-    expect(dengan.basicAuth).toEqual({ username: "makam", password: "rahasia", origin: "https://dev.makam.co.id" });
+    expect(dengan.basicAuth).toEqual({ username: "makam", password: "rahasia", origin: "https://stg.makam.co.id" });
     expect(bacaKonfigurasi(staging, { sekarang, sha: "x" }).basicAuth).toBeUndefined();
     expect(() => bacaKonfigurasi({ ...staging, UAT_BASIC_AUTH_USER: "makam" }, { sekarang, sha: "x" })).toThrow(/berpasangan/);
   });
@@ -126,7 +126,7 @@ describe("the UAT run's folder and credentials", () => {
 });
 
 describe("how long the runner waits for the owner's codes comes from the environment, and a bad value stops the run", () => {
-  const staging = { UAT_BASE_URL: "https://dev.makam.co.id" };
+  const staging = { UAT_BASE_URL: "https://stg.makam.co.id" };
   const opsi = { sekarang: new Date("2026-10-04T00:00:00Z"), sha: "x" };
 
   it("uses 10 minutes of patience for the hour's limit and 15 for a code to be read out when nothing is set, or the variable is empty", () => {
@@ -191,13 +191,13 @@ describe("the UAT runner asks the stack which environment it is, so a loopback p
   });
 
   it("still runs against a staging whose worker beat is stale (503): it settles where the stack is, not whether it is well", async () => {
-    const base = "https://dev.makam.co.id";
+    const base = "https://stg.makam.co.id";
     const diterima = await pastikanLingkunganBoleh(base, { ambil: tumpukan(base, { status: 503, isi: { ok: false, environment: "staging" } }) });
     expect(diterima).toBe("staging");
   });
 
   it("gives staging's basic auth to the health check when the runner has it", async () => {
-    const base = "https://dev.makam.co.id";
+    const base = "https://stg.makam.co.id";
     const auth = `Basic ${Buffer.from("makam:rahasia").toString("base64")}`;
     const ambil = tumpukan(base, { isi: { environment: "staging" } }, { auth });
     await expect(pastikanLingkunganBoleh(base, { ambil, basicAuth: { username: "makam", password: "rahasia" } })).resolves.toBe("staging");
