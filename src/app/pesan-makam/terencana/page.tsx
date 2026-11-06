@@ -223,7 +223,7 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
         <div className="mt-auto flex items-end justify-between gap-3 pt-2">
           <div>
             <p className="text-body text-ivory/80">mulai</p>
-            <p className="font-heading text-3xl font-extrabold tabular-nums text-sand">{kartu.mulai ?? "belum ada harga"}</p>
+            <p className="font-heading text-3xl font-extrabold whitespace-nowrap tabular-nums text-sand">{kartu.mulai ?? "belum ada harga"}</p>
             <p className="text-body text-ivory/80">Hak Pakai; biaya pemakaman dibayar nanti</p>
           </div>
           {kartu.fasilitas.length > 0 ? (
@@ -240,10 +240,10 @@ function Kartu({ kartu }: { kartu: LokasiView }) {
             </ul>
           ) : null}
         </div>
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-          <span className="text-small text-foreground">{kartu.tersedia}</span>
-          <span className="inline-flex items-center gap-1 text-body font-semibold text-primary">
-            Pilih tipe kavling <ArrowRight className="size-4" aria-hidden />
+        <div className="flex flex-wrap items-center justify-between gap-4 border-t border-ivory/20 pt-4">
+          <span className="text-body text-ivory/85">{kartu.tersedia}</span>
+          <span className="inline-flex h-14 items-center gap-2 rounded-xl bg-ivory px-8 text-lg font-bold text-forest group-hover:bg-ivory/90">
+            Pilih tipe kavling <ArrowRight className="size-5" aria-hidden />
           </span>
         </div>
       </div>
