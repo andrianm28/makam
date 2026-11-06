@@ -10,7 +10,8 @@ import { globalTariffLabels } from "./format";
 import { GlobalTariffForm } from "./tarif-forms";
 
 const descriptions: Record<GlobalTariffKey, string> = {
-  biaya_layanan_platform: "Biaya flat Operator, satu per Tagihan pesanan di Lokasi Mitra; ditampilkan terpisah dari tarif Lokasi Mitra.",
+  biaya_layanan_platform: "Bagian platform dari biaya flat Operator, satu per Tagihan pesanan di Lokasi Mitra; ditampilkan terpisah dari tarif Lokasi Mitra.",
+  biaya_administrasi: "Bagian administrasi dari biaya flat Operator, ditagih bersama bagian platform sebagai satu Biaya Layanan Platform; tampil terpisah sebagai Biaya administrasi. Kosong berarti Rp 0.",
   biaya_pengurusan_pemakaman: "Biaya jasa Operator untuk Pengurusan di TPU DKI yang mengatur pemakaman.",
   biaya_pengurusan_berkas: "Biaya jasa Operator untuk Pengurusan yang hanya mengurus berkas (Pengurusan IPTM, Perpanjangan TPU).",
   retribusi_pemda_iptm: "Retribusi Pemda untuk IPTM, ditagih sesuai biaya dan disetor ke Pemda; Rp 0 bila Pemda tidak memungut.",
@@ -24,7 +25,7 @@ export default async function TarifGlobalPage() {
   const today = wibDateOf(now);
   // The Pengurusan fees and the Retribusi Pemda are DKI TPU amounts, hidden while TPU is taken out of the product (ADR 0012).
   const tpuTerbuka = rilisTerbuka("tpu");
-  const keys = GLOBAL_TARIFF_KEYS.filter((key) => tpuTerbuka || key === "biaya_layanan_platform");
+  const keys = GLOBAL_TARIFF_KEYS.filter((key) => tpuTerbuka || key === "biaya_layanan_platform" || key === "biaya_administrasi");
   const books = await Promise.all(
     keys.map(async (key) => ({
       key,

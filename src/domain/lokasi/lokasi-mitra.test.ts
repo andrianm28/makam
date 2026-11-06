@@ -229,18 +229,13 @@ describe("the pengelola's phone and email of a Lokasi Mitra", () => {
 });
 
 describe("the document checklist of a Lokasi Mitra", () => {
-  it("defaults to the death certificate, the death report letter and the KTP + KK of the Almarhum and of the Pemesan", async () => {
+  it("defaults to the KTP Almarhum, the Kartu Keluarga and the KTP Pemesan, with no death certificate (rapat Ira, 6 Nov 2026)", async () => {
     const setup = lokasiOnTestDatabase(db);
     const { actor: admin } = await signedInAdminPlatform(setup);
 
     const created = await newLokasiMitra(setup, admin);
 
-    expect(created.documentChecklist).toEqual([
-      "Surat keterangan kematian dari RS / Puskesmas",
-      "Surat pengantar / laporan kematian dari Lurah atau RT/RW",
-      "KTP dan KK Almarhum",
-      "KTP dan KK Pemesan",
-    ]);
+    expect(created.documentChecklist).toEqual(["KTP Almarhum", "Kartu Keluarga", "KTP Pemesan"]);
   });
 
   it("is editable per Lokasi Mitra: another Lokasi keeps the default, and the change is audited", async () => {

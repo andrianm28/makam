@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PilihLayanan } from "@/components/layanan/pilih-layanan";
 import { itemDariPilihan, subtotalPilihan, type OpsiLayananView, type PilihanPerLayanan } from "@/lib/layanan-pilihan";
+import { simpanBerkasTertunda } from "@/components/makam/berkas-tertunda";
 import { Progress } from "../progress";
 import { Field, Fieldset, Pilihan } from "../form";
 import { kirimPesanan, verifikasiKodeMasukDanKirim } from "../actions";
@@ -55,15 +56,21 @@ export interface DataKirimProps {
    * Tambahan; empty when it offers none or its burial is already a complete package (dri, 2026-11-02).
    */
   layananHariH?: OpsiLayananView[];
+  /** The documents this Lokasi Mitra asks for (its own checklist), attached here before Kirim (rapat Ira, 6 Nov 2026). */
+  dokumen?: string[];
 }
 
+/** The document types and size the family upload accepts (Pemesanan's own: photos or a PDF, 10 MB). */
+const JENIS_BERKAS = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+const MAKS_BERKAS = 10 * 1024 * 1024;
+
 /**
- * "Data & kirim": the family, the Almarhum, the Pemegang Hak (defaulting to
- * "Saya sendiri", never the Almarhum), the note that nothing is paid now, and
+ * "Data & kirim": the family, the Almarhum, the documents the Lokasi Mitra asks
+ * for (attached before Kirim; the Pemesan is the order's Pemegang Hak), the note that nothing is paid now, and
  * the Kode Masuk that opens inline under the form when there is no session yet.
  * The draft lives here, so the Kode Masuk step can place the order with it.
  */
-export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact, jumlahJamPembayaran, layananHariH = [] }: DataKirimProps) {
+export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, csContact, jumlahJamPembayaran, layananHariH = [], dokumen = [] }: DataKirimProps) {
   const router = useRouter();
   // The rebook's data is already in `draft` (the page filled it from the declined
   // order), so the family types nothing twice: only the wish and the holder are
@@ -71,13 +78,39 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
   const [isi, setisi] = useState<IsiAwal>({ ...draft, keinginanPenempatan: "", jenisKelaminAlmarhum: "", alamatRumahDuka: "" });
   // Layanan Tambahan are opt-in (dri, 2026-11-02): nothing is chosen, or sent, until the family opens them.
   const [tambahLayanan, setTambahLayanan] = useState(false);
-  const [pemegangHak, setPemegangHak] = useState<DraftSaatDuka["pemegangHak"]>({ mode: "pemesan" });
+  // Pemegang Hak is no longer asked (rapat Ira, 6 Nov 2026: the certificate is in the Almarhum's name; "Pemesan" is enough).
+  const pemegangHak: DraftSaatDuka["pemegangHak"] = { mode: "pemesan" };
+  const [berkas, setBerkas] = useState<Record<string, File>>({});
+  const [dokumenSalah, setDokumenSalah] = useState<Record<string, string>>({});
   const [pilihanLayanan, setPilihanLayanan] = useState<PilihanPerLayanan>({});
   const [hasil, setHasil] = useState<KirimState>(initialKirimState);
   const [rincianTerbuka, setRincianTerbuka] = useState(false);
   const [mengirim, kirim] = useTransition();
 
+  /** One document chosen or cleared: checked for type and size here, then kept for the order page to upload. */
+  const pilihBerkas = (nama: string, file: File | null) => {
+    const berikut = { ...berkas };
+    const salahBaru = { ...dokumenSalah };
+    delete salahBaru[nama];
+    if (file && !JENIS_BERKAS.includes(file.type)) salahBaru[nama] = "Pilih foto (JPG, PNG, WEBP) atau PDF.";
+    else if (file && file.size > MAKS_BERKAS) salahBaru[nama] = "Berkas lebih dari 10 MB. Pilih yang lebih kecil.";
+    if (file && !salahBaru[nama]) berikut[nama] = file;
+    else delete berikut[nama];
+    setBerkas(berikut);
+    setDokumenSalah(salahBaru);
+    simpanBerkasTertunda(lokasi.id, Object.entries(berikut).map(([namaBerkas, isiBerkas]) => ({ nama: namaBerkas, file: isiBerkas })));
+  };
+  /** Every document the Lokasi Mitra asks for is attached before Kirim; otherwise each missing one says so. */
+  const dokumenLengkap = (): boolean => {
+    const kurang = dokumen.filter((nama) => !berkas[nama]);
+    if (kurang.length === 0) return true;
+    setDokumenSalah({ ...dokumenSalah, ...Object.fromEntries(kurang.map((nama) => [nama, dokumenSalah[nama] ?? "Lampirkan dokumen ini."])) });
+    document.getElementById(`dokumen-${dokumen.indexOf(kurang[0])}`)?.focus();
+    return false;
+  };
+
   const kirimPesananSekarang = () =>
+    dokumenLengkap() &&
     kirim(async () => {
       const hasilKirim = await kirimPesanan(draftLengkap(isi, pemegangHak, (tambahLayanan ? itemDariPilihan(layananHariH, pilihanLayanan, "hari_h") : [])));
       setHasil(hasilKirim);
@@ -267,65 +300,26 @@ export function DataKirim({ draft, kartu, lokasi, sudahMasuk, mintaKodeMasuk, cs
           </Field>
         </Fieldset>
 
-        <Fieldset legend="Pemegang Hak" note="Yang berhak atas makam ini, misalnya untuk memperpanjang atau pemakaman berikutnya.">
-          <Pilihan
-            label="Pemegang Hak"
-            value={pemegangHak.mode}
-            onChange={(mode) =>
-              setPemegangHak(
-                mode === "pemesan"
-                  ? { mode: "pemesan" }
-                  : { mode: "lain", name: "", phoneNumber: "", email: "" },
-              )
-            }
-            options={[
-              ["pemesan", "Saya sendiri"],
-              ["lain", "Anggota keluarga lain"],
-            ]}
-          />
-          {pemegangHak.mode === "lain" ? (
-            <div className="flex flex-col gap-4 border-t border-border pt-4">
-              <Field id="ph-nama" label="Nama Pemegang Hak" error={salah["pemegangHak.name"]}>
+        {dokumen.length > 0 ? (
+          <Fieldset
+            legend="Dokumen"
+            note="Dilampirkan sekarang agar data lengkap saat Lokasi Mitra mengonfirmasi. Foto atau pindai, JPG, PNG, WEBP atau PDF, maksimal 10 MB per berkas."
+          >
+            {dokumen.map((nama, indeks) => (
+              <Field key={nama} id={`dokumen-${indeks}`} label={nama} error={dokumenSalah[nama]}>
                 <Input
-                  id="ph-nama"
+                  id={`dokumen-${indeks}`}
+                  type="file"
+                  accept={JENIS_BERKAS.join(",")}
                   required
-                  value={pemegangHak.name}
-                  onChange={(event) => setPemegangHak({ ...pemegangHak, name: event.target.value })}
-                  aria-invalid={salah["pemegangHak.name"] ? true : undefined}
+                  onChange={(event) => pilihBerkas(nama, event.target.files?.[0] ?? null)}
+                  aria-invalid={dokumenSalah[nama] ? true : undefined}
                   className="h-12 text-body-lg md:text-body-lg"
                 />
               </Field>
-              <Field id="ph-telepon" label="Nomor telepon Pemegang Hak" error={salah["pemegangHak.phoneNumber"]}>
-                <Input
-                  id="ph-telepon"
-                  type="tel"
-                  required
-                  value={pemegangHak.phoneNumber}
-                  onChange={(event) => setPemegangHak({ ...pemegangHak, phoneNumber: event.target.value })}
-                  inputMode="tel"
-                  aria-invalid={salah["pemegangHak.phoneNumber"] ? true : undefined}
-                  className="h-12 text-body-lg md:text-body-lg"
-                />
-              </Field>
-              <Field
-                id="ph-email"
-                label="Email Pemegang Hak"
-                optional
-                error={salah["pemegangHak.email"]}
-                hint="Bila diisi, makam ini tampil di Akun dengan email tersebut."
-              >
-                <Input
-                  id="ph-email"
-                  type="email"
-                  value={pemegangHak.email}
-                  onChange={(event) => setPemegangHak({ ...pemegangHak, email: event.target.value })}
-                  aria-invalid={salah["pemegangHak.email"] ? true : undefined}
-                  className="h-12 text-body-lg md:text-body-lg"
-                />
-              </Field>
-            </div>
-          ) : null}
-        </Fieldset>
+            ))}
+          </Fieldset>
+        ) : null}
 
         {layananHariH.length > 0 ? (
           <Fieldset

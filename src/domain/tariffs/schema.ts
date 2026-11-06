@@ -29,11 +29,14 @@ const inRupiahRange = (column: unknown) => sql`${column} between 0 and ${sql.raw
 
 /**
  * The global tariffs, each its own price book (spec, Tariffs): the Biaya
- * Layanan Platform (one flat rate), the DKI Biaya Pengurusan for a Pengurusan
+ * Layanan Platform (one flat rate, in two parts: the platform part and the
+ * Biaya Administrasi), the DKI Biaya Pengurusan for a Pengurusan
  * that arranges a burial and for filing only, and the Retribusi Pemda for an IPTM.
  */
 export const globalTariffKeys = [
   "biaya_layanan_platform",
+  /** The administration part of the Biaya Layanan Platform (rapat Ira, 6 Nov 2026); none entered is Rp 0. */
+  "biaya_administrasi",
   "biaya_pengurusan_pemakaman",
   "biaya_pengurusan_berkas",
   "retribusi_pemda_iptm",

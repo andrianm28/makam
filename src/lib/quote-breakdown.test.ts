@@ -25,7 +25,7 @@ describe("an all-in price's parts, in one line", () => {
           tenure: { kind: "tahun", years: 20 },
           amount: 8_500_000,
         }),
-        line({ ...base, ...operator, kind: "biaya_layanan_platform", amount: 250_000 }),
+        line({ ...base, ...operator, kind: "biaya_layanan_platform", amount: 250_000, bagian: { platform: 250_000, administrasi: 0 } }),
       ],
     };
 

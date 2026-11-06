@@ -34,7 +34,7 @@ export function ContentParagraphs({ paragraphs }: { paragraphs: readonly string[
 }
 
 /**
- * The way out of a content page: the person, the answers, and the Lokasi. The
+ * The way out of a content page: the person, the answers, and Pesan Sekarang (where the Lokasi Mitra are browsed now). The
  * page's own link is left out, so a reader is never offered where they already
  * are — the labels here are the content pages' own titles.
  */
@@ -42,7 +42,7 @@ export function ContentPageFooter({ current }: { current: string }) {
   const links = [
     { href: "/hubungi-kami", label: "Hubungi Kami" },
     { href: "/faq", label: "FAQ" },
-    { href: "/lokasi", label: "Daftar Lokasi" },
+    { href: "/pesan-makam/saat-duka", label: "Pesan Sekarang" },
   ].filter((link) => link.label !== current);
 
   return (

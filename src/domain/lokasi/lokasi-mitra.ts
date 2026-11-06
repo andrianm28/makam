@@ -20,22 +20,19 @@ import {
   type LokasiFlagsInput,
   type LokasiPolicies,
 } from "./policies";
+import { infoKartuSchema, type InfoKartu } from "./skema-info-kartu";
 import { lokasiProfileSchema, type LokasiFacility, type LokasiProfileInput } from "./profile";
 import { lokasiMitra as lokasiMitraTable, lokasiMitraStatuses } from "./schema";
 
 export type LokasiMitraStatus = (typeof lokasiMitraStatuses)[number];
 
 /**
- * The document checklist a new Lokasi Mitra starts with (spec, Lokasi): the
- * death certificate from the RS / Puskesmas, the death report letter from the
- * Lurah or RT/RW, and the KTP + KK of the Almarhum and of the Pemesan.
+ * The document checklist a new Lokasi Mitra starts with (rapat Ira, 6 Nov
+ * 2026): the KTP of the Almarhum, the Kartu Keluarga and the KTP of the
+ * Pemesan, attached in the order form before Kirim. The death certificate is
+ * no longer asked: it is usually issued only after the burial.
  */
-export const DEFAULT_DOCUMENT_CHECKLIST: readonly string[] = [
-  "Surat keterangan kematian dari RS / Puskesmas",
-  "Surat pengantar / laporan kematian dari Lurah atau RT/RW",
-  "KTP dan KK Almarhum",
-  "KTP dan KK Pemesan",
-];
+export const DEFAULT_DOCUMENT_CHECKLIST: readonly string[] = ["KTP Almarhum", "Kartu Keluarga", "KTP Pemesan"];
 
 /** A Lokasi Mitra's onboarding record, as the Lokasi module hands it out. */
 export interface LokasiMitra {
@@ -65,6 +62,8 @@ export interface LokasiMitra {
    */
   bankAccount?: BankAccount | null;
   documentChecklist: string[];
+  /** Agama, description, luas lahan, krematorium for the Pilih makam card. */
+  infoKartu: InfoKartu;
   policies: LokasiPolicies;
   flags: LokasiFlags;
 }
@@ -259,6 +258,24 @@ export async function setDocumentChecklist(
     values: { documentChecklist },
     before: { documentChecklist: row.documentChecklist },
     after: { documentChecklist },
+  }));
+}
+
+export type SetInfoKartuResult = WriteResult | { ok: false; reason: "info_kartu_tidak_valid" };
+
+/**
+ * Admin Platform records a Lokasi Mitra's Info Kartu (agama accepted,
+ * description, luas lahan, krematorium) from the mitra's brosur, audited as a
+ * profile change. A value outside the schema changes nothing.
+ */
+export async function setInfoKartu(deps: LokasiDeps, by: Actor, lokasiId: string, input: InfoKartu): Promise<SetInfoKartuResult> {
+  const parsed = infoKartuSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, reason: "info_kartu_tidak_valid" };
+  const infoKartu: InfoKartu = { ...parsed.data, agama: [...new Set(parsed.data.agama)] };
+  return writeLokasiMitra(deps, by, lokasiId, "lokasi.ubah_profil", (row) => ({
+    values: { infoKartu },
+    before: { infoKartu: row.infoKartu },
+    after: { infoKartu },
   }));
 }
 
@@ -478,6 +495,7 @@ function toLokasiMitra(row: Row): LokasiMitra {
       row.dikunjungiOn !== null ? { photos: row.visitPhotos ?? [], visitedOn: row.dikunjungiOn } : null,
     bankAccount: bankAccountOf(row),
     documentChecklist: row.documentChecklist,
+    infoKartu: row.infoKartu,
     policies: row.policies,
     flags: row.flags,
   };

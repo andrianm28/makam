@@ -7,7 +7,8 @@ export function formatTenure(tenure: Tenure): string {
 
 /** How each global tariff is named on screen (CONTEXT.md). */
 export const globalTariffLabels: Record<GlobalTariffKey, string> = {
-  biaya_layanan_platform: "Biaya Layanan Platform",
+  biaya_layanan_platform: "Biaya Layanan Platform (bagian platform)",
+  biaya_administrasi: "Biaya Administrasi",
   biaya_pengurusan_pemakaman: "Biaya Pengurusan (dengan pemakaman)",
   biaya_pengurusan_berkas: "Biaya Pengurusan (hanya berkas)",
   retribusi_pemda_iptm: "Retribusi Pemda (IPTM)",

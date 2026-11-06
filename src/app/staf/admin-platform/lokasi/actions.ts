@@ -15,6 +15,8 @@ import {
   type PublishLokasiMitraResult,
   type TayangkanBelumTerverifikasiResult,
   type RemoveAdminLokasiFromLokasiResult,
+  agamaDiterima,
+  type SetInfoKartuResult,
   type SetPoliciesResult,
   type UpdateProfileResult,
   type UploadAgreementResult,
@@ -35,6 +37,7 @@ type LokasiRefusal = Refused<
   | CreateLokasiMitraResult
   | UpdateProfileResult
   | SetPoliciesResult
+  | SetInfoKartuResult
   | ChangeBankAccountResult
   | UploadAgreementResult
   | InviteAdminLokasiResult
@@ -50,6 +53,7 @@ type LokasiRefusal = Refused<
 const refusalMessages: Record<LokasiRefusal, string> = {
   tidak_berwenang: guardMessage("tidak_berwenang"),
   tidak_ditemukan: "Lokasi Mitra ini tidak ditemukan.",
+  info_kartu_tidak_valid: "Periksa lagi info kartunya: deskripsi paling panjang 600 huruf, luas lahan 60 huruf.",
   profil_tidak_valid: "Periksa lagi profilnya: nama, alamat dan kota wajib, dan pin harus di Indonesia.",
   kebijakan_tidak_valid:
     "Nilai kebijakan di luar batas: periksa lagi (K minimal 1, refund 0–100%, tumpang minimal 2 lapis).",
@@ -210,6 +214,38 @@ export async function simpanDokumen(_previous: FormState, formData: FormData): P
     run: (actor, data) =>
       serverRuntime().lokasi.setDocumentChecklist(actor, data.lokasiId, { documentChecklist: data.documents.split(/\r?\n/) }),
     saved: "Daftar dokumen tersimpan.",
+  });
+}
+
+const agamaField = z.array(z.enum(agamaDiterima)).max(agamaDiterima.length);
+const infoKartuFormSchema = z.object({
+  lokasiId,
+  agama: agamaField,
+  deskripsi: z.string().trim().max(600),
+  luasLahan: z.string().trim().max(60),
+  krematorium: checkbox,
+});
+
+/** Admin Platform records the Info Kartu the Pilih makam card shows (rapat Ira, 6 Nov 2026). */
+export async function simpanInfoKartu(_previous: FormState, formData: FormData): Promise<FormState> {
+  return lokasiWrite({
+    action: "lokasi.ubah",
+    schema: infoKartuFormSchema,
+    input: {
+      lokasiId: formData.get("lokasiId"),
+      agama: formData.getAll("agama"),
+      deskripsi: formData.get("deskripsi") ?? "",
+      luasLahan: formData.get("luasLahan") ?? "",
+      krematorium: formData.get("krematorium") ?? undefined,
+    },
+    run: (actor, data) =>
+      serverRuntime().lokasi.setInfoKartu(actor, data.lokasiId, {
+        agama: data.agama,
+        deskripsi: data.deskripsi,
+        luasLahan: data.luasLahan,
+        krematorium: data.krematorium,
+      }),
+    saved: "Info kartu tersimpan.",
   });
 }
 

@@ -1,5 +1,5 @@
 /**
- * "Pilih makam": the city filter, the TPU section and the type chip over the
+ * "Pilih makam": every city at once, the TPU section and the type chip over the
  * combined list (the review's finding that a remembered city or a deep link
  * highlighted a chip without filtering anything).
  */
@@ -42,46 +42,31 @@ async function denganTpu(): Promise<{ setup: PemesananSetup; barat: Awaited<Retu
   return prepared;
 }
 
-describe("the city filter on Pilih makam", () => {
-  it("a first-time visitor sees every Lokasi Mitra, cheapest all-in total first", async () => {
+describe("Pilih makam lists every city at once (dri, 6 Nov 2026: the agama filter replaced the city filter)", () => {
+  it("a first-time visitor sees every Lokasi Mitra of every city, cheapest all-in total first", async () => {
     const { setup } = await duaKota();
 
-    const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "" }, modul(setup));
+    const layar = await layarPilihMakam({ lokasiId: "", jenis: "" }, modul(setup));
 
-    expect(layar.kota).toBeNull();
     expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Timur", "Makam Barat"]);
-    expect(layar.semuaKota).toEqual(["Kota Jakarta Barat", "Kota Jakarta Timur"]);
   });
 
-  it("the city the visitor chose last time really leaves the other city's cards out", async () => {
+  it("a city remembered from an earlier visit no longer leaves the other city's cards out", async () => {
     const { setup } = await duaKota();
     browser.store([{ name: KOTA_PILIHAN, value: "Kota Jakarta Barat" }]);
 
-    const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "" }, modul(setup));
+    const layar = await layarPilihMakam({ lokasiId: "", jenis: "" }, modul(setup));
 
-    expect(layar.kota).toBe("Kota Jakarta Barat");
-    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Barat"]);
+    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Timur", "Makam Barat"]);
   });
 
-  it("a deep link filters to the Lokasi Mitra's own city, ahead of the city remembered", async () => {
+  it("a deep link keeps the other cities on the list and names the Lokasi Mitra it came from", async () => {
     const { setup, barat } = await duaKota();
-    browser.store([{ name: KOTA_PILIHAN, value: "Kota Jakarta Timur" }]);
 
-    const layar = await layarPilihMakam({ kota: "", lokasiId: barat.lokasiMitra.id, jenis: "" }, modul(setup));
+    const layar = await layarPilihMakam({ lokasiId: barat.lokasiMitra.id, jenis: "" }, modul(setup));
 
-    expect(layar.kota).toBe("Kota Jakarta Barat");
     expect(layar.asal?.id).toBe(barat.lokasiMitra.id);
-    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Barat"]);
-  });
-
-  it("the chip in the URL decides over both, and the list follows that city", async () => {
-    const { setup, barat } = await duaKota();
-    browser.store([{ name: KOTA_PILIHAN, value: "Kota Jakarta Timur" }]);
-
-    const layar = await layarPilihMakam({ kota: "Kota Jakarta Timur", lokasiId: barat.lokasiMitra.id, jenis: "" }, modul(setup));
-
-    expect(layar.kota).toBe("Kota Jakarta Timur");
-    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Timur"]);
+    expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Timur", "Makam Barat"]);
   });
 });
 
@@ -89,7 +74,7 @@ describe("the TPU section and the type chip on Pilih makam", () => {
   it("shows every TPU that is taking new plots, priced by the TPU section and never by a Lokasi Mitra", async () => {
     const { setup } = await denganTpu();
 
-    const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "" }, modul(setup));
+    const layar = await layarPilihMakam({ lokasiId: "", jenis: "" }, modul(setup));
 
     // "TPU Penuh" is not taking new plots, so it is not on the list at all.
     expect(layar.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Barat", "TPU Kober Timur"]);
@@ -100,24 +85,20 @@ describe("the TPU section and the type chip on Pilih makam", () => {
     expect(layar.tpu[0].konfirmasi).toBe("Dikonfirmasi paling lambat 1 Oktober 2026, 11.00 WIB");
   });
 
-  it("filters the combined list by the chip, and the city filter leaves the TPUs too", async () => {
+  it("filters the combined list by the chip", async () => {
     const { setup } = await denganTpu();
 
-    const semua = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "" }, modul(setup));
+    const semua = await layarPilihMakam({ lokasiId: "", jenis: "" }, modul(setup));
     expect(semua.jenis).toBe("semua");
     expect(semua.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Timur", "Makam Barat"]);
 
-    const tpuSaja = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "tpu_dki" }, modul(setup));
+    const tpuSaja = await layarPilihMakam({ lokasiId: "", jenis: "tpu_dki" }, modul(setup));
     expect(tpuSaja.jenis).toBe("tpu_dki");
     expect(tpuSaja.grup).toEqual([]);
 
-    const lokasiSaja = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "lokasi_mitra" }, modul(setup));
+    const lokasiSaja = await layarPilihMakam({ lokasiId: "", jenis: "lokasi_mitra" }, modul(setup));
     expect(lokasiSaja.jenis).toBe("lokasi_mitra");
     expect(lokasiSaja.tpu).toEqual([]);
-
-    const satuKota = await layarPilihMakam({ kota: "Kota Jakarta Barat", lokasiId: "", jenis: "semua" }, modul(setup));
-    expect(satuKota.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Barat"]);
-    expect(satuKota.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Barat"]);
   });
 });
 
@@ -144,7 +125,7 @@ describe("Pilih makam after a Tolak", () => {
   it("opens with the banner naming the Lokasi that refused, the TPU section and the type chip, all from one city filter", async () => {
     const { setup, fixture, lain, nomor } = await setelahTolak();
 
-    const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+    const layar = await layarPilihMakam({ lokasiId: "", jenis: "", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
 
     expect(layar.pemesanUlang?.banner).toEqual({
       lokasi: { id: fixture.lokasiMitra.id, name: "Makam Wakaf Al-Ikhlas" },
@@ -156,7 +137,6 @@ describe("Pilih makam after a Tolak", () => {
     // The TPU section survives a Tolak: a TPU is not the Lokasi Mitra that refused.
     expect(layar.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Timur"]);
     // One city filter for all of it: the refusing Lokasi Mitra's own city.
-    expect(layar.kota).toBe("Kota Jakarta Timur");
     expect(layar.jenis).toBe("semua");
     expect(layar.dari).toBe(nomor);
   });
@@ -164,14 +144,14 @@ describe("Pilih makam after a Tolak", () => {
   it("keeps the Tolak under every type chip: the refusing Lokasi Mitra stays out, and the banner stays", async () => {
     const { setup, fixture, nomor } = await setelahTolak();
 
-    const tpuSaja = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "tpu_dki", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+    const tpuSaja = await layarPilihMakam({ lokasiId: "", jenis: "tpu_dki", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
     expect(tpuSaja.jenis).toBe("tpu_dki");
     expect(tpuSaja.grup).toEqual([]);
     expect(tpuSaja.tpu.map((satu) => satu.tpuName)).toEqual(["TPU Kober Timur"]);
     expect(tpuSaja.pemesanUlang?.banner.lokasi.name).toBe("Makam Wakaf Al-Ikhlas");
     expect(tpuSaja.dari).toBe(nomor);
 
-    const lokasiSaja = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "lokasi_mitra", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+    const lokasiSaja = await layarPilihMakam({ lokasiId: "", jenis: "lokasi_mitra", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
     expect(lokasiSaja.jenis).toBe("lokasi_mitra");
     expect(lokasiSaja.tpu).toEqual([]);
     expect(lokasiSaja.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Sawah Indah"]);
@@ -181,7 +161,7 @@ describe("Pilih makam after a Tolak", () => {
   it("still leaves the Lokasi Mitra that refused out when the link also names it", async () => {
     const { setup, fixture, nomor } = await setelahTolak();
 
-    const layar = await layarPilihMakam({ kota: "Kota Jakarta Timur", lokasiId: fixture.lokasiMitra.id, jenis: "", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
+    const layar = await layarPilihMakam({ lokasiId: fixture.lokasiMitra.id, jenis: "", dari: nomor, pemesan: fixture.pemesan }, modul(setup));
 
     expect(layar.grup.map((satu) => satu.lokasi.name)).toEqual(["Makam Sawah Indah"]);
   });
@@ -195,7 +175,7 @@ describe("Pilih makam after a Tolak", () => {
       { dari: nomor, pemesan: tetangga },
       { dari: nomor, pemesan: null },
     ]) {
-      const layar = await layarPilihMakam({ kota: "", lokasiId: "", jenis: "", ...params }, modul(setup));
+      const layar = await layarPilihMakam({ lokasiId: "", jenis: "", ...params }, modul(setup));
 
       expect(layar.pemesanUlang).toBeNull();
       expect(layar.dari).toBeNull();

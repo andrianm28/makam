@@ -29,8 +29,10 @@ import {
   lokasiMitraCountsByStatus,
   readLokasiMitra,
   setDocumentChecklist,
+  setInfoKartu,
   setPoliciesAndFlags,
   updateProfile,
+  type SetInfoKartuResult,
   type UpdateProfileResult,
   type BankAccount,
   type ChangeBankAccountResult,
@@ -239,6 +241,15 @@ export {
 /** Every Lokasi Mitra status: Belum Tayang (set here), Terverifikasi (publish gate, ticket 16), Ditangguhkan and Berhenti (ticket 59). */
 export { lokasiMitraStatuses as LOKASI_MITRA_STATUSES } from "./schema";
 export {
+  agamaDiterima,
+  infoKartuSchema,
+  labelAgama,
+  INFO_KARTU_KOSONG,
+  type Agama,
+  type InfoKartu,
+} from "./skema-info-kartu";
+import type { InfoKartu } from "./skema-info-kartu";
+export {
   lokasiFacilities,
   lokasiProfileSchema,
   type LokasiFacility,
@@ -257,6 +268,7 @@ export type {
   LokasiMitraSummary,
   NewLokasiMitra,
   WriteResult,
+  SetInfoKartuResult,
 } from "./lokasi-mitra";
 export type {
   CekDenahRecord,
@@ -317,6 +329,8 @@ export interface Lokasi {
   tandaiDataContoh(by: Actor, lokasiId: string, input: TandaiDataContohInput): Promise<TandaiDataContohResult>;
   /** Admin Platform replaces the document checklist, audited. */
   setDocumentChecklist(by: Actor, lokasiId: string, input: { documentChecklist: string[] }): Promise<WriteResult>;
+  /** Admin Platform records the Info Kartu (agama, description, luas lahan, krematorium) the Pilih makam card shows, audited. */
+  setInfoKartu(by: Actor, lokasiId: string, input: InfoKartu): Promise<SetInfoKartuResult>;
   /** Admin Platform sets the policies and flags together, audited; values outside the rules are refused. */
   setPoliciesAndFlags(
     by: Actor,
@@ -543,6 +557,7 @@ export function createLokasi(deps: LokasiModuleDeps): Lokasi {
     updateProfile: (by, lokasiId, input, options) => updateProfile(deps, by, lokasiId, input, options),
     tandaiDataContoh: (by, lokasiId, input) => tandaiDataContoh(deps, by, lokasiId, input),
     setDocumentChecklist: (by, lokasiId, input) => setDocumentChecklist(deps, by, lokasiId, input),
+    setInfoKartu: (by, lokasiId, input) => setInfoKartu(deps, by, lokasiId, input),
     setPoliciesAndFlags: (by, lokasiId, input) => setPoliciesAndFlags(deps, by, lokasiId, input),
     changeBankAccount: (by, lokasiId, input) => changeBankAccount(deps, by, lokasiId, input),
     inviteAdminLokasi: (by, lokasiId, input) => inviteAdminLokasi(deps, by, lokasiId, input),

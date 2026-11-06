@@ -94,10 +94,34 @@ export const kontenKedukaan: Record<JenisKedukaan, KontenKedukaan> = {
   },
 };
 
-/** The six Layanan Kedukaan by their path segment. */
+/**
+ * Which Layanan Kedukaan the site offers now (rapat Ira, 6 Nov 2026): Rumah Duka
+ * takes requests; Jasa Cargo, Repatriasi and Bunga Duka Cita have no mitra or
+ * vendor yet and say "Segera hadir"; Mobil Jenazah and Peti Jenazah are part of
+ * a rumah duka package, so they are not offered on their own.
+ */
+export type TampilKedukaan = "aktif" | "segera" | "disembunyikan";
+export const tampilKedukaan: Record<Exclude<JenisKedukaan, "konsultasi">, TampilKedukaan> = {
+  rumah_duka: "aktif",
+  mobil_jenazah: "disembunyikan",
+  cargo_jenazah: "segera",
+  repatriasi_jenazah: "segera",
+  peti_jenazah: "disembunyikan",
+  bunga_duka_cita: "segera",
+};
+
+/** The Layanan Kedukaan the site shows (taking requests or "Segera hadir"), in the list's own order. */
+export function kedukaanTampil(): KontenKedukaan[] {
+  return (Object.keys(tampilKedukaan) as (keyof typeof tampilKedukaan)[])
+    .filter((jenis) => tampilKedukaan[jenis] !== "disembunyikan")
+    .map((jenis) => kontenKedukaan[jenis]);
+}
+
+/** A Layanan Kedukaan that takes requests, by its path segment; null for one that is "Segera hadir" or not offered. */
 export function kontenDariSlug(slug: string): KontenKedukaan | null {
   const satu = Object.values(kontenKedukaan).find((konten) => konten.slug === slug && konten.jenis !== "konsultasi");
-  return satu ?? null;
+  if (!satu || satu.jenis === "konsultasi") return null;
+  return tampilKedukaan[satu.jenis] === "aktif" ? satu : null;
 }
 
 export function hrefKedukaan(jenis: JenisKedukaan): string {

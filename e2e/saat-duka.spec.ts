@@ -4,7 +4,7 @@ import { lastEmailCode } from "./support/email-outbox";
 import { fromNewIp } from "./support/masuk";
 import { coldNumber } from "./support/numbers";
 import { seedE2eAdminPlatform } from "./support/admin-platform";
-import { seedSaatDukaLokasi } from "./support/saat-duka";
+import { seedSaatDukaLokasi, lampirkanDokumen } from "./support/saat-duka";
 
 /*
  * The Saat Duka wizard, both screens, on a stack the dev-only seed has given one
@@ -12,7 +12,7 @@ import { seedSaatDukaLokasi } from "./support/saat-duka";
  * family meets: pick a card, see the total and what it adds up to, fill the
  * form, prove the email with the Kode Masuk from the fake email outbox, and read
  * the Nomor Pemesanan and the timeline. The rules behind it (the all-in total,
- * the Tersedia count, the confirmation deadline, the Pemegang Hak, no Tagihan)
+ * the Tersedia count, the confirmation deadline, no Tagihan)
  * are the Pemesanan module's own tests, not this file's.
  */
 
@@ -24,9 +24,9 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   const email = coldEmail();
   const telepon = coldNumber();
 
-  // Screen 1: one list of cards, each with its own total, and the sticky bar.
+  // Screen 1: the grid of Lokasi Mitra cards; at ?lokasiId= its Pilih Tipe Kavling step, each tipe with its own total, and the sticky bar.
   await page.goto(lokasi ? `/pesan-makam/saat-duka?lokasiId=${lokasi.split("/").pop()}` : "/pesan-makam/saat-duka");
-  await expect(page.getByRole("heading", { name: "Pilih makam" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: lokasi ? "Pilih tipe kavling" : "Pilih makam" })).toBeVisible();
   await expect(page.getByRole("radio", { name: /Reguler 1 × 2 m/ })).toBeVisible();
   await expect(page.getByTestId("total-semua-biaya")).not.toHaveText("Pilih makam dulu");
 
@@ -49,7 +49,7 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   await page.getByLabel("Nama mendiang").fill("Siti Aminah");
   await page.getByRole("radio", { name: "Perempuan" }).click();
   await page.getByLabel("Tanggal wafat").fill("2026-09-30");
-  await expect(page.getByRole("radio", { name: "Saya sendiri" })).toHaveAttribute("aria-checked", "true");
+  await lampirkanDokumen(page);
   await fromNewIp(page);
   await page.getByRole("button", { name: "Kirim pesanan" }).first().click();
 
@@ -73,6 +73,9 @@ test("Saat Duka: pick a makam, send the order with a Kode Masuk, and follow it o
   await expect(page.getByText("Tagihan terbit setelah Lokasi Mitra mengonfirmasi")).toBeVisible();
   await expect(page.getByText(/jatuh tempo (sehari|tiga hari|\d+ jam) setelah pemakaman/)).toBeVisible();
   await expect(page.getByText("Siti Aminah")).toBeVisible();
+  // The documents attached on the form are uploaded by the order page itself.
+  await expect(page.getByText("Dokumen dari formulir sudah diproses.")).toBeVisible();
+  await expect(page.getByText("KTP Almarhum: terunggah.")).toBeVisible();
 
   // The Kode Masuk created the Akun: the order is now readable in Akun Saya.
   await page.goto("/akun");

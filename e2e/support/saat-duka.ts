@@ -32,3 +32,16 @@ export function seedSaatDukaLokasi(): string {
   if (!terbit) return "";
   return `/lokasi/${terbit[1]}`;
 }
+
+/** A 1×1 PNG, the smallest real image the family upload accepts. */
+const PNG_1X1 = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+);
+
+/** Attaches every document the seeded Lokasi Mitra asks for on "Data & kirim" (its default checklist), before Kirim. */
+export async function lampirkanDokumen(page: import("@playwright/test").Page): Promise<void> {
+  for (const nama of ["KTP Almarhum", "Kartu Keluarga", "KTP Pemesan"]) {
+    await page.getByLabel(nama).setInputFiles({ name: `${nama}.png`, mimeType: "image/png", buffer: PNG_1X1 });
+  }
+}

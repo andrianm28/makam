@@ -13,6 +13,7 @@ import type { CsContact } from "@/components/kode-masuk/state";
 import { tagihanStatusText } from "@/lib/billing-labels";
 import { documentPagePath } from "@/lib/document-links";
 import { formatTanggal, formatTanggalJam } from "@/lib/time/jakarta";
+import { UnggahBerkasTertunda } from "./unggah-berkas-tertunda";
 import { UnggahDokumenForm } from "./unggah-dokumen-form";
 import { RekeningPengembalianForm } from "./rekening-pengembalian-form";
 import { formatRupiah } from "@/lib/rupiah";
@@ -178,6 +179,7 @@ export default async function PesananPage({ params }: PageProps<"/pesanan/[nomor
       {order.dokumen.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-title-3 text-foreground">Dokumen yang diminta</h2>
+          <UnggahBerkasTertunda nomor={order.nomor} />
           <p className="text-small text-muted-foreground">
             Dokumen boleh menyusul, bahkan setelah pemakaman. Yang tidak boleh menunda pemakaman adalah pembayaran, dan
             Tagihan pun tidak menahannya.
