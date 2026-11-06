@@ -122,6 +122,8 @@ export async function ubahKeteranganJenisMakam(
   const now = deps.clock.now();
   return deps.audit.staffWrite(deps.db, async (tx, record) => {
     await lockLokasiTariffs(tx, jenisMakam.lokasiId);
+    // The "before" is read under the lock, so two corrections at once each record what the other left.
+    const sebelum = (await findJenisMakam(tx, jenisMakam.id)) ?? jenisMakam;
     const values = { description, updatedAt: now, updatedByAccountId: by.accountId };
     await tx
       .insert(tariffJenisMakamKeterangan)
@@ -132,7 +134,7 @@ export async function ubahKeteranganJenisMakam(
       action: "tarif.ubah_keterangan_jenis_makam",
       entity: { kind: "jenis_makam", id: jenisMakam.id },
       lokasiId: jenisMakam.lokasiId,
-      before: { name: jenisMakam.name, description: jenisMakam.description },
+      before: { name: sebelum.name, description: sebelum.description },
       after: { name: jenisMakam.name, description },
       reason: input.reason?.trim() || null,
     });

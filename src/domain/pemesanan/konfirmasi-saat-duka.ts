@@ -104,7 +104,7 @@ export async function konfirmasiSaatDuka(
   const harga = await deps.tariffs.quote(
     [
       { kind: "harga_hak_pakai", jenisMakamId: order.jenisMakamId },
-      { kind: "biaya_pemakaman", lokasiId: order.lokasiId, tumpang: false, jenisMakamId: order.jenisMakamId ?? undefined },
+      { kind: "biaya_pemakaman", lokasiId: order.lokasiId, tumpang: false, jenisMakamId: order.jenisMakamId },
       ...(layananSiap?.quoteLines ?? []),
     ],
     now,

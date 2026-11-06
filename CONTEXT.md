@@ -372,6 +372,7 @@ _Avoid_: Tarif disetujui, tarif final
 
 **Biaya Pemakaman**:
 A Lokasi Mitra's fee for carrying out one Pemakaman, charged on every burial including those under an existing Hak Pakai (tumpang may have its own amount).
+Admin Platform may give one Jenis Makam its own Biaya Pemakaman (dri, 6 Nov 2026), versioned like every Tarif: a burial on a new Hak Pakai of that Jenis Makam is charged that amount, a version with no amount returns it to the Lokasi Mitra's from its Tanggal Berlaku, and a tumpang always pays the Lokasi Mitra's. Admin Platform may also correct a Jenis Makam's keterangan (description), audited; a Tagihan carries the name only, so a correction changes nothing already issued.
 _Avoid_: Biaya gali, ongkos kubur
 
 **Biaya Layanan Platform**:

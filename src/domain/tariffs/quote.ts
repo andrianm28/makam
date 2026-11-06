@@ -435,8 +435,9 @@ export function denganBiayaJenis(
         : fromLokasi && { ...fromLokasi, ...times };
     if (!next) continue;
     const previous = merged.at(-1);
-    // A change that leaves the amount as it was is no change: the amount holds since the earlier one.
-    if (previous && previous.inForceFrom.getTime() !== next.inForceFrom.getTime() && previous.biayaPemakaman === next.biayaPemakaman && previous.biayaPemakamanTumpang === next.biayaPemakamanTumpang) continue;
+    // A change that leaves the amount as it was is no change: the amount holds since the earlier one. Only the
+    // amount counts: this list prices a non-tumpang line, so the tumpang amount (null from a Jenis) is not compared.
+    if (previous && previous.inForceFrom.getTime() !== next.inForceFrom.getTime() && previous.biayaPemakaman === next.biayaPemakaman) continue;
     // Of two changes at one instant, the later one is what holds then.
     if (previous && previous.inForceFrom.getTime() === next.inForceFrom.getTime()) merged.pop();
     merged.push(next);

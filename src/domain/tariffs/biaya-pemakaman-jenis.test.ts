@@ -90,6 +90,15 @@ describe("a Jenis Makam's own Biaya Pemakaman", () => {
     expect(await db.execute(sql`update tariff_biaya_pemakaman_jenis_version set biaya_pemakaman = 1`).catch(() => "ditolak")).toBe("ditolak");
   });
 
+  it("a Jenis Makam's own Biaya Pemakaman equal to the Lokasi's is no scheduled change", async () => {
+    const setup = tariffsOnTestDatabase(db);
+    const { admin, lokasiMitra, peace } = await grahaSentosa(setup);
+    await setup.tariffs.setBiayaPemakaman(admin, lokasiMitra.id, { biayaPemakaman: 9_600_000, biayaPemakamanTumpang: 5_000_000, effectiveOn: "2026-11-06", reason: null });
+    await setup.tariffs.setBiayaPemakamanJenis(admin, peace.id, { biayaPemakaman: 9_600_000, effectiveOn: "2026-12-01", reason: null });
+    const quoted = await setup.tariffs.quote([{ kind: "biaya_pemakaman", lokasiId: lokasiMitra.id, tumpang: false, jenisMakamId: peace.id }], wib("2026-11-15 10:00"));
+    expect(quoted.ok && quoted.lines.find((one) => one.kind === "biaya_pemakaman")).toMatchObject({ amount: 9_600_000, scheduledChange: null });
+  });
+
   it("the public Lokasi pricing shows a Jenis Makam's own Biaya Pemakaman on its card only", async () => {
     const setup = tariffsOnTestDatabase(db);
     const { admin, lokasiMitra, single, peace } = await grahaSentosa(setup);
