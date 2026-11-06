@@ -1,18 +1,73 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { CheckIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+/** The small uppercase label with a rule before it, over a section's big heading. */
+export function Eyebrow({ children, tengah = false, terang = false }: { children: ReactNode; tengah?: boolean; terang?: boolean }) {
+  return (
+    <p
+      className={cn(
+        "flex items-center gap-3 text-small font-bold tracking-widest uppercase",
+        terang ? "text-sand" : "text-forest",
+        tengah && "justify-center",
+      )}
+    >
+      <span className={cn("h-px w-6", terang ? "bg-sand" : "bg-forest")} aria-hidden />
+      {children}
+    </p>
+  );
+}
 
 /**
- * The full-width Forest band a public page opens with (rapat Ira, 6 Nov 2026: big type in bold blocks, green with
- * white text, in our own words): the page's one `h1`, its lead, and an optional action row under it.
+ * The band a public page opens with (dri, 6 Nov 2026: the reference site's layout, Makam's own brand): a light
+ * Forest-tinted band with the eyebrow, the page's one big `h1`, its lead, an optional checklist and pill actions, and
+ * an optional white card beside it (a CS or "need it now" card).
  */
-export function PageHero({ eyebrow, title, lead, children }: { eyebrow?: string; title: string; lead?: string; children?: ReactNode }) {
+export function PageHero({
+  eyebrow,
+  title,
+  lead,
+  poin,
+  children,
+  samping,
+}: {
+  eyebrow?: string;
+  title: string;
+  lead?: string;
+  poin?: readonly string[];
+  children?: ReactNode;
+  samping?: ReactNode;
+}) {
   return (
-    <section className="bg-forest text-ivory">
-      <div className="mx-auto flex max-w-(--page-max-width) flex-col gap-4 px-(--page-gutter) py-12 md:px-8 md:py-20">
-        {eyebrow ? <p className="text-small font-semibold tracking-wide text-sand uppercase">{eyebrow}</p> : null}
-        <h1 className="max-w-4xl font-heading text-4xl font-extrabold leading-tight tracking-tight text-balance md:text-6xl">{title}</h1>
-        {lead ? <p className="max-w-2xl text-lg text-ivory/85 md:text-xl">{lead}</p> : null}
-        {children ? <div className="mt-2 flex flex-wrap items-center gap-4">{children}</div> : null}
+    <section className="border-b border-border bg-brand-soft">
+      <div
+        className={cn(
+          "mx-auto grid max-w-(--page-max-width) gap-10 px-(--page-gutter) py-12 md:py-20",
+          samping && "lg:grid-cols-[1.3fr_1fr] lg:items-center",
+        )}
+      >
+        <div className="flex flex-col gap-5">
+          {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+          <h1 className="max-w-4xl font-heading text-4xl font-extrabold leading-tight tracking-tight text-foreground text-balance md:text-6xl">
+            {title}
+          </h1>
+          {lead ? <p className="max-w-2xl text-lg text-muted-foreground md:text-xl">{lead}</p> : null}
+          {poin && poin.length > 0 ? (
+            <ul className="flex flex-col gap-3">
+              {poin.map((satu) => (
+                <li key={satu} className="flex items-start gap-3 text-lg text-foreground">
+                  <span className="mt-0.5 inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-card text-forest">
+                    <CheckIcon className="size-4" aria-hidden />
+                  </span>
+                  {satu}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {children ? <div className="mt-2 flex flex-wrap items-center gap-4">{children}</div> : null}
+        </div>
+        {samping ? <div>{samping}</div> : null}
       </div>
     </section>
   );
