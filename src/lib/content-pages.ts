@@ -203,7 +203,7 @@ function faqSemua(legalName: string | null): FaqEntry[] {
     {
       question: "Pembatalan",
       answer:
-        "Pembatalan berlaku untuk Pemesanan Terencana yang sudah dibayar dan belum ada pemakaman di Petak Makam itu, atas permintaan Pemegang Hak. Pengembalian dana mengikuti kebijakan Lokasi Mitra tersebut, dan dikembalikan ke rekening asal. Untuk Pemesanan Saat Duka tidak ada pembatalan, karena pemakamannya sudah berjalan. Yang bisa diminta waktu itu adalah pengembalian Hak Pakai, dan itu diselesaikan langsung antara keluarga dengan pengelola Lokasi Mitra, tanpa makam.co.id.",
+        "Pembatalan berlaku untuk Pemesanan Terencana yang sudah dibayar dan belum ada pemakaman di Petak Makam itu, atas permintaan Pemegang Hak. Pengembalian dana mengikuti kebijakan Lokasi Mitra tersebut, dan dikembalikan ke rekening asal. Untuk Pemesanan Saat Duka tidak ada pembatalan, karena pemakamannya sudah berjalan. Yang bisa diminta waktu itu adalah pengembalian Hak Pakai, dan itu diajukan lewat CS makam.co.id, yang membicarakannya dengan pengelola Lokasi Mitra untuk keluarga.",
     },
     {
       question: "Perpanjangan",

@@ -18,15 +18,15 @@ export function catatanPerpanjanganText(catatan: CatatanPerpanjangan): string {
     case "hubungi_admin_lokasi":
       switch (catatan.sebab) {
         case "berakhir":
-          return "Hak Pakai ini sudah berakhir. Silakan hubungi Admin Lokasi.";
+          return "Hak Pakai ini sudah berakhir. Silakan hubungi CS makam.co.id.";
         case "dibatalkan":
-          return "Hak Pakai ini sudah dibatalkan. Silakan hubungi Admin Lokasi.";
+          return "Hak Pakai ini sudah dibatalkan. Silakan hubungi CS makam.co.id.";
         case "lewat_masa_tenggang":
-          return "Masa tenggang Hak Pakai ini sudah lewat. Silakan hubungi Admin Lokasi.";
+          return "Masa tenggang Hak Pakai ini sudah lewat. Silakan hubungi CS makam.co.id.";
         case "perlu_verifikasi":
-          return "Data Hak Pakai ini masih dilengkapi Admin Lokasi. Silakan hubungi Admin Lokasi.";
+          return "Data Hak Pakai ini masih dilengkapi. Silakan hubungi CS makam.co.id.";
         default:
-          return "Silakan hubungi Admin Lokasi untuk memperpanjang Hak Pakai ini.";
+          return "Silakan hubungi CS makam.co.id untuk memperpanjang Hak Pakai ini.";
       }
   }
 }
@@ -57,7 +57,7 @@ export function alasanPerpanjanganText(alasan: AlasanPerpanjangan): string {
     case "melebihi_batas_tagihan":
       return "Perpanjangan ini belum bisa dipesan lewat situs. Silakan hubungi CS.";
     case "kontak_pemegang_hak_kosong":
-      return "Data Pemegang Hak belum lengkap. Silakan hubungi Admin Lokasi.";
+      return "Data Pemegang Hak belum lengkap. Silakan hubungi CS makam.co.id.";
     case "tidak_boleh":
       return "Perpanjangan untuk Hak Pakai ini belum bisa dipesan.";
     case "bukan_pemegang_hak":
@@ -75,6 +75,6 @@ export function alasanPerpanjanganText(alasan: AlasanPerpanjangan): string {
     case "lead_time_melewati":
       return "Tanggal pengerjaan terlalu dekat: sebuah layanan butuh waktu persiapan setelah batas pembayaran Perpanjangan. Pilih tanggal yang lebih akhir.";
     case "tanpa_email":
-      return "Hak Pakai ini tidak punya email tercatat. Silakan ajukan lewat jalur berkas: hubungi Admin Lokasi atau CS.";
+      return "Hak Pakai ini tidak punya email tercatat. Silakan ajukan lewat jalur berkas: hubungi CS makam.co.id.";
   }
 }

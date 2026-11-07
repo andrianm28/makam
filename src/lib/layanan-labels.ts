@@ -118,7 +118,7 @@ export const layananOrderMessages: Record<AlasanTolakPesanan | "belum_masuk" | "
   // Hak Pakai may still be ordered for, by the owner's settled decision: with a
   // one-way block, one failed service would prevent every other service the family
   // has already paid for. So this sentence must not widen itself to cover it again.
-  hak_pakai_berakhir: "Hak Pakai di makam ini sudah Berakhir, jadi layanan tidak bisa dipesan. Hubungi pengelola Lokasi Mitra.",
+  hak_pakai_berakhir: "Hak Pakai di makam ini sudah Berakhir, jadi layanan tidak bisa dipesan. Hubungi CS makam.co.id.",
   layanan_tidak_tersedia: "Layanan ini tidak tersedia di Lokasi Mitra tersebut. Pilih dari daftar yang tersedia.",
   baris_tidak_bisa_ditagih: "Harga layanan ini belum bisa ditagihkan. Periksa tarif Lokasi Mitra ini.",
   lead_time_melewati: "Tanggal yang dipilih masih di dalam masa tunggu layanan. Pilih tanggal yang lebih jauh.",

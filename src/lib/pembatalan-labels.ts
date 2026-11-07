@@ -41,9 +41,9 @@ export function sebabTerhalangText(sebab: SebabPembatalanTerhalang): string {
     case "sudah_ada_permintaan":
       return "Sudah ada permintaan Pembatalan untuk petak ini yang belum diputuskan.";
     case "sudah_ada_pemakaman":
-      return "Sudah ada pemakaman di petak ini, jadi Pembatalan tidak bisa diajukan. Untuk mengembalikan petak yang tidak terpakai, bicarakan langsung dengan Lokasi Mitra.";
+      return "Sudah ada pemakaman di petak ini, jadi Pembatalan tidak bisa diajukan. Untuk mengembalikan petak yang tidak terpakai, hubungi CS makam.co.id; kami yang membicarakannya dengan Lokasi Mitra.";
     case "pernah_ganti_pemegang_hak":
-      return "Pemegang Hak petak ini pernah diganti, jadi Pembatalan tidak bisa diajukan. Hubungi Lokasi Mitra untuk membicarakannya.";
+      return "Pemegang Hak petak ini pernah diganti, jadi Pembatalan tidak bisa diajukan. Hubungi CS makam.co.id untuk membicarakannya.";
   }
 }
 

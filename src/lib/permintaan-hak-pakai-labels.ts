@@ -71,6 +71,6 @@ export function permintaanHakPakaiText(reason: string): string {
     case "petak_tidak_dikenal":
       return "Petak ini bukan bagian dari Hak Pakai Anda.";
     default:
-      return "Permintaan tidak bisa diproses. Coba lagi atau hubungi Lokasi Mitra.";
+      return "Permintaan tidak bisa diproses. Coba lagi atau hubungi CS makam.co.id.";
   }
 }

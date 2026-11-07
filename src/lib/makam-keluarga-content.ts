@@ -36,7 +36,7 @@ export const STATUS_HAK_PAKAI: Record<StatusHakPakaiTerbaca["key"], StatusHakPak
     label: "Masa Berlaku Habis",
     arti: "Masa Hak Pakai sudah habis, jadi perpanjangan perlu diminta ke Lokasi Mitra.",
   },
-  berakhir: { key: "berakhir", label: "Berakhir", arti: "Hak Pakai sudah berakhir; hubungi pengelola Lokasi Mitra untuk urusannya." },
+  berakhir: { key: "berakhir", label: "Berakhir", arti: "Hak Pakai sudah berakhir; hubungi CS makam.co.id untuk urusannya." },
   dibatalkan: { key: "dibatalkan", label: "Dibatalkan", arti: "Hak Pakai dibatalkan, sehingga petak ini sudah dikembalikan ke Lokasi Mitra." },
 };
 
