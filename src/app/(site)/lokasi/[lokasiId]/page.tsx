@@ -323,7 +323,12 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                 <figure key={photo.url} className="relative aspect-[4/3] overflow-hidden rounded-2xl md:aspect-auto md:min-h-0">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={photo.url} alt={photo.alt} className="h-full w-full object-cover" />
-                  {!pakaiGaleri && dikunjungiFoto ? (
+                  {/* Every Galeri photo shows its caption, so a "Foto ilustrasi" never passes as the place itself (dri, 7 Nov 2026). */}
+                  {pakaiGaleri && photo.alt ? (
+                    <figcaption className="absolute inset-x-2 bottom-2 rounded-xl bg-card/90 px-2 py-0.5 text-caption text-foreground">
+                      {photo.alt}
+                    </figcaption>
+                  ) : !pakaiGaleri && dikunjungiFoto ? (
                     <figcaption className="absolute bottom-2 left-2 hidden rounded-full bg-card/90 px-2 py-0.5 text-caption text-foreground sm:block">
                       {dikunjungiFoto}
                     </figcaption>
@@ -393,7 +398,12 @@ export default async function LokasiMitraPage({ params }: PageProps<"/lokasi/[lo
                           </p>
                           {card.biayaPemakamanKhusus ? (
                             <p className="text-lg text-muted-foreground" data-testid="biaya-pemakaman-khusus">
-                              Biaya Pemakaman tipe ini {formatRupiah(card.biayaPemakamanKhusus.total)}
+                              {/* The burial line alone: the price above already carries the Biaya Layanan Platform once. */}
+                              Biaya Pemakaman tipe ini{" "}
+                              {formatRupiah(
+                                card.biayaPemakamanKhusus.lines.find((line) => line.kind === "biaya_pemakaman")?.amount ?? card.biayaPemakamanKhusus.total,
+                              )}
+                              , menggantikan Biaya Pemakaman lokasi
                             </p>
                           ) : null}
                         </div>
